@@ -7789,6 +7789,11 @@ Query: SELECT count(1) FROM messages WHERE msg_sent = 0 AND chat_msg_event = 'x.
 Plan:
 SCAN messages
 
+Query: SELECT count(1) FROM messages m JOIN group_members gm ON gm.group_member_id = m.author_group_member_id WHERE m.msg_sent = 0 AND gm.local_display_name = ?
+Plan:
+SCAN m
+SEARCH gm USING INTEGER PRIMARY KEY (rowid=?)
+
 Query: SELECT count(1) FROM pending_group_messages
 Plan:
 SCAN pending_group_messages USING COVERING INDEX idx_pending_group_messages_group_member_id
