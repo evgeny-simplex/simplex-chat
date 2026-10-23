@@ -1,5 +1,7 @@
 # Link notices: restrict reconnecting via a link
 
+Status: replaced by plans/2026-10-16-bans-core.md and plans/2026-10-16-bans-ui.md; this design is not implemented.
+
 A group admin removes a member, a group owner deletes the group, or a user
 deletes a contact, with an optional notice. The receiving client stores the
 notice under the hash of the link it joined or connected through. While the
