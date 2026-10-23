@@ -71,6 +71,10 @@ stop() {
 case "${1:-}" in
   start) start "$2" "$3" ;;
   cmd)
+    if ! running; then
+      echo "error: $2 is not running"
+      exit 1
+    fi
     wc -c < "$dir/log" > "$dir/mark"
     printf '%s\n' "$3" >> "$dir/cmd"
     ;;
