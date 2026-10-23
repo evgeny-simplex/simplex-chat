@@ -24,6 +24,8 @@ gh workflow run android-emu.yml --ref <branch> -f claude=true
 
 A newer run of a workflow on the same branch cancels the older one.
 
+`scripts/ci/wait-runs.py [<commit>]` waits until every run for a commit, HEAD by default, has completed, then prints each run and the jobs that did not succeed.
+
 ## How long a run takes
 
 | Run | iOS | Desktop | Android |

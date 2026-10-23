@@ -23,7 +23,8 @@ Queueing for a runner adds from under a minute to 20 minutes. Results are artifa
 
 ## Scripts
 
-- `ui`: the UI driver. Compose for Desktop has no accessibility tree on Linux, so it finds text on screenshots by OCR (tesseract) and acts with xdotool on an Xvfb display. `ui` alone prints its commands: start (with app settings), shot, text, find, wait, click, click-text, scroll, type, key, avatar (a profile image's colour), ink (a text's height), do (several in a row), stop. `screen-text.py`, `screen-colour.py` and `screen-ink.py` are its helpers.
+- `ui`: the UI driver. Compose for Desktop has no accessibility tree on Linux, so it finds text on screenshots by OCR (tesseract) and acts with xdotool on an Xvfb display. `ui` alone prints its commands: start (with app settings), shot, text, find, wait, click, rclick (for context menus), click-text, scroll, type, key, avatar (a profile image's colour), ink (a text's height), do (several in a row), stop. `screen-text.py`, `screen-colour.py` and `screen-ink.py` are its helpers.
+- `peer`: CLI peers for testing the app by hand, each the CLI on a terminal that reads the commands appended to a file. `peer` alone prints its commands: start, cmd, log, wait (for a pattern in the output), stop.
 - `smoke-test.sh <app dir> <out dir> [start|onboarding|setup|backend]`: the scripted cases; the default is onboarding and both layouts. `setup` also creates a local group and makes the test SMP server the app's only names server; `backend` does that, connects to the seeded name, and checks both layouts.
 - `backend.sh start <tar.gz> <dir>` / `stop <dir>`: the test backend, below.
 - `claude-test.sh`, `claude-test.md` (the prompt), `claude-scope` (whether the prompt uses the test backend), `claude-guard.py`, `claude-usage.py`: the Claude job.
