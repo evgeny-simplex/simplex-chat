@@ -4050,10 +4050,10 @@ fun getTimestampText(t: Instant, shortFormat: Boolean = false): String {
   return time.toJavaLocalDateTime().format(dateFormatter)
 }
 
-fun localTimestamp(t: Instant): String {
+fun localTimestamp(t: Instant, timeStyle: FormatStyle = FormatStyle.MEDIUM): String {
   val tz = TimeZone.currentSystemDefault()
   val ts: LocalDateTime = t.toLocalDateTime(tz)
-  val dateFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+  val dateFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, timeStyle)
   return ts.toJavaLocalDateTime().format(dateFormatter)
 }
 

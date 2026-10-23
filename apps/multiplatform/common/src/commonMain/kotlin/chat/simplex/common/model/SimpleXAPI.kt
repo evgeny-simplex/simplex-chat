@@ -78,7 +78,6 @@ val GROUP_KNOCKING_VERSION = 15
 
 val CALL_RECONNECT_VERSION = 22
 
-// support silent removal and deletion with a ban on rejoining (LinkNotice)
 val LINK_NOTICE_VERSION = 23
 
 enum class CallOnLockScreen {

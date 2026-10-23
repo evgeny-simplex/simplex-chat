@@ -9,6 +9,8 @@ import SectionView
 import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
@@ -41,6 +43,7 @@ import chat.simplex.res.*
 import dev.icerock.moko.resources.StringResource
 import kotlinx.datetime.Clock
 import kotlinx.coroutines.*
+import java.time.format.FormatStyle
 
 @Composable
 fun GroupMemberInfoView(
@@ -442,7 +445,7 @@ fun GroupMemberInfoLayout(
             val blockedUntil = member.blockedUntil
             SettingsActionItem(
               painterResource(MR.images.ic_back_hand),
-              if (blockedUntil != null) String.format(generalGetString(MR.strings.member_banned_until), localTimestamp(blockedUntil)) else stringResource(MR.strings.member_blocked_by_admin),
+              if (blockedUntil != null) String.format(generalGetString(MR.strings.member_banned_until), localTimestamp(blockedUntil, FormatStyle.SHORT)) else stringResource(MR.strings.member_blocked_by_admin),
               click = null,
               disabled = true
             )
@@ -1076,7 +1079,7 @@ class BanDialogAction(val title: String, val action: (BanDuration) -> Unit)
 fun showBanDialog(title: String, actions: List<BanDialogAction>, text: (BanDuration) -> String) {
   AlertManager.shared.showAlertDialogButtonsColumn(title) {
     val duration = remember { mutableStateOf(BanDuration.Day) }
-    Column {
+    Column(Modifier.verticalScroll(rememberScrollState())) {
       BanDialogText(text(duration.value))
       ExposedDropDownSettingRow(
         generalGetString(MR.strings.ban_for),
@@ -1252,7 +1255,7 @@ fun showTypedConfirmationDialog(title: String, text: String, word: String, confi
   AlertManager.shared.showAlertDialogButtonsColumn(title) {
     val field = remember { mutableStateOf("") }
     val matches = field.value.trim().lowercase() == word
-    Column {
+    Column(Modifier.verticalScroll(rememberScrollState())) {
       BanDialogText(text)
       val focusRequester = remember { FocusRequester() }
       TextEditor(field, Modifier, word, focusRequester = focusRequester, maxLines = 1)

@@ -20,6 +20,7 @@ import chat.simplex.common.views.helpers.*
 import chat.simplex.res.*
 import kotlinx.coroutines.*
 import kotlinx.datetime.Instant
+import java.time.format.FormatStyle
 
 enum class ConnectionLinkType {
   INVITATION, CONTACT, GROUP
@@ -47,22 +48,14 @@ enum class LinkNoticeTarget {
 }
 
 fun showLinkNoticeAlert(target: LinkNoticeTarget, expiresAt: Instant?, cleanup: (() -> Unit)? = null) {
-  val banned = generalGetString(
-    when (target) {
-      LinkNoticeTarget.Group -> MR.strings.link_notice_banned_group
-      LinkNoticeTarget.Channel -> MR.strings.link_notice_banned_channel
-      LinkNoticeTarget.Contact -> MR.strings.link_notice_banned_contact
-      LinkNoticeTarget.Business -> MR.strings.link_notice_banned_business
-    }
-  )
-  val endTime = expiresAt?.let {
-    val format = when (target) {
-      LinkNoticeTarget.Group, LinkNoticeTarget.Channel -> MR.strings.link_notice_join_again_after
-      LinkNoticeTarget.Contact, LinkNoticeTarget.Business -> MR.strings.link_notice_connect_again_after
-    }
-    String.format(generalGetString(format), localTimestamp(it))
+  val (banned, againAfter) = when (target) {
+    LinkNoticeTarget.Group -> MR.strings.link_notice_banned_group to MR.strings.link_notice_join_again_after
+    LinkNoticeTarget.Channel -> MR.strings.link_notice_banned_channel to MR.strings.link_notice_join_again_after
+    LinkNoticeTarget.Contact -> MR.strings.link_notice_banned_contact to MR.strings.link_notice_connect_again_after
+    LinkNoticeTarget.Business -> MR.strings.link_notice_banned_business to MR.strings.link_notice_connect_again_after
   }
-  val text = banned + "\n" + generalGetString(MR.strings.link_notice_no_ids_shared) + (endTime?.let { "\n\n$it" } ?: "")
+  val endTime = expiresAt?.let { String.format(generalGetString(againAfter), localTimestamp(it, FormatStyle.SHORT)) }
+  val text = generalGetString(banned) + "\n" + generalGetString(MR.strings.link_notice_no_ids_shared) + (endTime?.let { "\n\n$it" } ?: "")
   AlertManager.privacySensitive.showAlertDialogButtonsColumn(
     title = generalGetString(MR.strings.link_notice_alert_title),
     text = AnnotatedString(text),
