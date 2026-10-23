@@ -32,7 +32,7 @@ def succeeded(conclusion: str | None) -> bool:
 
 
 repo = os.environ.get("GITHUB_REPOSITORY") or re.sub(r"^(https://github\.com/|git@github\.com:)|\.git$", "", git("remote", "get-url", "origin"))
-commit = git("rev-parse", sys.argv[1] if len(sys.argv) > 1 else "HEAD")
+commit = git("rev-parse", "--verify", f"{sys.argv[1] if len(sys.argv) > 1 else 'HEAD'}^{{commit}}")
 secs = int(sys.argv[2]) if len(sys.argv) > 2 else 120
 
 while not (runs := api(f"actions/runs?head_sha={commit}&per_page=100")["workflow_runs"]) or any(r["status"] != "completed" for r in runs):
