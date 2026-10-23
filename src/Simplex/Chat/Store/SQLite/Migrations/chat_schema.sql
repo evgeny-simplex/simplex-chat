@@ -1595,6 +1595,7 @@ CREATE UNIQUE INDEX idx_badge_purchases_store_receipt ON badge_purchases(
 );
 CREATE UNIQUE INDEX idx_link_notices_link_hash ON link_notices(link_hash);
 CREATE INDEX idx_group_members_member_restriction_expires_at ON group_members(
+  user_id,
   member_restriction_expires_at
 );
 CREATE TRIGGER on_group_members_insert_update_summary

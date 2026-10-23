@@ -22,7 +22,7 @@ CREATE UNIQUE INDEX idx_link_notices_link_hash ON link_notices(link_hash);
 ALTER TABLE group_members ADD COLUMN member_restriction_expires_at TIMESTAMPTZ;
 ALTER TABLE group_members ADD COLUMN member_restriction_by_user SMALLINT NOT NULL DEFAULT 0;
 
-CREATE INDEX idx_group_members_member_restriction_expires_at ON group_members(member_restriction_expires_at);
+CREATE INDEX idx_group_members_member_restriction_expires_at ON group_members(user_id, member_restriction_expires_at);
 |]
 
 down_m20261020_link_notices :: Text

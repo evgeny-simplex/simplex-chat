@@ -1055,7 +1055,9 @@ CREATE TABLE test_chat_schema.group_members (
     roster_served_version bigint,
     member_security_code text,
     member_security_code_verified_at timestamp with time zone,
-    invited_via_group_member_id bigint
+    invited_via_group_member_id bigint,
+    member_restriction_expires_at timestamp with time zone,
+    member_restriction_by_user smallint DEFAULT 0 NOT NULL
 );
 
 
@@ -1282,7 +1284,6 @@ CREATE TABLE test_chat_schema.link_notices (
     link_notice_id bigint NOT NULL,
     link_hash bytea NOT NULL,
     expires_at timestamp with time zone,
-    reason text,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL
 );
@@ -2797,6 +2798,10 @@ CREATE INDEX idx_group_members_invited_via_group_member_id ON test_chat_schema.g
 
 
 CREATE INDEX idx_group_members_member_profile_id ON test_chat_schema.group_members USING btree (member_profile_id);
+
+
+
+CREATE INDEX idx_group_members_member_restriction_expires_at ON test_chat_schema.group_members USING btree (user_id, member_restriction_expires_at);
 
 
 

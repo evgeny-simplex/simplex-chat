@@ -4028,9 +4028,9 @@ Query:
         FROM group_members
         WHERE user_id = ? AND member_restriction = ? AND member_restriction_expires_at <= ?
           AND member_status NOT IN (?,?,?,?)
-      
+
 Plan:
-SEARCH group_members USING INDEX idx_group_members_user_id (user_id=?)
+SEARCH group_members USING INDEX idx_group_members_member_restriction_expires_at (user_id=? AND member_restriction_expires_at<?)
 
 Query: 
         SELECT group_member_id
