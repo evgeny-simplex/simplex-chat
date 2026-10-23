@@ -2,6 +2,7 @@
 
 # Waits until every Actions run for a commit has completed, then prints each run and, for a run that did not succeed,
 # its jobs that did not succeed.
+# If the commit has no runs, it waits for the first one, without a time limit.
 # The repository is GITHUB_REPOSITORY, or origin's on GitHub; GH_TOKEN is needed for a private one.
 # Usage: scripts/ci/wait-runs.py [<commit>] [<poll secs>]
 
