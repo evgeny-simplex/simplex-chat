@@ -638,8 +638,11 @@ testArchiveContact =
       alice <# "bob> hi"
       chatDeleted alice `shouldReturn` False
 
+      alice ##> "/_delete @2 archive"
+      alice <## "bob: contact is deleted"
       alice ##> "/_delete @2 entity notify=off"
       alice <## "bob: contact is deleted"
+      chatDeleted alice `shouldReturn` True
       alice ##> "/_delete @2 archive"
       alice <## "bob: contact is deleted"
       chatDeleted alice `shouldReturn` True

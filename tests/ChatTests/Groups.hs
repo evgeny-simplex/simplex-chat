@@ -149,6 +149,7 @@ chatGroupTests = do
     it "group link without contact - connecting" testPlanGroupLinkConnecting
     it "re-join existing group after leaving" testPlanGroupLinkLeaveRejoin
     it "removed member with notice can't re-join" testPlanGroupLinkRemovedNotice
+    it "removal with notice shows no item to other members" testRemoveMemberNoticeOtherMembers
     it "removal notice expiry and replacement" testPlanGroupLinkRemovedNoticeReplaced
     it "removed member can re-join after notice expires" testPlanGroupLinkRemovedNoticeExpires
     it "removal notice applies only to the link used to join" testPlanGroupLinkRemovedNoticeOtherLinks
@@ -257,6 +258,7 @@ chatGroupTests = do
     it "mentions of blocked member are ignored" testBlockForAllMentionsIgnored
     it "replies of blocked member are not mentions" testBlockedMemberReplyNotMention
     it "timed block ends at the end time" testBlockForAllTimed
+    it "blocked member rejoins via group link unblocked" testBlockedMemberRejoinsUnblocked
     it "member who set the block sends unblock after the end time" $
       runTestCfg3 blockCleanupCfg testCfg testCfgVPrev testBlockForAllExpiryCleanup
     it "blocked pending member can't be accepted" testBlockPendingMember
@@ -3151,6 +3153,22 @@ testPlanGroupLinkRemovedNotice =
       bob ##> ("/_connect plan 2 " <> gLink)
       bannedLine bob "group link: "
 
+testRemoveMemberNoticeOtherMembers :: HasCallStack => TestParams -> IO ()
+testRemoveMemberNoticeOtherMembers =
+  testChat3 aliceProfile bobProfile cathProfile $
+    \alice bob cath -> do
+      createGroup3' "team" alice (bob, GRMember) (cath, GRMember)
+      alice #> "#team hi"
+      [bob, cath] *<# "#team alice> hi"
+
+      alice ##> "/rm team bob notice={\"ttl\":86400}"
+      concurrentlyN_
+        [ alice <## "#team: you removed bob from the group (signed)",
+          cath <## "#team: alice removed bob from the group (signed)"
+        ]
+      bob <// 50000
+      cath #$> ("/_get chat #1 count=1", chat, [(0, "hi")])
+
 testPlanGroupLinkRemovedNoticeReplaced :: HasCallStack => TestParams -> IO ()
 testPlanGroupLinkRemovedNoticeReplaced =
   testChat2 aliceProfile bobProfile $
@@ -3207,7 +3225,17 @@ testPlanGroupLinkRemovedNoticeExpires =
       bannedLine bob "group link: "
 
       threadDelay 6000000
-      joinTeamViaLink alice bob gLink "bob_1"
+      bob ##> ("/c " <> gLink)
+      bob <## "connection request sent!"
+      alice <## "bob_1 (Bob): accepting request to join group #team..."
+      concurrentlyN_
+        [ alice <## "#team: bob_1 joined the group",
+          bob
+            <### [ "#team: joining the group...",
+                   "#team: you joined the group",
+                   WithTime "#team alice> hi [>>]"
+                 ]
+        ]
 
 testPlanGroupLinkRemovedNoticeOtherLinks :: HasCallStack => TestParams -> IO ()
 testPlanGroupLinkRemovedNoticeOtherLinks =
@@ -3292,6 +3320,7 @@ testPlanGroupLinkRemovedAdminNotice =
       alice ##> "/rm team bob notice={\"ttl\":86400}"
       removedFromTeam alice bob "bob"
       linkNoticesCount bob `shouldReturn` 1
+      completeDeliveryJobsCount bob `shouldEventuallyReturn` 1
       bob ##> "/d #team"
       bob <## "#team: you deleted your local copy of the group"
       bob ##> ("/_connect plan 1 " <> gLink)
@@ -8403,6 +8432,30 @@ testBlockForAllTimed =
                "cath (Catherine): member, invited, connected"
              ]
 
+testBlockedMemberRejoinsUnblocked :: HasCallStack => TestParams -> IO ()
+testBlockedMemberRejoinsUnblocked =
+  testChat2 aliceProfile bobProfile $
+    \alice bob -> do
+      gLink <- createTeamLink alice
+      joinTeamViaLink alice bob gLink "bob"
+      alice ##> "/block for all #team bob ttl=86400"
+      alice <## "#team: you blocked bob (signed)"
+      bob <// 50000
+
+      bob ##> "/l team"
+      concurrentlyN_
+        [ do
+            bob <## "#team: you left the group"
+            bob <## "use /d #team to delete the group",
+          alice <## "#team: bob left the group (signed)"
+        ]
+      bob ##> "/d #team"
+      bob <## "#team: you deleted your local copy of the group"
+
+      joinTeamViaLink alice bob gLink "bob_1"
+      bob #> "#team hi"
+      alice <# "#team bob_1> hi"
+
 testBlockForAllExpiryCleanup :: HasCallStack => TestCC -> TestCC -> TestCC -> IO ()
 testBlockForAllExpiryCleanup alice bob cath = do
   createGroup3' "team" alice (bob, GRMember) (cath, GRMember)
@@ -11785,6 +11838,8 @@ testChannelRemoveMemberNotice ps =
         memberJoinChannel "team" [bob] [alice] shortLink fullLink cath
 
         threadDelay 1000000
+        alice ##> "/rm #team bob notice={}"
+        alice <## "bad chat command: notice is not supported for relays, members on old versions and members not in the group"
         alice ##> "/rm #team cath notice={\"ttl\":86400}"
         alice <## "#team: you removed cath from the group (signed)"
         bob <## "#team: alice removed cath from the group (signed)"
@@ -11820,6 +11875,8 @@ testChannelRemoveMemberNoticeNewRelay ps =
           bob <## "#team: alice removed dan from the group (signed)"
           waitLinkNoticesCount dan 1
           dan <// 50000
+          relayConnStatuses <- withCCTransaction dan $ \db -> map fromOnly <$> DB.query_ db "SELECT conn_status FROM connections WHERE group_member_id IS NOT NULL"
+          relayConnStatuses `shouldBe` ["deleted" :: String]
 
           cath ##> "/ad"
           (cathSLink, _cLink) <- getContactLinks cath True

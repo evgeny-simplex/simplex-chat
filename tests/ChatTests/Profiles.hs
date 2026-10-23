@@ -2428,6 +2428,8 @@ testPlanAddressContactDeletedNoticeSilent =
       bannedLine bob "contact address: "
       bob ##> ("/_connect 1 " <> cLink)
       bannedLine bob "connection link: "
+      connectUsers alice bob
+      alice <##> bob
 
 testPlanAddressContactDeletedNoticePrevVersion :: HasCallStack => TestCC -> TestCC -> IO ()
 testPlanAddressContactDeletedNoticePrevVersion alice bob = do
