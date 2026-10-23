@@ -262,6 +262,7 @@ chatGroupTests = do
     it "member who set the block sends unblock after the end time" $
       runTestCfg3 blockCleanupCfg testCfg testCfgVPrev testBlockForAllExpiryCleanup
     it "blocked pending member can't be accepted" testBlockPendingMember
+    it "block of member pending review is sent to moderators only" testBlockPendingReviewMember
     it "late automatic unblock doesn't cancel a newer block" testBlockForAllLateAutomaticUnblock
     it "blocked member's update and file leave no rows on regular members" testBlockForAllNoRowsForMembers
   describe "group member inactivity" $ do
@@ -8604,6 +8605,46 @@ testBlockPendingMember =
         ]
   where
     cfg = testCfg {chatHooks = defaultChatHooks {acceptMember = Just (\_ _ _ -> pure $ Right (GAPendingApproval, GRObserver))}}
+
+testBlockPendingReviewMember :: HasCallStack => TestParams -> IO ()
+testBlockPendingReviewMember =
+  testChat4 aliceProfile bobProfile cathProfile danProfile $
+    \alice bob cath dan -> do
+      createGroup3' "team" alice (bob, GRMember) (cath, GRModerator)
+      alice ##> "/set admission review #team all"
+      alice <## "changed member admission rules"
+      concurrentlyN_
+        [ do
+            bob <## "alice updated group #team: (signed)"
+            bob <## "changed member admission rules",
+          do
+            cath <## "alice updated group #team: (signed)"
+            cath <## "changed member admission rules"
+        ]
+
+      alice ##> "/create link #team"
+      gLink <- getGroupLink alice "team" GRMember True
+      dan ##> ("/c " <> gLink)
+      dan <## "connection request sent!"
+      alice <## "dan (Daniel): accepting request to join group #team..."
+      concurrentlyN_
+        [ alice <## "#team: dan connected and pending review",
+          dan
+            <### [ "#team: alice accepted you to the group, pending review",
+                   "#team: joining the group...",
+                   "#team: you joined the group, connecting to group moderators for admission to group",
+                   "#team: member cath (Catherine) is connected"
+                 ],
+          do
+            cath <## "#team: alice added dan (Daniel) to the group (connecting and pending review...), use /_accept member #1 4 <role> to accept member"
+            cath <## "#team: new member dan is connected and pending review, use /_accept member #1 4 <role> to accept member"
+        ]
+
+      alice ##> "/block for all #team dan"
+      alice <##. "#team: you blocked dan"
+      cath <## "#team: alice blocked dan (signed)"
+      bob <// 50000
+      dan <// 50000
 
 testBlockForAllLeftRemoved :: HasCallStack => TestParams -> IO ()
 testBlockForAllLeftRemoved =
