@@ -716,6 +716,8 @@
             "memberId": {"ref": "base64url"}
           },
           "optionalProperties": {
+            "messages": {"type": "boolean"},
+            "rosterVersion": {"type": "integer"},
             "silent": {"type": "boolean"},
             "notice": {"ref": "linkNotice"}
           }

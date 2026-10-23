@@ -123,7 +123,7 @@ suspend fun apiRemoveMembers(rh: Long?, groupId: Long, memberIds: List<Long>, wi
 3. If `withMessages = true`, the removed member's messages are also deleted from all members.
 4. `CR.UserDeletedMembers` returns the updated `GroupInfo` and removed `GroupMember` list.
 5. Without `notice`, the removed member receives a notification and loses access to the group.
-6. With `notice` (a banned member, or "Ban and remove"), the removal is silent: other members see no event, the removed member is not told, and the removed member's app does not rejoin via the group link for the chosen duration (`BanDuration`: 1 day, 1 week, Forever). Forever asks to type "yes" in "Remove forever?" (`removeBannedMembers`).
+6. With `notice` (a banned member, or "Ban and remove"), the removal is silent: members on version 23 or later see no event, apps on earlier versions show the removal, the removed member is not told unless it is an admin, and the removed member's app does not rejoin via the group link for the chosen duration (`BanDuration`: 1 day, 1 week, Forever). Forever asks to type "yes" in "Remove forever?" (`removeBannedMembers`).
 7. A notice is offered only when every selected member supports `LINK_NOTICE_VERSION`.
 
 ### 4.2 Ban Members

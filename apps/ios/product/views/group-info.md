@@ -83,7 +83,7 @@ Header shows total member count (e.g., "25 members").
 |---|---|
 | Invite members button | Shown if `canAddMembers`; disabled with tap alert if incognito |
 | Search field | Filter members by name (`searchText`) |
-| Member rows | Each shows: avatar, display name, role badge (owner/admin/moderator/observer), online status indicator, connection status |
+| Member rows | Each shows: avatar, display name, online status indicator, connection status, and one label: "banned" (banned by admin), "hidden" (messages hidden by the user), or the role badge (owner/admin/moderator/observer) |
 | Member tap | Navigates to `GroupMemberInfoView` |
 | Member swipe actions | Hide/show messages (below moderator), ban member/lift ban (moderators), remove member (admins) |
 

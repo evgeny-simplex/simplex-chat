@@ -74,7 +74,7 @@ Displays `activeSortedMembers` (excluding left/removed members, sorted by role d
 |---|---|
 | Member avatar | `MEMBER_ROW_AVATAR_SIZE` (42dp) profile image |
 | Member name | Display name with role badge |
-| Member role | Owner, Admin, Moderator, Member, Observer |
+| Member role | Owner, Admin, Moderator, Observer; replaced by "banned" for a member banned by admin and by "hidden" for a member whose messages the user hid |
 | Member status | Active, connecting, pending, left, removed |
 | Tap action | Opens `GroupMemberInfoView` with connection stats and verification code |
 

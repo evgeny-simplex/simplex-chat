@@ -321,6 +321,14 @@ Multi-selection mode allows batch operations on messages:
 
 ---
 
+## GroupChatInfoView and GroupMemberInfoView — Bans
+
+Rows of the group member list (`GroupChatInfoView` `MemberRowView.memberInfo`) show "banned" for a member banned by admin, "hidden" for a member whose messages the user hid, and the role badge otherwise.
+
+Members below moderator get "Hide messages" / "Show messages" (`blockMemberAlert`, `unblockMemberAlert`), which change only the user's `memberSettings.showMessages`. Moderators and above get "Ban member" (`showBanMemberSheet`), a sheet with "Ban for" (`BanDuration`: 1 day, 1 week, Forever) and "Ban"; admins and owners also get "Ban and remove" and "Ban, remove and delete messages" when `GroupMember.canBanAndRemove` (removal allowed, member current or pending, member supports `LINK_NOTICE_VERSION`). The sheet is closed before the chosen action runs. "Lift ban" (`unblockForAllAlert`) ends a ban; member info shows "Banned until <time>" from `GroupMember.blockedUntil`, or "Banned". Removal of a banned member that supports `LINK_NOTICE_VERSION` uses `showRemoveBannedMemberSheet`; every removal with a ban goes through `removeBannedMember`, where Forever asks to type "yes" in "Remove forever?" (`showTypedConfirmationAlert`), and calls `removeMember` with a `LinkNotice`.
+
+---
+
 ## GroupChatInfoView — Channel Adaptations
 
 When `groupInfo.useRelays == true`, [`GroupChatInfoView`](../../Shared/Views/Chat/Group/GroupChatInfoView.swift#L16) adapts its sections:
@@ -346,11 +354,7 @@ Navigates to a dedicated members view with two sections:
 - **Owners**: current user (if owner) + members with `memberRole >= .owner`
 - **Subscribers** (admin+ only): members with `memberRole < .owner`
 
-Member rows show profile image, display name (with verified shield), connection status, and role badge, or "banned" for a member banned by admin and "hidden" for a member whose messages the user hid. Non-user rows link to `GroupMemberInfoView`.
-
-### Bans
-
-Members below moderator get "Hide messages" / "Show messages" (`blockMemberAlert`, `unblockMemberAlert`), which change only the user's `memberSettings.showMessages`. Moderators and above get "Ban member" (`showBanMemberSheet`), a sheet with "Ban for" (`BanDuration`: 1 day, 1 week, Forever) and "Ban"; admins and owners also get "Ban and remove" and "Ban, remove and delete messages" when `GroupMember.canBanAndRemove` (removal allowed, member current or pending, member supports `LINK_NOTICE_VERSION`). "Lift ban" (`unblockForAllAlert`) ends a ban; member info shows "Banned until <time>" from `GroupMember.blockedUntil`, or "Banned". Removal of a banned member that supports `LINK_NOTICE_VERSION` uses `showRemoveBannedMemberSheet`; every removal with a ban goes through `removeBannedMember`, where Forever asks to type "yes" in "Remove forever?" (`showTypedConfirmationAlert`), and calls `removeMember` with a `LinkNotice`.
+Member rows show profile image, display name (with verified shield), connection status, and role badge. Non-user rows link to `GroupMemberInfoView`.
 
 ### Channel Link
 
