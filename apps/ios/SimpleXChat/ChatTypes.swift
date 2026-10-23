@@ -21,7 +21,6 @@ public let GROUP_KNOCKING_VERSION = 15
 
 public let CALL_RECONNECT_VERSION = 22
 
-// support silent removal and deletion with a ban on rejoining (LinkNotice)
 public let LINK_NOTICE_VERSION = 23
 
 public let bansGuideLink = URL(string: "https://simplex.chat/docs/guide/secret-groups.html#bans")!

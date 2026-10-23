@@ -85,8 +85,8 @@ func showTypedConfirmationAlert(
             field.placeholder = word
             field.autocapitalizationType = .none
             field.autocorrectionType = .no
-            field.addAction(UIAction { _ in
-                confirmAction.isEnabled = field.text?.trimmingCharacters(in: .whitespaces).lowercased() == word
+            field.addAction(UIAction { [weak field] _ in
+                confirmAction.isEnabled = field?.text?.trimmingCharacters(in: .whitespaces).lowercased() == word
             }, for: .editingChanged)
         }
         alert.addAction(cancelAlertAction)

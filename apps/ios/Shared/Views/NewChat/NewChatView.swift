@@ -944,20 +944,26 @@ enum LinkNoticeTarget {
 }
 
 func showLinkNoticeAlert(_ target: LinkNoticeTarget, expiresAt: Date?, cleanup: (() -> Void)? = nil) {
-    let banned = switch target {
-    case .group: NSLocalizedString("Banned by the admins of this group.", comment: "alert message")
-    case .channel: NSLocalizedString("Banned by the owners of this channel.", comment: "alert message")
-    case .contact: NSLocalizedString("Banned by this contact.", comment: "alert message")
-    case .business: NSLocalizedString("Banned by this business.", comment: "alert message")
+    let (banned, againAfter) = switch target {
+    case .group: (
+        NSLocalizedString("Banned by the admins of this group.", comment: "alert message"),
+        NSLocalizedString("You can join again after %@.", comment: "alert message")
+    )
+    case .channel: (
+        NSLocalizedString("Banned by the owners of this channel.", comment: "alert message"),
+        NSLocalizedString("You can join again after %@.", comment: "alert message")
+    )
+    case .contact: (
+        NSLocalizedString("Banned by this contact.", comment: "alert message"),
+        NSLocalizedString("You can connect again after %@.", comment: "alert message")
+    )
+    case .business: (
+        NSLocalizedString("Banned by this business.", comment: "alert message"),
+        NSLocalizedString("You can connect again after %@.", comment: "alert message")
+    )
     }
     let noIds = NSLocalizedString("No IDs shared, see How it works.", comment: "alert message")
-    let endTime: String? = expiresAt.map { expiresAt in
-        let time = expiresAt.formatted(date: .abbreviated, time: .shortened)
-        return switch target {
-        case .group, .channel: String.localizedStringWithFormat(NSLocalizedString("You can join again after %@.", comment: "alert message"), time)
-        case .contact, .business: String.localizedStringWithFormat(NSLocalizedString("You can connect again after %@.", comment: "alert message"), time)
-        }
-    }
+    let endTime = expiresAt.map { String.localizedStringWithFormat(againAfter, $0.formatted(date: .abbreviated, time: .shortened)) }
     showAlert(
         NSLocalizedString("Not allowed", comment: "alert title"),
         message: banned + "\n" + noIds + (endTime.map { "\n\n" + $0 } ?? ""),

@@ -905,11 +905,11 @@ struct BanDialogAction {
 }
 
 struct BanDialog: View {
-    @Environment(\.dismiss) var dismiss
     @EnvironmentObject var theme: AppTheme
     var title: String
     var actions: [BanDialogAction]
     var footer: (BanDuration) -> String
+    var close: (@escaping () -> Void) -> Void
     @State private var duration: BanDuration = .day
 
     var body: some View {
@@ -921,11 +921,12 @@ struct BanDialog: View {
                     }
                     ForEach(actions.indices, id: \.self) { i in
                         Button(actions[i].title, role: .destructive) {
-                            dismiss()
-                            actions[i].action(duration)
+                            let action = actions[i].action
+                            let selected = duration
+                            close { action(selected) }
                         }
                     }
-                    Button("Cancel", role: .cancel) { dismiss() }
+                    Button("Cancel", role: .cancel) { close {} }
                 } footer: {
                     Text(footer(duration)).foregroundColor(theme.colors.secondary)
                 }
@@ -954,14 +955,25 @@ func showBanMemberSheet(_ gInfo: GroupInfo, _ mem: GroupMember, dismiss: Dismiss
             }
         ]
     }
-    showAppSheet(detents: [.medium(), .large()]) {
-        BanDialog(
-            title: gInfo.useRelays
-                ? NSLocalizedString("Ban subscriber?", comment: "ban dialog title")
-                : NSLocalizedString("Ban member?", comment: "ban dialog title"),
-            actions: actions,
-            footer: { duration in banMemberText(gInfo, mem, duration, canRemove: canRemove) }
-        )
+    showBanDialog(
+        title: gInfo.useRelays
+            ? NSLocalizedString("Ban subscriber?", comment: "ban dialog title")
+            : NSLocalizedString("Ban member?", comment: "ban dialog title"),
+        actions: actions,
+        footer: { duration in banMemberText(gInfo, mem, duration, canRemove: canRemove) }
+    )
+}
+
+private func showBanDialog(title: String, actions: [BanDialogAction], footer: @escaping (BanDuration) -> String) {
+    weak var sheet: UIViewController?
+    sheet = showAppSheet(detents: [.medium(), .large()]) {
+        BanDialog(title: title, actions: actions, footer: footer) { then in
+            if let sheet {
+                sheet.dismiss(animated: true, completion: then)
+            } else {
+                then()
+            }
+        }
     }
 }
 
@@ -1003,32 +1015,30 @@ private func banMemberText(_ gInfo: GroupInfo, _ mem: GroupMember, _ duration: B
 }
 
 func showRemoveBannedMemberSheet(_ gInfo: GroupInfo, _ mem: GroupMember, dismiss: DismissAction? = nil) {
-    showAppSheet(detents: [.medium(), .large()]) {
-        BanDialog(
-            title: gInfo.useRelays
-                ? NSLocalizedString("Remove subscriber?", comment: "alert title")
-                : NSLocalizedString("Remove member?", comment: "alert title"),
-            actions: [
-                BanDialogAction(title: NSLocalizedString("Remove", comment: "alert action")) { duration in
-                    removeBannedMember(gInfo, mem, duration, withMessages: false, dismiss: dismiss)
-                },
-                BanDialogAction(title: NSLocalizedString("Remove and delete messages", comment: "alert action")) { duration in
-                    removeBannedMember(gInfo, mem, duration, withMessages: true, dismiss: dismiss)
-                }
-            ],
-            footer: { duration in
-                let format =
-                    gInfo.useRelays
-                    ? (duration == .forever
-                       ? NSLocalizedString("%@ will be removed without notification and won't be able to rejoin via the channel link.", comment: "remove dialog")
-                       : NSLocalizedString("%@ will be removed without notification and won't be able to rejoin via the channel link until the ban ends.", comment: "remove dialog"))
-                    : (duration == .forever
-                       ? NSLocalizedString("%@ will be removed without notification and won't be able to rejoin via the group link.", comment: "remove dialog")
-                       : NSLocalizedString("%@ will be removed without notification and won't be able to rejoin via the group link until the ban ends.", comment: "remove dialog"))
-                return String.localizedStringWithFormat(format, mem.chatViewName)
+    showBanDialog(
+        title: gInfo.useRelays
+            ? NSLocalizedString("Remove subscriber?", comment: "alert title")
+            : NSLocalizedString("Remove member?", comment: "alert title"),
+        actions: [
+            BanDialogAction(title: NSLocalizedString("Remove", comment: "alert action")) { duration in
+                removeBannedMember(gInfo, mem, duration, withMessages: false, dismiss: dismiss)
+            },
+            BanDialogAction(title: NSLocalizedString("Remove and delete messages", comment: "alert action")) { duration in
+                removeBannedMember(gInfo, mem, duration, withMessages: true, dismiss: dismiss)
             }
-        )
-    }
+        ],
+        footer: { duration in
+            let format =
+                gInfo.useRelays
+                ? (duration == .forever
+                   ? NSLocalizedString("%@ will be removed without notification and won't be able to rejoin via the channel link.", comment: "remove dialog")
+                   : NSLocalizedString("%@ will be removed without notification and won't be able to rejoin via the channel link until the ban ends.", comment: "remove dialog"))
+                : (duration == .forever
+                   ? NSLocalizedString("%@ will be removed without notification and won't be able to rejoin via the group link.", comment: "remove dialog")
+                   : NSLocalizedString("%@ will be removed without notification and won't be able to rejoin via the group link until the ban ends.", comment: "remove dialog"))
+            return String.localizedStringWithFormat(format, mem.chatViewName)
+        }
+    )
 }
 
 private let foreverConfirmationWord = "yes"
