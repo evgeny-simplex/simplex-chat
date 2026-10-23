@@ -1209,7 +1209,8 @@ struct ComposeView: View {
             await sending()
             let mc = connectCheckLinkPreview()
             let incognito = chat.chatInfo.profileChangeProhibited ? chat.chatInfo.incognito : incognitoDefault
-            if let (groupInfo, relayResults) = await apiConnectPreparedGroup(groupId: chat.chatInfo.apiId, incognito: incognito, msg: mc) {
+            let noticeTarget = chat.chatInfo.groupInfo.map(LinkNoticeTarget.init) ?? .group
+            if let (groupInfo, relayResults) = await apiConnectPreparedGroup(groupId: chat.chatInfo.apiId, noticeTarget: noticeTarget, incognito: incognito, msg: mc) {
                 await MainActor.run {
                     self.chatModel.updateGroup(groupInfo)
                     self.chatModel.channelRelayHostnames.removeValue(forKey: groupInfo.groupId)

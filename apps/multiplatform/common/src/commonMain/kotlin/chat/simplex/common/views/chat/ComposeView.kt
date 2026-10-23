@@ -38,6 +38,7 @@ import chat.simplex.common.views.chat.group.hostFromRelayLink
 import chat.simplex.common.views.chat.group.relayConnStatus
 import chat.simplex.common.views.chat.item.*
 import chat.simplex.common.views.helpers.*
+import chat.simplex.common.views.newchat.LinkNoticeTarget
 import chat.simplex.common.views.newchat.RelayProgressIndicator
 import chat.simplex.common.views.newchat.RelayStatusIndicator
 import chat.simplex.common.views.newchat.noShownBadge
@@ -698,6 +699,7 @@ fun ComposeView(
     val result = chatModel.controller.apiConnectPreparedGroup(
       rh = chat.remoteHostId,
       groupId = chat.chatInfo.apiId,
+      noticeTarget = chat.chatInfo.groupInfo_?.let { LinkNoticeTarget.fromGroupInfo(it) } ?: LinkNoticeTarget.Group,
       incognito = incognito,
       msg = mc
     )

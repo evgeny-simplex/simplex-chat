@@ -48,7 +48,6 @@ struct GroupChatInfoView: View {
         case largeGroupReceiptsDisabled
         case blockMemberAlert(mem: GroupMember)
         case unblockMemberAlert(mem: GroupMember)
-        case blockForAllAlert(mem: GroupMember)
         case unblockForAllAlert(mem: GroupMember)
         case error(title: LocalizedStringKey, error: LocalizedStringKey?)
 
@@ -61,7 +60,6 @@ struct GroupChatInfoView: View {
             case .largeGroupReceiptsDisabled: return "largeGroupReceiptsDisabled"
             case let .blockMemberAlert(mem): return "blockMemberAlert \(mem.groupMemberId)"
             case let .unblockMemberAlert(mem): return "unblockMemberAlert \(mem.groupMemberId)"
-            case let .blockForAllAlert(mem): return "blockForAllAlert \(mem.groupMemberId)"
             case let .unblockForAllAlert(mem): return "unblockForAllAlert \(mem.groupMemberId)"
             case let .error(title, _): return "error \(title)"
             }
@@ -290,7 +288,6 @@ struct GroupChatInfoView: View {
             case .largeGroupReceiptsDisabled: return largeGroupReceiptsDisabledAlert()
             case let .blockMemberAlert(mem): return blockMemberAlert(groupInfo, mem)
             case let .unblockMemberAlert(mem): return unblockMemberAlert(groupInfo, mem)
-            case let .blockForAllAlert(mem): return blockForAllAlert(groupInfo, mem)
             case let .unblockForAllAlert(mem): return unblockForAllAlert(groupInfo, mem)
             case let .error(title, error): return mkAlert(title: title, message: error)
             }
@@ -586,8 +583,11 @@ struct GroupChatInfoView: View {
         }
 
         @ViewBuilder private func memberInfo(_ member: GroupMember) -> some View {
-            if member.blocked {
-                Text("blocked")
+            if member.blockedByAdmin {
+                Text("banned")
+                    .foregroundColor(theme.colors.secondary)
+            } else if !member.memberSettings.showMessages {
+                Text("hidden")
                     .foregroundColor(theme.colors.secondary)
             } else {
                 let role = member.memberRole
@@ -604,13 +604,13 @@ struct GroupChatInfoView: View {
                     Button {
                         alert = .blockMemberAlert(mem: member)
                     } label: {
-                        Label("Block member", systemImage: "hand.raised").foregroundColor(theme.colors.secondary)
+                        Label("Hide messages", systemImage: "eye.slash").foregroundColor(theme.colors.secondary)
                     }
                 } else {
                     Button {
                         alert = .unblockMemberAlert(mem: member)
                     } label: {
-                        Label("Unblock member", systemImage: "hand.raised.slash").foregroundColor(theme.colors.primary)
+                        Label("Show messages", systemImage: "eye").foregroundColor(theme.colors.primary)
                     }
                 }
             }
@@ -622,13 +622,13 @@ struct GroupChatInfoView: View {
                     Button {
                         alert = .unblockForAllAlert(mem: member)
                     } label: {
-                        Label("Unblock for all", systemImage: "hand.raised.slash").foregroundColor(theme.colors.primary)
+                        Label("Lift ban", systemImage: "hand.raised.slash").foregroundColor(theme.colors.primary)
                     }
                 } else {
                     Button {
-                        alert = .blockForAllAlert(mem: member)
+                        showBanMemberSheet(groupInfo, member)
                     } label: {
-                        Label("Block for all", systemImage: "hand.raised").foregroundColor(theme.colors.secondary)
+                        Label("Ban member", systemImage: "hand.raised").foregroundColor(theme.colors.secondary)
                     }
                 }
             }
@@ -1010,6 +1010,8 @@ func showRemoveMemberAlert(_ groupInfo: GroupInfo, _ mem: GroupMember, dismiss: 
                 cancelAlertAction
             ]}
         )
+    } else if mem.blockedByAdmin && mem.canBanAndRemove(groupInfo: groupInfo) {
+        showRemoveBannedMemberSheet(groupInfo, mem, dismiss: dismiss)
     } else if groupInfo.useRelays {
         showAlert(
             NSLocalizedString("Remove subscriber?", comment: "alert title"),
@@ -1043,10 +1045,10 @@ func showRemoveMemberAlert(_ groupInfo: GroupInfo, _ mem: GroupMember, dismiss: 
     }
 }
 
-func removeMember(_ groupInfo: GroupInfo, _ mem: GroupMember, withMessages: Bool, dismiss: DismissAction?) {
+func removeMember(_ groupInfo: GroupInfo, _ mem: GroupMember, withMessages: Bool, notice: LinkNotice? = nil, dismiss: DismissAction?) {
     Task {
         do {
-            let (updatedGroupInfo, updatedMembers) = try await apiRemoveMembers(groupInfo.groupId, [mem.groupMemberId], withMessages)
+            let (updatedGroupInfo, updatedMembers) = try await apiRemoveMembers(groupInfo.groupId, [mem.groupMemberId], withMessages, notice: notice)
             await MainActor.run {
                 ChatModel.shared.updateGroup(updatedGroupInfo)
                 updatedMembers.forEach { updatedMember in

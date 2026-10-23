@@ -131,12 +131,12 @@ The `ChatCommand` enum ([`AppAPITypes.swift` L15](../Shared/Model/AppAPITypes.sw
 | `apiAddMember` | `groupId, contactId, memberRole` | Invite contact to group | [L75](../Shared/Model/AppAPITypes.swift#L75) |
 | `apiJoinGroup` | `groupId` | Accept group invitation | [L76](../Shared/Model/AppAPITypes.swift#L76) |
 | `apiAcceptMember` | `groupId, groupMemberId, memberRole` | Accept member (knocking) | [L77](../Shared/Model/AppAPITypes.swift#L77) |
-| `apiRemoveMembers` | `groupId, memberIds, withMessages` | Remove members | [L81](../Shared/Model/AppAPITypes.swift#L81) |
+| `apiRemoveMembers` | `groupId, memberIds, withMessages, notice` | Remove members; with `notice` the removal is silent and blocks rejoining | [L81](../Shared/Model/AppAPITypes.swift#L81) |
 | `apiLeaveGroup` | `groupId` | Leave group | [L82](../Shared/Model/AppAPITypes.swift#L82) |
 | `apiListMembers` | `groupId` | List group members | [L83](../Shared/Model/AppAPITypes.swift#L83) |
 | `apiUpdateGroupProfile` | `groupId, groupProfile` | Update group name/image/description | [L84](../Shared/Model/AppAPITypes.swift#L84) |
 | `apiMembersRole` | `groupId, memberIds, memberRole` | Change member roles | [L79](../Shared/Model/AppAPITypes.swift#L79) |
-| `apiBlockMembersForAll` | `groupId, memberIds, blocked` | Block members for all | [L80](../Shared/Model/AppAPITypes.swift#L80) |
+| `apiBlockMembersForAll` | `groupId, memberIds, blocked, ttl` | Ban members (block for all), for `ttl` seconds or forever | [L80](../Shared/Model/AppAPITypes.swift#L80) |
 | `apiCreateGroupLink` | `groupId, memberRole` | Create shareable group link | [L85](../Shared/Model/AppAPITypes.swift#L85) |
 | `apiGroupLinkMemberRole` | `groupId, memberRole` | Change group link default role | [L86](../Shared/Model/AppAPITypes.swift#L86) |
 | `apiDeleteGroupLink` | `groupId` | Delete group link | [L87](../Shared/Model/AppAPITypes.swift#L87) |

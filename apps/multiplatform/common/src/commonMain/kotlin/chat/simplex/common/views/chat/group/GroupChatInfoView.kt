@@ -301,6 +301,8 @@ fun removeMemberAlert(rhId: Long?, groupInfo: GroupInfo, mem: GroupMember) {
           }
         }
       })
+  } else if (mem.blockedByAdmin && mem.canBanAndRemove(groupInfo)) {
+    removeBannedMembersDialog(rhId, groupInfo, listOf(mem))
   } else if (groupInfo.useRelays) {
     AlertManager.shared.showAlertDialogButtonsColumn(
       generalGetString(MR.strings.button_remove_subscriber_question),
@@ -359,7 +361,12 @@ fun removeMemberAlert(rhId: Long?, groupInfo: GroupInfo, mem: GroupMember) {
   }
 }
 
-private fun removeMembersAlert(rhId: Long?, groupInfo: GroupInfo, memberIds: List<Long>, onSuccess: () -> Unit = {}) {
+private fun removeMembersAlert(rhId: Long?, groupInfo: GroupInfo, members: List<GroupMember>, onSuccess: () -> Unit = {}) {
+  if (members.any { it.blockedByAdmin } && members.all { it.canBanAndRemove(groupInfo) }) {
+    removeBannedMembersDialog(rhId, groupInfo, members, onSuccess)
+    return
+  }
+  val memberIds = members.map { it.groupMemberId }
   val messageId = if (groupInfo.businessChat == null)
     MR.strings.members_will_be_removed_from_group_cannot_be_undone
   else
@@ -873,13 +880,13 @@ private fun BoxScope.SelectedItemsButtonsToolbar(chat: Chat, groupInfo: GroupInf
         activeMembers = activeMembers,
         groupInfo = groupInfo,
         delete = {
-          removeMembersAlert(chat.remoteHostId, groupInfo, selectedItems.value!!.sorted()) {
+          removeMembersAlert(chat.remoteHostId, groupInfo, selectedMembers(selectedItems.value!!, activeMembers.value)) {
             selectedItems.value = null
           }
         },
         blockForAll = { block ->
           if (block) {
-            blockForAllAlert(chat.remoteHostId, groupInfo, selectedItems.value!!.sorted()) {
+            banMembersDialog(chat.remoteHostId, groupInfo, selectedMembers(selectedItems.value!!, activeMembers.value)) {
               selectedItems.value = null
             }
           } else {
@@ -903,6 +910,9 @@ private fun BoxScope.SelectedItemsButtonsToolbar(chat: Chat, groupInfo: GroupInf
     }
   }
 }
+
+private fun selectedMembers(selected: Set<Long>, members: List<GroupMember>): List<GroupMember> =
+  members.filter { it.groupMemberId in selected }.sortedBy { it.groupMemberId }
 
 @Composable
 private fun SelectedItemsCounterToolbarSetter(
@@ -1099,7 +1109,9 @@ private fun AddMembersButton(titleId: StringResource, tint: Color = MaterialThem
 fun MemberRow(member: GroupMember, user: Boolean = false, infoPage: Boolean = true, showlocalAliasAndFullName: Boolean = false, selected: Boolean = false, isChannel: Boolean = false) {
   @Composable
   fun MemberInfo() {
-    if (member.blocked) {
+    if (member.blockedByAdmin) {
+      Text(stringResource(MR.strings.member_info_member_banned), color = MaterialTheme.colors.secondary)
+    } else if (!member.memberSettings.showMessages) {
       Text(stringResource(MR.strings.member_info_member_blocked), color = MaterialTheme.colors.secondary)
     } else {
       val role = member.memberRole
@@ -1195,7 +1207,7 @@ private fun DropDownMenuForMember(rhId: Long?, member: GroupMember, groupInfo: G
             })
           } else {
             ItemAction(stringResource(MR.strings.block_for_all), painterResource(MR.images.ic_back_hand), color = MaterialTheme.colors.error, onClick = {
-              blockForAllAlert(rhId, groupInfo, member)
+              banMemberDialog(rhId, groupInfo, member)
               showMenu.value = false
             })
           }
@@ -1215,12 +1227,12 @@ private fun DropDownMenuForMember(rhId: Long?, member: GroupMember, groupInfo: G
   } else if (!member.blockedByAdmin) {
     DefaultDropdownMenu(showMenu) {
       if (member.memberSettings.showMessages) {
-        ItemAction(stringResource(MR.strings.block_member_button), painterResource(MR.images.ic_back_hand), color = MaterialTheme.colors.error, onClick = {
+        ItemAction(stringResource(MR.strings.block_member_button), painterResource(MR.images.ic_visibility_off), color = MaterialTheme.colors.error, onClick = {
           blockMemberAlert(rhId, groupInfo, member)
           showMenu.value = false
         })
       } else {
-        ItemAction(stringResource(MR.strings.unblock_member_button), painterResource(MR.images.ic_do_not_touch), onClick = {
+        ItemAction(stringResource(MR.strings.unblock_member_button), painterResource(MR.images.ic_visibility), onClick = {
           unblockMemberAlert(rhId, groupInfo, member)
           showMenu.value = false
         })
@@ -1401,9 +1413,9 @@ private fun setGroupAlias(chat: Chat, localAlias: String, chatModel: ChatModel) 
   }
 }
 
-fun removeMembers(rhId: Long?, groupInfo: GroupInfo, memberIds: List<Long>, withMessages: Boolean, onSuccess: () -> Unit = {}) {
+fun removeMembers(rhId: Long?, groupInfo: GroupInfo, memberIds: List<Long>, withMessages: Boolean, notice: LinkNotice? = null, onSuccess: () -> Unit = {}) {
   withBGApi {
-    val r = chatModel.controller.apiRemoveMembers(rhId, groupInfo.groupId, memberIds, withMessages = withMessages)
+    val r = chatModel.controller.apiRemoveMembers(rhId, groupInfo.groupId, memberIds, withMessages = withMessages, notice = notice)
     if (r != null) {
       val (updatedGroupInfo, updatedMembers) = r
       withContext(Dispatchers.Main) {

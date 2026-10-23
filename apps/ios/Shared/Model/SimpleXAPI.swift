@@ -1075,13 +1075,15 @@ func apiConnect(incognito: Bool, connLink: CreatedConnLink) async -> (ConnReqTyp
         return nil
     default: ()
     }
-    if let r { await apiConnectResponseAlert(r) }
+    if let r { await apiConnectResponseAlert(r, noticeTarget: LinkNoticeTarget(connLink)) }
     return nil
 }
 
-private func apiConnectResponseAlert<R>(_ r: APIResult<R>) async {
+private func apiConnectResponseAlert<R>(_ r: APIResult<R>, noticeTarget: LinkNoticeTarget = .contact) async {
     await MainActor.run {
         switch r.unexpected {
+        case let .error(.linkNotice(expiresAt)):
+            showLinkNoticeAlert(noticeTarget, expiresAt: expiresAt)
         case .error(.invalidConnReq):
             showAlert(
                 NSLocalizedString("Invalid connection link", comment: ""),
@@ -1231,14 +1233,14 @@ func apiChangePreparedGroupUser(groupId: Int64, newUserId: Int64) async throws -
 func apiConnectPreparedContact(contactId: Int64, incognito: Bool, msg: MsgContent?) async -> Contact? {
     let r: APIResult<ChatResponse1>? = await chatApiSendCmdWithRetry(.apiConnectPreparedContact(contactId: contactId, incognito: incognito, msg: msg))
     if case let .result(.startedConnectionToContact(_, contact)) = r { return contact }
-    if let r { await apiConnectResponseAlert(r) }
+    if let r { await apiConnectResponseAlert(r, noticeTarget: .contact) }
     return nil
 }
 
-func apiConnectPreparedGroup(groupId: Int64, incognito: Bool, msg: MsgContent?) async -> (GroupInfo, [RelayConnectionResult])? {
+func apiConnectPreparedGroup(groupId: Int64, noticeTarget: LinkNoticeTarget, incognito: Bool, msg: MsgContent?) async -> (GroupInfo, [RelayConnectionResult])? {
     let r: APIResult<ChatResponse1>? = await chatApiSendCmdWithRetry(.apiConnectPreparedGroup(groupId: groupId, incognito: incognito, msg: msg))
     if case let .result(.startedConnectionToGroup(_, groupInfo, relayResults)) = r { return (groupInfo, relayResults) }
-    if let r { await apiConnectResponseAlert(r) }
+    if let r { await apiConnectResponseAlert(r, noticeTarget: noticeTarget) }
     return nil
 }
 
@@ -1251,7 +1253,13 @@ func apiConnectContactViaAddress(incognito: Bool, contactId: Int64) async -> Con
     if case let .result(.sentInvitationToContact(_, contact, _)) = r { return contact }
     if let r {
         logger.error("apiConnectContactViaAddress error: \(responseError(r.unexpected))")
-        await MainActor.run { showAlert(connectionErrorAlert(r)) }
+        await MainActor.run {
+            if case let .error(.linkNotice(expiresAt)) = r.unexpected {
+                showLinkNoticeAlert(.contact, expiresAt: expiresAt)
+            } else {
+                showAlert(connectionErrorAlert(r))
+            }
+        }
     }
     return nil
 }
@@ -2026,8 +2034,8 @@ func apiDeleteMemberSupportChat(_ groupId: Int64, _ groupMemberId: Int64) async 
     throw r.unexpected
 }
 
-func apiRemoveMembers(_ groupId: Int64, _ memberIds: [Int64], _ withMessages: Bool) async throws -> (GroupInfo, [GroupMember]) {
-    let r: ChatResponse2 = try await chatSendCmd(.apiRemoveMembers(groupId: groupId, memberIds: memberIds, withMessages: withMessages), bgTask: false)
+func apiRemoveMembers(_ groupId: Int64, _ memberIds: [Int64], _ withMessages: Bool, notice: LinkNotice? = nil) async throws -> (GroupInfo, [GroupMember]) {
+    let r: ChatResponse2 = try await chatSendCmd(.apiRemoveMembers(groupId: groupId, memberIds: memberIds, withMessages: withMessages, notice: notice), bgTask: false)
     if case let .userDeletedMembers(_, updatedGroupInfo, members, _withMessages) = r { return (updatedGroupInfo, members) }
     throw r.unexpected
 }
@@ -2038,8 +2046,8 @@ func apiMembersRole(_ groupId: Int64, _ memberIds: [Int64], _ memberRole: GroupM
     throw r.unexpected
 }
 
-func apiBlockMembersForAll(_ groupId: Int64, _ memberIds: [Int64], _ blocked: Bool) async throws -> [GroupMember] {
-    let r: ChatResponse2 = try await chatSendCmd(.apiBlockMembersForAll(groupId: groupId, memberIds: memberIds, blocked: blocked), bgTask: false)
+func apiBlockMembersForAll(_ groupId: Int64, _ memberIds: [Int64], _ blocked: Bool, ttl: Int64? = nil) async throws -> [GroupMember] {
+    let r: ChatResponse2 = try await chatSendCmd(.apiBlockMembersForAll(groupId: groupId, memberIds: memberIds, blocked: blocked, ttl: ttl), bgTask: false)
     if case let .membersBlockedForAllUser(_, _, members, _) = r { return members }
     throw r.unexpected
 }

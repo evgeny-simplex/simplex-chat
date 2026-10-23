@@ -108,6 +108,18 @@ Establishing contact between two SimpleX Chat users. SimpleX uses no user identi
 3. In `NewChatView.planAndConnect()`: `.simplexLink(_, .relay, _, _)` pattern triggers the same alert.
 4. The link is NOT processed further. No connection is attempted.
 
+### 7a2. Banned Link (Link Notice)
+
+1. The core stores a notice for the link the user joined or connected through when a group admin removes the user with a ban, or a contact or business deletes the user with a ban.
+2. The plan returns `.contactAddress(.linkNotice(expiresAt, contactSLinkData_))` or `.groupLink(.linkNotice(expiresAt))`; a connect call (`apiConnect`, `apiConnectPreparedContact`, `apiConnectPreparedGroup`, `apiConnectContactViaAddress`) returns `ChatErrorType.linkNotice(expiresAt)`.
+3. `showLinkNoticeAlert(_:expiresAt:cleanup:)` in `NewChatView.swift` shows "Not allowed":
+   - line 1 by target (`LinkNoticeTarget`): group "Banned by the admins of this group.", channel "Banned by the owners of this channel.", contact "Banned by this contact.", business "Banned by this business."
+   - line 2: "No IDs shared, see How it works."
+   - with an end time: "You can join again after <time>." (group, channel) or "You can connect again after <time>." (contact, business)
+   - buttons: OK; How it works opens the user guide section on bans (`bansGuideLink`)
+4. Target: plan `.linkNotice` from the link type, a SimpleX channel name gives channel, and business when the address link data has `business`; `apiConnect` from the link type of the connection link; `apiConnectPreparedGroup` from the group (business chat, channel, group); `apiConnectPreparedContact` and `apiConnectContactViaAddress`: contact.
+5. No connection is attempted.
+
 ### 7b. Channel Prepared Group Flow
 
 1. When connecting to a channel link (`GroupShortLinkInfo.direct == false`):

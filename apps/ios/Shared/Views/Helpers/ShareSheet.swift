@@ -70,6 +70,31 @@ func showAlert(
     }
 }
 
+func showTypedConfirmationAlert(
+    _ title: String,
+    message: String,
+    word: String,
+    confirmTitle: String,
+    confirm: @escaping () -> Void
+) {
+    if let topController = getTopViewController() {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        let confirmAction = UIAlertAction(title: confirmTitle, style: .destructive) { _ in confirm() }
+        confirmAction.isEnabled = false
+        alert.addTextField { field in
+            field.placeholder = word
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+            field.addAction(UIAction { _ in
+                confirmAction.isEnabled = field.text?.trimmingCharacters(in: .whitespaces).lowercased() == word
+            }, for: .editingChanged)
+        }
+        alert.addAction(cancelAlertAction)
+        alert.addAction(confirmAction)
+        topController.present(alert, animated: true)
+    }
+}
+
 func showSheet(
     _ title: String?,
     message: String? = nil,

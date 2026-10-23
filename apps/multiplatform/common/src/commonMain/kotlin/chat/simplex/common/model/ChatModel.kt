@@ -2849,6 +2849,7 @@ data class GroupMember (
   val memberStatus: GroupMemberStatus,
   val memberSettings: GroupMemberSettings,
   val blockedByAdmin: Boolean,
+  val blockedUntil: Instant? = null,
   val invitedBy: InvitedBy,
   val localDisplayName: String,
   val memberProfile: LocalProfile,
@@ -2967,6 +2968,26 @@ data class GroupMember (
   val memberCurrentOrPending: Boolean get() =
     memberCurrent || memberPending
 
+  val memberRemoved: Boolean get() = when (this.memberStatus) {
+    GroupMemberStatus.MemRejected -> true
+    GroupMemberStatus.MemRemoved -> true
+    GroupMemberStatus.MemLeft -> true
+    GroupMemberStatus.MemGroupDeleted -> true
+    GroupMemberStatus.MemUnknown -> false
+    GroupMemberStatus.MemInvited -> false
+    GroupMemberStatus.MemPendingApproval -> false
+    GroupMemberStatus.MemPendingReview -> false
+    GroupMemberStatus.MemIntroduced -> false
+    GroupMemberStatus.MemIntroInvited -> false
+    GroupMemberStatus.MemAccepted -> false
+    GroupMemberStatus.MemAnnounced -> false
+    GroupMemberStatus.MemConnected -> false
+    GroupMemberStatus.MemComplete -> false
+    GroupMemberStatus.MemCreator -> false
+  }
+
+  val supportsLinkNotice: Boolean get() = versionRange.maxVersion >= LINK_NOTICE_VERSION
+
   fun canBeRemoved(groupInfo: GroupInfo): Boolean {
     val userRole = groupInfo.membership.memberRole
     return userRole >= GroupMemberRole.Admin && userRole >= memberRole && groupInfo.membership.memberActive
@@ -2989,8 +3010,11 @@ data class GroupMember (
     val userRole = groupInfo.membership.memberRole
     return memberRole != GroupMemberRole.Relay && memberRole < GroupMemberRole.Moderator
         && userRole >= GroupMemberRole.Moderator && userRole >= memberRole && groupInfo.membership.memberActive
-        && !memberPending
+        && !memberRemoved
   }
+
+  fun canBanAndRemove(groupInfo: GroupInfo): Boolean =
+    canBeRemoved(groupInfo) && memberCurrentOrPending && supportsLinkNotice
 
   val supportChatNotRead: Boolean get() =
     if (supportChat != null)
