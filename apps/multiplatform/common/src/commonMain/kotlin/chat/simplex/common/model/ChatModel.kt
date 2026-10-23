@@ -5452,7 +5452,7 @@ object ReportReasonSerializer : KSerializer<ReportReason> {
   override fun deserialize(decoder: Decoder): ReportReason {
     return when (val value = decoder.decodeString()) {
       "spam" -> ReportReason.Spam
-      "illegal" -> ReportReason.Illegal
+      "illegal", "content" -> ReportReason.Illegal
       "community" -> ReportReason.Community
       "profile" -> ReportReason.Profile
       "other" -> ReportReason.Other
