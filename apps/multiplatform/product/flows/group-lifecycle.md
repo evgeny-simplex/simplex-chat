@@ -115,27 +115,29 @@ suspend fun apiMembersRole(rh: Long?, groupId: Long, memberIds: List<Long>, memb
 ### 4.1 Remove Members
 
 ```kotlin
-suspend fun apiRemoveMembers(rh: Long?, groupId: Long, memberIds: List<Long>, withMessages: Boolean): Pair<GroupInfo, List<GroupMember>>?
+suspend fun apiRemoveMembers(rh: Long?, groupId: Long, memberIds: List<Long>, withMessages: Boolean, notice: LinkNotice? = null): Pair<GroupInfo, List<GroupMember>>?
 ```
 
 1. Owner or Admin selects a member and taps "Remove".
-2. `CC.ApiRemoveMembers(groupId, memberIds, withMessages)` is sent.
+2. `CC.ApiRemoveMembers(groupId, memberIds, withMessages, notice)` is sent.
 3. If `withMessages = true`, the removed member's messages are also deleted from all members.
 4. `CR.UserDeletedMembers` returns the updated `GroupInfo` and removed `GroupMember` list.
-5. The removed member receives a notification and loses access to the group.
+5. Without `notice`, the removed member receives a notification and loses access to the group.
+6. With `notice` (a banned member, or "Ban and remove"), the removal is silent: members on version 23 or later see no event, apps on earlier versions show the removal, the removed member is not told unless it is an admin, and the removed member's app does not rejoin via the group link for the chosen duration (`BanDuration`: 1 day, 1 week, Forever). Forever asks to type "yes" in "Remove forever?" (`removeBannedMembers`).
+7. A notice is offered only when every selected member supports `LINK_NOTICE_VERSION`.
 
-### 4.2 Block Members for All
+### 4.2 Ban Members
 
 ```kotlin
-suspend fun apiBlockMembersForAll(rh: Long?, groupId: Long, memberIds: List<Long>, blocked: Boolean): List<GroupMember>
+suspend fun apiBlockMembersForAll(rh: Long?, groupId: Long, memberIds: List<Long>, blocked: Boolean, ttl: Long? = null): List<GroupMember>
 ```
 
-1. Owner, Admin, or Moderator selects a member and taps "Block for all".
-2. `CC.ApiBlockMembersForAll(groupId, memberIds, blocked)` is sent.
-3. `blocked = true` blocks; `blocked = false` unblocks.
-4. `CR.MembersBlockedForAllUser` returns the updated member list.
-5. Blocked members' messages are hidden from all group members.
-6. The blocked member can still see the group but their messages are not delivered.
+1. Owner, Admin, or Moderator selects a member and taps "Ban member", or selects several members and taps the ban button.
+2. "Ban member?" (`banMemberDialog`, `banMembersDialog`) offers "Ban for" 1 day (default), 1 week or Forever; admins and owners also get "Ban and remove" and "Ban, remove and delete messages".
+3. `CC.ApiBlockMembersForAll(groupId, memberIds, blocked, ttl)` is sent; `ttl` is absent for Forever.
+4. `CR.MembersBlockedForAllUser` returns the updated member list; `GroupMember.blockedUntil` is the end time.
+5. Banned members' messages are hidden for all members; only moderators and above see placeholders.
+6. "Lift ban" (`unblockForAllAlert`) sends `blocked = false`.
 
 ---
 

@@ -52,6 +52,16 @@ Open a group and tap on group's name to view members list, there you can tap on 
 - Admin: Same as member, but can delete the messages of others and remove members from the group.
 - Owner: Same as admin, but can change group preferences.
 
+## Bans
+
+Moderators, admins and owners can ban a member for a set time or forever. Other members do not see the messages of a banned member, and moderators, admins and owners see them hidden. The banned member is not told.
+
+Admins and owners can also ban and remove a member. The member's app does not show the removal, and it does not allow joining the group via the same link until the ban ends. Contacts and businesses can delete a contact or a chat with a ban, with the same effect for their address.
+
+When you try to join or connect via a link you are banned from, the app shows "Not allowed" with the time when the ban ends.
+
+No IDs are shared to apply a ban: it is sent only to the banned member's app, which stores it for the link this member used. You can still join the same group or connect to the same contact via another link or an invitation.
+
 ## Link to join group
 
 <img src="../../blog/images/20221108-group1.png" width="288"> &nbsp;&nbsp; <img src="../../blog/images/20221108-group2.png" width="288">

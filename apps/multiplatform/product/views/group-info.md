@@ -74,7 +74,7 @@ Displays `activeSortedMembers` (excluding left/removed members, sorted by role d
 |---|---|
 | Member avatar | `MEMBER_ROW_AVATAR_SIZE` (42dp) profile image |
 | Member name | Display name with role badge |
-| Member role | Owner, Admin, Moderator, Member, Observer |
+| Member role | Owner, Admin, Moderator, Observer; replaced by "banned" for a member banned by admin and by "hidden" for a member whose messages the user hid |
 | Member status | Active, connecting, pending, left, removed |
 | Tap action | Opens `GroupMemberInfoView` with connection stats and verification code |
 
@@ -108,8 +108,10 @@ Displays `activeSortedMembers` (excluding left/removed members, sorted by role d
 | Connection stats | Server information, connection status |
 | Security code | Verification code for the member connection |
 | Role change | Change member role (admin+ only) |
-| Remove member | Remove from group (admin+ only) |
-| Block member | Block member for self |
+| Remove member | Remove from group (admin+ only); for a banned member that supports `LINK_NOTICE_VERSION`, a dialog with "Ban for" and removal without notification |
+| Hide messages | Hide a member's messages for self (below moderator) |
+| Ban member | Moderators: "Ban for" 1 day, 1 week or Forever; admins and owners also "Ban and remove" and "Ban, remove and delete messages"; Forever removal asks to type "yes" |
+| Lift ban | Ends a ban while the member is in the group |
 | Direct message | Open direct chat with member |
 
 ### Developer Tools Section
