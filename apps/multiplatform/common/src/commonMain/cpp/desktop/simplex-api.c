@@ -46,6 +46,8 @@ extern char *chat_write_file(chat_ctrl ctrl, const char *path, char *ptr, int le
 extern char *chat_read_file(const char *path, const char *key, const char *nonce);
 extern char *chat_encrypt_file(chat_ctrl ctrl, const char *from_path, const char *to_path);
 extern char *chat_decrypt_file(const char *from_path, const char *key, const char *nonce, const char *to_path);
+extern char *chat_resize_image_uri(char *ptr, int length, int max_size);
+extern char *chat_resize_image(char *ptr, int length, int max_size, int png);
 
 // As a reference: https://stackoverflow.com/a/60002045
 jstring decode_to_utf8_string(JNIEnv *env, char *string) {
@@ -273,4 +275,18 @@ Java_chat_simplex_common_platform_CoreKt_chatDecryptFile(JNIEnv *env, jclass cla
     (*env)->ReleaseStringUTFChars(env,  nonce, _nonce);
     (*env)->ReleaseStringUTFChars(env, to_path, _to_path);
     return res;
+}
+
+JNIEXPORT jstring JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatResizeImageUri(JNIEnv *env, jclass clazz, jobject buffer, jint maxSize) {
+    jbyte *buff = (jbyte *) (*env)->GetDirectBufferAddress(env, buffer);
+    jlong capacity = (*env)->GetDirectBufferCapacity(env, buffer);
+    return decode_to_utf8_string(env, chat_resize_image_uri(buff, capacity, maxSize));
+}
+
+JNIEXPORT jstring JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatResizeImage(JNIEnv *env, jclass clazz, jobject buffer, jint maxSize, jboolean png) {
+    jbyte *buff = (jbyte *) (*env)->GetDirectBufferAddress(env, buffer);
+    jlong capacity = (*env)->GetDirectBufferCapacity(env, buffer);
+    return decode_to_utf8_string(env, chat_resize_image(buff, capacity, maxSize, png));
 }

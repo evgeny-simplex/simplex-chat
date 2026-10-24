@@ -484,6 +484,8 @@
                   "chat_badge_keygen"
                   "chat_badge_issue"
                   "chat_write_file"
+                  "chat_resize_image_uri"
+                  "chat_resize_image"
                 ];
                 postInstall = ''
                   set -x

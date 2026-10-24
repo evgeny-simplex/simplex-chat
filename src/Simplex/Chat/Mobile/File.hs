@@ -10,6 +10,8 @@ module Simplex.Chat.Mobile.File
     cChatReadFile,
     cChatEncryptFile,
     cChatDecryptFile,
+    cChatResizeImageUri,
+    cChatResizeImage,
     WriteFileResult (..),
     ReadFileResult (..),
     chatWriteFile,
@@ -17,6 +19,7 @@ module Simplex.Chat.Mobile.File
   )
 where
 
+import Codec.Picture (DynamicImage, decodeImage)
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.IO.Class
@@ -24,6 +27,7 @@ import qualified Data.Aeson as J
 import qualified Data.Aeson.TH as JQ
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Base64.Lazy as LB64
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Lazy.Char8 as LB'
 import Data.Char (chr)
@@ -35,6 +39,7 @@ import Foreign.Ptr
 import Foreign.StablePtr
 import Foreign.Storable (poke, pokeByteOff)
 import Simplex.Chat.Controller (ChatController (..))
+import Simplex.Chat.Image (ImageFormat (..), imageFormat, resizeImage, resizeImageDataUri)
 import Simplex.Chat.Mobile.Shared
 import Simplex.Chat.Util (chunkSize, encryptFile)
 import Simplex.Messaging.Crypto.File (CryptoFile (..), CryptoFileArgs (..), CryptoFileHandle, FTCryptoError (..))
@@ -138,6 +143,24 @@ chatDecryptFile fromPath keyStr nonceStr toPath = fromLeft "" <$> runCatchExcept
       when (B.length ch /= chSize') $ throwError $ FTCEFileIOError "encrypting file: unexpected EOF"
       liftIO $ B.hPut w ch
       when (size' > 0) $ decryptChunks r w size'
+
+cChatResizeImageUri :: Ptr Word8 -> CInt -> CInt -> IO CString
+cChatResizeImageUri ptr len maxSize = cResizeImage id (resizeImageDataUri $ fromIntegral maxSize) ptr len
+
+cChatResizeImage :: Ptr Word8 -> CInt -> CInt -> CInt -> IO CString
+cChatResizeImage ptr len maxSize png = cResizeImage LB64.encode resize ptr len
+  where
+    resize img = resizeImage (format img) (fromIntegral maxSize) img
+    format img = case compare png 0 of
+      LT -> imageFormat img
+      EQ -> IFJpeg
+      GT -> IFPng
+
+cResizeImage :: (LB.ByteString -> LB.ByteString) -> (DynamicImage -> IO (Either String LB.ByteString)) -> Ptr Word8 -> CInt -> IO CString
+cResizeImage encode resize ptr len = do
+  s <- getByteString ptr len
+  r <- runCatchExceptT $ ExceptT . resize =<< liftEither (decodeImage s)
+  newCStringFromLazyBS $ either (const "") encode r
 
 runCatchExceptT :: ExceptT String IO a -> IO (Either String a)
 runCatchExceptT action = runExceptT action `catchAll` (pure . Left . show)

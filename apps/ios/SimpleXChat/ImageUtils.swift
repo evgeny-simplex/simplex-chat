@@ -86,33 +86,18 @@ public func cropToSquare(_ image: UIImage) -> UIImage {
 }
 
 public func resizeImageToDataSize(_ image: UIImage, maxDataSize: Int64, hasAlpha: Bool) -> Data? {
-    var img = image
-    var data = hasAlpha ? img.pngData() : img.jpegData(compressionQuality: 0.85)
-    var dataSize = data?.count ?? 0
-    while dataSize != 0 && dataSize > maxDataSize {
-        let ratio = sqrt(Double(dataSize) / Double(maxDataSize))
-        let clippedRatio = min(ratio, 2.0)
-        img = reduceSize(img, ratio: clippedRatio, hasAlpha: hasAlpha)
-        data = hasAlpha ? img.pngData() : img.jpegData(compressionQuality: 0.85)
-        dataSize = data?.count ?? 0
-    }
-    logger.debug("resizeImageToDataSize final \(dataSize)")
+    let data = resizeImageWithCore(image, hasAlpha: hasAlpha) {
+        chat_resize_image($0, $1, Int32(maxDataSize), hasAlpha ? 1 : 0)
+    }.flatMap { Data(base64Encoded: $0) }
+    logger.debug("resizeImageToDataSize final \(data?.count ?? 0)")
     return data
 }
 
 public func resizeImageToStrSizeSync(_ image: UIImage, maxDataSize: Int64) -> String? {
-    var img = image
-    let hasAlpha = imageHasAlpha(image)
-    var str = compressImageStr(img, hasAlpha: hasAlpha)
-    var dataSize = str?.count ?? 0
-    while dataSize != 0 && dataSize > maxDataSize {
-        let ratio = sqrt(Double(dataSize) / Double(maxDataSize))
-        let clippedRatio = min(ratio, 2.0)
-        img = reduceSize(img, ratio: clippedRatio, hasAlpha: hasAlpha)
-        str = compressImageStr(img, hasAlpha: hasAlpha)
-        dataSize = str?.count ?? 0
+    let str = resizeImageWithCore(image, hasAlpha: imageHasAlpha(image)) {
+        chat_resize_image_uri($0, $1, Int32(maxDataSize))
     }
-    logger.debug("resizeImageToStrSize final \(dataSize)")
+    logger.debug("resizeImageToStrSize final \(str?.count ?? 0)")
     return str
 }
 
@@ -120,22 +105,12 @@ public func resizeImageToStrSize(_ image: UIImage, maxDataSize: Int64) async -> 
     resizeImageToStrSizeSync(image, maxDataSize: maxDataSize)
 }
 
-public func compressImageStr(_ image: UIImage, _ compressionQuality: CGFloat = 0.85, hasAlpha: Bool) -> String? {
-//    // Heavy workload to verify if UI gets blocked by the call
-//    for i in 0..<100 {
-//        print(image.jpegData(compressionQuality: Double(i) / 100)?.count ?? 0, terminator: ", ")
-//    }
-    let ext = hasAlpha ? "png" : "jpg"
-    if let data = hasAlpha ? image.pngData() : image.jpegData(compressionQuality: compressionQuality) {
-        return "data:image/\(ext);base64,\(data.base64EncodedString())"
-    }
-    return nil
-}
-
-private func reduceSize(_ image: UIImage, ratio: CGFloat, hasAlpha: Bool) -> UIImage {
-    let newSize = CGSize(width: floor(image.size.width / ratio), height: floor(image.size.height / ratio))
-    let bounds = CGRect(origin: .zero, size: newSize)
-    return resizeImage(image, newBounds: bounds, drawIn: bounds, hasAlpha: hasAlpha)
+private func resizeImageWithCore(_ image: UIImage, hasAlpha: Bool, _ resize: (UnsafeMutablePointer<CChar>, Int32) -> UnsafeMutablePointer<CChar>?) -> String? {
+    let bounds = CGRect(origin: .zero, size: image.size)
+    let img = image.imageOrientation == .up ? image : resizeImage(image, newBounds: bounds, drawIn: bounds, hasAlpha: hasAlpha)
+    guard var data = hasAlpha ? img.pngData() : img.jpegData(compressionQuality: 0.85) else { return nil }
+    let str = data.withUnsafeMutableBytes { fromCString(resize($0.baseAddress!.assumingMemoryBound(to: CChar.self), Int32($0.count))!) }
+    return str.isEmpty ? nil : str
 }
 
 public func resizeImage(_ image: UIImage, newBounds: CGRect, drawIn: CGRect, hasAlpha: Bool) -> UIImage {
@@ -255,9 +230,9 @@ public func saveWallpaperFile(url: URL) -> String? {
 public func saveWallpaperFile(image: UIImage) -> String? {
     let hasAlpha = imageHasAlpha(image)
     let destFile = URL(fileURLWithPath: generateNewFileName(getWallpaperDirectory().path + "/" + "wallpaper", hasAlpha ? "png" : "jpg", fullPath: true))
-    let dataResized = resizeImageToDataSize(image, maxDataSize: 5_000_000, hasAlpha: hasAlpha)
+    guard let dataResized = resizeImageToDataSize(image, maxDataSize: 5_000_000, hasAlpha: hasAlpha) else { return nil }
     do {
-        try dataResized!.write(to: destFile)
+        try dataResized.write(to: destFile)
         return destFile.lastPathComponent
     } catch {
         logger.error("FileUtils.saveWallpaperFile error: \(error.localizedDescription)")
