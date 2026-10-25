@@ -34,7 +34,7 @@ These parts repeat simplexmq PR simplex-chat/simplexmq#1986 (run 40223821058) wi
 
 Differences required by simplex-chat's structure:
 - Input `base`: jobs are selected by changed paths (packages_release.py:502-506), and a dispatch has no pull request base.
-- maybe-release outputs `reduced` without a JSON `matrix`: simplex-chat already splits its Linux entries into jobs with job-level conditions (build-linux-push :752, build-linux-ghc8 :788), so the 24.04 entry becomes the job build-linux-full (change 8).
+- Job conditions select the reduced job in both repositories. simplex-chat already splits its Linux entries into jobs with job-level conditions (build-linux-push :752, build-linux-ghc8 :788), so the 24.04 entry becomes the job build-linux-full (change 8).
 - The reduced job is ubuntu-22.04 x86_64, where simplexmq uses 24.04: the 22.04 entry builds libsimplex (`libs: true`, build.yml:247), which the package tests load (:672).
 
 ## Scopes
@@ -102,7 +102,7 @@ Each run also includes the control jobs variables (build.yml:66-74) and maybe-re
   ```
   ````
   The block is read from the event payload (`github.event.pull_request.body`) of the run, so a description edit applies from the next push; the types of change 1 exclude `edited`.
-- Leading and trailing whitespace is removed, and empty lines are ignored. Each pattern is passed as `-m <pattern>`, and `--fail-on=empty` is added when at least one pattern is given (change 7d). With no pattern, the whole suite runs.
+- Leading and trailing whitespace is removed, and empty lines are ignored. Each pattern is passed as `-m <pattern>`, and `--fail-on=empty` is added when at least one pattern is given (change 7d). `/` selects the whole suite; with no pattern, a reduced run builds without core tests and "Run tests" prints "No tests selected".
 - The suite runs under `hspec` (Test.hs:62), which reads the command line (hspec-core 2.11.7, Runner.hs:179-180, :235-237).
 - A pattern is matched as a substring against the item path `/group/subgroup/item/` and against its formatted requirement (hspec-core 2.11.7, Util.hs:100-128). A leading and a trailing `/` select one group: `/SimpleX badge service/` excludes `SimpleX badge service e2e`.
 - With `--fail-on=empty`, a run in which every item is filtered out fails (hspec-core 2.11.7 help.txt:14-17).
@@ -152,7 +152,7 @@ Adoption order: good-git Q3 (PR evgeny-simplex/agents#3).
      workflow_dispatch:
        inputs:
          tests:
-           description: "hspec match patterns, one per line; empty runs all tests"
+           description: "hspec match patterns, one per line; / runs all tests, empty runs none"
            type: string
            default: ""
          base:

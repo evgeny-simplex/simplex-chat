@@ -26,7 +26,7 @@ Endpoint: https://docs.github.com/en/rest/actions/workflows#create-a-workflow-di
 
 | Input | Default | Value |
 |---|---|---|
-| `tests` | empty | hspec match patterns, one per line (`\n` in JSON); with an empty value, the whole suite runs |
+| `tests` | empty | hspec match patterns, one per line (`\n` in JSON); `/` runs the whole suite, and an empty value builds without tests |
 | `base` | `master` | the branch that the changes are compared with:<br>`stable` for a branch cut from stable<br>the parent branch for a stacked branch |
 
 When a newer dispatch on the same branch starts build-linux or build-ios, GitHub cancels the unfinished job of the older one (`cancel-in-progress`, changes 6 and 12).
@@ -133,7 +133,7 @@ The CI plan lists them ("Scopes lacking CI tests today"). The agent that changes
   A description edit applies from the next push.
 - One pattern per line; leading and trailing whitespace is removed, and empty lines are ignored. Each pattern becomes `-m <pattern>`; an item is selected when any pattern is a substring of its path `/group/subgroup/item/` (hspec-core 2.11.7, Util.hs:100-128). A leading and a trailing `/` select one group: `/SimpleX badge service/` excludes `/SimpleX badge service e2e/`.
 - With at least one pattern, `--fail-on=empty` is added, so a run in which every item is filtered out fails; a misspelt pattern beside a matching one is visible only in the example count.
-- With no pattern, and after ready for review, the whole suite runs.
+- `/` selects the whole suite. With no pattern, a reduced run builds without core tests. After ready for review, the whole suite runs.
 
 Top-level groups, with example counts from run 40202672400 (22.04, GHC 9.6.3):
 
