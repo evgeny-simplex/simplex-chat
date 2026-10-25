@@ -16,6 +16,8 @@ import ChatTests.DBUtils
 import ChatTests.Utils
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (concurrently, concurrently_)
+import Control.Concurrent.STM (atomically, readTQueue)
+import qualified Control.Exception as E
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.Reader (runReaderT)
@@ -50,6 +52,7 @@ import Simplex.Messaging.Transport
 import Simplex.Messaging.Util (decodeJSON, encodeJSON)
 import Simplex.Messaging.Version (mkVersionRange)
 import System.Directory (copyFile, createDirectoryIfMissing)
+import System.Timeout (timeout)
 import Test.Hspec hiding (it)
 #if defined(dbPostgres)
 import Database.PostgreSQL.Simple (Only (..))
@@ -91,7 +94,7 @@ chatProfileTests = do
     it "supporter badge sent in a retried join of a one-time link" testUserBadgeInvitationConnectRetry
     it "supporter badge bound to another chat is ignored, stored badge is kept" testUserBadgeOtherBinding
     it "supporter badge of member bound to another member is ignored, stored badge is kept" testUserBadgeMemberOtherBinding
-    it "supporter badge of member joining via group link, at request and after handshake" testUserBadgeGroupLinkJoiner
+    it "supporter badge of member joining via group link, at request and after handshake" $ withTestOutput testUserBadgeGroupLinkJoiner
     it "supporter badge of introduced member is taken from the introduction" testUserBadgeIntroduced
     it "supporter badge of member invited via contact is forwarded in the introduction" testUserBadgeInvitedIntroduced
     it "supporter badge of inviting host in the reply to the invited contact" testUserBadgeInvitingHost
@@ -925,7 +928,23 @@ testUserBadgeGroupLinkJoiner ps = do
                    "#team: you joined the group"
                  ]
         ]
+        `E.catch` \e -> do
+          putStrLn $ "DIAG failure: " <> show (e :: E.SomeException)
+          dumpState alice "bob"
+          dumpState bob "alice"
+          E.throwIO e
       memberBadgeHeader alice "team" "bob" `shouldReturn` Just ("CG", BSActive)
+    dumpState cc member = do
+      name <- userName cc
+      drainLines name cc
+      forM_ ["/debug locks", "/get workers details", "/get subs details", "/get queues", "/i #team " <> member] $ \cmd -> do
+        putStrLn $ "DIAG " <> name <> " command: " <> cmd
+        cc ##> cmd
+        drainLines name cc
+    drainLines name cc =
+      timeout 3000000 (atomically $ readTQueue $ termQ cc) >>= \case
+        Just s -> putStrLn ("DIAG " <> name <> ": " <> s) >> drainLines name cc
+        Nothing -> pure ()
 
 testUserBadgeIntroduced :: HasCallStack => TestParams -> IO ()
 testUserBadgeIntroduced ps = do
