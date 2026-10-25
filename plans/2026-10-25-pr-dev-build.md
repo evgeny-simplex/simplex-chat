@@ -137,7 +137,6 @@ Adoption order: good-git Q3 (PR evgeny-simplex/agents#3).
 
 1. build.yml:12-31, `pull_request`. Lines appended after :31, and `types` after the paths; `paths:` is required on the line after `pull_request:` by the regex at test_packages_release.py:245:
    ```yaml
-         - ".github/workflows/build.yml"
          - "packages/simplex-chat-nodejs/**"
          - "packages/simplex-chat-client/types/typescript/**"
          - "packages/simplex-chat-python/**"
@@ -392,7 +391,7 @@ Adoption order: good-git Q3 (PR evgeny-simplex/agents#3).
       ```
     - :71 becomes the first line below; the "packages" entry follows it, and SCOPE_CHANGES follows the closing brace (:72):
       ```python
-          "ios": ["apps/ios/**", "scripts/ci/ios-stub-libs.sh", ".github/workflows/build.yml"],
+          "ios": ["apps/ios/**", "scripts/ci/ios-stub-libs.sh"],
           "packages": [
               "packages/simplex-chat-nodejs/**",
               "packages/simplex-chat-client/types/typescript/**",
@@ -550,7 +549,6 @@ Cost: 24 dispatches of one Linux job on the public fork.
      - core build and the selected tests: "121 examples, 0 failures";
      - Kotlin;
      - scope ci-scripts;
-   - build-ios, while build.yml is in the ios globs (Q5);
    - packages.yml, with the addon job skipped;
    - cla.yml.
 3. After it is marked ready, GitHub runs:
@@ -599,4 +597,4 @@ The app is uploaded only for the Claude job, with retention 1 day (android-emu.y
 Q5. build.yml in the ios globs (change 18). The user expects the macOS job only for iOS code changes; with build.yml in the globs, every build.yml change, each "Adding CI coverage" change included, runs build-ios (11.8 min median, M5).
 - A. Keep build.yml in the ios globs. Cost: a macOS job on every build.yml change; the expectation is unmet.
 - B. Remove it: the ios entry of change 18 becomes `["apps/ios/**", "scripts/ci/ios-stub-libs.sh"]`, and the expected set of test_packages_release.py:490-491 becomes `{"haskell", "kotlin"}`. Cost: a change to build-ios is compiled first on the master push (`ios=true` on branch pushes, change 5); 2 changed lines.
-- Recommendation: B. With A, a macOS job runs for changes outside iOS code.
+- Recommendation: B, applied in simplex-chat/simplex-chat#7870 (changes 1 and 18). With A, a macOS job runs for changes outside iOS code.
