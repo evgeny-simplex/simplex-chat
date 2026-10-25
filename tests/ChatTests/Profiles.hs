@@ -40,7 +40,7 @@ import qualified Simplex.Messaging.Crypto as C
 import Simplex.Messaging.Crypto.BBS (BBSPublicKey, BBSSecretKey, bbsKeyGen)
 import Simplex.Chat.Types.Shared (GroupMemberRole (..))
 import Simplex.Chat.Types.UITheme
-import Simplex.Messaging.Agent (setConnShortLink)
+import Simplex.Messaging.Agent (getConnectionQueueInfo, setConnShortLink)
 import Simplex.Messaging.Agent.Env.SQLite
 import Simplex.Messaging.Agent.Protocol (SConnectionMode (..), UserConnLinkData (..))
 import Simplex.Messaging.Agent.RetryInterval
@@ -937,6 +937,11 @@ testUserBadgeGroupLinkJoiner ps = do
     dumpState cc member = do
       name <- userName cc
       drainLines name cc
+      connIds <- withCCTransaction cc $ \db -> DB.query_ db "SELECT agent_conn_id FROM connections"
+      let ChatController {smpAgent = a} = chatController cc
+      forM_ connIds $ \(Only (AgentConnId connId)) -> do
+        r <- runExceptT $ getConnectionQueueInfo a NRMInteractive connId
+        putStrLn $ "DIAG " <> name <> " queue info " <> show connId <> ": " <> show r
       forM_ ["/debug locks", "/get workers details", "/get subs details", "/get queues", "/i #team " <> member] $ \cmd -> do
         putStrLn $ "DIAG " <> name <> " command: " <> cmd
         cc ##> cmd
