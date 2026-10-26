@@ -1,0 +1,151 @@
+name: ghc-memory-probe
+
+on:
+  push:
+    branches:
+      - ep/ghc8-memory-probe
+
+jobs:
+  build:
+    name: "GHC ${{ matrix.ghc }} -O2 build with memory samples"
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ghc: "8.10.7"
+            swap: true
+          - ghc: "9.6.3"
+            swap: false
+    env:
+      image_cache: ghcr.io/${{ github.repository_owner }}/simplex-chat-build-cache:22.04-x86_64-ghc${{ matrix.ghc }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup swap
+        if: matrix.swap
+        uses: ./.github/actions/swap
+        with:
+          swap-size-gb: 30
+
+      - name: Get UID and GID
+        id: ids
+        run: |
+          echo "uid=$(id -u)" >> $GITHUB_OUTPUT
+          echo "gid=$(id -g)" >> $GITHUB_OUTPUT
+
+      - name: Free disk space
+        shell: bash
+        run: ./scripts/ci/linux_util_free_space.sh
+
+      - name: Set up Docker Buildx
+        uses: simplex-chat/docker-setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Compute image cache week
+        id: week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and cache Docker image
+        uses: simplex-chat/docker-build-push-action@v6
+        with:
+          context: .
+          load: true
+          file: Dockerfile.build
+          tags: build/22.04:latest
+          build-args: |
+            TAG=22.04
+            HASH=sha256:5c8b2c0a6c745bc177669abfaa716b4bc57d58e2ea3882fb5da67f4d59e3dda5
+            GHC=${{ matrix.ghc }}
+            USER_UID=${{ steps.ids.outputs.uid }}
+            USER_GID=${{ steps.ids.outputs.gid }}
+          cache-from: type=registry,ref=${{ env.image_cache }}-${{ steps.week.outputs.week }}
+          cache-to: type=registry,ref=${{ env.image_cache }}-${{ steps.week.outputs.week }},mode=max,ignore-error=true
+
+      - name: Start container
+        shell: bash
+        run: |
+          mkdir -p ~/.cabal
+          docker run -t -d \
+            --device /dev/fuse \
+            --cap-add SYS_ADMIN \
+            --security-opt apparmor:unconfined \
+            --name builder \
+            -e CABAL_DIR=/home/builder/.cabal \
+            -v ~/.cabal:/home/builder/.cabal \
+            -v /home/runner/work/_temp:/home/runner/work/_temp \
+            -v ${{ github.workspace }}:/project \
+            build/22.04:latest
+
+      - name: Compute cache key prefixes
+        id: keys
+        run: |
+          toolchain=$(docker exec builder dpkg-query -W -f '${db:Status-Status} ${binary:Package} ${Version}\n' 'binutils*' 'cpp*' 'gcc*' '*-dev' | grep '^installed ' | sha256sum | cut -c1-16)
+          echo "deps=deps-ubuntu-22.04-x86_64-ghc${{ matrix.ghc }}-$toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Restore dependencies from cache
+        id: restore-deps
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cabal/store
+          key: ${{ steps.keys.outputs.deps }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ${{ steps.keys.outputs.deps }}-${{ github.ref_name }}-
+            ${{ steps.keys.outputs.deps }}-
+
+      - name: Prepare cabal.project.local
+        shell: bash
+        run: |
+          echo "ignore-project: False"    >> cabal.project.local
+          echo "package direct-sqlcipher" >> cabal.project.local
+          echo "    flags: +openssl"      >> cabal.project.local
+
+      - name: Build dependencies
+        shell: docker exec -t builder sh -eu {0}
+        run: |
+          cabal update
+          cabal build -j --enable-tests --only-dependencies
+
+      - name: Compute dependency cache key
+        id: hash-deps
+        shell: bash
+        run: echo "hash=$(ls ~/.cabal/store/ghc-*/ | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Save dependencies to cache
+        if: steps.restore-deps.outputs.cache-matched-key != format('{0}-{1}-{2}', steps.keys.outputs.deps, github.ref_name, steps.hash-deps.outputs.hash)
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cabal/store
+          key: ${{ steps.keys.outputs.deps }}-${{ github.ref_name }}-${{ steps.hash-deps.outputs.hash }}
+
+      - name: Start memory sampler
+        shell: bash
+        run: nohup sh scripts/ci/probe/rss-sampler.sh > "$RUNNER_TEMP/memory.log" 2>&1 &
+
+      - name: Build CLI
+        timeout-minutes: 120
+        shell: docker exec -t builder sh -eu {0}
+        run: cabal build -j --enable-tests
+
+      - name: Memory samples
+        if: always()
+        shell: bash
+        run: |
+          cat "$RUNNER_TEMP/memory.log"
+          sudo dmesg -T | grep -i -E -A3 'oom|killed process' || true
+
+      - name: Upload memory samples
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: memory-ghc${{ matrix.ghc }}
+          path: ${{ runner.temp }}/memory.log
