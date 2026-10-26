@@ -87,5 +87,6 @@ for name in variants:
     out = os.path.join('/tmp/probe-out', name)
     shutil.copytree('/tmp/probe-out/base', out)
     source = [] if name == 'master' else ['-iscripts/ci/probe/variants/' + name]
-    results.append(run(name, source + ['-isrc'], 'Simplex.Chat.AppSettings'))
+    dump = ['-ddump-spec', '-ddump-to-file', '-dsuppress-all', '-dsuppress-uniques'] if name == 'dump-spec' else []
+    results.append(run(name, source + dump + ['-isrc'], 'Simplex.Chat.AppSettings'))
 print('\n'.join(results))

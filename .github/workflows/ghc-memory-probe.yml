@@ -7,7 +7,6 @@ on:
 
 jobs:
   variants:
-    if: false
     name: "GHC 8.10.7 -O2 memory of AppSettings variants"
     runs-on: ubuntu-22.04
     permissions:
@@ -109,7 +108,12 @@ jobs:
       - name: Compile variants
         timeout-minutes: 150
         shell: docker exec -t builder sh -eu {0}
-        run: python3 scripts/ci/probe/variants.py 8.10.7 10g 600 no-fromjson no-tojson no-combine no-show synth-fromjson-8 synth-fromjson-12 synth-fromjson-16 synth-fromjson-20 synth-fromjson-24 synth-fromjson-28 synth-fromjson-32 synth-tojson-34 synth-combine-34 fix-noinline-p fix-o0 fix-o1 fix-no-spec-constr fix-no-liberate-case master parent
+        run: python3 scripts/ci/probe/variants.py 8.10.7 4g 600 dump-spec
+
+      - name: Summarize SpecConstr output
+        if: always()
+        shell: docker exec -t builder sh -eu {0}
+        run: python3 scripts/ci/probe/spec-summary.py 15
 
       - name: Memory samples
         if: always()
@@ -119,6 +123,7 @@ jobs:
           sudo dmesg -T | grep -i -E -A3 'oom|killed process' || true
 
   build:
+    if: false
     name: "GHC ${{ matrix.ghc }} -O2 build with memory samples"
     runs-on: ubuntu-22.04
     permissions:
