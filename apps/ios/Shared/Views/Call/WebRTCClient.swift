@@ -14,7 +14,7 @@ final class WebRTCClient: NSObject, RTCVideoViewDelegate, RTCFrameEncryptorDeleg
     private static let factory: RTCPeerConnectionFactory = {
         RTCInitializeSSL()
         let videoEncoderFactory = RTCDefaultVideoEncoderFactory()
-        let videoDecoderFactory = RTCDefaultVideoDecoderFactory()
+        let videoDecoderFactory = VP8VideoDecoderFactory()
         videoEncoderFactory.preferredCodec = RTCVideoCodecInfo(name: kRTCVp8CodecName)
         return RTCPeerConnectionFactory(encoderFactory: videoEncoderFactory, decoderFactory: videoDecoderFactory)
     }()
@@ -1244,5 +1244,15 @@ extension RTCSignalingState {
         case .closed: return "closed"
         default: return nil // unknown
         }
+    }
+}
+
+private final class VP8VideoDecoderFactory: NSObject, RTCVideoDecoderFactory {
+    func createDecoder(_ info: RTCVideoCodecInfo) -> RTCVideoDecoder? {
+        info.name == kRTCVp8CodecName ? RTCVideoDecoderVP8.vp8Decoder() : nil
+    }
+
+    func supportedCodecs() -> [RTCVideoCodecInfo] {
+        [RTCVideoCodecInfo(name: kRTCVp8CodecName)]
     }
 }
