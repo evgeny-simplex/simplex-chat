@@ -7,6 +7,7 @@ on:
 
 jobs:
   variants:
+    if: false
     name: "GHC 8.10.7 -O2 memory of AppSettings variants"
     runs-on: ubuntu-22.04
     permissions:
@@ -118,7 +119,6 @@ jobs:
           sudo dmesg -T | grep -i -E -A3 'oom|killed process' || true
 
   build:
-    if: false
     name: "GHC ${{ matrix.ghc }} -O2 build with memory samples"
     runs-on: ubuntu-22.04
     permissions:
@@ -130,8 +130,6 @@ jobs:
         include:
           - ghc: "8.10.7"
             swap: true
-          - ghc: "9.6.3"
-            swap: false
     env:
       image_cache: ghcr.io/${{ github.repository_owner }}/simplex-chat-build-cache:22.04-x86_64-ghc${{ matrix.ghc }}
     steps:
