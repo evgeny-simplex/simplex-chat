@@ -7,7 +7,8 @@ module SchemaDump where
 
 import ChatTests.DBUtils
 import Control.Concurrent (forkIO, forkOn, getNumCapabilities, threadDelay, threadWaitRead, yield)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar, takeMVar)
+import Control.Applicative ((<|>))
+import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar, takeMVar, tryTakeMVar)
 import Control.Concurrent.STM
 import Control.DeepSeq
 import qualified Control.Exception as E
@@ -15,7 +16,7 @@ import Control.Monad (forM, forM_, unless, void, when)
 import Data.ByteString (ByteString)
 import Data.Char (isDigit)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
-import Data.List (dropWhileEnd, sort)
+import Data.List (dropWhileEnd, isInfixOf, sort)
 import qualified Data.Map.Strict as M
 import Data.Maybe (catMaybes, fromJust, isJust)
 import Data.Text (Text)
@@ -268,7 +269,7 @@ h1Scenarios =
     Nothing -> do
       exe <- getExecutablePath
       env0 <- getEnvironment
-      forM_ ["alone", "sockets", "hDuplicateTo", "dup2"] $ \scenario -> do
+      forM_ ["poison", "sockets"] $ \scenario -> do
         h1Log $ "=== scenario " <> scenario
         (_, _, _, ph) <- createProcess (proc exe ["-m", "/Schema dump/diag scenario/"]) {env = Just (("H1_SCENARIO", scenario) : env0)}
         r <- waitChild ph (300 :: Int)
@@ -286,7 +287,10 @@ h1Scenarios =
             Nothing -> threadDelay 1000000 >> waitChild ph (n - 1)
 
 h1Scenario :: IO ()
-h1Scenario = lookupEnv "H1_SCENARIO" >>= mapM_ h1RunScenario
+h1Scenario =
+  lookupEnv "H1_SCENARIO" >>= \case
+    Just "poison" -> h1RunPoison
+    scenario_ -> mapM_ h1RunScenario scenario_
 
 h1RunScenario :: String -> IO ()
 h1RunScenario scenario = do
@@ -448,14 +452,14 @@ h1ReadRaw path = withCString path $ \cpath -> do
 h1ProbeStripes :: Int -> IO String
 h1ProbeStripes base = do
   caps <- getNumCapabilities
-  rows <- forM [0 .. 31] $ \stripe -> do
-    marks <- forM [0 .. caps - 1] $ \cap -> h1ProbeStripe (base + 32 * cap + stripe) cap
-    pure $ show stripe <> ":" <> marks
-  pure $ unwords rows
+  rows <- forM [0 .. 31] $ \stripe -> forM [0 .. caps - 1] $ \cap -> h1StartProbe (base + 32 * cap + stripe) cap
+  threadDelay 3000000
+  marks <- mapM (mapM $ either pure (fmap (maybe 'X' (const '.')) . tryTakeMVar)) rows
+  pure $ unwords $ zipWith (\stripe ms -> show stripe <> ":" <> ms) [0 :: Int ..] marks
 
-h1ProbeStripe :: Int -> Int -> IO Char
-h1ProbeStripe target cap =
-  ifM (doesPathExist $ "/proc/self/fd/" <> show target) (pure '?') $
+h1StartProbe :: Int -> Int -> IO (Either Char (MVar ()))
+h1StartProbe target cap =
+  ifM (doesPathExist $ "/proc/self/fd/" <> show target) (pure $ Left '?') $
     allocaArray 2 $ \pipeFds -> do
       _ <- h1Pipe pipeFds
       [r, w] <- peekArray 2 pipeFds
@@ -464,10 +468,63 @@ h1ProbeStripe target cap =
       _ <- h1Close r
       _ <- h1Close w
       if d < 0
-        then pure '!'
+        then pure $ Left '!'
         else do
           done <- newEmptyMVar
-          _ <- forkOn cap $ threadWaitRead (Fd $ fromIntegral target) >> putMVar done ()
-          timeout 3000000 (takeMVar done) >>= \case
-            Just () -> h1Close (fromIntegral target) >> pure '.'
-            Nothing -> pure 'X'
+          _ <- forkOn cap $ threadWaitRead (Fd $ fromIntegral target) >> h1Close (fromIntegral target) >> putMVar done ()
+          pure $ Right done
+
+h1RunPoison :: IO ()
+h1RunPoison = do
+  let db :: FilePath
+      db = "tests/tmp/h1_chat.db"
+      schemaPath :: FilePath
+      schemaPath = "tests/tmp/h1_schema.sql"
+  void $ createChatStore (DBOpts db chatDBFunctions "" False True TQOff) (MigrationConfig MCError Nothing)
+  h1ProbeStripes 4096 >>= h1Log . ("stripes before: " <>)
+  (fd, err, iters) <- h1PoisonStripe (1 :: Int)
+  let stripe = fd `mod` 32
+  h1Log $ "close of socket fd " <> show fd <> " (stripe " <> show stripe <> ") after " <> show iters <> " sockets closed under readers: " <> err
+  h1ProbeStripes 8192 >>= h1Log . ("stripes after: " <>)
+  traced <- h1FillFdsTo stripe
+  h1Log $ "lowest free fd " <> show traced <> "; traced getSchema"
+  h1WatchCall "traced getSchema" $ \stepRef -> h1GetSchemaTraced stepRef db schemaPath
+  real <- h1FillFdsTo stripe
+  h1Log $ "lowest free fd " <> show real <> "; getSchema of the schema test"
+  h1WatchCall "getSchema" $ \stepRef -> writeIORef stepRef "getSchema" >> void (getSchema db schemaPath) >> writeIORef stepRef "done"
+  where
+    h1PoisonStripe i
+      | i > 2000000 = pure (-1, "no failed close", i)
+      | otherwise = do
+      (a, b) <- N.socketPair N.AF_UNIX N.Stream N.defaultProtocol
+      aFd <- N.unsafeFdSocket a
+      bFd <- N.unsafeFdSocket b
+      done <- newEmptyMVar
+      _ <- forkIO $ (E.try (recv a 1) :: IO (Either E.SomeException ByteString)) >>= putMVar done
+      when (even i) yield
+      closedA <- E.try (N.close a)
+      _ <- timeout 2000000 (takeMVar done)
+      closedB <- E.try (N.close b)
+      maybe (h1PoisonStripe (i + 1)) pure (poisoned i aFd closedA <|> poisoned i bFd closedB)
+    poisoned i sockFd = \case
+      Left (e :: E.SomeException) | "epollControl" `isInfixOf` show e -> Just (fromIntegral sockFd, show e, i)
+      _ -> Nothing
+
+h1FillFdsTo :: Int -> IO Int
+h1FillFdsTo stripe = withCString "/dev/null" $ \devNull -> do
+  let fill = do
+        fd <- h1Open devNull 0
+        if fd < 0 || fromIntegral fd `mod` 32 == stripe
+          then h1Close fd >> pure (fromIntegral fd)
+          else fill
+  fill
+
+h1WatchCall :: String -> (IORef String -> IO ()) -> IO ()
+h1WatchCall label action = do
+  stepRef <- newIORef "start"
+  iterRef <- newIORef (0 :: Int)
+  finished <- newEmptyMVar
+  _ <- forkIO $ action stepRef `E.finally` putMVar finished ()
+  hung <- h1Watch stepRef iterRef finished 20
+  h1Log $ label <> ": " <> (if hung then "HUNG" else "returned")
+  when hung $ h1Dump stepRef
