@@ -7,12 +7,18 @@ module SchemaDump where
 
 import ChatTests.DBUtils
 import Control.Concurrent (forkIO, forkOn, getNumCapabilities, threadDelay, threadWaitRead, yield)
+import Control.Concurrent.Async (mapConcurrently_, withAsync)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Concurrent.STM
 import Control.DeepSeq
 import qualified Control.Exception as E
-import Control.Monad (forM, forM_, unless, void, when)
+import Control.Monad (forM, forM_, forever, unless, void, when)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as LB
+import Network.HTTP.Client (HttpException, Response, defaultManagerSettings, httpLbs, newManager, parseRequest)
+import Network.HTTP.Types (status200)
+import Network.Wai (responseLBS)
+import qualified Network.Wai.Handler.Warp as Warp
 import Data.Char (isDigit)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (dropWhileEnd, sort)
@@ -267,7 +273,7 @@ h1Scenarios =
     Nothing -> do
       exe <- getExecutablePath
       env0 <- getEnvironment
-      forM_ ["alone", "sockets", "hDuplicateTo", "dup2"] $ \scenario -> do
+      forM_ ["warp"] $ \scenario -> do
         h1Log $ "=== scenario " <> scenario
         (_, _, _, ph) <- createProcess (proc exe ["-m", "/Schema dump/diag scenario/"]) {env = Just (("H1_SCENARIO", scenario) : env0)}
         r <- waitChild ph (300 :: Int)
@@ -321,7 +327,23 @@ h1Stressor = \case
   "sockets" -> Just h1SocketsStress
   "hDuplicateTo" -> Just h1HDuplicateToStress
   "dup2" -> Just h1Dup2Stress
+  "warp" -> Just h1WarpStress
   _ -> Nothing
+
+h1WarpStress :: (String -> IO ()) -> IORef Bool -> IO ()
+h1WarpStress count stopRef = loop
+  where
+    loop = unlessM (readIORef stopRef) $ do
+      r <- E.try $ do
+        mgr <- newManager defaultManagerSettings
+        Warp.withApplicationSettings Warp.defaultSettings (pure app) $ \port -> do
+          req <- parseRequest $ "http://127.0.0.1:" <> show port <> "/"
+          let client :: IO ()
+              client = forever (E.try (httpLbs req mgr) :: IO (Either HttpException (Response LB.ByteString)))
+          withAsync (mapConcurrently_ (const client) [1 .. 4 :: Int]) $ \_ -> threadDelay 2000
+      either (\(e :: E.SomeException) -> count $ "warp error: " <> take 100 (show e)) (\_ -> count "warp ok") r
+      loop
+    app _ respond = respond $ responseLBS status200 [] "ok"
 
 h1SocketsStress :: (String -> IO ()) -> IORef Bool -> IO ()
 h1SocketsStress count stopRef = loop (1 :: Int)
