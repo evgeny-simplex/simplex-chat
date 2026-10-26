@@ -275,7 +275,7 @@ h1Scenarios =
     Nothing -> do
       exe <- getExecutablePath
       env0 <- getEnvironment
-      forM_ ["warp"] $ \scenario -> do
+      forM_ ["warp", "warp", "warp"] $ \scenario -> do
         h1Log $ "=== scenario " <> scenario
         (_, _, _, ph) <- createProcess (proc exe ["-m", "/Schema dump/diag scenario/"]) {env = Just (("H1_SCENARIO", scenario) : env0)}
         r <- waitChild ph (300 :: Int)
