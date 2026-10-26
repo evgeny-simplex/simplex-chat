@@ -37,11 +37,12 @@ import Foreign.Marshal.Utils (with)
 import Foreign.Ptr (Ptr)
 import qualified GHC.IO.Device as IODevice
 import qualified GHC.IO.FD as FD
+import GHC.IO.Handle (hDuplicate, hDuplicateTo)
 import GHC.IO.Handle.FD (handleToFd)
 import qualified Network.Socket as N
 import Network.Socket.ByteString (recv)
 import System.Environment (getEnvironment, getExecutablePath, lookupEnv)
-import System.IO (IOMode (..), hClose, hDuplicate, hDuplicateTo, hFlush, hGetBuffering, hGetContents, hPutStrLn, hSetBuffering, stderr, stdout, withFile)
+import System.IO (IOMode (..), hClose, hFlush, hGetBuffering, hGetContents, hPutStrLn, hSetBuffering, stderr, stdout, withFile)
 import System.Posix.Types (CSsize (..), Fd (..))
 import System.Timeout (timeout)
 import Simplex.Chat.Options.SQLite (chatDBFunctions)
