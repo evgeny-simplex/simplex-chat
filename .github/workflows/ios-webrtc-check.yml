@@ -1,0 +1,85 @@
+name: ios-webrtc-check
+
+on:
+  push:
+    branches:
+      - ep/ios-webrtc-m156-check
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ios-webrtc-check-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WEBRTC_REPO: simplex-chat/WebRTC
+  WEBRTC_ARTIFACT: "12428033684"
+
+jobs:
+  build:
+    name: iOS app with the WebRTC build artifact
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Point Command Line Tools SDK to Xcode SDK
+        run: sudo ln -sfn "$(xcrun --sdk macosx --show-sdk-path)" /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+
+      - name: Download WebRTC build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/webrtc"
+          gh api "repos/$WEBRTC_REPO/actions/artifacts/$WEBRTC_ARTIFACT/zip" > "$RUNNER_TEMP/webrtc/artifact.zip"
+          unzip -q -o "$RUNNER_TEMP/webrtc/artifact.zip" -d "$RUNNER_TEMP/webrtc"
+          unzip -q -o "$RUNNER_TEMP"/webrtc/WebRTC-*.xcframework.zip -d "$RUNNER_TEMP/webrtc"
+          ls "$RUNNER_TEMP/webrtc/WebRTC.xcframework"
+          grep -n "setCodecPreferences:" "$RUNNER_TEMP/webrtc/WebRTC.xcframework/ios-arm64/WebRTC.framework/Headers/RTCRtpTransceiver.h"
+
+      - name: Resolve packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project apps/ios/SimpleX.xcodeproj \
+            -scheme "SimpleX (iOS)" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm" \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackagePluginValidation
+          find "$RUNNER_TEMP/spm/artifacts" -maxdepth 3
+
+      - name: Use the WebRTC build
+        run: |
+          pinned=$(find "$RUNNER_TEMP/spm/artifacts" -type d -name WebRTC.xcframework | head -1)
+          echo "pinned framework: $pinned"
+          [ -n "$pinned" ]
+          strings "$pinned/ios-arm64_x86_64-simulator/WebRTC.framework/WebRTC" 2> /dev/null | grep -c "setCodecPreferences:error:" || true
+          rm -rf "$pinned"
+          cp -R "$RUNNER_TEMP/webrtc/WebRTC.xcframework" "$pinned"
+
+      - name: Build iOS app
+        timeout-minutes: 60
+        run: |
+          scripts/ci/ios-stub-libs.sh
+          xcodebuild build -quiet \
+            -project apps/ios/SimpleX.xcodeproj \
+            -scheme "SimpleX (iOS)" \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm" \
+            -disableAutomaticPackageResolution \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            ARCHS=arm64 \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Show the framework in the app
+        run: |
+          fw=$(find "$RUNNER_TEMP/dd/Build/Products" -path '*.app/Frameworks/WebRTC.framework' -type d | head -1)
+          echo "embedded framework: $fw"
+          strings "$fw/WebRTC" | grep -c "setCodecPreferences:error:"
