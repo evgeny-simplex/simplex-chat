@@ -25,6 +25,7 @@ import chat.simplex.common.views.chat.item.*
 import chat.simplex.common.views.chatlist.*
 import chat.simplex.common.views.database.*
 import chat.simplex.common.views.helpers.*
+import chat.simplex.common.views.migration.PreviewMigrateToDeviceOnion
 import chat.simplex.common.views.newchat.*
 import chat.simplex.common.views.onboarding.*
 import chat.simplex.common.views.usersettings.*
@@ -95,6 +96,9 @@ private val previewScenes = listOf(
   SnapshotScene("ChatListNavLinkView.PreviewChatListNavLinkGroup") { PreviewChatListNavLinkGroup() },
   SnapshotScene("ChatListNavLinkView.PreviewChatListNavLinkContactRequest") { PreviewChatListNavLinkContactRequest() },
   SnapshotScene("ChatListNavLinkView.PreviewChatListNavLinkUnread") { PreviewChatListNavLinkUnread() },
+  SnapshotScene("AdvancedNetworkSettings.PreviewSMPProxyModeView") { PreviewSMPProxyModeView() },
+  SnapshotScene("AdvancedNetworkSettings.PreviewSMPProxyFallbackView") { PreviewSMPProxyFallbackView() },
+  SnapshotScene("MigrateToDevice.PreviewMigrateToDeviceOnion") { PreviewMigrateToDeviceOnion() },
   SnapshotScene("ChatPreviewView.PreviewChatPreviewView") { PreviewChatPreviewView() },
   SnapshotScene("DatabaseEncryptionView.PreviewDatabaseEncryptionLayout") { PreviewDatabaseEncryptionLayout() },
   SnapshotScene("DatabaseErrorView.PreviewChatInfoLayout") { chat.simplex.common.views.database.PreviewChatInfoLayout() },
