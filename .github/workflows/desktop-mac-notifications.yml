@@ -1,0 +1,76 @@
+name: desktop-mac-notifications
+
+on:
+  push:
+    branches:
+      - ep/mac-notification-check
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-mac-notifications-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RELEASE: v7.1.0-beta.8
+  JAVA_VER: 17
+  NTF_FILE: apps/multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/model/NtfManager.desktop.kt
+
+jobs:
+  app:
+    name: ${{ matrix.os }}, ${{ matrix.code }} code
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+        code: [branch, master]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 3
+
+      - name: Use master's notification code
+        if: matrix.code == 'master'
+        run: |
+          git show "HEAD~1^2:$NTF_FILE" > "$NTF_FILE"
+          git diff
+
+      - name: Show runner
+        run: |
+          sw_vers
+          uname -m
+          sysctl -n hw.ncpu
+          df -h /
+
+      - name: Download released CLI and core libraries
+        run: scripts/ci/desktop-mac-notifications/download.sh "$RELEASE" "$RUNNER_TEMP/release"
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: ${{ env.JAVA_VER }}
+
+      - name: Build app
+        working-directory: apps/multiplatform
+        run: |
+          ./gradlew --no-daemon --console=plain -Psimplex.assets.dir=../../assets -Pkotlin.daemon.jvmargs=-Xmx4g :desktop:createDistributable
+          find release -maxdepth 4 -name '*.app'
+
+      - name: Check notifications
+        run: scripts/ci/desktop-mac-notifications/check.sh "$RUNNER_TEMP/release" "$RUNNER_TEMP/out" ${{ matrix.code == 'master' && 'report' || '' }}
+
+      - name: Upload results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: notifications-${{ matrix.os }}-${{ matrix.code }}
+          path: ${{ runner.temp }}/out
+          retention-days: 14
+          if-no-files-found: warn
