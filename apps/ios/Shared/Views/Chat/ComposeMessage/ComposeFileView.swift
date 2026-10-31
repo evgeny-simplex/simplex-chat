@@ -27,7 +27,7 @@ struct ComposeFileView: View {
             Spacer()
             if cancelEnabled {
                 Button { cancelFile() } label: {
-                    Image(systemName: "multiply")
+                    Image(systemName: "multiply").modifier(TapArea())
                 }
             }
         }

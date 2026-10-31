@@ -223,13 +223,14 @@ struct EditProfileImage: View {
     @Binding var profileImage: String?
     var icon: Image
     @Binding var showChooseSource: Bool
+    var size: CGFloat = 160
 
     var body: some View {
         Group {
             if profileImage != nil {
                 ZStack(alignment: .bottomTrailing) {
                     ZStack(alignment: .topTrailing) {
-                        ProfileImage(imageStr: profileImage, size: 160)
+                        ProfileImage(imageStr: profileImage, size: size)
                             .onTapGesture { showChooseSource = true }
                         overlayButton("multiply", edge: .top) { profileImage = nil }
                     }
@@ -237,7 +238,7 @@ struct EditProfileImage: View {
                 }
             } else {
                 ZStack(alignment: .center) {
-                    ProfileImage(imageStr: profileImage, icon: icon, size: 160)
+                    ProfileImage(imageStr: profileImage, icon: icon, size: size)
                     editImageButton { showChooseSource = true }
                 }
             }

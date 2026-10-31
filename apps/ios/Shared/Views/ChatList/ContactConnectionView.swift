@@ -40,6 +40,7 @@ struct ContactConnectionView: View {
                     Text(contactConnection.chatViewName)
                         .font(.title3)
                         .bold()
+                        .lineLimit(1)
                         .allowsTightening(false)
                         .foregroundColor(theme.colors.secondary)
                         .padding(.horizontal, 8)

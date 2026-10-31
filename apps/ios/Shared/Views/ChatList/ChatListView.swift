@@ -916,13 +916,14 @@ struct ChatListSearchBar: View {
                 .scaledToFit()
                 .foregroundColor(showUnread ? theme.colors.primary : theme.colors.secondary)
                 .frame(width: showUnread ? 22 : 16, height: showUnread ? 22 : 16)
-                .onTapGesture {
-                    if chatTagsModel.activeFilter == .unread {
-                        chatTagsModel.activeFilter = nil
-                    } else {
-                        chatTagsModel.activeFilter = .unread
-                    }
-                }
+        }
+        .modifier(TapArea())
+        .onTapGesture {
+            if chatTagsModel.activeFilter == .unread {
+                chatTagsModel.activeFilter = nil
+            } else {
+                chatTagsModel.activeFilter = .unread
+            }
         }
     }
 

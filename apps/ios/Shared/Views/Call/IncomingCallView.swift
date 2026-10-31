@@ -31,13 +31,13 @@ struct IncomingCallView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 if m.users.count > 1 {
-                    ProfileImage(imageStr: invitation.user.image, size: 24, color: .white)
+                    ProfileImage(imageStr: invitation.user.image, size: 24)
                 }
                 Image(systemName: invitation.callType.media == .video ? "video.fill" : "phone.fill").foregroundColor(.green)
                 Text(invitation.callTypeText)
             }
             HStack {
-                ProfilePreview(profileOf: invitation.contact, color: .white)
+                ProfilePreview(profileOf: invitation.contact)
                     .padding(.vertical, 6)
                 Spacer()
 

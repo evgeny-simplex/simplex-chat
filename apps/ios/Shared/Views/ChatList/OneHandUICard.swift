@@ -25,7 +25,7 @@ struct OneHandUICard: View {
             ) {
                 withAnimation { oneHandUI = true }
             }
-            .background { if oneHandUI { Color(uiColor: .systemGray5) } }
+            .background { if !oneHandUI { Color(uiColor: .systemGray5) } }
             .background(ToolbarMaterial.material(toolbarMaterial))
             ZStack(alignment: .trailing) {
                 segment(
@@ -47,7 +47,7 @@ struct OneHandUICard: View {
                     }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background { if !oneHandUI { Color(uiColor: .systemGray5) } }
+            .background { if oneHandUI { Color(uiColor: .systemGray5) } }
             .background(ToolbarMaterial.material(toolbarMaterial))
         }
         .clipShape(Capsule())
@@ -68,10 +68,10 @@ struct OneHandUICard: View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.body)
-                .foregroundColor(isSelected ? theme.colors.secondary : theme.colors.primary)
+                .foregroundColor(isSelected ? theme.colors.primary : theme.colors.secondary)
             Text(text)
                 .font(.subheadline)
-                .foregroundColor(isSelected ? theme.colors.secondary : theme.colors.onBackground)
+                .foregroundColor(isSelected ? theme.colors.onBackground : theme.colors.secondary)
         }
         .padding(.leading, 16)
         .padding(.vertical, 4)

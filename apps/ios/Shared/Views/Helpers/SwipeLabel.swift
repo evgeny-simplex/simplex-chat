@@ -36,22 +36,25 @@ struct SwipeLabel: View {
         private let imageView = UIImageView()
         private let label = UILabel()
         private let fontSize: CGFloat
+        private let width: CGFloat
 
         init(systemName: String, text: String) {
             fontSize = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .subheadline).pointSize
-            super.init(frame: CGRect(x: 0, y: 0, width: 64, height: 32 + fontSize))
+            let font = UIFont.systemFont(ofSize: fontSize, weight: .medium)
+            width = max(64, ceil((text as NSString).size(withAttributes: [.font: font]).width))
+            super.init(frame: CGRect(x: 0, y: 0, width: width, height: 32 + fontSize))
             imageView.image = UIImage(systemName: systemName)
             imageView.contentMode = .scaleAspectFit
             label.text = text
             label.textAlignment = .center
-            label.font = UIFont.systemFont(ofSize: fontSize, weight: .medium)
+            label.font = font
             addSubview(imageView)
             addSubview(label)
         }
 
         override func layoutSubviews() {
             imageView.frame = CGRect(
-                x: 20,
+                x: (width - 24) / 2,
                 y: 0,
                 width: 24,
                 height: 24
@@ -59,7 +62,7 @@ struct SwipeLabel: View {
             label.frame = CGRect(
                 x: 0,
                 y: 32,
-                width: 64,
+                width: width,
                 height: fontSize
             )
         }

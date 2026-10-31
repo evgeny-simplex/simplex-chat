@@ -20,9 +20,10 @@ struct ContextContactRequestActionsView: View {
         HStack(spacing: 0) {
             Button(role: .destructive, action: showRejectRequestAlert) {
                 Label("Reject", systemImage: "multiply")
+                    .frame(maxWidth: .infinity, minHeight: 60)
+                    .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, minHeight: 60)
-            
+
             Button {
                 if ChatModel.shared.addressShortLinkDataSet {
                     acceptRequest()
@@ -31,8 +32,9 @@ struct ContextContactRequestActionsView: View {
                 }
             } label: {
                 Label("Accept", systemImage: "checkmark")
+                    .frame(maxWidth: .infinity, minHeight: 60)
+                    .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, minHeight: 60)
         }
         .disabled(inProgress)
         .frame(maxWidth: .infinity)

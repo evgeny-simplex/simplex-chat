@@ -899,6 +899,8 @@ private struct CallButton: View {
 let infoViewActionButtonHeight: CGFloat = 60
 
 struct InfoViewButton: View {
+    @EnvironmentObject var theme: AppTheme
+    @Environment(\.isEnabled) private var isEnabled
     var image: String
     var title: LocalizedStringKey
     var disabledLook: Bool = false
@@ -915,7 +917,7 @@ struct InfoViewButton: View {
                 .font(.caption)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .foregroundColor(.accentColor)
+        .foregroundColor(disabledLook || !isEnabled ? theme.colors.secondary : .accentColor)
         .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(10.0)
         .frame(width: width, height: infoViewActionButtonHeight)

@@ -48,7 +48,7 @@ struct ContextItemView: View {
                     cancelContextItem()
                 }
             } label: {
-                Image(systemName: "multiply")
+                Image(systemName: "multiply").modifier(TapArea())
             }
             .tint(theme.colors.primary)
         }
