@@ -2,8 +2,9 @@
 
 # Connects a profile in the desktop app's database to a second profile with the released CLI, starts the built app,
 # sends it messages with quotes and backslashes from the second profile, and checks how the app shows them:
-# each message is passed to the notification library, no osascript process runs, and the toaster classes the app
-# loaded are listed. The screen, the app log and the Notification Center log are saved to the output dir.
+# each message is passed to the notification library, no osascript process runs, and Notification Center records
+# the notifications under the app's bundle, while a control notification shown through osascript is recorded under
+# another app. The screen, the app log and the Notification Center log are saved to the output dir.
 # Usage: scripts/ci/desktop-mac-notifications/check.sh <dir with simplex-chat CLI> <output dir> [report]
 # With "report", failed checks are listed without failing the job.
 
@@ -77,10 +78,9 @@ check "the CLI profiles are connected" contact_of "$data" ntf_peer
 printf 'DeveloperTools=true\nLogLevel=DEBUG\n' > "$config/settings.properties"
 
 : > "$out/osascript.log"
-( while true; do pgrep -lf osascript || true; sleep 0.1; done ) >> "$out/osascript.log" 2>&1 &
+( while true; do pgrep -lf osascript || true; sleep 0.02; done ) >> "$out/osascript.log" 2>&1 &
 monitor=$!
-osascript -e 'return 1' > /dev/null
-sleep 1
+osascript -e 'delay 0.5' > /dev/null
 check "the process monitor sees osascript" grep -q osascript "$out/osascript.log"
 : > "$out/osascript.log"
 
@@ -98,14 +98,27 @@ for message in "${messages[@]}"; do
 done
 sleep 20
 screencapture -x "$out/2-messages.png" || true
-
-"$JAVA_HOME/bin/jcmd" "$app_pid" GC.class_histogram > "$out/class-histogram.txt" 2>&1 || true
-grep -i twoslices "$out/class-histogram.txt" | tee "$out/toasters.txt" || true
-log show --last 10m --style compact --predicate 'process == "usernoted" OR process == "NotificationCenter"' > "$out/notification-center.log" 2>&1 || true
-grep -i "$bundle_id" "$out/notification-center.log" | tail -n 40 || true
-
-kill "$app_pid" 2> /dev/null || true
 kill "$monitor" 2> /dev/null || true
+kill "$app_pid" 2> /dev/null || true
+log show --last 10m --style compact --predicate 'process == "usernoted"' > "$out/notification-center.log" 2>&1 || true
+
+control_start=$(date '+%Y-%m-%d %H:%M:%S')
+osascript -e 'display notification "control" with title "control"'
+sleep 5
+log show --start "$control_start" --style compact --predicate 'process == "usernoted"' > "$out/notification-center-control.log" 2>&1 || true
+
+records_of() {
+  grep -o 'NotificationRecord app:"[^"]*"' "$1" | sed 's/^NotificationRecord app:"//; s/"$//' | sort | uniq -c || true
+}
+senders_of() {
+  { grep -o 'NotificationRecord app:"[^"]*"' "$1" | sed 's/^NotificationRecord app:"//; s/"$//'; grep -o 'req:"[^"]*"' "$1" | sed 's/^req:"//; s/"$//'; } \
+    | grep -v -x -e "$bundle_id" -e 'com.apple.notificationcenter.askpermissions' -e '' | sort -u || true
+}
+records_of "$out/notification-center.log" | tee "$out/records-app.txt"
+records_of "$out/notification-center-control.log" | tee "$out/records-control.txt"
+app_records=$(grep -c "NotificationRecord app:\"$bundle_id\"" "$out/notification-center.log" || true)
+control_apps=$(senders_of "$out/notification-center-control.log")
+echo "control notification recorded under: ${control_apps:-nothing}"
 
 echo "::group::app log"
 cat "$out/app.log"
@@ -117,9 +130,11 @@ echo "notifications passed to the library: $received"
 check "each message is passed to the notification library" [ "$received" -ge "${#messages[@]}" ]
 check "no osascript process ran while the app was running" [ ! -s "$out/osascript.log" ]
 check "the app logged no notification error" bash -c "! grep -q -i -E 'showing notification|twoslices' '$out/app.log'"
-info "the app loaded NotificationCenterToaster" grep -q NotificationCenterToaster "$out/toasters.txt"
-info "the app loaded OsXToaster" grep -q OsXToaster "$out/toasters.txt"
-info "Notification Center logged the app's bundle" grep -q -i "$bundle_id" "$out/notification-center.log"
+check "Notification Center recorded each message under the app's bundle" [ "$app_records" -ge "${#messages[@]}" ]
+check "a notification shown through osascript is recorded under another app" [ -n "$control_apps" ]
+for control_app in $control_apps; do
+  check "nothing was recorded for $control_app while the app was running" bash -c "! grep -q -e 'app:\"$control_app\"' -e 'req:\"$control_app\"' '$out/notification-center.log'"
+done
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
@@ -127,9 +142,13 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo
     sed 's/^/- /' "$checks"
     echo
-    echo "### Toaster classes loaded"
+    echo "### Notification Center records while the app ran"
     echo
-    sed 's/^/    /' "$out/toasters.txt"
+    sed 's/^/    /' "$out/records-app.txt"
+    echo
+    echo "### Notification Center records of the osascript control"
+    echo
+    sed 's/^/    /' "$out/records-control.txt"
   } >> "$GITHUB_STEP_SUMMARY"
 fi
 
