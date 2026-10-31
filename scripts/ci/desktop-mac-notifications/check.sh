@@ -45,7 +45,9 @@ info() {
 }
 
 contact_of() {
-  "$cli" -d "$1/simplex_v1" -e "/contacts" -t 5 2> /dev/null | grep -q "$2"
+  local contacts
+  contacts=$("$cli" -d "$1/simplex_v1" -e "/contacts" -t 5 2> /dev/null || true)
+  grep -q "$2" <<< "$contacts"
 }
 
 echo "app: $app"
@@ -61,8 +63,8 @@ echo "invitation: ${link:0:40}..."
 "$cli" -d "$data/simplex_v1" -e "/contacts" -t 90 > "$out/app-connect.log" 2>&1 &
 app_cli=$!
 sleep 5
-"$cli" -d "$peer/simplex_v1" --user-display-name ntf_peer -e "/c $link" -t 60 > "$out/peer-connect.log" 2>&1
-wait "$app_cli"
+"$cli" -d "$peer/simplex_v1" --user-display-name ntf_peer -e "/c $link" -t 60 > "$out/peer-connect.log" 2>&1 || true
+wait "$app_cli" || true
 for attempt in 1 2 3; do
   contact_of "$data" ntf_peer && contact_of "$peer" ntf_app && break
   echo "not connected yet, attempt $attempt"
@@ -92,7 +94,7 @@ sleep 30
 screencapture -x "$out/1-started.png" || true
 
 for message in "${messages[@]}"; do
-  "$cli" -d "$peer/simplex_v1" -e "@ntf_app $message" -t 15 >> "$out/peer-send.log" 2>&1
+  "$cli" -d "$peer/simplex_v1" -e "@ntf_app $message" -t 15 >> "$out/peer-send.log" 2>&1 || true
 done
 sleep 20
 screencapture -x "$out/2-messages.png" || true

@@ -15,7 +15,7 @@ libs_dir=apps/multiplatform/common/src/commonMain/cpp/desktop/libs/mac-$arch
 mkdir -p "$out"
 curl -fsSL -o "$out/simplex-chat" "$base/simplex-chat-macos-$arch"
 chmod +x "$out/simplex-chat"
-"$out/simplex-chat" -h | head -3
+otool -L "$out/simplex-chat"
 
 curl -fsSL -o "$out/app.dmg" "$base/simplex-desktop-macos-$arch.dmg"
 yes | hdiutil attach -nobrowse -readonly -noverify -mountpoint "$out/dmg" "$out/app.dmg" > /dev/null
@@ -26,6 +26,15 @@ mkdir -p "$libs_dir"
 find "$app/Contents/app/resources" -maxdepth 1 -name '*.dylib' ! -name 'libapp-lib.dylib' -exec cp {} "$libs_dir/" \;
 ls -la "$libs_dir"
 hdiutil detach "$out/dmg" > /dev/null
+
+cli_crypto=$(otool -L "$out/simplex-chat" | awk '/libcrypto/ { print $1 }')
+if [ -n "$cli_crypto" ] && [ ! -e "$cli_crypto" ]; then
+  mkdir -p "$(dirname "$cli_crypto")"
+  cp "$libs_dir/libcrypto.3.0.dylib" "$cli_crypto"
+fi
+"$out/simplex-chat" -h > "$out/cli-help.txt" 2>&1 || true
+head -3 "$out/cli-help.txt"
+grep -q -- "--execute" "$out/cli-help.txt"
 
 mkdir -p apps/multiplatform/build/links
 ln -sfn "../../common/src/commonMain/cpp/desktop/libs/mac-$arch/" apps/multiplatform/build/links/macos-arm64
