@@ -342,3 +342,15 @@ fun PreviewChatInfoImage() {
     )
   }
 }
+
+@Preview
+@Composable
+fun PreviewChatInfoImageKinds() {
+  SimpleXTheme {
+    Row(Modifier.background(MaterialTheme.colors.background).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+      ChatInfoImage(ChatInfo.Direct.sampleData, size = 55.dp)
+      ChatInfoImage(ChatInfo.Group.sampleData, size = 55.dp)
+      ChatInfoImage(ChatInfo.Local.sampleData, size = 55.dp)
+    }
+  }
+}
