@@ -1328,7 +1328,7 @@ fun ComposeView(
           && !nextSendGrpInv.value
     IconButton(
       attachmentClicked,
-      enabled = attachmentEnabled
+      enabled = attachmentEnabled || isGroupAndProhibitedFiles
     ) {
       Icon(
         painterResource(MR.images.ic_attach_file_filled_500),
