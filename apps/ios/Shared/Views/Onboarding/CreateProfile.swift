@@ -97,7 +97,15 @@ struct CreateProfile: View {
                         .focused($focusDisplayName)
                 }
                 ZStack(alignment: .leading) {
-                    Image(systemName: "pencil").foregroundColor(theme.colors.secondary)
+                    if !bioFitsLimit() {
+                        Button {
+                            showAlert(NSLocalizedString("Bio too large", comment: "alert title"))
+                        } label: {
+                            Image(systemName: "exclamationmark.circle").foregroundColor(.red)
+                        }
+                    } else {
+                        Image(systemName: "pencil").foregroundColor(theme.colors.secondary)
+                    }
                     TextField("Bio", text: $profileBio)
                         .padding(.leading, 36)
                 }
