@@ -800,3 +800,33 @@ struct ChatListNavLink_Previews: PreviewProvider {
         .previewLayout(.fixed(width: 360, height: 82))
     }
 }
+
+struct ChatListLongNames_Previews: PreviewProvider {
+    static var previews: some View {
+        var contact = Contact.sampleData
+        contact.profile.displayName = "alexandra_konstantinopolskaya"
+        contact.profile.fullName = "Alexandra Konstantinopolskaya"
+        var contactRequest = UserContactRequest.sampleData
+        contactRequest.updatedAt = previewDate
+        contactRequest.profile.displayName = "alexandra_konstantinopolskaya"
+        contactRequest.profile.fullName = "Alexandra Konstantinopolskaya"
+        var connection = PendingContactConnection.getSampleData()
+        connection.updatedAt = previewDate
+        connection.localAlias = "Alexandra from the conference in Lisbon"
+        return Group {
+            ChatListNavLink(chat: Chat(
+                chatInfo: .direct(contact: contact),
+                chatItems: [ChatItem.getSample(1, .directRcv, previewDate, "hello")]
+            ), parentSheet: .constant(nil))
+            ChatListNavLink(chat: Chat(
+                chatInfo: .contactRequest(contactRequest: contactRequest),
+                chatItems: []
+            ), parentSheet: .constant(nil))
+            ChatListNavLink(chat: Chat(
+                chatInfo: .contactConnection(contactConnection: connection),
+                chatItems: []
+            ), parentSheet: .constant(nil))
+        }
+        .previewLayout(.fixed(width: 360, height: 82))
+    }
+}

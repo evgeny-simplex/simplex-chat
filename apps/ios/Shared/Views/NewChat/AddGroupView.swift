@@ -27,6 +27,10 @@ struct AddGroupView: View {
     @State private var groupLink: GroupLink?
     @State private var groupLinkMemberRole: GroupMemberRole = .member
 
+    init(previewImage: String? = nil) {
+        _profile = State(initialValue: GroupProfile(displayName: "", fullName: "", image: previewImage))
+    }
+
     var body: some View {
         if let chat = chat, let groupInfo = groupInfo {
             if !groupInfo.membership.memberIncognito {

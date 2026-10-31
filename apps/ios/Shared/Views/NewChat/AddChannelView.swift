@@ -29,6 +29,10 @@ struct AddChannelView: View {
     @State private var showLinkStep = false
     @State private var relayListExpanded = false
 
+    init(previewImage: String? = nil) {
+        _profile = State(initialValue: GroupProfile(displayName: "", fullName: "", image: previewImage))
+    }
+
     var body: some View {
         Group {
             if showLinkStep, let gInfo = groupInfo {

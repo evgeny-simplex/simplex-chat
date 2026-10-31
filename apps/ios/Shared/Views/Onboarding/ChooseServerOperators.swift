@@ -403,3 +403,13 @@ struct OnboardingConditionsView_Previews: PreviewProvider {
         OnboardingConditionsView(selectedOperatorIds: [])
     }
 }
+
+struct ChooseServerOperators_Previews: PreviewProvider {
+    static var previews: some View {
+        var flux = ServerOperator.sampleData1
+        flux.operatorId = 2
+        flux.operatorTag = .flux
+        flux.tradeName = "Flux"
+        return ChooseServerOperators(serverOperators: [ServerOperator.sampleData1, flux], selectedOperatorIds: .constant([1]))
+    }
+}

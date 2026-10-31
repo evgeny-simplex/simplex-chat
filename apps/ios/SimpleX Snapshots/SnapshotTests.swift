@@ -170,9 +170,11 @@ private func previewScenes() -> [SnapshotScene] {
     [
         SnapshotScene(ActiveCallOverlay_Previews.self),
         SnapshotScene(AddChannelView_Previews.self),
+        SnapshotScene(AddChannelViewImage_Previews.self),
         SnapshotScene(AddContactLearnMore_Previews.self),
         SnapshotScene(AddGroupMembersView_Previews.self),
         SnapshotScene(AddGroupView_Previews.self),
+        SnapshotScene(AddGroupViewImage_Previews.self),
         SnapshotScene(AdvancedNetworkSettings_Previews.self),
         SnapshotScene(BadgesCheckOrderView_Previews.self),
         SnapshotScene(BadgesHowItWorksView_Previews.self),
@@ -184,16 +186,19 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(ChannelRelaysView_Previews.self),
         SnapshotScene(ChatHelp_Previews.self),
         SnapshotScene(ChatInfoImage_Previews.self),
+        SnapshotScene(ChatInfoImageKinds_Previews.self),
         SnapshotScene(ChatInfoToolbar_Previews.self),
         SnapshotScene(ChatInfoView_Previews.self),
         SnapshotScene(ChatItemForwardingView_Previews.self),
         SnapshotScene(ChatItemInfoView_Previews.self),
         SnapshotScene(ChatItemView_NonMsgContentDeleted_Previews.self, allSizes: true),
         SnapshotScene(ChatItemView_Previews.self, allSizes: true),
+        SnapshotScene(ChatListLongNames_Previews.self, allSizes: true),
         SnapshotScene(ChatListNavLink_Previews.self),
         SnapshotScene(ChatListView_Previews.self),
         SnapshotScene(ChatPreviewView_Previews.self),
         SnapshotScene(ChatView_Previews.self),
+        SnapshotScene(ChooseServerOperators_Previews.self),
         SnapshotScene(CIChatFeatureView_Previews.self, allSizes: true),
         SnapshotScene(CIEventView_Previews.self, allSizes: true),
         SnapshotScene(CIFeaturePreferenceView_Previews.self, allSizes: true),
@@ -282,6 +287,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(SimpleXInfo_Previews.self),
         SnapshotScene(SmallLinkPreview_Previews.self),
         SnapshotScene(SupportSimpleXBanner_Previews.self),
+        SnapshotScene(SwipeLabel_Previews.self, allSizes: true),
         SnapshotScene(TerminalAvatars_Previews.self, allSizes: true),
         SnapshotScene(TerminalMedia_Previews.self),
         SnapshotScene(TerminalNames_Previews.self, allSizes: true),
@@ -432,6 +438,18 @@ struct TerminalOverviewChannel_Previews: PreviewProvider {
 struct ClassicOverviewChannel_Previews: PreviewProvider {
     static var previews: some View {
         SnapshotFixtures().overviewChannel(terminal: false)
+    }
+}
+
+struct AddGroupViewImage_Previews: PreviewProvider {
+    static var previews: some View {
+        AddGroupView(previewImage: SnapshotFixtures().landscape)
+    }
+}
+
+struct AddChannelViewImage_Previews: PreviewProvider {
+    static var previews: some View {
+        AddChannelView(previewImage: SnapshotFixtures().landscape)
     }
 }
 

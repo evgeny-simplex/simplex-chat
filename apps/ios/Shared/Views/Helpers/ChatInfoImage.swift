@@ -36,3 +36,14 @@ struct ChatInfoImage_Previews: PreviewProvider {
         .previewLayout(.fixed(width: 63, height: 63))
     }
 }
+
+struct ChatInfoImageKinds_Previews: PreviewProvider {
+    static var previews: some View {
+        HStack(spacing: 16) {
+            ChatInfoImage(chat: Chat(chatInfo: ChatInfo.sampleData.direct, chatItems: []), size: 63)
+            ChatInfoImage(chat: Chat(chatInfo: ChatInfo.sampleData.group, chatItems: []), size: 63)
+            ChatInfoImage(chat: Chat(chatInfo: ChatInfo.sampleData.local, chatItems: []), size: 63)
+        }
+        .padding()
+    }
+}
