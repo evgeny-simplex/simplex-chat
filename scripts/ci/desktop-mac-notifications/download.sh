@@ -18,7 +18,7 @@ chmod +x "$out/simplex-chat"
 otool -L "$out/simplex-chat"
 
 curl -fsSL -o "$out/app.dmg" "$base/simplex-desktop-macos-$arch.dmg"
-yes | hdiutil attach -nobrowse -readonly -noverify -mountpoint "$out/dmg" "$out/app.dmg" > /dev/null
+{ yes 2> /dev/null || true; } | hdiutil attach -nobrowse -readonly -noverify -mountpoint "$out/dmg" "$out/app.dmg" > /dev/null
 app=$(find "$out/dmg" -maxdepth 1 -name '*.app' | head -1)
 find "$app/Contents" -maxdepth 3 -not -path '*/runtime/*' | head -60
 
