@@ -108,6 +108,10 @@ class CustomUITextField: UITextView, UITextViewDelegate {
         get { placeholderLabel.text }
         set { placeholderLabel.text = newValue }
     }
+
+    override var text: String! {
+        didSet { placeholderLabel.isHidden = !text.isEmpty }
+    }
     
     required init?(coder: NSCoder) {
         fatalError("Not implemented")
@@ -173,7 +177,7 @@ class CustomUITextField: UITextView, UITextViewDelegate {
         addSubview(placeholderLabel)
         
         NSLayoutConstraint.activate([
-            placeholderLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 7),
+            placeholderLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             placeholderLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -7),
             placeholderLabel.topAnchor.constraint(equalTo: topAnchor, constant: 8)
         ])

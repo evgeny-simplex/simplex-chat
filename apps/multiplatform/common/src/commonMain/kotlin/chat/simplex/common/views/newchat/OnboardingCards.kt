@@ -443,7 +443,8 @@ fun ConnectOnboardingView() {
         Box(Modifier.align(Alignment.CenterHorizontally).widthIn(max = bannerMaxWidth).padding(start = DEFAULT_PADDING, end = DEFAULT_PADDING, bottom = 8.dp)) {
           GetStakeBanner(
             showDismiss = false,
-            onTap = cardClickOverride ?: { openGetStake(if (appPlatform.isDesktop) ModalManager.center else ModalManager.start) },
+            canDismiss = false,
+            onTap =cardClickOverride ?: { openGetStake(if (appPlatform.isDesktop) ModalManager.center else ModalManager.start) },
             onDismiss = {}
           )
         }

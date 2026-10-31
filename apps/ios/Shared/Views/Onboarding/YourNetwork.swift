@@ -87,7 +87,7 @@ struct YourNetworkView: View {
             }
             .padding(.horizontal, 25)
             .padding(.top, 8)
-            .padding(.bottom, 20)
+            .padding(.bottom, 25)
             .frame(minHeight: g.size.height)
         }
         .onAppear {

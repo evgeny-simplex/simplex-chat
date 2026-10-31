@@ -182,15 +182,18 @@ fun PreviewComposeStrips() {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
       Column {
         ContextItemView(quoted, reply, chatInfo = chatInfo) {}
-        ComposeLinkView(LinkPreview.sampleData, cancelPreview = {}, true)
+        Divider()
+        ComposeLinkView(LinkPreview.sampleData, cancelPreview = {}, true, bandAbove = false)
       }
       Column {
         ContextItemView(quoted, reply, chatInfo = chatInfo) {}
-        ComposeImageView(media, cancelImages = {}, cancelEnabled = true)
+        Divider()
+        ComposeImageView(media, cancelImages = {}, cancelEnabled = true, bandAbove = false)
       }
       Column {
         ContextItemView(quoted, reply, chatInfo = chatInfo) {}
-        ComposeFileView("details.pdf", cancelFile = {}, cancelEnabled = true)
+        Divider()
+        ComposeFileView("details.pdf", cancelFile = {}, cancelEnabled = true, bandAbove = false)
       }
       Box {
         Box(Modifier.align(Alignment.TopStart).padding(bottom = 69.dp)) {
@@ -202,15 +205,18 @@ fun PreviewComposeStrips() {
       }
       Column {
         ContextItemView(quoted, reply, chatInfo = chatInfo) {}
+        Divider()
         ComposeChatLinkView(
           chatLink = MsgChatLink.Contact(connLink = "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw", profile = Profile.sampleData, business = false),
           cancelEnabled = true,
+          bandAbove = false,
           cancelPreview = {}
         )
       }
       Column {
         ContextItemView(edited, painterResource(MR.images.ic_edit_filled), chatInfo = chatInfo) {}
-        ComposeImageView(media, cancelImages = {}, cancelEnabled = false)
+        Divider()
+        ComposeImageView(media, cancelImages = {}, cancelEnabled = false, bandAbove = false)
       }
     }
   }

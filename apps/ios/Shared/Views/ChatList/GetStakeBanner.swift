@@ -14,6 +14,7 @@ struct GetStakeBanner: View {
     @EnvironmentObject var theme: AppTheme
     @Environment(\.colorScheme) var colorScheme: ColorScheme
     var showDismiss: Bool
+    var canDismiss: Bool = true
     let onTap: () -> Void
     let onDismiss: () -> Void
 
@@ -36,7 +37,7 @@ struct GetStakeBanner: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 37, height: 37)
-                        .padding(.trailing, showDismiss ? 32 : 10)
+                        .padding(.trailing, canDismiss ? 32 : 10)
                 }
                 .modifier(BannerCard())
             }

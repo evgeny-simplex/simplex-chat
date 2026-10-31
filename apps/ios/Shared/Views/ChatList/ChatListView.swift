@@ -456,7 +456,7 @@ struct ChatListView: View {
             VStack(spacing: 0) {
                 ConnectOnboardingView()
                 if chatModel.bannerSlotFree(for: .getStake) && isInUS && !getStakeBannerDismissed {
-                    GetStakeBanner(showDismiss: false, onTap: openGetStake, onDismiss: {})
+                    GetStakeBanner(showDismiss: false, canDismiss: false, onTap: openGetStake, onDismiss: {})
                         .padding(.horizontal, 20)
                         .padding(.bottom, 8)
                         .onAppear { chatModel.chatListBanner = .getStake }

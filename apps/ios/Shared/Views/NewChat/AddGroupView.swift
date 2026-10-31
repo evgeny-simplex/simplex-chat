@@ -104,11 +104,11 @@ struct AddGroupView: View {
 
             Section {
                 groupNameTextField()
+                IncognitoToggle(incognitoEnabled: $incognitoDefault)
                 Button(action: createGroup) {
                     settingsRow("checkmark", color: theme.colors.primary) { Text("Create group") }
                 }
                 .disabled(!canCreateProfile())
-                IncognitoToggle(incognitoEnabled: $incognitoDefault)
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     sharedGroupProfileInfo(incognitoDefault)

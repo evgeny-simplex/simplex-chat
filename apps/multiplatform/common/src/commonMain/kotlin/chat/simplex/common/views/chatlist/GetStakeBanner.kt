@@ -34,12 +34,12 @@ import chat.simplex.res.*
 
 // Spec: spec/client/chat-list.md#GetStakeBanner
 @Composable
-fun GetStakeBanner(showDismiss: Boolean, onTap: () -> Unit, onDismiss: () -> Unit) {
+fun GetStakeBanner(showDismiss: Boolean, canDismiss: Boolean = true, onTap: () -> Unit, onDismiss: () -> Unit) {
   Box(Modifier.fillMaxWidth()) {
     Row(
       Modifier
         .bannerCard(onTap)
-        .padding(start = 16.dp, end = if (showDismiss) 40.dp else 18.dp, top = 12.dp, bottom = 12.dp),
+        .padding(start = 16.dp, end = if (canDismiss) 40.dp else 18.dp, top = 12.dp, bottom = 12.dp),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {

@@ -1031,17 +1031,6 @@ struct WhatsNewView: View {
                                     sheetItem = .showConditions
                                 }
                             }
-                            if !viaSettings {
-                                Spacer()
-
-                                Button("Ok") {
-                                    dismiss()
-                                }
-                                .font(.title3)
-                                .frame(maxWidth: .infinity, alignment: .center)
-
-                                Spacer()
-                            }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
@@ -1050,6 +1039,14 @@ struct WhatsNewView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             Spacer()
+            if !viaSettings {
+                Button("Ok") {
+                    dismiss()
+                }
+                .font(.title3)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical)
+            }
             pagination()
         }
         .padding()

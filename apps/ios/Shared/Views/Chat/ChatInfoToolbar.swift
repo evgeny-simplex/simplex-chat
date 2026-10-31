@@ -69,13 +69,16 @@ struct ChatInfoToolbar: View {
                         }
                     }
                 }
-            if let contact = chat.chatInfo.contact,
-               contact.ready && contact.active,
-               let chatSubStatus = m.chatSubStatus,
-               chatSubStatus != .active {
-                SubStatusView(status: chatSubStatus)
-                    .padding(.leading, 4)
-            }
+                .overlay(alignment: .trailing) {
+                    if let contact = chat.chatInfo.contact,
+                       contact.ready && contact.active,
+                       let chatSubStatus = m.chatSubStatus,
+                       chatSubStatus != .active {
+                        SubStatusView(status: chatSubStatus)
+                            .fixedSize()
+                            .alignmentGuide(.trailing) { $0[.leading] - 12 }
+                    }
+                }
         }
         .foregroundColor(theme.colors.onBackground)
         .frame(width: 220)
