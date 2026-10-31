@@ -210,6 +210,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(ClassicOverviewGroup_Previews.self),
         SnapshotScene(ComposeFileView_Previews.self),
         SnapshotScene(ComposeImageView_Previews.self),
+        SnapshotScene(ComposeStrips_Previews.self),
         SnapshotScene(ComposeVoiceView_Previews.self),
         SnapshotScene(ConnectDesktopView_Previews.self),
         SnapshotScene(ContactConnectionInfo_Previews.self),
@@ -443,6 +444,43 @@ struct ComposeImageView_Previews: PreviewProvider {
     static var previews: some View {
         let fixtures = SnapshotFixtures()
         ComposeImageView(images: [fixtures.landscape, fixtures.photo], cancelImage: {}, cancelEnabled: true)
+    }
+}
+
+struct ComposeStrips_Previews: PreviewProvider {
+    static var previews: some View {
+        let fixtures = SnapshotFixtures()
+        let quoted = ChatItem.getSample(1, .directRcv, previewDate, "Can you send me the details?")
+        let edited = ChatItem.getSample(2, .directSnd, previewDate, "Our new office")
+        VStack(spacing: 16) {
+            strips(quoted, "arrowshape.turn.up.left") {
+                ComposeLinkView(linkPreview: LinkPreview(uri: "https://simplex.chat", title: "SimpleX Chat: private and secure messenger", image: fixtures.photo), cancelPreview: {}, cancelEnabled: true)
+            }
+            strips(quoted, "arrowshape.turn.up.left") {
+                ComposeImageView(images: [fixtures.landscape], cancelImage: {}, cancelEnabled: true)
+            }
+            strips(quoted, "arrowshape.turn.up.left") {
+                ComposeFileView(fileName: "details.pdf", cancelFile: {}, cancelEnabled: true)
+            }
+            strips(quoted, "arrowshape.turn.up.left") {
+                ComposeVoiceView(recordingFileName: "voice.m4a", recordingTime: Binding.constant(TimeInterval(20)), recordingState: Binding.constant(.finished), cancelVoiceMessage: { _ in }, cancelEnabled: true, stopPlayback: Binding.constant(false))
+            }
+            strips(quoted, "arrowshape.turn.up.left") {
+                ComposeChatLinkView(chatLink: .contact(connLink: "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw", profile: Profile.sampleData, business: false), cancelPreview: {}, cancelEnabled: true)
+            }
+            strips(edited, "pencil") {
+                ComposeImageView(images: [fixtures.landscape], cancelImage: {}, cancelEnabled: false)
+            }
+        }
+    }
+
+    private static func strips<V: View>(_ item: ChatItem, _ icon: String, @ViewBuilder preview: () -> V) -> some View {
+        VStack(spacing: 0) {
+            ContextItemView(chat: Chat.sampleData, contextItems: [item], contextIcon: icon, cancelContextItem: {})
+            Divider()
+            preview()
+            Divider()
+        }
     }
 }
 
