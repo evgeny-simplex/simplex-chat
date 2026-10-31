@@ -67,6 +67,14 @@ struct UserPicker: View {
                 .onPreferenceChange(DetermineWidth.Key.self) { frameWidth = $0 }
             }
             VStack(spacing: 0) {
+                if m.chatRunning == false {
+                    menuRow("exclamationmark.octagon.fill", color: .red, title: "Chat is stopped") {
+                        AlertManager.shared.showAlertMsg(
+                            title: "Chat is stopped",
+                            message: "You can start chat via app Settings / Database or by restarting the app"
+                        )
+                    }
+                }
                 openSheetOnTap("qrcode", title: m.userAddress == nil ? "Create SimpleX address" : "Your SimpleX address", sheet: .address, disabled: stopped)
                 openSheetOnTap("switch.2", title: "Chat preferences", sheet: .chatPreferences, disabled: stopped)
                 openSheetOnTap("person.crop.rectangle.stack", title: "Your chat profiles", sheet: .chatProfiles, disabled: stopped)
@@ -158,14 +166,18 @@ struct UserPicker: View {
     }
 
     private func openSheetOnTap(_ icon: String, title: LocalizedStringKey, sheet: UserPickerSheet, showDivider: Bool = true, disabled: Bool = false) -> some View {
+        menuRow(icon, color: theme.colors.secondary, title: title, showDivider: showDivider, disabled: disabled) { activeSheet = sheet }
+    }
+
+    private func menuRow(_ icon: String, color: Color, title: LocalizedStringKey, showDivider: Bool = true, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         ZStack(alignment: .bottom) {
-            settingsRow(icon, color: theme.colors.secondary) {
+            settingsRow(icon, color: color) {
                 Text(title).foregroundColor(.primary).opacity(disabled ? 0.4 : 1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, rowPadding)
             .padding(.vertical, rowVerticalPadding)
-            .modifier(ListRow { activeSheet = sheet })
+            .modifier(ListRow(action: action))
             .disabled(disabled)
             if showDivider {
                 Divider().padding(.leading, 52)
@@ -291,6 +303,7 @@ struct UserPicker_Previews: PreviewProvider {
 
         let m = ChatModel()
         m.users = [UserInfo.sampleData, UserInfo.sampleData]
+        m.chatRunning = false
         return UserPicker(
             userPickerShown: .constant(true),
             activeSheet: $activeSheet

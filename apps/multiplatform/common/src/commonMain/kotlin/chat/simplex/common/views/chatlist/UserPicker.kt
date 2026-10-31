@@ -217,6 +217,19 @@ fun UserPicker(
 
     @Composable
     fun SecondSection() {
+      if (stopped) {
+        UserPickerOptionRow(
+          painterResource(MR.images.ic_report_filled),
+          stringResource(MR.strings.chat_is_stopped_indication),
+          {
+            AlertManager.shared.showAlertMsg(
+              generalGetString(MR.strings.chat_is_stopped_indication),
+              generalGetString(MR.strings.you_can_start_chat_via_setting_or_by_restarting_the_app)
+            )
+          },
+          iconColor = Color.Red
+        )
+      }
       if (!chatModel.desktopNoUserNoRemote) {
         UserPickerOptionRow(
           painterResource(MR.images.ic_qr_code),
@@ -504,9 +517,9 @@ fun UserProfileRow(u: User, enabled: Boolean = remember { chatModel.chatRunning 
 }
 
 @Composable
-fun UserPickerOptionRow(icon: Painter, text: String, click: (() -> Unit)? = null, disabled: Boolean = false) {
+fun UserPickerOptionRow(icon: Painter, text: String, click: (() -> Unit)? = null, disabled: Boolean = false, iconColor: Color = MaterialTheme.colors.secondary) {
   SectionItemView(click, disabled = disabled, extraPadding = appPlatform.isDesktop) {
-    Icon(icon, text, tint = if (disabled) MaterialTheme.colors.secondary else MaterialTheme.colors.secondary)
+    Icon(icon, text, tint = if (disabled) MaterialTheme.colors.secondary else iconColor)
     TextIconSpaced()
     Text(text = text, color = if (disabled) MaterialTheme.colors.secondary else Color.Unspecified)
   }
