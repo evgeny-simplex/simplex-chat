@@ -298,18 +298,24 @@ struct AdvancedNetworkSettings: View {
             if netCfg == currentNetCfg {
                 dismiss()
                 cfgLoaded = false
-            } else if !useNetProxy || netProxy.valid {
+            } else {
                 showSaveDialog = true
             }
         })
         .confirmationDialog("Update network settings?", isPresented: $showSaveDialog, titleVisibility: .visible) {
-            Button("Save and reconnect") {
-                if saveNetCfg() {
-                    dismiss()
-                    cfgLoaded = false
+            if !useNetProxy || netProxy.valid {
+                Button("Save and reconnect") {
+                    if saveNetCfg() {
+                        dismiss()
+                        cfgLoaded = false
+                    }
                 }
             }
             Button("Exit without saving") { dismiss() }
+        } message: {
+            if useNetProxy && !netProxy.valid {
+                Text("Make sure proxy configuration is correct.")
+            }
         }
     }
 
