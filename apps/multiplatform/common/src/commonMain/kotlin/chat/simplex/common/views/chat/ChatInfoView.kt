@@ -1093,7 +1093,7 @@ fun InfoViewActionButton(
             icon,
             contentDescription = null,
             Modifier.size(22.dp * fontSizeSqrtMultiplier),
-            tint = if (disabledLook) MaterialTheme.colors.secondary else MaterialTheme.colors.onPrimary
+            tint = if (disabledLook) MaterialTheme.colors.secondary else Color.White
           )
         }
       }

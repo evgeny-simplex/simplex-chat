@@ -52,7 +52,14 @@ fun ChatInfoImage(chatInfo: ChatInfo, size: Dp, iconColor: Color = MaterialTheme
       is ChatInfo.Direct -> chatInfo.contact.chatIconName
       else -> MR.images.ic_account_circle_filled
     }
-  ProfileImage(size, chatInfo.image, icon, if (chatInfo is ChatInfo.Local) NoteFolderIconColor else iconColor)
+  if (chatInfo is ChatInfo.Local) {
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+      Box(Modifier.size(size * 0.7f).background(MaterialTheme.colors.primary, CircleShape))
+      ProfileImage(size, chatInfo.image, icon, NoteFolderIconColor)
+    }
+  } else {
+    ProfileImage(size, chatInfo.image, icon, iconColor)
+  }
 }
 
 @Composable
