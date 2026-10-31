@@ -43,6 +43,15 @@ struct GroupMentionsView: View {
                     VStack(spacing: 0) {
                         Spacer()
                         Divider()
+                        if composeState.memberMentions.count >= MAX_NUMBER_OF_MENTIONS && composeState.memberMentions[mentionName] == nil {
+                            Text("You can mention up to \(MAX_NUMBER_OF_MENTIONS) members per message!")
+                                .foregroundColor(theme.colors.onBackground)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal)
+                                .padding(.vertical, 12)
+                                .background(theme.colors.background)
+                            Divider()
+                        }
                         let scroll = ScrollView {
                             LazyVStack(spacing: 0) {
                                 ForEach(Array(filtered.enumerated()), id: \.element.wrapped.groupMemberId) { index, member in
@@ -54,7 +63,7 @@ struct GroupMentionsView: View {
                                             .disabled(disabled)
                                             .opacity(disabled ? 0.6 : 1)
                                             .onTapGesture {
-                                                memberSelected(member)
+                                                if !disabled { memberSelected(member) }
                                             }
                                             .padding(.horizontal)
                                             .frame(height: MEMBER_ROW_SIZE)
