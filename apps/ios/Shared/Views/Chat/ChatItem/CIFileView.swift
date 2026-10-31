@@ -16,6 +16,7 @@ struct CIFileView: View {
     @EnvironmentObject var theme: AppTheme
     @Environment(\.showTimestamp) var showTimestamp: Bool
     @Environment(\.terminalLayout) private var terminal
+    @Environment(\.dynamicTypeSize) private var userFont: DynamicTypeSize
     @AppStorage(DEFAULT_SHOW_SENT_VIA_RPOXY) private var showSentViaProxy = false
     @AppStorage(DEFAULT_PRIVACY_SHOW_SIGNATURE) private var showSignature = true
     @AppStorage(DEFAULT_PRIVACY_SHOW_FILE_ENCRYPTION) private var showFileEncryption = true
@@ -204,7 +205,7 @@ struct CIFileView: View {
     }
 
     private func fileIcon(_ icon: String, color: Color = Color(uiColor: .tertiaryLabel), innerIcon: String? = nil, innerIconSize: CGFloat? = nil) -> some View {
-        let size = smallViewSize ?? 30
+        let size = smallViewSize ?? dynamicSize(userFont).fileIconSize
         return ZStack(alignment: .center) {
             Image(systemName: icon)
                 .resizable()
@@ -225,7 +226,7 @@ struct CIFileView: View {
     }
 
     private func progressView() -> some View {
-        ProgressView().frame(width: 30, height: 30)
+        ProgressView().frame(width: dynamicSize(userFont).fileIconSize, height: dynamicSize(userFont).fileIconSize)
     }
 
     private func progressCircle(_ progress: Int64, _ total: Int64) -> some View {
@@ -236,7 +237,7 @@ struct CIFileView: View {
                 style: StrokeStyle(lineWidth: 3)
             )
             .rotationEffect(.degrees(-90))
-            .frame(width: 30, height: 30)
+            .frame(width: dynamicSize(userFont).fileIconSize, height: dynamicSize(userFont).fileIconSize)
     }
 }
 

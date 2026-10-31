@@ -587,11 +587,12 @@ struct SettingsView: View {
     }
 }
 
-func settingsRow<Content : View>(_ icon: String, color: Color/* = .secondary*/, content: @escaping () -> Content) -> some View {
+func settingsRow<Content : View>(_ icon: String, color: Color/* = .secondary*/, lightSymbol: Bool = false, content: @escaping () -> Content) -> some View {
     ZStack(alignment: .leading) {
         Image(systemName: icon).frame(maxWidth: 24, maxHeight: 24, alignment: .center)
             .symbolRenderingMode(.monochrome)
             .foregroundColor(color)
+            .if(lightSymbol) { $0.environment(\.colorScheme, .light) }
         content().padding(.leading, indent)
     }
 }

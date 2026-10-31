@@ -115,6 +115,7 @@ struct ContactPreferencesView: View {
         HStack {
             Image(systemName: feature.iconFilled)
                 .foregroundColor(enabled.forUser ? .green : enabled.forContact ? .yellow : .red)
+                .environment(\.colorScheme, .light)
             Text(feature.text)
         }
     }

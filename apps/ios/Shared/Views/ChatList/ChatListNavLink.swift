@@ -16,22 +16,23 @@ typealias DynamicSizes = (
     incognitoSize: CGFloat,
     chatInfoSize: CGFloat,
     unreadCorner: CGFloat,
-    unreadPadding: CGFloat
+    unreadPadding: CGFloat,
+    fileIconSize: CGFloat
 )
 
 private let dynamicSizes: [DynamicTypeSize: DynamicSizes] = [
-    .xSmall: (68, 55, 33, 22, 18, 9, 3),
-    .small: (72, 57, 34, 22, 18, 9, 3),
-    .medium: (76, 60, 36, 22, 18, 10, 4),
-    .large: (80, 63, 38, 24, 20, 10, 4),
-    .xLarge: (88, 67, 41, 24, 20, 10, 4),
-    .xxLarge: (100, 71, 44, 27, 22, 11, 4),
-    .xxxLarge: (110, 75, 48, 30, 24, 12, 5),
-    .accessibility1: (110, 75, 48, 30, 24, 12, 5),
-    .accessibility2: (114, 75, 48, 30, 24, 12, 5),
-    .accessibility3: (124, 75, 48, 30, 24, 12, 5),
-    .accessibility4: (134, 75, 48, 30, 24, 12, 5),
-    .accessibility5: (144, 75, 48, 30, 24, 12, 5)
+    .xSmall: (68, 55, 33, 22, 18, 9, 3, 26),
+    .small: (72, 57, 34, 22, 18, 9, 3, 27),
+    .medium: (76, 60, 36, 22, 18, 10, 4, 28),
+    .large: (80, 63, 38, 24, 20, 10, 4, 30),
+    .xLarge: (88, 67, 41, 24, 20, 10, 4, 34),
+    .xxLarge: (100, 71, 44, 27, 22, 11, 4, 38),
+    .xxxLarge: (110, 75, 48, 30, 24, 12, 5, 42),
+    .accessibility1: (110, 75, 48, 30, 24, 12, 5, 52),
+    .accessibility2: (114, 75, 48, 30, 24, 12, 5, 61),
+    .accessibility3: (124, 75, 48, 30, 24, 12, 5, 74),
+    .accessibility4: (134, 75, 48, 30, 24, 12, 5, 87),
+    .accessibility5: (144, 75, 48, 30, 24, 12, 5, 99)
 ]
 
 private let defaultDynamicSizes: DynamicSizes = dynamicSizes[.large]!
