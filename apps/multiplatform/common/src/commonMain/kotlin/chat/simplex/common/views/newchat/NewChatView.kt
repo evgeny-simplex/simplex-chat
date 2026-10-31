@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.VisualTransformation
@@ -671,6 +672,8 @@ private fun ConnectView(rhId: Long?, showQRCodeScanner: MutableState<Boolean>, p
 private fun PasteLinkView(rhId: Long?, pastedLink: MutableState<String>, showQRCodeScanner: MutableState<Boolean>, close: () -> Unit) {
   if (pastedLink.value.isEmpty()) {
     val clipboard = LocalClipboardManager.current
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    val clipboardHasText = remember(windowFocused) { clipboard.hasText() }
     SectionItemView({
       val str = clipboard.getText()?.text ?: return@SectionItemView
       when (val target = strConnectTarget(str.trim())) {
@@ -689,9 +692,9 @@ private fun PasteLinkView(rhId: Long?, pastedLink: MutableState<String>, showQRC
           text = generalGetString(MR.strings.the_text_you_pasted_is_not_a_link)
         )
       }
-    }) {
+    }, disabled = !clipboardHasText) {
       Box(Modifier.weight(1f)) {
-        Text(stringResource(MR.strings.tap_to_paste_link), color = MaterialTheme.colors.primary)
+        Text(stringResource(MR.strings.tap_to_paste_link), color = if (clipboardHasText) MaterialTheme.colors.primary else MaterialTheme.colors.secondary)
       }
       if (connectProgressManager.showConnectProgress != null) {
         CIFileViewScope.progressIndicator(sizeMultiplier = 0.6f)

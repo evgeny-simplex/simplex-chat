@@ -641,6 +641,12 @@ private struct ConnectView: View {
         .onDisappear {
             connectProgressManager.cancelConnectProgress()
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in
+            pasteboardHasStrings = UIPasteboard.general.hasStrings
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            pasteboardHasStrings = UIPasteboard.general.hasStrings
+        }
     }
 
     @ViewBuilder private func pasteLinkView() -> some View {
