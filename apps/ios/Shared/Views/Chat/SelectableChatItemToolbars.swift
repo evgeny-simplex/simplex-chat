@@ -82,7 +82,11 @@ struct SelectedItemsBottomToolbar: View {
 
                 Spacer()
                 Button {
-                    forwardItems()
+                    if forwardCountProhibited {
+                        AlertManager.shared.showAlertMsg(title: "Forward up to 20 messages at once.")
+                    } else {
+                        forwardItems()
+                    }
                 } label: {
                     Image(systemName: "arrowshape.turn.up.forward")
                         .resizable()
@@ -90,7 +94,7 @@ struct SelectedItemsBottomToolbar: View {
                         .frame(width: 20, height: 20, alignment: .center)
                         .foregroundColor(!forwardEnabled || forwardCountProhibited || im.secondaryIMFilter != nil ? theme.colors.secondary : theme.colors.primary)
                 }
-                .disabled(!forwardEnabled || forwardCountProhibited || im.secondaryIMFilter != nil)
+                .disabled(!forwardEnabled || (selectedChatItems ?? []).isEmpty || im.secondaryIMFilter != nil)
             }
             .frame(maxHeight: .infinity)
             .padding([.leading, .trailing], 12)

@@ -110,7 +110,7 @@ fun SelectedItemsButtonsToolbar(
         )
       }
 
-      IconButton({ forwardItems() }, enabled = forwardEnabled.value && !forwardCountProhibited.value && chatsCtx.secondaryContextFilter == null) {
+      IconButton({ if (forwardCountProhibited.value) AlertManager.shared.showAlertMsg(MR.strings.v6_1_forward_many_messages_descr) else forwardItems() }, enabled = forwardEnabled.value && !selectedChatItems.value.isNullOrEmpty() && chatsCtx.secondaryContextFilter == null) {
         Icon(
           painterResource(MR.images.ic_forward),
           null,
