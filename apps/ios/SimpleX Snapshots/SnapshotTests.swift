@@ -191,6 +191,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(ChatItemView_NonMsgContentDeleted_Previews.self, allSizes: true),
         SnapshotScene(ChatItemView_Previews.self, allSizes: true),
         SnapshotScene(ChatListNavLink_Previews.self),
+        SnapshotScene(ChatListRows_Previews.self, allSizes: true),
         SnapshotScene(ChatListView_Previews.self),
         SnapshotScene(ChatPreviewView_Previews.self),
         SnapshotScene(ChatView_Previews.self),
@@ -207,6 +208,8 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(ClassicOverviewChannel_Previews.self),
         SnapshotScene(ClassicOverviewDirect_Previews.self),
         SnapshotScene(ClassicOverviewGroup_Previews.self),
+        SnapshotScene(ComposeFileView_Previews.self),
+        SnapshotScene(ComposeImageView_Previews.self),
         SnapshotScene(ComposeVoiceView_Previews.self),
         SnapshotScene(ConnectDesktopView_Previews.self),
         SnapshotScene(ContactConnectionInfo_Previews.self),
@@ -255,6 +258,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(NativeTextEditor_Previews.self),
         SnapshotScene(NetworkServersView_Previews.self),
         SnapshotScene(NewChatMenuButton_Previews.self),
+        SnapshotScene(NewChatSheet_Previews.self),
         SnapshotScene(NewFeaturesView_Previews.self),
         SnapshotScene(NewServerView_Previews.self),
         SnapshotScene(NotificationsModeView_Previews.self),
@@ -432,6 +436,13 @@ struct TerminalOverviewChannel_Previews: PreviewProvider {
 struct ClassicOverviewChannel_Previews: PreviewProvider {
     static var previews: some View {
         SnapshotFixtures().overviewChannel(terminal: false)
+    }
+}
+
+struct ComposeImageView_Previews: PreviewProvider {
+    static var previews: some View {
+        let fixtures = SnapshotFixtures()
+        ComposeImageView(images: [fixtures.landscape, fixtures.photo], cancelImage: {}, cancelEnabled: true)
     }
 }
 
