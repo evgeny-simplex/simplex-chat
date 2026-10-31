@@ -1724,7 +1724,7 @@ sealed class ChatInfo: SomeChat, NamedChat {
               generalGetString(MR.strings.cant_send_message_contact_not_ready) to null
             }
           }
-          if (contact.activeConn?.connectionStats?.ratchetSyncSendProhibited == true) return generalGetString(MR.strings.cant_send_message_contact_not_synchronized) to null
+          if (contact.activeConn?.connectionStats?.ratchetSyncSendProhibited == true) return generalGetString(MR.strings.cant_send_message_contact_not_synchronized) to generalGetString(MR.strings.cant_send_message_contact_not_synchronized_desc)
           if (contact.activeConn?.connDisabled == true) return generalGetString(MR.strings.cant_send_message_contact_disabled) to null
           return null
         }
@@ -1753,7 +1753,7 @@ sealed class ChatInfo: SomeChat, NamedChat {
                     groupChatScope.groupMember_.versionRange.maxVersion < GROUP_KNOCKING_VERSION
                     && !groupChatScope.groupMember_.memberPending
                   ) {
-                    return generalGetString(MR.strings.cant_send_message_member_has_old_version) to null
+                    return generalGetString(MR.strings.cant_send_message_member_has_old_version) to generalGetString(MR.strings.cant_send_message_member_has_old_version_desc)
                   }
                   return null
                 } else {

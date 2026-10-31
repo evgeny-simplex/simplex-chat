@@ -644,6 +644,7 @@
   <string name="cant_send_message_request_is_sent">request is sent</string>
   <string name="cant_send_message_contact_deleted">contact deleted</string>
   <string name="cant_send_message_contact_not_synchronized">not synchronized</string>
+  <string name="cant_send_message_contact_not_synchronized_desc">Open contact info and tap Fix connection.</string>
   <string name="cant_send_message_contact_disabled">contact disabled</string>
   <string name="observer_cant_send_message_title">you are observer</string>
   <string name="you_are_subscriber">you are subscriber</string>
@@ -658,6 +659,7 @@
   <string name="you_are_observer">you are observer</string>
   <string name="reviewed_by_admins">reviewed by admins</string>
   <string name="cant_send_message_member_has_old_version">member has old version</string>
+  <string name="cant_send_message_member_has_old_version_desc">Ask the member to update the app.</string>
   <string name="cant_send_commands_alert_text">To send commands you must be connected.</string>
 
   <!-- Images - chat.simplex.app.views.chat.item.CIImageView.kt -->

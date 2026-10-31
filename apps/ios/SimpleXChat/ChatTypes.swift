@@ -2210,7 +2210,7 @@ public enum ChatInfo: Identifiable, Decodable, NamedChat, Hashable {
                 if contact.nextAcceptContactRequest { return ("can't send messages", nil) }
                 if !contact.active { return ("contact deleted", nil) }
                 if !contact.sndReady { return (contact.preparedContact?.uiConnLinkType == .con ? "request is sent" : "contact not ready", nil) }
-                if contact.activeConn?.connectionStats?.ratchetSyncSendProhibited ?? false { return ("not synchronized", nil) }
+                if contact.activeConn?.connectionStats?.ratchetSyncSendProhibited ?? false { return ("not synchronized", "Open contact info and tap Fix connection.") }
                 if contact.activeConn?.connDisabled ?? true { return ("contact disabled", nil) }
                 return nil
             case let .group(groupInfo, groupChatScope):
@@ -2225,7 +2225,7 @@ public enum ChatInfo: Identifiable, Decodable, NamedChat, Hashable {
                         return nil
                     case let .some(.memberSupport(groupMember_: .some(supportMember))):
                         if supportMember.versionRange.maxVersion < GROUP_KNOCKING_VERSION && !supportMember.memberPending {
-                            return ("member has old version", nil)
+                            return ("member has old version", "Ask the member to update the app.")
                         }
                         return nil
                     case .some(.memberSupport(groupMember_: .none)):
