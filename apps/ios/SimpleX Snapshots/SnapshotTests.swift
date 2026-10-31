@@ -185,6 +185,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(ChatHelp_Previews.self),
         SnapshotScene(ChatInfoImage_Previews.self),
         SnapshotScene(ChatInfoToolbar_Previews.self),
+        SnapshotScene(ChatInfoToolbarStates_Previews.self),
         SnapshotScene(ChatInfoView_Previews.self),
         SnapshotScene(ChatItemForwardingView_Previews.self),
         SnapshotScene(ChatItemInfoView_Previews.self),
@@ -233,6 +234,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(FramedItemView_Edited_Previews.self, allSizes: true),
         SnapshotScene(FramedItemView_Previews.self, allSizes: true),
         SnapshotScene(GetStakeBanner_Previews.self),
+        SnapshotScene(GetStakeBannerStates_Previews.self),
         SnapshotScene(GroupChatInfoView_Previews.self),
         SnapshotScene(GroupLinkView_Previews.self),
         SnapshotScene(GroupMemberInfoView_Previews.self),
@@ -253,6 +255,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(MigrateToGroupView_Previews.self),
         SnapshotScene(MsgContentView_Previews.self, allSizes: true),
         SnapshotScene(NativeTextEditor_Previews.self),
+        SnapshotScene(NativeTextEditorPlaceholder_Previews.self),
         SnapshotScene(NetworkServersView_Previews.self),
         SnapshotScene(NewChatMenuButton_Previews.self),
         SnapshotScene(NewFeaturesView_Previews.self),
@@ -296,6 +299,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(VerifyCodeView_Previews.self),
         SnapshotScene(VersionView_Previews.self),
         SnapshotScene(WhySimpleX_Previews.self),
+        SnapshotScene(YourNetworkView_Previews.self),
         SnapshotScene(YourServersView_Previews.self)
     ]
 }

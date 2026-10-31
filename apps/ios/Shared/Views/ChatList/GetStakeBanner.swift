@@ -111,3 +111,13 @@ struct GetStakeBanner_Previews: PreviewProvider {
             .padding()
     }
 }
+
+struct GetStakeBannerStates_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 16) {
+            GetStakeBanner(showDismiss: false, onTap: {}, onDismiss: {})
+            GetStakeBanner(showDismiss: true, onTap: {}, onDismiss: {})
+        }
+        .padding()
+    }
+}

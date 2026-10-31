@@ -1,5 +1,6 @@
 package chat.simplex.common.views.chatlist
 
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import dev.icerock.moko.resources.compose.painterResource
 import dev.icerock.moko.resources.compose.stringResource
 import chat.simplex.common.model.ChatController.appPrefs
+import chat.simplex.common.ui.theme.SimpleXTheme
 import chat.simplex.common.ui.theme.isInDarkTheme
 import chat.simplex.common.views.helpers.ModalManager
 import chat.simplex.common.views.helpers.fontSizeMultiplier
@@ -130,4 +132,15 @@ private fun gradientBrush(isDark: Boolean, size: IntSize): Brush {
     start = Offset(sx * w, sy * h),
     end = Offset(ex * w, ey * h)
   )
+}
+
+@Preview
+@Composable
+fun PreviewGetStakeBannerStates() {
+  SimpleXTheme {
+    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+      GetStakeBanner(showDismiss = false, onTap = {}, onDismiss = {})
+      GetStakeBanner(showDismiss = true, onTap = {}, onDismiss = {})
+    }
+  }
 }

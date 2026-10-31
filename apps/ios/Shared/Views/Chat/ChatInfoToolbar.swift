@@ -146,3 +146,21 @@ struct ChatInfoToolbar_Previews: PreviewProvider {
             .environmentObject(CurrentColors.toAppTheme())
     }
 }
+
+struct ChatInfoToolbarStates_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 24) {
+            toolbar(nil)
+            toolbar(.noSub)
+        }
+        .padding(.vertical)
+    }
+
+    private static func toolbar(_ status: SubscriptionStatus?) -> some View {
+        let m = ChatModel()
+        m.chatSubStatus = status
+        return ChatInfoToolbar(chat: Chat(chatInfo: ChatInfo.sampleData.direct, chatItems: []))
+            .environmentObject(m)
+            .frame(maxWidth: .infinity)
+    }
+}

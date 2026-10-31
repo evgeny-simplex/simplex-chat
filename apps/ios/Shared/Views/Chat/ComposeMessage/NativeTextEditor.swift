@@ -292,3 +292,26 @@ struct NativeTextEditor_Previews: PreviewProvider{
         .fixedSize(horizontal: false, vertical: true)
     }
 }
+
+struct NativeTextEditorPlaceholder_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 0) {
+            editor("")
+            editor("Broadcast")
+        }
+    }
+
+    private static func editor(_ text: String) -> some View {
+        NativeTextEditor(
+            text: Binding.constant(text),
+            disableEditing: Binding.constant(false),
+            height: Binding.constant(NativeTextEditor.minHeight),
+            focused: Binding.constant(false),
+            lastUnfocusedDate: Binding.constant(previewDate),
+            placeholder: Binding.constant("Broadcast"),
+            selectedRange: Binding.constant(NSRange(location: 0, length: 0)),
+            onImagesAdded: { _ in }
+        )
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
