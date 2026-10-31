@@ -20,7 +20,7 @@ otool -L "$out/simplex-chat"
 curl -fsSL -o "$out/app.dmg" "$base/simplex-desktop-macos-$arch.dmg"
 { yes 2> /dev/null || true; } | hdiutil attach -nobrowse -readonly -noverify -mountpoint "$out/dmg" "$out/app.dmg" > /dev/null
 app=$(find "$out/dmg" -maxdepth 1 -name '*.app' | head -1)
-find "$app/Contents" -maxdepth 3 -not -path '*/runtime/*' | head -60
+ls -la "$app/Contents/app/resources"
 
 mkdir -p "$libs_dir"
 find "$app/Contents/app/resources" -maxdepth 1 -name '*.dylib' ! -name 'libapp-lib.dylib' -exec cp {} "$libs_dir/" \;
