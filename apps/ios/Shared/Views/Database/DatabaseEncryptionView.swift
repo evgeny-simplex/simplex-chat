@@ -116,7 +116,7 @@ struct DatabaseEncryptionView: View {
                     if storedKey {
                         Text("iOS Keychain is used to securely store passphrase - it allows receiving push notifications.")
                         if initialRandomDBPassphrase && !migration {
-                            Text("Database is encrypted using a random passphrase, you can change it.")
+                            Text("Database is encrypted using a random passphrase. Set your own passphrase to stop saving it.")
                         } else {
                             Text("**Please note**: you will NOT be able to recover or change passphrase if you lose it.")
                         }

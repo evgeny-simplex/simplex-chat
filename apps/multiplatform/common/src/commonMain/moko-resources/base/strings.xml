@@ -1691,7 +1691,7 @@
   <string name="database_is_not_encrypted">Your chat database is not encrypted - set passphrase to protect it.</string>
   <string name="keychain_is_storing_securely">Android Keystore%s is used to securely store passphrase - it allows notification service to work.</string>
   <string name="settings_is_storing_in_clear_text">The passphrase is stored in settings as plaintext.</string>
-  <string name="encrypted_with_random_passphrase">Database is encrypted using a random passphrase, you can change it.</string>
+  <string name="encrypted_with_random_passphrase">Database is encrypted using a random passphrase. Set your own passphrase to stop saving it.</string>
   <string name="impossible_to_recover_passphrase"><![CDATA[<b>Please note</b>: you will NOT be able to recover or change passphrase if you lose it.]]></string>
   <string name="keychain_allows_to_receive_ntfs">Android Keystore will be used to securely store passphrase after you restart the app or change passphrase - it will allow receiving notifications.</string>
   <string name="passphrase_will_be_saved_in_settings">The passphrase will be stored in settings as plaintext after you change it or restart the app.</string>
