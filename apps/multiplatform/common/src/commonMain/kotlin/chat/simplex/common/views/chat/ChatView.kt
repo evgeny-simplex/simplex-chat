@@ -1591,7 +1591,13 @@ fun ownersContributorsCountStr(count: Int, withContributors: Boolean): String =
   else String.format(generalGetString(MR.strings.channel_owner_count_plural), count)
 
 @Composable
-fun ChatInfoToolbarTitle(cInfo: ChatInfo, imageSize: Dp = 40.dp, iconColor: Color = MaterialTheme.colors.secondaryVariant.mixWith(MaterialTheme.colors.onBackground, 0.97f)) {
+fun ChatInfoToolbarTitle(
+  cInfo: ChatInfo,
+  imageSize: Dp = 40.dp,
+  iconColor: Color = MaterialTheme.colors.secondaryVariant.mixWith(MaterialTheme.colors.onBackground, 0.97f),
+  // do not pass
+  chatSubStatus: SubscriptionStatus? = chatModel.chatSubStatus.value
+) {
   Row(
     horizontalArrangement = Arrangement.Center,
     verticalAlignment = Alignment.CenterVertically
@@ -1631,7 +1637,6 @@ fun ChatInfoToolbarTitle(cInfo: ChatInfo, imageSize: Dp = 40.dp, iconColor: Colo
         )
       }
     }
-    val chatSubStatus = chatModel.chatSubStatus.value
     if (
       cInfo is ChatInfo.Direct &&
       cInfo.contact.ready &&
@@ -1679,6 +1684,20 @@ private fun SubProgressView() {
     color = MaterialTheme.colors.secondary,
     strokeWidth = 1.5.dp
   )
+}
+
+@Preview
+@Composable
+fun PreviewChatInfoToolbarTitleStates() {
+  SimpleXTheme {
+    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+      listOf(null, SubscriptionStatus.NoSub).forEach { status ->
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+          ChatInfoToolbarTitle(ChatInfo.Direct.sampleData, chatSubStatus = status)
+        }
+      }
+    }
+  }
 }
 
 @Composable
