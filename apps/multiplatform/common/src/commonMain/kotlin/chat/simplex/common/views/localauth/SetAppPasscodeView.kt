@@ -38,7 +38,7 @@ fun SetAppPasscodeView(
   if (confirming) {
     SetPasswordView(
       generalGetString(MR.strings.confirm_passcode),
-      generalGetString(MR.strings.confirm_verb),
+      generalGetString(MR.strings.save_verb),
       submitEnabled = { pwd -> pwd == enteredPassword }
     ) {
       if (passcode.value == enteredPassword) {
@@ -50,7 +50,7 @@ fun SetAppPasscodeView(
       }
     }
   } else {
-    SetPasswordView(title, generalGetString(MR.strings.save_verb),
+    SetPasswordView(title, generalGetString(MR.strings.continue_to_next_step),
       // Do not allow to set app passcode == selfDestruct passcode
       submitEnabled = { pwd -> pwd != prohibitedPasscodeKeychain.get() }) {
       enteredPassword = passcode.value

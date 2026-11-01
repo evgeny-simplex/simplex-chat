@@ -28,7 +28,7 @@ struct SetAppPasscodeView: View {
             if confirming {
                 setPasswordView(
                     title: "Confirm Passcode",
-                    submitLabel: "Confirm",
+                    submitLabel: "Save",
                     submitEnabled: { pwd in pwd == enteredPassword }
                 ) {
                     if passcode == enteredPassword {
@@ -44,7 +44,7 @@ struct SetAppPasscodeView: View {
                 }
             } else {
                 setPasswordView(title: title,
-                                submitLabel: "Save",
+                                submitLabel: "Continue",
                                 // Do not allow to set app passcode == selfDestruct passcode
                                 submitEnabled: { pwd in pwd != prohibitedPasscodeKeychain.get() }) {
                     enteredPassword = passcode
