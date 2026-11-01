@@ -42,12 +42,13 @@ struct ChatHelp: View {
                 HStack(spacing: 8) {
                     Text("Tap button ")
                     NewChatMenuButton(showNewChatSheet: $showNewChatSheet)
-                    Text("above, then choose:")
+                    Text("in the chat list, then choose:")
                 }
 
                 Text("**Create 1-time link**: to create and share a new invitation link.")
                 Text("**Paste link / Scan**: to connect via a link you received.")
                 Text("**Create group**: to create a new group.")
+                Text("**Create public channel**: to create a channel anyone can join.")
             }
             .padding(.top, 24)
 

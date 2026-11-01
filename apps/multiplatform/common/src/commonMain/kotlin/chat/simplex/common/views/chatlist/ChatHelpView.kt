@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import chat.simplex.common.platform.appPlatform
 import chat.simplex.common.ui.theme.SimpleXTheme
 import chat.simplex.common.views.helpers.annotatedStringResource
 import chat.simplex.common.views.onboarding.ReadableTextWithLink
@@ -44,14 +45,16 @@ fun ChatHelpView(addContact: (() -> Unit)? = null) {
       ) {
         Text(stringResource(MR.strings.chat_help_tap_button))
         Icon(
-          painterResource(MR.images.ic_person_add),
-          stringResource(MR.strings.add_contact),
+          painterResource(MR.images.ic_edit_filled),
+          stringResource(MR.strings.add_contact_or_create_group),
           modifier = if (addContact != null) Modifier.clickable(onClick = addContact) else Modifier,
         )
         Text(stringResource(MR.strings.above_then_preposition_continuation))
       }
-      Text(annotatedStringResource(MR.strings.add_contact_button_to_create_link_or_connect_via_link), lineHeight = 22.sp)
+      Text(annotatedStringResource(MR.strings.create_1_time_link_button_to_create_new_link), lineHeight = 22.sp)
+      Text(annotatedStringResource(MR.strings.paste_link_button_to_connect_via_link, stringResource(if (appPlatform.isAndroid) MR.strings.scan_paste_link else MR.strings.paste_link)), lineHeight = 22.sp)
       Text(annotatedStringResource(MR.strings.create_group_button_to_create_new_group), lineHeight = 22.sp)
+      Text(annotatedStringResource(MR.strings.create_channel_button_to_create_new_channel), lineHeight = 22.sp)
     }
 
     Column(
