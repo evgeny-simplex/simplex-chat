@@ -1034,7 +1034,7 @@ struct WhatsNewView: View {
                             if !viaSettings {
                                 Spacer()
 
-                                Button("Ok") {
+                                Button("OK") {
                                     dismiss()
                                 }
                                 .font(.title3)

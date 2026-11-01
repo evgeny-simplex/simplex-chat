@@ -125,7 +125,7 @@ struct ExternalLink<Label: View>: View {
     }
 }
 
-let okAlertAction = UIAlertAction(title: NSLocalizedString("Ok", comment: "alert button"), style: .default)
+let okAlertAction = UIAlertAction(title: NSLocalizedString("OK", comment: "alert button"), style: .default)
 
 let cancelAlertAction = UIAlertAction(title: NSLocalizedString("Cancel", comment: "alert button"), style: .cancel)
 

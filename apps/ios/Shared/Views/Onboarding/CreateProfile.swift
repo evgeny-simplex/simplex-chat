@@ -455,7 +455,7 @@ func createInvalidNameAlert(_ name: String, _ displayName: Binding<String>) -> A
         title: Text("Invalid name!"),
         message: Text("Correct name to \(name)?"),
         primaryButton: .default(
-            Text("Ok"),
+            Text("OK"),
             action: { displayName.wrappedValue = name }
         ),
         secondaryButton: .cancel()

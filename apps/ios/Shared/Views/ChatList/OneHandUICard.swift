@@ -55,7 +55,7 @@ struct OneHandUICard: View {
             Alert(
                 title: Text("Reachable chat toolbar"),
                 message: Text("You can change it in Appearance settings."),
-                dismissButton: .default(Text("Ok")) {
+                dismissButton: .default(Text("OK")) {
                     withAnimation {
                         oneHandUICardShown = true
                     }

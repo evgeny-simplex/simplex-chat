@@ -560,7 +560,7 @@ struct DatabaseView: View {
             progressIndicator.wrappedValue = false
         }
         await withCheckedContinuation { cont in
-            let okAlertActionWaiting = UIAlertAction(title: NSLocalizedString("Ok", comment: "alert button"), style: .default, handler: { _ in cont.resume() })
+            let okAlertActionWaiting = UIAlertAction(title: NSLocalizedString("OK", comment: "alert button"), style: .default, handler: { _ in cont.resume() })
             // show these alerts globally so they are visible when all sheets will be hidden
             if case .archiveImported = dbAlert {
                 let (title, message) = archiveImportedAlertText()

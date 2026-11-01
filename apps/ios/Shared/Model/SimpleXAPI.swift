@@ -2369,7 +2369,7 @@ func showStartChatAfterRestartAlert(result: @escaping (_ start: Bool) -> Void) {
     AlertManager.shared.showAlert(Alert(
         title: Text("Start chat?"),
         message: Text("Chat is stopped. If you already used this database on another device, you should transfer it back before starting chat."),
-        primaryButton: .default(Text("Ok")) {
+        primaryButton: .default(Text("OK")) {
             result(true)
         },
         secondaryButton: .cancel {
@@ -3102,7 +3102,7 @@ func processReceivedMsg(_ res: ChatEvent) async {
                         AlertManager.shared.showAlert(Alert(
                             title: Text("Connection with desktop stopped"),
                             message: Text("Please check that mobile and desktop are connected to the same local network, and that desktop firewall allows the connection.\nPlease share any other issues with the developers."),
-                            primaryButton: .default(Text("Ok")),
+                            primaryButton: .default(Text("OK")),
                             secondaryButton: .default(Text("Copy error")) { UIPasteboard.general.string = String(describing: rcStopReason) }
                         ))
                     }

@@ -54,7 +54,7 @@ struct SetAppPasscodeView: View {
             }
         }
         .alert(isPresented: $showKeychainError) {
-            mkAlert(title: "KeyChain error", message: "Error saving passcode")
+            mkAlert(title: "Keychain error", message: "Error saving passcode")
         }
     }
 

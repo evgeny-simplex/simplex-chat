@@ -156,7 +156,7 @@ struct UserProfilesView: View {
                     primaryButton: .default(Text("Don't show again")) {
                         showHiddenProfilesNotice = false
                     },
-                    secondaryButton: .default(Text("Ok"))
+                    secondaryButton: .default(Text("OK"))
                 )
             case .muteProfileAlert:
                 return Alert(
@@ -165,7 +165,7 @@ struct UserProfilesView: View {
                     primaryButton: .default(Text("Don't show again")) {
                         showMuteProfileAlert = false
                     },
-                    secondaryButton: .default(Text("Ok"))
+                    secondaryButton: .default(Text("OK"))
                 )
             case let .activateUserError(error: err):
                 return Alert(

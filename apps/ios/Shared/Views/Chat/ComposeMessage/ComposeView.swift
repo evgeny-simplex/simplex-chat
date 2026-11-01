@@ -1711,7 +1711,7 @@ struct ComposeView: View {
                         }
                     ),
                     UIAlertAction(
-                        title: NSLocalizedString("Ok", comment: "alert action"),
+                        title: NSLocalizedString("OK", comment: "alert action"),
                         style: .default
                     )
                 ]}

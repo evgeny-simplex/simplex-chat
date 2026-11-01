@@ -31,7 +31,7 @@ func showInvalidRelayNameAlert(_ name: Binding<String>) {
             NSLocalizedString("Invalid name!", comment: "alert title"),
             message: String.localizedStringWithFormat(NSLocalizedString("Correct name to %@?", comment: "alert message"), validName),
             actions: {[
-                UIAlertAction(title: NSLocalizedString("Ok", comment: "alert action"), style: .default) { _ in
+                UIAlertAction(title: NSLocalizedString("OK", comment: "alert action"), style: .default) { _ in
                     name.wrappedValue = validName
                 },
                 cancelAlertAction

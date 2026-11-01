@@ -74,7 +74,7 @@ struct SetDeliveryReceiptsView: View {
                             m.setDeliveryReceipts = false
                             privacyDeliveryReceiptsSet.set(true)
                         },
-                        secondaryButton: .default(Text("Ok")) {
+                        secondaryButton: .default(Text("OK")) {
                             m.setDeliveryReceipts = false
                         }
                     ))

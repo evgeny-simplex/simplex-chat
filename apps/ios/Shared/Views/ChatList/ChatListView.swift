@@ -261,7 +261,7 @@ struct ChatListView: View {
             AlertManager.shared.showAlert(Alert(
                 title: Text("Reconnect servers?"),
                 message: Text("Reconnect all connected servers to force message delivery. It uses additional traffic."),
-                primaryButton: .default(Text("Ok")) {
+                primaryButton: .default(Text("OK")) {
                     Task {
                         do {
                             try await reconnectAllServers()
@@ -432,7 +432,7 @@ struct ChatListView: View {
         showAlert(
             title: NSLocalizedString("Support SimpleX", comment: "alert title"),
             message: NSLocalizedString("You can support SimpleX later in Settings.", comment: "alert message"),
-            buttonTitle: NSLocalizedString("Ok", comment: "alert button"),
+            buttonTitle: NSLocalizedString("OK", comment: "alert button"),
             buttonAction: { withAnimation { supporterBannerShown = true } },
             cancelButton: false
         )

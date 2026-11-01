@@ -221,7 +221,7 @@ struct ServersSummaryView: View {
                 alert: Alert(
                     title: Text("Reconnect all servers?"),
                     message: Text("Reconnect all connected servers to force message delivery. It uses additional traffic."),
-                    primaryButton: .default(Text("Ok")) {
+                    primaryButton: .default(Text("OK")) {
                         Task {
                             do {
                                 try await reconnectAllServers()
@@ -527,7 +527,7 @@ struct SMPServerSummaryView: View {
                 alert: Alert(
                     title: Text("Reconnect server?"),
                     message: Text("Reconnect server to force message delivery. It uses additional traffic."),
-                    primaryButton: .default(Text("Ok")) {
+                    primaryButton: .default(Text("OK")) {
                         Task {
                             do {
                                 try await reconnectServer(smpServer: summary.smpServer)

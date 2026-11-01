@@ -282,7 +282,7 @@ struct AdvancedNetworkSettings: View {
                 return Alert(
                     title: Text("Update settings?"),
                     message: Text("Updating settings will re-connect the client to all servers."),
-                    primaryButton: .default(Text("Ok")) {
+                    primaryButton: .default(Text("OK")) {
                         _ = saveNetCfg()
                     },
                     secondaryButton: .cancel()

@@ -1129,7 +1129,7 @@ func queueInfoAlert(_ info: String) -> Alert {
     Alert(
         title: Text("Message queue info"),
         message: Text(info),
-        primaryButton: .default(Text("Ok")),
+        primaryButton: .default(Text("OK")),
         secondaryButton: .default(Text("Copy")) { UIPasteboard.general.string = info }
     )
 }
@@ -1257,7 +1257,7 @@ private func deleteConversationNotice(_ contact: Contact) -> Alert {
         primaryButton: .default(Text("Don't show again")) {
             showDeleteConversationNoticeDefault.set(false)
         },
-        secondaryButton: .default(Text("Ok"))
+        secondaryButton: .default(Text("OK"))
     )
 }
 
@@ -1268,7 +1268,7 @@ private func deleteContactNotice(_ contact: Contact) -> Alert {
         primaryButton: .default(Text("Don't show again")) {
             showDeleteContactNoticeDefault.set(false)
         },
-        secondaryButton: .default(Text("Ok"))
+        secondaryButton: .default(Text("OK"))
     )
 }
 

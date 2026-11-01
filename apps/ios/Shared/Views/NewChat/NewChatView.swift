@@ -960,7 +960,7 @@ private func showGroupLinkConnectingAlert(groupInfo: GroupInfo?, cleanup: (() ->
 
 private func okCleanupAlertAction(cleanup: (() -> Void)?) -> UIAlertAction {
     UIAlertAction(
-        title: NSLocalizedString("Ok", comment: "new chat action"),
+        title: NSLocalizedString("OK", comment: "new chat action"),
         style: .default,
         handler: { _ in
             cleanup?()

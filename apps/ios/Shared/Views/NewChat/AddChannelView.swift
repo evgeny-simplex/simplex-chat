@@ -461,7 +461,7 @@ struct AddChannelView: View {
                 NSLocalizedString("Invalid name!", comment: "alert title"),
                 message: String.localizedStringWithFormat(NSLocalizedString("Correct name to %@?", comment: "alert message"), validName),
                 actions: {[
-                    UIAlertAction(title: NSLocalizedString("Ok", comment: "alert action"), style: .default) { _ in
+                    UIAlertAction(title: NSLocalizedString("OK", comment: "alert action"), style: .default) { _ in
                         profile.displayName = validName
                     },
                     cancelAlertAction
