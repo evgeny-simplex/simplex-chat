@@ -79,7 +79,7 @@ private fun NewServerLayout(
 ) {
   ColumnWithScrollBar {
     AppBarTitle(stringResource(MR.strings.smp_servers_new_server))
-    CustomServer(server, testing, testServer, onDelete = null)
+    CustomServer(server, testing, testServer, onDelete = null, markEmptyAddress = false)
     SectionBottomSpacer()
   }
 }

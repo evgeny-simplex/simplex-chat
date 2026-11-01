@@ -168,14 +168,15 @@ fun CustomServer(
   testServer: () -> Unit,
   onDelete: (() -> Unit)?,
   serverProtocol: ServerProtocol? = null,
-  userServers: MutableState<List<UserOperatorServers>>? = null
+  userServers: MutableState<List<UserOperatorServers>>? = null,
+  markEmptyAddress: Boolean = true
 ) {
   val serverAddress = remember { mutableStateOf(server.value.server) }
   val valid = remember { derivedStateOf { parseServerAddress(serverAddress.value)?.valid == true } }
   SectionView(
     stringResource(MR.strings.smp_servers_your_server_address),
     icon = painterResource(MR.images.ic_error),
-    iconTint = if (!valid.value && serverAddress.value.trim().isNotEmpty()) MaterialTheme.colors.error else Color.Transparent,
+    iconTint = if (!valid.value && (markEmptyAddress || serverAddress.value.trim().isNotEmpty())) MaterialTheme.colors.error else Color.Transparent,
   ) {
     val testedPreviously = remember { mutableMapOf<String, Boolean?>() }
     TextEditor(
