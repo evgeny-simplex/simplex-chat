@@ -189,3 +189,9 @@ struct YourNetworkView: View {
         }
     }
 }
+
+struct YourNetworkView_Previews: PreviewProvider {
+    static var previews: some View {
+        YourNetworkView()
+    }
+}
