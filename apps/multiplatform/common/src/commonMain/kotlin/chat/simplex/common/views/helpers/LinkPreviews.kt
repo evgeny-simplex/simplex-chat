@@ -193,7 +193,7 @@ fun ComposeLinkView(linkPreview: LinkPreview?, cancelPreview: () -> Unit, cancel
 }
 
 @Composable
-fun ChatItemLinkView(linkPreview: LinkPreview, showMenu: State<Boolean>, onLongClick: () -> Unit) {
+fun ChatItemLinkView(linkPreview: LinkPreview, showUri: Boolean, showMenu: State<Boolean>, onLongClick: () -> Unit) {
   val image = remember(linkPreview.image) { base64ToBitmap(linkPreview.image) }
   Column(
     Modifier
@@ -215,7 +215,9 @@ fun ChatItemLinkView(linkPreview: LinkPreview, showMenu: State<Boolean>, onLongC
       if (linkPreview.description != "") {
         Text(linkPreview.description, maxLines = 12, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, lineHeight = 20.sp)
       }
-      Text(linkPreview.uri, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp, color = MaterialTheme.colors.secondary)
+      if (showUri) {
+        Text(linkPreview.uri, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp, color = MaterialTheme.colors.secondary)
+      }
     }
   }
 }
@@ -260,7 +262,7 @@ private fun normalizeImageUri(u: URL, imageUri: String) = when {
 @Composable
 fun PreviewChatItemLinkView() {
   SimpleXTheme {
-    ChatItemLinkView(LinkPreview.sampleData, remember { mutableStateOf(false) }) {}
+    ChatItemLinkView(LinkPreview.sampleData, showUri = true, remember { mutableStateOf(false) }) {}
   }
 }
 

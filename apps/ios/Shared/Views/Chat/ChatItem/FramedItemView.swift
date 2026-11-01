@@ -218,8 +218,8 @@ struct FramedItemView: View {
                 ciFileView(chatItem, text)
             case let .report(text, reason):
                 ciMsgContentView(chatItem, txtPrefix: reason.attrString)
-            case let .link(_, preview):
-                CILinkView(linkPreview: preview, maxWidth: maxWidth)
+            case let .link(text, preview):
+                CILinkView(linkPreview: preview, maxWidth: maxWidth, showUri: text != preview.uri)
                     .if(terminal) { terminalBlock($0.frame(maxWidth: maxWidth).padding(.bottom, 8), chatItemFrameContextColor(chatItem, theme)) }
                 ciMsgContentView(chatItem, terminalTop: terminalBlockBottomGap)
             case let .chat(text, chatLink, ownerSig):

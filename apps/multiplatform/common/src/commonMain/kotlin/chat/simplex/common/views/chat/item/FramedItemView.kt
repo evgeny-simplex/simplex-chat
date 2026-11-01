@@ -432,7 +432,7 @@ fun FramedItemView(
                   }
                 is MsgContent.MCLink -> {
                   Box(Modifier.layoutId(CHAT_IMAGE_LAYOUT_ID).then(if (terminal) cardModifier.padding(bottom = 8.dp) else Modifier)) {
-                    ChatItemLinkView(mc.preview, showMenu, onLongClick = { showMenu.value = true })
+                    ChatItemLinkView(mc.preview, showUri = mc.text != mc.preview.uri, showMenu, onLongClick = { showMenu.value = true })
                   }
                   Box(if (terminal) Modifier else Modifier.widthIn(max = DEFAULT_MAX_IMAGE_WIDTH)) {
                     CIMarkdownText(chatsCtx, ci, chat, chatTTL, linkMode, uriHandler, onLinkLongClick, showViaProxy = showViaProxy, showTimestamp = showTimestamp, terminalTop = TERMINAL_BLOCK_BOTTOM_GAP.toDp())
