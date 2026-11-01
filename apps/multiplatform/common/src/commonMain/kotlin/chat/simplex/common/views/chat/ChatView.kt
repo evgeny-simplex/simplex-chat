@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.*
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.*
@@ -1639,7 +1640,12 @@ fun ChatInfoToolbarTitle(cInfo: ChatInfo, imageSize: Dp = 40.dp, iconColor: Colo
       chatSubStatus != SubscriptionStatus.Active
       ) {
       Box(
-        Modifier.padding(start = 10.dp)
+        Modifier
+          .layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity))
+            layout(0, placeable.height) { placeable.placeRelative(0, 0) }
+          }
+          .padding(start = 10.dp)
       ) {
         SubStatusView(chatSubStatus)
       }
