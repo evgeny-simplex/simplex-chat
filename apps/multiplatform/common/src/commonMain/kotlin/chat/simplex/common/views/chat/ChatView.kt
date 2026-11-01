@@ -18,7 +18,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.*
@@ -1716,104 +1715,6 @@ fun PreviewChatInfoToolbarTitleStates() {
           )
         }
       }
-    }
-  }
-}
-
-@Composable
-private fun U21CompareBars(title: @Composable (ChatInfo, SubscriptionStatus?) -> Unit) {
-  SimpleXTheme {
-    Column(Modifier.width(360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      listOf("Alice", "Alice Johnson", "Alice Konstantinou-Whitfield").forEach { fullName ->
-        val cInfo = ChatInfo.Direct(Contact.sampleData.copy(profile = LocalProfile.sampleData.copy(fullName = fullName)))
-        listOf(null, SubscriptionStatus.NoSub).forEach { status ->
-          DefaultAppBar(
-            navigationButton = { NavigationButtonBack(onButtonClicked = {}) },
-            title = { title(cInfo, status) },
-            onTop = true,
-            buttons = {
-              IconButton({}) {
-                Icon(painterResource(MR.images.ic_call_500), null, tint = MaterialTheme.colors.primary)
-              }
-              IconButton({}) {
-                Icon(MoreVertFilled, null, tint = MaterialTheme.colors.primary)
-              }
-            }
-          )
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun U21CompareTitleRow(cInfo: ChatInfo, status: @Composable () -> Unit) {
-  Row(
-    horizontalArrangement = Arrangement.Center,
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    ChatInfoImage(cInfo, size = 40.dp * fontSizeSqrtMultiplier, MaterialTheme.colors.secondaryVariant.mixWith(MaterialTheme.colors.onBackground, 0.97f))
-    Column(
-      Modifier.padding(start = 8.dp),
-      horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        NameWithBadge(
-          cInfo.displayName, cInfo.nameBadge, fontWeight = FontWeight.SemiBold,
-          maxLines = 1, overflow = TextOverflow.Ellipsis
-        )
-      }
-      Text(
-        cInfo.fullName,
-        maxLines = 1, overflow = TextOverflow.Ellipsis
-      )
-    }
-    status()
-  }
-}
-
-@Preview
-@Composable
-fun PreviewU21Master() = U21CompareBars { cInfo, status ->
-  U21CompareTitleRow(cInfo) {
-    if (status != null) {
-      Box(Modifier.padding(start = 10.dp)) { SubStatusView(status) }
-    }
-  }
-}
-
-@Preview
-@Composable
-fun PreviewU21Overlay() = U21CompareBars { cInfo, status ->
-  U21CompareTitleRow(cInfo) {
-    if (status != null) {
-      Box(
-        Modifier
-          .layout { measurable, constraints ->
-            val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity))
-            layout(0, placeable.height) { placeable.placeRelative(0, 0) }
-          }
-          .padding(start = 10.dp)
-      ) { SubStatusView(status) }
-    }
-  }
-}
-
-@Preview
-@Composable
-fun PreviewU21Reserved() = U21CompareBars { cInfo, status ->
-  Layout({
-    U21CompareTitleRow(cInfo) {}
-    if (status != null) {
-      Box(Modifier.padding(start = 10.dp)) { SubStatusView(status) }
-    }
-  }) { measurables, constraints ->
-    val indicator = measurables.getOrNull(1)?.measure(Constraints())
-    val reserved = indicator?.width ?: 0
-    val title = measurables[0].measure(constraints.copy(minWidth = 0, maxWidth = max(0, constraints.maxWidth - 2 * reserved)))
-    layout(title.width + 2 * reserved, title.height) {
-      title.placeRelative(reserved, 0)
-      indicator?.placeRelative(reserved + title.width, Alignment.CenterVertically.align(indicator.height, title.height))
     }
   }
 }
