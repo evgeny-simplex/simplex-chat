@@ -396,7 +396,7 @@ struct TagListEditor: View {
                 await MainActor.run {
                     saving = nil
                     showAlert(
-                        NSLocalizedString("Error creating list", comment: "alert title"),
+                        NSLocalizedString("Error updating chat list", comment: "alert title"),
                         message: responseError(error)
                     )
                 }
