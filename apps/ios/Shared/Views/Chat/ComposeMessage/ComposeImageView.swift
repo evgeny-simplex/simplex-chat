@@ -39,7 +39,7 @@ struct ComposeImageView: View {
             Spacer()
             if cancelEnabled {
                 Button { cancelImage() } label: {
-                    Image(systemName: "multiply")
+                    Image(systemName: "multiply").modifier(TapArea())
                 }
             }
         }

@@ -30,7 +30,7 @@ struct ComposeChatLinkView: View {
             Spacer()
             if cancelEnabled {
                 Button { cancelPreview() } label: {
-                    Image(systemName: "multiply")
+                    Image(systemName: "multiply").modifier(TapArea())
                 }
             }
         }

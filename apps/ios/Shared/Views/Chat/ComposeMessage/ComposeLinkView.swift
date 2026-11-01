@@ -27,7 +27,7 @@ struct ComposeLinkView: View {
             }
             if let cancelPreview = cancelPreview, cancelEnabled {
                 Button { cancelPreview() } label: {
-                    Image(systemName: "multiply")
+                    Image(systemName: "multiply").modifier(TapArea())
                 }
             }
         }

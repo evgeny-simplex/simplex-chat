@@ -145,7 +145,7 @@ struct ComposeVoiceView: View {
             audioPlayer?.stop()
             cancelVoiceMessage(recordingFileName)
         } label: {
-            Image(systemName: "multiply")
+            Image(systemName: "multiply").modifier(TapArea())
         }
         .tint(theme.colors.primary)
     }
