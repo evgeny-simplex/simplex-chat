@@ -32,6 +32,16 @@ extension Notification.Name {
     static let chatViewWillBeginScrolling = Notification.Name("chatWillBeginScrolling")
 }
 
+struct TapArea: ViewModifier {
+    func body(content: Content) -> some View {
+        content.overlay {
+            Color.clear
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+    }
+}
+
 struct PrivacyBlur: ViewModifier {
     var enabled: Bool = true
     @Binding var blurred: Bool
