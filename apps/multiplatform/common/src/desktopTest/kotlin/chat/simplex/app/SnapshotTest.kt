@@ -111,20 +111,20 @@ private val previewScenes = listOf(
   SnapshotScene("WhatsNewView.PreviewWhatsNewView") { PreviewWhatsNewView() },
   SnapshotScene("WhatsNewView.PreviewCrowdfundingBottomA") { PreviewCrowdfundingBottomA() },
   SnapshotScene("WhatsNewView.PreviewCrowdfundingBottomB") { PreviewCrowdfundingBottomB() },
-  SnapshotScene("Texts.AlertLinkNotSupported") { AlertScene { showAlertMsg(title = generalGetString(chat.simplex.res.MR.strings.app_link_not_supported)) } },
-  SnapshotScene("Texts.AlertSignMessages") { AlertScene { showAlertDialog(title = generalGetString(chat.simplex.res.MR.strings.sign_messages_question), text = generalGetString(chat.simplex.res.MR.strings.sign_messages_alert_desc), confirmText = generalGetString(chat.simplex.res.MR.strings.sign_messages_enable)) } },
-  SnapshotScene("Texts.AlertSignatureMissing") { AlertScene { showAlertMsg(title = generalGetString(chat.simplex.res.MR.strings.signature_missing_alert_title), text = generalGetString(chat.simplex.res.MR.strings.signature_missing_alert_desc)) } },
-  SnapshotScene("Texts.AlertUnsupportedVersion") { AlertScene { showAlertMsg(title = generalGetString(chat.simplex.res.MR.strings.badges_error_title), text = generalGetString(chat.simplex.res.MR.strings.badges_error_unsupported_version)) } },
-  SnapshotScene("Texts.AlertReceiptUsed") { AlertScene { showAlertMsg(title = generalGetString(chat.simplex.res.MR.strings.badges_purchase_error), text = generalGetString(chat.simplex.res.MR.strings.badges_error_receipt_used)) } },
-  SnapshotScene("Texts.AlertTestPurchase") { AlertScene { showAlertMsg(title = generalGetString(chat.simplex.res.MR.strings.badges_purchase_error), text = generalGetString(chat.simplex.res.MR.strings.badges_error_test_purchase)) } },
-  SnapshotScene("Texts.AlertAlreadyOwned") { AlertScene { showAlertMsg(title = generalGetString(chat.simplex.res.MR.strings.badges_purchase_error), text = generalGetString(chat.simplex.res.MR.strings.badges_error_already_owned)) } },
-  SnapshotScene("Texts.AlertStorePurchaseOpen") { AlertScene { showAlertMsg(title = generalGetString(chat.simplex.res.MR.strings.badges_error_title), text = generalGetString(chat.simplex.res.MR.strings.badges_error_store_purchase_open)) } },
-  SnapshotScene("Texts.AlertAlreadyActive") { AlertScene { showAlertMsg(title = generalGetString(chat.simplex.res.MR.strings.badges_error_title), text = generalGetString(chat.simplex.res.MR.strings.badges_error_already_active)) } },
-  SnapshotScene("Texts.YourBadgePaymentProblem") { YourBadgeScene(chat.simplex.common.model.BadgeSubscriptionState.BillingRetry, 20) },
-  SnapshotScene("Texts.YourBadgeRenewing") { YourBadgeScene(chat.simplex.common.model.BadgeSubscriptionState.Renewing, -1) },
-  SnapshotScene("Texts.YourBadgeRenews") { YourBadgeScene(chat.simplex.common.model.BadgeSubscriptionState.Renewing, 20) },
-  SnapshotScene("Texts.YourBadgeEnded") { YourBadgeScene(chat.simplex.common.model.BadgeSubscriptionState.Ended, -1) },
-  SnapshotScene("Texts.YourBadgePrepaid") { YourBadgeScene(null, 40, subscribed = false) },
+  SnapshotScene("TextRenders.PreviewTextAlertLinkNotSupported") { chat.simplex.common.views.badges.PreviewTextAlertLinkNotSupported() },
+  SnapshotScene("TextRenders.PreviewTextAlertSignMessages") { chat.simplex.common.views.badges.PreviewTextAlertSignMessages() },
+  SnapshotScene("TextRenders.PreviewTextAlertSignatureMissing") { chat.simplex.common.views.badges.PreviewTextAlertSignatureMissing() },
+  SnapshotScene("TextRenders.PreviewTextAlertUnsupportedVersion") { chat.simplex.common.views.badges.PreviewTextAlertUnsupportedVersion() },
+  SnapshotScene("TextRenders.PreviewTextAlertReceiptUsed") { chat.simplex.common.views.badges.PreviewTextAlertReceiptUsed() },
+  SnapshotScene("TextRenders.PreviewTextAlertTestPurchase") { chat.simplex.common.views.badges.PreviewTextAlertTestPurchase() },
+  SnapshotScene("TextRenders.PreviewTextAlertAlreadyOwned") { chat.simplex.common.views.badges.PreviewTextAlertAlreadyOwned() },
+  SnapshotScene("TextRenders.PreviewTextAlertStorePurchaseOpen") { chat.simplex.common.views.badges.PreviewTextAlertStorePurchaseOpen() },
+  SnapshotScene("TextRenders.PreviewTextAlertAlreadyActive") { chat.simplex.common.views.badges.PreviewTextAlertAlreadyActive() },
+  SnapshotScene("TextRenders.PreviewTextYourBadgePaymentProblem") { chat.simplex.common.views.badges.PreviewTextYourBadgePaymentProblem() },
+  SnapshotScene("TextRenders.PreviewTextYourBadgeRenewing") { chat.simplex.common.views.badges.PreviewTextYourBadgeRenewing() },
+  SnapshotScene("TextRenders.PreviewTextYourBadgeRenews") { chat.simplex.common.views.badges.PreviewTextYourBadgeRenews() },
+  SnapshotScene("TextRenders.PreviewTextYourBadgeEnded") { chat.simplex.common.views.badges.PreviewTextYourBadgeEnded() },
+  SnapshotScene("TextRenders.PreviewTextYourBadgePrepaid") { chat.simplex.common.views.badges.PreviewTextYourBadgePrepaid() },
   SnapshotScene("SetNotificationsMode.PreviewSetNotificationsMode") { PreviewSetNotificationsMode() },
   SnapshotScene("BadgesHowLongView.PreviewPeriodCards") { PreviewPeriodCards() },
   SnapshotScene("BadgesHowLongView.PreviewPlaySupportSimplex") { chat.simplex.common.views.badges.PreviewPlaySupportSimplex() },
@@ -227,37 +227,6 @@ class SnapshotTest {
       ThemeManager.applyTheme(theme)
     }
     assertEquals(emptyList(), failures)
-  }
-}
-
-@Composable
-private fun AlertScene(show: AlertManager.() -> Unit) {
-  val alertManager = androidx.compose.runtime.remember { AlertManager().apply(show) }
-  SimpleXTheme {
-    Box(Modifier.width(SCENE_WIDTH.dp).height(SCENE_MAX_HEIGHT.dp)) {
-      alertManager.showInView()
-    }
-  }
-}
-
-@Composable
-private fun YourBadgeScene(status: chat.simplex.common.model.BadgeSubscriptionState?, paidDays: Int, subscribed: Boolean = true) {
-  androidx.compose.runtime.LaunchedEffect(Unit) { chat.simplex.common.views.badges.BadgeStore.load() }
-  val paidThrough = kotlinx.datetime.Instant.fromEpochMilliseconds(kotlinx.datetime.Clock.System.now().toEpochMilliseconds() + paidDays * 86_400_000L)
-  val state = chat.simplex.common.model.BadgeState(
-    badgePurchaseId = 1,
-    purchaseKey = "",
-    badgeType = chat.simplex.common.model.BadgeType.Supporter,
-    shown = true,
-    monthsLeft = 1,
-    paidThrough = paidThrough,
-    willRenew = subscribed,
-    subscription = if (subscribed) chat.simplex.common.model.BadgeSubscription(planMonths = 1, status = status) else null
-  )
-  SimpleXTheme {
-    Box(Modifier.width(SCENE_WIDTH.dp).height(SCENE_MAX_HEIGHT.dp)) {
-      chat.simplex.common.views.badges.BadgesYourBadgeView(state, ModalManager.start)
-    }
   }
 }
 
