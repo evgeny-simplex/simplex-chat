@@ -16,12 +16,13 @@ struct ChatInfoImage: View {
     var color = Color(uiColor: .tertiarySystemGroupedBackground)
 
     var body: some View {
-        let iconColor = if case .local = chat.chatInfo { theme.appColors.primaryVariant2 } else { color }
+        let notes = if case .local = chat.chatInfo { true } else { false }
         return ProfileImage(
             imageStr: chat.chatInfo.image,
             icon: chatIcon(chat.chatInfo),
             size: size,
-            color: iconColor
+            color: notes ? theme.appColors.primaryVariant2 : color,
+            backgroundColor: notes ? theme.colors.primary : nil
         )
     }
 }
