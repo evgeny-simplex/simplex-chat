@@ -15,6 +15,7 @@ struct ChatInfoToolbar: View {
     @EnvironmentObject var m: ChatModel
     @ObservedObject var chat: Chat
     var imageSize: CGFloat = 32
+    var loading = false
 
     var body: some View {
         let cInfo = chat.chatInfo
@@ -24,11 +25,16 @@ struct ChatInfoToolbar: View {
                 Spacer().frame(width: 16)
             }
             ZStack(alignment: .bottomTrailing) {
-                ChatInfoImage(
-                    chat: chat,
-                    size: imageSize,
-                    color: Color(uiColor: .tertiaryLabel)
-                )
+                if loading {
+                    ProgressView()
+                        .frame(width: imageSize, height: imageSize)
+                } else {
+                    ChatInfoImage(
+                        chat: chat,
+                        size: imageSize,
+                        color: Color(uiColor: .tertiaryLabel)
+                    )
+                }
                 if chat.chatStats.reportsCount > 0 {
                     Image(systemName: "flag.circle.fill")
                         .resizable()

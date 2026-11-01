@@ -58,6 +58,7 @@ struct ChatView: View {
     @State var floatingButtonModel: FloatingButtonModel
     @Binding var scrollToItemId: ChatItem.ID?
     @State private var showChatInfoSheet: Bool = false
+    @State private var loadingChatInfo = false
     @State private var showAddMembersSheet: Bool = false
     @State private var composeState = ComposeState()
     @State private var selectedRange = NSRange()
@@ -527,9 +528,13 @@ struct ChatView: View {
             }
         } else if case let .group(groupInfo, _) = cInfo {
             Button {
-                Task { await chatModel.loadGroupMembers(groupInfo) { showChatInfoSheet = true } }
+                loadingChatInfo = true
+                Task {
+                    await chatModel.loadGroupMembers(groupInfo) { showChatInfoSheet = true }
+                    await MainActor.run { loadingChatInfo = false }
+                }
             } label: {
-                ChatInfoToolbar(chat: chat)
+                ChatInfoToolbar(chat: chat, loading: loadingChatInfo)
                     .tint(theme.colors.primary)
             }
             .appSheet(isPresented: $showChatInfoSheet, onDismiss: {

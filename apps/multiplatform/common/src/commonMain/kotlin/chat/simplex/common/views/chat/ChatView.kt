@@ -275,6 +275,7 @@ fun ChatView(
     when (chatInfo) {
       is ChatInfo.Direct, is ChatInfo.Group, is ChatInfo.Local -> {
         var groupMembersJob: Job = remember { Job() }
+        val chatInfoLoad = remember { mutableStateOf<Job?>(null) }
         val perChatTheme = remember(chatInfo, CurrentColors.value.base) { if (chatInfo is ChatInfo.Direct) chatInfo.contact.uiThemes?.preferredMode(!CurrentColors.value.colors.isLight) else if (chatInfo is ChatInfo.Group) chatInfo.groupInfo.uiThemes?.preferredMode(!CurrentColors.value.colors.isLight) else null }
         val overrides = if (perChatTheme != null) ThemeManager.currentColors(null, perChatTheme, chatModel.currentUser.value?.uiThemes, appPrefs.themeOverrides.get()) else null
         val fullDeleteAllowed = remember(chatInfo) { chatInfo.featureEnabled(ChatFeature.FullDelete) }
@@ -408,7 +409,7 @@ fun ChatView(
               }
               hideKeyboard(view)
               groupMembersJob.cancel()
-              groupMembersJob = scope.launch(Dispatchers.Default) {
+              val infoJob = scope.launch(Dispatchers.Default) {
                 // The idea is to preload information before showing a modal because large groups can take time to load all members
                 var preloadedContactInfo: Pair<ConnectionStats?, Profile?>? = null
                 var preloadedCode: String? = null
@@ -475,7 +476,11 @@ fun ChatView(
                   }
                 }
               }
+              groupMembersJob = infoJob
+              chatInfoLoad.value = infoJob
+              infoJob.invokeOnCompletion { withApi { if (chatInfoLoad.value == infoJob) chatInfoLoad.value = null } }
             },
+            loadingChatInfo = remember { derivedStateOf { chatInfoLoad.value != null } },
             showReports = {
               val cInfo = activeChat.value?.chatInfo ?: return@ChatLayout
               if (ModalManager.end.hasModalsOpen()) {
@@ -948,6 +953,7 @@ fun ChatLayout(
   selectedChatItems: MutableState<Set<Long>?>,
   back: () -> Unit,
   info: () -> Unit,
+  loadingChatInfo: State<Boolean>,
   showReports: () -> Unit,
   showSupportChats: () -> Unit,
   showMemberInfo: (GroupInfo, GroupMember) -> Unit,
@@ -1186,7 +1192,7 @@ fun ChatLayout(
               Box {
                 if (selectedChatItems.value == null) {
                   if (chatInfo != null) {
-                    ChatInfoToolbar(chatsCtx, chatInfo, back, info, startCall, endCall, addMembers, openGroupLink, changeNtfsState, onSearchValueChanged, showSearch, contentFilter, availableContent, searchPlaceholder)
+                    ChatInfoToolbar(chatsCtx, chatInfo, back, info, loadingChatInfo, startCall, endCall, addMembers, openGroupLink, changeNtfsState, onSearchValueChanged, showSearch, contentFilter, availableContent, searchPlaceholder)
                   }
                 } else {
                   SelectedItemsCounterToolbar(selectedChatItems, !oneHandUI.value || !chatBottomBar.value)
@@ -1213,6 +1219,7 @@ fun BoxScope.ChatInfoToolbar(
   chatInfo: ChatInfo,
   back: () -> Unit,
   info: () -> Unit,
+  loadingChatInfo: State<Boolean>,
   startCall: (CallMediaType) -> Unit,
   endCall: () -> Unit,
   addMembers: (GroupInfo) -> Unit,
@@ -1458,7 +1465,7 @@ fun BoxScope.ChatInfoToolbar(
 
   DefaultAppBar(
     navigationButton = { if (appPlatform.isAndroid || showSearch.value) { NavigationButtonBack(onBackClicked) }  },
-    title = { ChatInfoToolbarTitle(chatInfo) },
+    title = { ChatInfoToolbarTitle(chatInfo, loading = loadingChatInfo.value) },
     onTitleClick = if (chatInfo is ChatInfo.Local) null else info,
     showSearch = showSearch.value,
     searchAlwaysVisible = contentFilter.value != null,
@@ -1590,7 +1597,7 @@ fun ownersContributorsCountStr(count: Int, withContributors: Boolean): String =
   else String.format(generalGetString(MR.strings.channel_owner_count_plural), count)
 
 @Composable
-fun ChatInfoToolbarTitle(cInfo: ChatInfo, imageSize: Dp = 40.dp, iconColor: Color = MaterialTheme.colors.secondaryVariant.mixWith(MaterialTheme.colors.onBackground, 0.97f)) {
+fun ChatInfoToolbarTitle(cInfo: ChatInfo, imageSize: Dp = 40.dp, iconColor: Color = MaterialTheme.colors.secondaryVariant.mixWith(MaterialTheme.colors.onBackground, 0.97f), loading: Boolean = false) {
   Row(
     horizontalArrangement = Arrangement.Center,
     verticalAlignment = Alignment.CenterVertically
@@ -1598,7 +1605,13 @@ fun ChatInfoToolbarTitle(cInfo: ChatInfo, imageSize: Dp = 40.dp, iconColor: Colo
     if (cInfo.incognito) {
       IncognitoImage(size = 36.dp * fontSizeSqrtMultiplier, Indigo)
     }
-    ChatInfoImage(cInfo, size = imageSize * fontSizeSqrtMultiplier, iconColor)
+    if (loading) {
+      Box(Modifier.size(imageSize * fontSizeSqrtMultiplier), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(Modifier.size(24.dp * fontSizeSqrtMultiplier), color = MaterialTheme.colors.secondary, strokeWidth = 2.5.dp)
+      }
+    } else {
+      ChatInfoImage(cInfo, size = imageSize * fontSizeSqrtMultiplier, iconColor)
+    }
     Column(
       Modifier.padding(start = 8.dp),
       horizontalAlignment = Alignment.CenterHorizontally
@@ -3904,6 +3917,7 @@ fun PreviewChatLayout() = BubblePreview {
       selectedChatItems = remember { mutableStateOf(null) },
       back = {},
       info = {},
+      loadingChatInfo = remember { mutableStateOf(false) },
       showReports = {},
       showSupportChats = {},
       showMemberInfo = { _, _ -> },
@@ -3987,6 +4001,7 @@ fun PreviewGroupChatLayout() = BubblePreview {
       selectedChatItems = remember { mutableStateOf(null) },
       back = {},
       info = {},
+      loadingChatInfo = remember { mutableStateOf(false) },
       showReports = {},
       showSupportChats = {},
       showMemberInfo = { _, _ -> },
