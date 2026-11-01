@@ -163,6 +163,16 @@ fun BadgesRedeemCodeView(modalManager: ModalManager, unwindToDepth: Int) {
 
     CodeField(code, submitting.value, ::applyCodeInput)
 
+    if (code.value.text.count { it != '-' } == badgeCodePrefix.length + badgeCodeBodyLength && canonicalCode.value == null) {
+      Text(
+        stringResource(MR.strings.badges_error_invalid_code),
+        style = MaterialTheme.typography.body1,
+        color = MaterialTheme.colors.error,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+      )
+    }
+
     PasteButton(submitting.value, ::applyCodeInput)
 
     if (appPlatform.isAndroid) {
