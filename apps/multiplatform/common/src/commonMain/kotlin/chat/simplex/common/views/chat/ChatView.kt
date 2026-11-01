@@ -1648,7 +1648,7 @@ fun ChatInfoToolbarTitle(
       chatSubStatus != SubscriptionStatus.Active
       ) {
       Box(
-        Modifier.padding(start = 10.dp)
+        Modifier.padding(horizontal = 10.dp)
       ) {
         SubStatusView(chatSubStatus)
       }
