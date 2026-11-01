@@ -104,15 +104,15 @@ fun ModalData.WhatsNewView(updatedConditions: Boolean = false, viaSettings: Bool
           generalGetString(titleId),
           maxLines = 2,
           overflow = TextOverflow.Ellipsis,
-          style = MaterialTheme.typography.h4,
-          fontWeight = FontWeight.Medium,
+          fontSize = 20.sp,
+          fontWeight = FontWeight.Bold,
           modifier = Modifier.padding(bottom = 6.dp)
         )
         if (link != null) {
           linkButton(link)
         }
       }
-      if (descrId != null) Text(generalGetString(descrId), fontSize = 15.sp)
+      if (descrId != null) Text(generalGetString(descrId), fontSize = 17.sp)
       for ((si, sd) in subfeatures) {
         Row(
           verticalAlignment = Alignment.CenterVertically,
@@ -120,7 +120,7 @@ fun ModalData.WhatsNewView(updatedConditions: Boolean = false, viaSettings: Bool
           modifier = Modifier.padding(bottom = 6.dp)
         ) {
           Icon(painterResource(si), stringResource(sd), tint = MaterialTheme.colors.secondary)
-          Text(generalGetString(sd), fontSize = 15.sp)
+          Text(generalGetString(sd), fontSize = 17.sp)
         }
       }
     }
@@ -1008,12 +1008,12 @@ private fun SupporterBadgeWhatsNew() {
     Column(Modifier.padding(end = 96.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
       Text(
         stringResource(MR.strings.v7_1_supporter_badge_title),
-        style = MaterialTheme.typography.h4,
-        fontWeight = FontWeight.Medium
+        fontSize = 20.sp,
+        fontWeight = FontWeight.Bold
       )
       Text(
         stringResource(MR.strings.v7_1_supporter_badge_body),
-        fontSize = 15.sp,
+        fontSize = 17.sp,
         maxLines = 10
       )
     }
@@ -1114,8 +1114,8 @@ private fun InvestInSimpleXChatView(modalManager: ModalManager) {
   Column(modifier = Modifier.padding(bottom = 12.dp)) {
     Text(
       generalGetString(MR.strings.v7_0_invest),
-      style = MaterialTheme.typography.h4,
-      fontWeight = FontWeight.Medium,
+      fontSize = 20.sp,
+      fontWeight = FontWeight.Bold,
       modifier = Modifier.padding(bottom = 6.dp)
     )
     Text(
@@ -1126,7 +1126,7 @@ private fun InvestInSimpleXChatView(modalManager: ModalManager) {
           append(generalGetString(MR.strings.learn_more))
         }
       },
-      fontSize = 15.sp,
+      fontSize = 17.sp,
       modifier = Modifier
         .pointerHoverIcon(PointerIcon.Hand)
         .clickable(
@@ -1362,8 +1362,8 @@ fun CreateUpdateAddressShortLinkView(modalManager: ModalManager) {
         generalGetString(MR.strings.v6_4_1_short_address),
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
-        style = MaterialTheme.typography.h4,
-        fontWeight = FontWeight.Medium,
+        fontSize = 20.sp,
+        fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(bottom = 6.dp)
       )
     }
@@ -1377,7 +1377,7 @@ fun CreateUpdateAddressShortLinkView(modalManager: ModalManager) {
           Text(
             stringResource(MR.strings.v6_4_1_short_address_update),
             color = MaterialTheme.colors.primary,
-            fontSize = 15.sp,
+            fontSize = 17.sp,
             modifier = Modifier
               .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -1394,7 +1394,7 @@ fun CreateUpdateAddressShortLinkView(modalManager: ModalManager) {
         Text(
           stringResource(MR.strings.v6_4_1_short_address_share),
           color = MaterialTheme.colors.primary,
-          fontSize = 15.sp,
+          fontSize = 17.sp,
           modifier = Modifier
             .clickable(
               interactionSource = remember { MutableInteractionSource() },
@@ -1408,7 +1408,7 @@ fun CreateUpdateAddressShortLinkView(modalManager: ModalManager) {
       Text(
         stringResource(MR.strings.v6_4_1_short_address_create),
         color = MaterialTheme.colors.primary,
-        fontSize = 15.sp,
+        fontSize = 17.sp,
         modifier = Modifier
           .clickable(
             interactionSource = remember { MutableInteractionSource() },
