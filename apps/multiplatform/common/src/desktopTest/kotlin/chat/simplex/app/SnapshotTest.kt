@@ -108,6 +108,8 @@ private val previewScenes = listOf(
   SnapshotScene("HowItWorks.PreviewHowItWorks") { PreviewHowItWorks() },
   SnapshotScene("SimpleXInfo.PreviewSimpleXInfo") { PreviewSimpleXInfo() },
   SnapshotScene("WhatsNewView.PreviewWhatsNewView") { PreviewWhatsNewView() },
+  SnapshotScene("WhatsNewView.PreviewCrowdfundingBottomA") { PreviewCrowdfundingBottomA() },
+  SnapshotScene("WhatsNewView.PreviewCrowdfundingBottomB") { PreviewCrowdfundingBottomB() },
   SnapshotScene("SetNotificationsMode.PreviewSetNotificationsMode") { PreviewSetNotificationsMode() },
   SnapshotScene("BadgesHowLongView.PreviewPeriodCards") { PreviewPeriodCards() },
   SnapshotScene("BadgesHowLongView.PreviewPlaySupportSimplex") { chat.simplex.common.views.badges.PreviewPlaySupportSimplex() },

@@ -1208,7 +1208,7 @@ private val getStakeSlides: List<CrowdfundingSlide> = listOf(
 )
 
 @Composable
-fun GetStakeView(inCenterOfWindow: Boolean = false) {
+fun GetStakeView(inCenterOfWindow: Boolean = false, scrollState: ScrollState? = null, extraBottom: Boolean = true) {
   val uriHandler = LocalUriHandler.current
 
   @Composable
@@ -1232,7 +1232,7 @@ fun GetStakeView(inCenterOfWindow: Boolean = false) {
     }
   }
 
-  ColumnWithScrollBar(Modifier.pinchZoom().padding(horizontal = DEFAULT_PADDING)) {
+  ColumnWithScrollBar(Modifier.pinchZoom().padding(horizontal = DEFAULT_PADDING), state = scrollState) {
     // in the center of the window the page is wide enough for the title to fit on one line
     val title = "Invest in\nSimpleX Chat"
     AppBarTitle(if (inCenterOfWindow) title.replace("\n", " ") else title, withPadding = false)
@@ -1259,7 +1259,7 @@ fun GetStakeView(inCenterOfWindow: Boolean = false) {
     }
 
     Column(
-      Modifier.fillMaxWidth().padding(vertical = DEFAULT_PADDING * 2),
+      Modifier.fillMaxWidth().padding(top = DEFAULT_PADDING * 2, bottom = if (extraBottom) DEFAULT_PADDING * 2 else 0.dp),
       horizontalAlignment = Alignment.CenterHorizontally
     ) {
       OnboardingActionButton(
@@ -1269,6 +1269,22 @@ fun GetStakeView(inCenterOfWindow: Boolean = false) {
         onclick = { uriHandler.openUriCatching(WEFUNDER_URL) }
       )
     }
+  }
+}
+
+@Preview
+@Composable
+fun PreviewCrowdfundingBottomA() {
+  SimpleXTheme {
+    Box(Modifier.fillMaxWidth().height(874.dp)) { GetStakeView(scrollState = rememberScrollState(1_000_000)) }
+  }
+}
+
+@Preview
+@Composable
+fun PreviewCrowdfundingBottomB() {
+  SimpleXTheme {
+    Box(Modifier.fillMaxWidth().height(874.dp)) { GetStakeView(scrollState = rememberScrollState(1_000_000), extraBottom = false) }
   }
 }
 
