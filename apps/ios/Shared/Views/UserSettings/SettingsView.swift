@@ -307,6 +307,7 @@ struct SettingsView: View {
     @EnvironmentObject var chatModel: ChatModel
     @EnvironmentObject var sceneDelegate: SceneDelegate
     @EnvironmentObject var theme: AppTheme
+    @ObservedObject private var badgeModel = BadgeModel.shared
     @State private var showProgress: Bool = false
 
     var body: some View {
@@ -370,12 +371,13 @@ struct SettingsView: View {
                         .modifier(ThemedBackground())
                 } label: {
                     let badgeType = chatModel.currentUser?.profile.localBadge?.badge.badgeType ?? .supporter
+                    let badgeShown = badgeModel.userId == chatModel.currentUser?.userId && badgeModel.badgeState?.shown == true
                     ZStack(alignment: .leading) {
                         Image(badgeImageName(badgeType))
                             .resizable()
                             .scaledToFit()
                             .frame(width: 24, height: 24)
-                        Text("Supporter perks").padding(.leading, indent)
+                        Text(badgeShown ? "Your badge" : "Get a supporter badge").padding(.leading, indent)
                     }
                 }
             }

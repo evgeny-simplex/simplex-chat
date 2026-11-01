@@ -676,7 +676,7 @@ private let versionDescriptions: [VersionDescription] = [
         features: (isInUS ? [
             .view(FeatureView(
                 icon: nil,
-                title: "You can now invest in SimpleX Chat",
+                title: "Own a part of SimpleX Chat! 🚀",
                 view: { InvestInSimpleXChat() }
             ))
         ] : []) + [
@@ -699,9 +699,15 @@ private let versionDescriptions: [VersionDescription] = [
         ]
     ),
     VersionDescription(
-        version: "v7.1-beta.8",
+        version: "v7.1",
         post: nil,
-        features: [
+        features: (isInUS ? [
+            .view(FeatureView(
+                icon: nil,
+                title: "Own a part of SimpleX Chat! 🚀",
+                view: { InvestInSimpleXChat() }
+            ))
+        ] : []) + [
             .view(FeatureView(
                 icon: nil,
                 title: "Supporter badges",
@@ -709,22 +715,18 @@ private let versionDescriptions: [VersionDescription] = [
             )),
             .feature(Description(
                 icon: nil,
+                title: "SimpleX public names",
+                description: "Sale starts on December 12. [Learn more.](https://simplex.chat/blog/20260722-simplex-public-names.html)"
+            )),
+            .feature(Description(
+                icon: nil,
                 title: "Safer channels",
-                description: nil,
-                subfeatures: [
-                    ("flag", "Promote contributors to moderators."),
-                    ("checkmark.seal", "Opt in to sign all channel messages."),
-                ]
+                description: "Add moderators and sign every message."
             )),
             .feature(Description(
-                icon: "terminal",
-                title: "Flat (\"terminal\") chat layout",
-                description: "And full markdown support."
-            )),
-            .feature(Description(
-                icon: "phone",
-                title: "Better calls",
-                description: "Reconnect after dropped connection."
+                icon: nil,
+                title: "Flat layout and markdown",
+                description: "Enable in Appearance settings."
             )),
         ]
     ),
@@ -745,17 +747,25 @@ func shouldShowWhatsNew() -> Bool {
 fileprivate struct SupporterBadgeWhatsNew: View {
     @Environment(\.colorScheme) var colorScheme: ColorScheme
     @EnvironmentObject var theme: AppTheme
+    @ObservedObject private var badgeModel = BadgeModel.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Supporter badges 🚀")
                 .font(.title3)
                 .bold()
-            Text("Send larger files\navailable for longer.")
+            Text("Larger files available for longer.")
                 .multilineTextAlignment(.leading)
                 .lineLimit(10)
+            if noShownBadge() {
+                Text("Support SimpleX and get a badge.")
+                    .foregroundColor(theme.colors.primary)
+                    .onTapGesture { openBadgesView() }
+            }
         }
+        #if !SIMPLEX_ASSETS
         .padding(.trailing, 96)
+        #endif
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .topTrailing) { heroThumbnail() }
     }
@@ -845,10 +855,11 @@ fileprivate struct InvestInSimpleXChat: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("You can now invest in SimpleX Chat! 🚀").font(.title3).bold()
-            (Text("Crowdfunding on Wefunder.") + Text(verbatim: " ") + Text("Learn more").foregroundColor(theme.colors.primary))
-                .multilineTextAlignment(.leading)
-                .onTapGesture { showGetStakeSheet = true }
+            Text("Own a part of SimpleX Chat! 🚀").font(.title3).bold()
+            Text("\(192) people have already invested.")
+            Text("Learn more on Wefunder.")
+                .foregroundColor(theme.colors.primary)
+                .onTapGesture { UIApplication.shared.open(wefunderURL) }
             #if SIMPLEX_ASSETS
             Image("crowdfunding_1")
                 .resizable()
@@ -892,7 +903,7 @@ fileprivate let getStakeSlides: [(image: String, heading: String, info: String?,
     ),
 ]
 
-private let wefunderURL = URL(string: "https://wefunder.com/simplex.chat?utm_source=app")!
+private let wefunderURL = URL(string: "https://wefunder.com/simplex.chat?utm_source=app_ios")!
 
 private let simplexCrowdfundingURL = URL(string: "simplex:/a#JxGcOA1_QhlmVFzYYabloMbvMZk5Y9d9iS3ITDnhzYo?h=smp11.simplex.im")!
 
