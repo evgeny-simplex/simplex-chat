@@ -142,7 +142,7 @@ struct UserProfilesView: View {
             switch alert {
             case let .deleteUser(user, delSMPQueues):
                 return Alert(
-                    title: Text("Delete user profile?"),
+                    title: Text("Delete chat profile?"),
                     message: Text("All chats and messages will be deleted - this cannot be undone!"),
                     primaryButton: .destructive(Text("Delete")) {
                         Task { await removeUser(user, delSMPQueues, viewPwd: userViewPassword(user)) }

@@ -308,8 +308,8 @@ struct DatabaseView: View {
             )
         case .deleteChat:
             return Alert(
-                title: Text("Delete chat profile?"),
-                message: Text("This action cannot be undone - your profile, contacts, messages and files will be irreversibly lost."),
+                title: Text("Delete database?"),
+                message: Text("All chat profiles, contacts, messages and files on this device will be deleted. This cannot be undone."),
                 primaryButton: .destructive(Text("Delete")) {
                     let wasStopped = m.chatRunning == false
                     stopChatRunBlockStartChat(wasStopped, $progressIndicator) {

@@ -782,8 +782,8 @@ private fun saveArchiveFromURI(importedArchiveURI: URI): String? {
 
 private fun deleteChatAlert(onConfirm: () -> Unit) {
   AlertManager.shared.showAlertDialog(
-    title = generalGetString(MR.strings.delete_chat_profile_question),
-    text = generalGetString(MR.strings.delete_chat_profile_action_cannot_be_undone_warning),
+    title = generalGetString(MR.strings.delete_database_question),
+    text = generalGetString(MR.strings.delete_database_all_profiles_warning),
     confirmText = generalGetString(MR.strings.delete_verb),
     onConfirm = onConfirm,
     destructive = true,
