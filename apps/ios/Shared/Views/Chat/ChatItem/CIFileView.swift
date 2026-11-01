@@ -225,8 +225,10 @@ struct CIFileView: View {
         }
     }
 
+    private var progressSize: CGFloat { smallViewSize == nil ? dynamicSize(userFont).fileIconSize : 30 }
+
     private func progressView() -> some View {
-        ProgressView().frame(width: dynamicSize(userFont).fileIconSize, height: dynamicSize(userFont).fileIconSize)
+        ProgressView().frame(width: progressSize, height: progressSize)
     }
 
     private func progressCircle(_ progress: Int64, _ total: Int64) -> some View {
@@ -237,7 +239,7 @@ struct CIFileView: View {
                 style: StrokeStyle(lineWidth: 3)
             )
             .rotationEffect(.degrees(-90))
-            .frame(width: dynamicSize(userFont).fileIconSize, height: dynamicSize(userFont).fileIconSize)
+            .frame(width: progressSize, height: progressSize)
     }
 }
 
