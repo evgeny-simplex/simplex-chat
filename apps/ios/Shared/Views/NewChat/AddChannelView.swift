@@ -48,24 +48,10 @@ struct AddChannelView: View {
             Group {
                 HStack(spacing: 0) {
                     Spacer(minLength: 0)
-                    ZStack(alignment: .center) {
-                        ZStack(alignment: .topTrailing) {
-                            ProfileImage(imageStr: profile.image, icon: Image(systemName: "antenna.radiowaves.left.and.right.circle.fill"), size: 128)
-                            if profile.image != nil {
-                                Button {
-                                    profile.image = nil
-                                } label: {
-                                    Image(systemName: "multiply")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 12)
-                                }
-                            }
-                        }
-                        editImageButton { showChooseSource = true }
-                            .buttonStyle(BorderlessButtonStyle())
-                    }
-                    .padding(.horizontal, 10) // Offsets transparent space built into 3D asset
+                    EditProfileImage(profileImage: $profile.image, icon: Image(systemName: "antenna.radiowaves.left.and.right.circle.fill"), showChooseSource: $showChooseSource, size: 128)
+                        .fixedSize()
+                        .buttonStyle(BorderlessButtonStyle())
+                        .padding(.horizontal, 10) // Offsets transparent space built into 3D asset
                     #if SIMPLEX_ASSETS
                     Spacer(minLength: 0)
                     Image(colorScheme == .light ? "create-channel" : "create-channel-light")
