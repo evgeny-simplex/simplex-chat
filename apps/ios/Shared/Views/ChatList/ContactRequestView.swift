@@ -30,6 +30,7 @@ struct ContactRequestView: View {
                         chat.chatInfo.nameBadge,
                         .title3
                     )
+                    .lineLimit(1)
                     .padding(.leading, 8)
                     .frame(alignment: .topLeading)
                     Spacer()
