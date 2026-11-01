@@ -179,13 +179,12 @@
   }
 
   async function intentAnswer(id) {
-    if (id === "roadmap") return screenOf(byId("roadmap"))
+    const intent = intentsById.get(id)
+    if (intent.screen) return screenOf(byId(intent.screen))
+    if (intent.page) return pageAnswer(intent)
     const { heading, nodes } = answerNodes(id)
-    const fragment = document.createDocumentFragment()
-    const header = document.createElement("div")
-    header.innerHTML = '<p class="eyebrow">' + escapeHtml(strings.answer) + '</p><h2 lang="en" dir="ltr"></h2>'
-    header.querySelector("h2").textContent = heading.textContent
-    fragment.append(...header.childNodes)
+    const fragment = htmlFragment('<header class="head"><p class="eyebrow">' + escapeHtml(strings.answer) + '</p><h2 lang="en" dir="ltr">' +
+      escapeHtml(heading.textContent) + "</h2></header>")
     const prose = document.createElement("div")
     prose.className = "prose"
     prose.lang = "en"
@@ -205,6 +204,15 @@
     return fragment
   }
 
+  async function pageAnswer(intent) {
+    const base = await loadKnowledgeBase()
+    const url = new URL(intent.page, location.href)
+    const doc = base.byKey.get(pathKey(url.pathname))
+    const sectionId = decodeURIComponent(url.hash.slice(1))
+    const section = doc.sections.find((candidate) => sectionId ? candidate.id === sectionId : candidate.html)
+    return searchAnswer(intent.label, [{ ref: { doc, section } }])
+  }
+
   function htmlFragment(html) {
     const template = document.createElement("template")
     template.innerHTML = html
@@ -216,13 +224,14 @@
     const { doc, section } = best.ref
     const heading = section.heading ? homeSearch.plainText(section.heading) : doc.title
     const continueHref = doc.url + (section.id ? "#" + section.id : "")
+    const source = heading === doc.title ? "" : '<p class="source" lang="en" dir="ltr"><a href="' + escapeHtml(doc.url) + '">' + escapeHtml(doc.title) + "</a></p>"
     return htmlFragment(
-      '<p class="eyebrow">' + escapeHtml(strings.fromSite) + "</p>" +
-      '<p class="source"><span class="kind">' + escapeHtml(kindLabel(doc)) + '</span> <a lang="en" dir="ltr" href="' + escapeHtml(doc.url) + '">' + escapeHtml(doc.title) + "</a></p>" +
-      '<h2 lang="en" dir="ltr">' + escapeHtml(heading) + "</h2>" +
+      '<header class="head"><p class="eyebrow">' + escapeHtml(kindLabel(doc)) + "</p>" +
+      '<h2 lang="en" dir="ltr">' + escapeHtml(heading) + "</h2>" + source + "</header>" +
       '<div class="prose" lang="en" dir="ltr">' + shortHtml(docHtml(doc, section.html)) + "</div>" +
       '<p class="links"><a class="pill" href="' + escapeHtml(continueHref) + '">' + escapeHtml(strings.continue) + "</a></p>" +
-      (more.length ? '<p class="more">' + escapeHtml(strings.more) + '</p><div class="cards">' + more.map((result) => cardHtml(result.ref.doc, result.ref.section)).join("") + "</div>" : "") +
+      (more.length ? '<section class="more"><p class="eyebrow">' + escapeHtml(strings.more) + '</p><div class="cards">' +
+        more.map((result) => cardHtml(result.ref.doc, result.ref.section)).join("") + "</div></section>" : "") +
       questionsHtml(relatedQuestions(question, [], false)))
   }
 
@@ -236,7 +245,8 @@
   }
 
   async function answerFor(question) {
-    const intent = homeSearch.bestIntent(intents(), question, data.synonyms, intentThreshold, intentMargin, intentCoverage)
+    const base = await loadKnowledgeBase().catch(() => null)
+    const intent = homeSearch.bestIntent(intents(), question, data.synonyms, intentThreshold, intentMargin, intentCoverage, base && base.index)
     if (intent) return intentAnswer(intent.ref.id)
     const persona = homeSearch.personaOfWords(question, data.personaWords)
     if (persona) {
@@ -244,7 +254,7 @@
       renderKnows()
       return screenOf(byId("for-" + persona))
     }
-    const base = await loadKnowledgeBase()
+    if (!base) throw new Error("knowledge base unavailable")
     const results = homeSearch.bestDocuments(base.index, question, data.synonyms, searchThreshold, 3)
     return results.length ? searchAnswer(question, results) : fallbackAnswer(question)
   }

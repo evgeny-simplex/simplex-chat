@@ -423,7 +423,6 @@
     "home-forget": "Forget everything",
     "home-close": "Close",
     "home-answer-eyebrow": "Answer",
-    "home-search-eyebrow": "From the site",
     "home-search-more": "More on this",
     "home-continue": "Continue reading",
     "home-fallback-title": "The site has nothing on that yet.",
@@ -544,5 +543,7 @@
     "home-q-agents": "Can I build a bot or an AI agent?",
     "home-q-invest": "How can I invest?",
     "home-q-contact": "How do I contact the team?",
-    "home-q-roadmap": "What is on the roadmap?"
+    "home-q-roadmap": "What is on the roadmap?",
+    "home-q-host-server": "How do I run my own server?",
+    "home-q-notifications": "Why don't I get notifications?"
 }

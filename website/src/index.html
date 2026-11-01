@@ -90,19 +90,21 @@ active_home: true
                 <input name="q" maxlength="500" placeholder="{{ 'home-ask-hero' | i18n({}, lang) }}" aria-label="{{ 'home-ask-hero' | i18n({}, lang) }}">
                 <button type="submit">{{ "home-ask" | i18n({}, lang) }}</button>
             </form>
-            <p class="proof"><b>{{ "messages-per-day" | factFigure }}</b> {{ "home-proof" | i18n({}, lang) }}</p>
-            <p class="countdown"><a href="https://simplex.domains/" target="_blank" rel="noopener"><span id="countdown-lead">{{ "index-hero-countdown-lead" | i18n({}, lang) }}</span> <span class="digits" id="countdown"></span> <span aria-hidden="true">↗</span></a></p>
+            <div class="status">
+                <p class="proof"><b>{{ "messages-per-day" | factFigure }}</b> {{ "home-proof" | i18n({}, lang) }}</p>
+                <p class="countdown"><a href="https://simplex.domains/" target="_blank" rel="noopener"><span id="countdown-lead">{{ "index-hero-countdown-lead" | i18n({}, lang) }}</span> <span class="digits" id="countdown"></span> <span aria-hidden="true">↗</span></a></p>
+            </div>
         </section>
 
         <div class="turns" id="turns"></div>
 
         <div class="library" id="library">
             {% for persona in home.personas %}
-            <section class="screen" id="for-{{ persona.id }}" data-persona="{{ persona.id }}">
+            <section class="screen" id="for-{{ persona.id }}">
                 {{ screen(persona.screen, lang) }}
             </section>
             {% endfor %}
-            <section class="screen" id="roadmap" data-intent="roadmap">
+            <section class="screen" id="roadmap">
                 {{ screen(home.roadmap, lang) }}
             </section>
             <section class="screen" id="get">
@@ -160,7 +162,6 @@ active_home: true
 
     <template id="busy-template"><p class="busy"><i aria-hidden="true"></i>{{ "home-busy" | i18n({}, lang) }}</p></template>
     <template id="fallback-template">
-        <p class="eyebrow">{{ "home-search-eyebrow" | i18n({}, lang) }}</p>
         <h2>{{ "home-fallback-title" | i18n({}, lang) }}</h2>
         <p class="lead">{{ "home-fallback-text" | i18n({}, lang) }} <a href="https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw" target="_blank" rel="noopener">{{ "home-fallback-link" | i18n({}, lang) }}</a></p>
         {% if lang != "en" %}<p class="fine">{{ "home-english-note" | i18n({}, lang) }}</p>{% endif %}
@@ -175,7 +176,6 @@ active_home: true
         "countdownTo": "2026-12-12T18:00:00Z",
         "strings": {
             "answer": {{ "home-answer-eyebrow" | i18n({}, lang) | dump | safe }},
-            "fromSite": {{ "home-search-eyebrow" | i18n({}, lang) | dump | safe }},
             "more": {{ "home-search-more" | i18n({}, lang) | dump | safe }},
             "continue": {{ "home-continue" | i18n({}, lang) | dump | safe }},
             "askService": {{ "home-ask-service" | i18n({}, lang) | dump | safe }},

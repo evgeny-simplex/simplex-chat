@@ -1,8 +1,8 @@
 (function (root) {
   const stopWords = new Set(("a an the and or but if then else of to in on at by for with from about as is are was were be been being " +
     "do does did done have has had i me my mine you your yours we us our it its this that these those there here " +
-    "what which who whom whose how why when where can could should would will shall may might must not no so than " +
-    "too very just also into out up down any all some such only own same other more most much many one get gets " +
+    "what which whom whose how why when where can could should would will shall may might must not no so than " +
+    "too very just also into out up down any all some such only same other more most much many one get gets " +
     "use using used want need simplex please tell know don doesn didn isn aren t s ll ve re m d").split(" "))
 
   const fieldWeights = { title: 2, heading: 3, body: 1 }
@@ -74,25 +74,28 @@
     return { docs, documentFrequency, averageLength }
   }
 
-  function search(index, query, synonyms) {
+  function inverseFrequency(index, term) {
+    const frequency = index.documentFrequency.get(term) || 0
+    return Math.log(1 + (index.docs.length - frequency + 0.5) / (frequency + 0.5))
+  }
+
+  function search(index, query, synonyms, coverageIndex) {
     const terms = queryTerms(query, synonyms || {})
-    const count = index.docs.length
-    const idf = new Map(Array.from(terms.keys(), (term) => {
-      const frequency = index.documentFrequency.get(term) || 0
-      return [term, Math.log(1 + (count - frequency + 0.5) / (frequency + 0.5))]
-    }))
-    const queryCount = Array.from(terms.values()).filter((weight) => weight === 1).length
+    const idf = new Map(Array.from(terms.keys(), (term) => [term, inverseFrequency(index, term)]))
+    const coverageWeight = new Map(Array.from(terms).filter(([, weight]) => weight === 1)
+      .map(([term]) => [term, inverseFrequency(coverageIndex || index, term)]))
+    const totalWeight = Array.from(coverageWeight.values()).reduce((sum, weight) => sum + weight, 0)
     return index.docs.map((doc) => {
       let score = 0
-      let matched = 0
+      let matchedWeight = 0
       terms.forEach((queryWeight, term) => {
         const frequency = doc.counts.get(term)
         if (!frequency) return
         const norm = k1 * (1 - b + b * doc.length / index.averageLength)
         score += queryWeight * idf.get(term) * frequency * (k1 + 1) / (frequency + norm)
-        if (queryWeight === 1) matched += 1
+        matchedWeight += coverageWeight.get(term) || 0
       })
-      return { ref: doc.ref, score: score * doc.weight, coverage: matched / Math.max(1, queryCount) }
+      return { ref: doc.ref, score: score * doc.weight, coverage: totalWeight ? matchedWeight / totalWeight : 0 }
     }).filter((result) => result.score > 0).sort((x, y) => y.score - x.score)
   }
 
@@ -130,10 +133,10 @@
     return index
   }
 
-  function bestIntent(index, query, synonyms, threshold, margin, coverage) {
+  function bestIntent(index, query, synonyms, threshold, margin, coverage, coverageIndex) {
     const exact = index.phrases.get(phrase(query))
     if (exact) return { ref: exact, score: Infinity, coverage: 1 }
-    const [first, second] = search(index, query, synonyms)
+    const [first, second] = search(index, query, synonyms, coverageIndex)
     if (!first || first.score < threshold || first.coverage < coverage) return null
     return !second || first.score >= margin * second.score ? first : null
   }

@@ -211,7 +211,9 @@
     { "id": "how-can-ai-agents-and-developers-use-simplex", "label": "home-q-agents", "phrases": ["build a bot", "ai agent", "api", "sdk", "chat bot"] },
     { "id": "how-can-i-invest-in-simplex-chat", "label": "home-q-invest", "phrases": ["invest", "buy shares", "crowdfunding", "wefunder", "equity"] },
     { "id": "how-do-i-contact-the-simplex-team", "label": "home-q-contact", "phrases": ["contact the team", "support", "talk to someone", "email", "help"] },
-    { "id": "roadmap", "label": "home-q-roadmap", "phrases": ["roadmap", "what is next", "future plans", "community credits", "what are you building next"] }
+    { "id": "roadmap", "label": "home-q-roadmap", "screen": "roadmap", "phrases": ["roadmap", "what is next", "future plans", "community credits", "what are you building next"] },
+    { "id": "host-server", "label": "home-q-host-server", "page": "/docs/server.html", "phrases": ["run my own server", "host my own server", "self host a server", "set up a server", "use my own servers", "smp server"] },
+    { "id": "notifications", "label": "home-q-notifications", "page": "/faq/#i-do-not-receive-messages-or-message-notifications", "phrases": ["notifications do not work", "not receiving notifications", "messages do not arrive", "no notifications"] }
   ],
   "personaWords": {
     "investor": ["investor", "investors", "investing", "shareholder", "shares", "equity", "valuation"],

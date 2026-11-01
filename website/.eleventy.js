@@ -474,7 +474,7 @@ module.exports = function (ty) {
 
   ty.addFilter("homeClientData", (lang) => ({
     personas: home.personas.map(({ id, label, said }) => ({ id, label: translate(label, lang), said: translate(said, lang) })),
-    intents: home.intents.map(({ id, label, phrases }) => ({ id, label: translate(label, lang), phrases })),
+    intents: home.intents.map(({ label, ...intent }) => ({ ...intent, label: translate(label, lang) })),
     personaWords: home.personaWords,
     frame: home.frame,
     synonyms: home.synonyms,
