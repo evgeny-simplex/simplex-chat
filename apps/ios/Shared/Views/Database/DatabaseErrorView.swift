@@ -164,7 +164,7 @@ struct DatabaseErrorView: View {
     }
 
     private func databaseKeyField(onSubmit: @escaping () -> Void) -> some View {
-        PassphraseField(key: $dbKey, placeholder: "Enter passphrase…", valid: validKey(dbKey), onSubmit: onSubmit)
+        PassphraseField(key: $dbKey, placeholder: "Enter passphrase…", valid: validKey(dbKey), onSubmit: { if dbKey != "" { onSubmit() } })
             .padding(.vertical, 10)
             .padding(.horizontal)
             .background(
@@ -177,14 +177,16 @@ struct DatabaseErrorView: View {
         Button("Save passphrase and open chat") {
             saveAndRunChat()
         }
-        .buttonStyle(OnboardingButtonStyle(isDisabled: false))
+        .buttonStyle(OnboardingButtonStyle(isDisabled: dbKey == ""))
+        .disabled(dbKey == "")
     }
 
     private func openChatButton() -> some View {
         Button("Open chat") {
             runChat()
         }
-        .buttonStyle(OnboardingButtonStyle(isDisabled: false))
+        .buttonStyle(OnboardingButtonStyle(isDisabled: dbKey == ""))
+        .disabled(dbKey == "")
     }
 
     private func saveAndRunChat() {

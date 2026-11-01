@@ -79,7 +79,7 @@ fun DatabaseErrorView(
   }
 
   ColumnWithScrollBarNoAppBar(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-    val buttonEnabled = validKey(dbKey.value) && !progressIndicator.value
+    val buttonEnabled = dbKey.value.isNotEmpty() && validKey(dbKey.value) && !progressIndicator.value
     when (val status = chatDbStatus.value) {
       is DBMigrationResult.ErrorNotADatabase ->
         if (useKeychain && !storedDBKey.isNullOrEmpty()) {
@@ -303,7 +303,7 @@ private fun DatabaseKeyField(text: MutableState<String>, enabled: Boolean, onCli
     } else null
     ),
     modifier = Modifier.focusRequester(focusRequester).onPreviewKeyEvent {
-      if (onClick != null && (it.key == Key.Enter || it.key == Key.NumPadEnter) && it.type == KeyEventType.KeyUp) {
+      if (onClick != null && enabled && (it.key == Key.Enter || it.key == Key.NumPadEnter) && it.type == KeyEventType.KeyUp) {
         onClick()
         true
       } else {
