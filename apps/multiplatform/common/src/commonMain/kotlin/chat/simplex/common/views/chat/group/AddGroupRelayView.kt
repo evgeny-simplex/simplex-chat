@@ -46,7 +46,7 @@ fun AddGroupRelayView(
 
   BackHandler(onBack = close)
 
-  LaunchedEffect(Unit) {
+  suspend fun loadRelays() {
     try {
       val servers = ChatController.getUserServers(rhId, errorAlertTitle = generalGetString(MR.strings.error))
       if (servers != null) {
@@ -69,6 +69,8 @@ fun AddGroupRelayView(
     isLoading = false
   }
 
+  LaunchedEffect(Unit) { loadRelays() }
+
   AddGroupRelayLayout(
     availableRelays = availableRelays,
     selectedRelayIds = selectedRelayIds,
@@ -90,7 +92,10 @@ fun AddGroupRelayView(
       }
     },
     configureRelays = {
-      ModalManager.end.showCustomModal { close -> NetworkAndServersView(close) }
+      ModalManager.start.showCustomModal { close ->
+        NetworkAndServersView(close)
+        DisposableEffect(Unit) { onDispose { scope.launch { loadRelays() } } }
+      }
     }
   )
 }
