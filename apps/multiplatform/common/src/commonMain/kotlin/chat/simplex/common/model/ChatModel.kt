@@ -1724,7 +1724,7 @@ sealed class ChatInfo: SomeChat, NamedChat {
               generalGetString(MR.strings.cant_send_message_contact_not_ready) to null
             }
           }
-          if (contact.activeConn?.connectionStats?.ratchetSyncSendProhibited == true) return generalGetString(MR.strings.cant_send_message_contact_not_synchronized) to generalGetString(MR.strings.cant_send_message_contact_not_synchronized_desc)
+          if (contact.activeConn?.connectionStats?.ratchetSyncSendProhibited == true) return generalGetString(MR.strings.cant_send_message_contact_not_synchronized) to if (contact.ready && contact.activeConn?.connectionStats?.ratchetSyncAllowed == true) generalGetString(MR.strings.cant_send_message_contact_not_synchronized_desc) else null
           if (contact.activeConn?.connDisabled == true) return generalGetString(MR.strings.cant_send_message_contact_disabled) to null
           return null
         }
