@@ -47,25 +47,10 @@ struct CreateProfile: View {
             Group {
                 HStack(spacing: 0) {
                     Spacer(minLength: 0)
-                    ZStack(alignment: .center) {
-                        ZStack(alignment: .topTrailing) {
-                            ProfileImage(imageStr: profileImage, size: 128)
-                            if profileImage != nil {
-                                Button {
-                                    profileImage = nil
-                                } label: {
-                                    Image(systemName: "multiply")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 12)
-                                }
-                            }
-                        }
-
-                        editImageButton { showChooseSource = true }
-                            .buttonStyle(BorderlessButtonStyle())
-                    }
-                    .padding(.horizontal, 10) // Offsets transparent space built into 3D asset
+                    EditProfileImage(profileImage: $profileImage, icon: Image(systemName: "person.crop.circle.fill"), showChooseSource: $showChooseSource, size: 128)
+                        .fixedSize()
+                        .buttonStyle(BorderlessButtonStyle())
+                        .padding(.horizontal, 10) // Offsets transparent space built into 3D asset
                     Spacer(minLength: 0)
                     #if SIMPLEX_ASSETS
                     Image(colorScheme == .light ? "create-profile" : "create-profile-light")
