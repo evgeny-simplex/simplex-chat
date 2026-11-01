@@ -493,7 +493,7 @@ struct ChatListNavLink: View {
 
     // Spec: spec/client/chat-list.md#contactRequestNavLink
     private func contactRequestNavLink(_ contactRequest: UserContactRequest) -> some View {
-        ContactRequestView(contactRequest: contactRequest, chat: chat)
+        ContactRequestView(chat: chat)
         .frameCompat(height: dynamicRowHeight)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button {
@@ -644,9 +644,7 @@ struct ChatListNavLink: View {
     }
 
     private func invalidJSONPreview(_ json: Data?) -> some View {
-        Text("invalid chat data")
-            .foregroundColor(.red)
-            .padding(4)
+        ChatPreviewView(chat: chat, progressByTimeout: Binding.constant(false))
             .frameCompat(height: dynamicRowHeight)
             .onTapGesture { showInvalidJSON = true }
             .appSheet(isPresented: $showInvalidJSON) {

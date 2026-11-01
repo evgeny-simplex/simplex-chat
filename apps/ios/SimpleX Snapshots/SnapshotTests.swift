@@ -201,6 +201,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(ChatListMedia_Previews.self, allSizes: true),
         SnapshotScene(ChatListNavLink_Previews.self),
         SnapshotScene(ChatListPending_Previews.self, allSizes: true),
+        SnapshotScene(ChatListRail_Previews.self, allSizes: true),
         SnapshotScene(ChatListText_Previews.self, allSizes: true),
         SnapshotScene(ChatListUnread_Previews.self, allSizes: true),
         SnapshotScene(ChatListView_Previews.self),
@@ -516,6 +517,12 @@ struct ChatListDeleted_Previews: PreviewProvider {
 struct ChatListLong_Previews: PreviewProvider {
     static var previews: some View {
         ChatListFixtures().long()
+    }
+}
+
+struct ChatListRail_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().rail()
     }
 }
 
@@ -1036,9 +1043,9 @@ private final class ChatListFixtures {
         ChatListNavLink(chat: Chat(chatInfo: chatInfo, chatItems: items, chatStats: stats), parentSheet: .constant(nil))
     }
 
-    private func previewRow(_ chatInfo: ChatInfo, _ items: [ChatItem] = [], progress: Bool = false, deleting: Bool = false) -> some View {
+    private func previewRow(_ chatInfo: ChatInfo, _ items: [ChatItem] = [], progress: Bool = false, deleting: Bool = false, call: ChatPreviewView.CallMark? = nil) -> some View {
         ChatListRow {
-            ChatPreviewView(chat: Chat(chatInfo: chatInfo, chatItems: items), progressByTimeout: .constant(progress), deleting: deleting)
+            ChatPreviewView(chat: Chat(chatInfo: chatInfo, chatItems: items), progressByTimeout: .constant(progress), deleting: deleting, previewCall: call)
         }
     }
 
@@ -1231,6 +1238,18 @@ private final class ChatListFixtures {
             row(.direct(contact: contact("bob")), [item(.directRcv, "Sunset at the beach", .image(text: "Sunset at the beach", image: Self.landscape), file: file("sunset.jpg"))])
                 .defaultAppStorage(Self.hiddenPreviews)
             previewRow(.direct(contact: contact("carol")), [item(.directRcv, "This chat is being deleted")], deleting: true)
+        }
+    }
+
+    func rail() -> some View {
+        let team = group("team", fullName: "My Team")
+        let moderators = group("moderators")
+        return VStack(spacing: 0) {
+            previewRow(.direct(contact: contact("alice", image: Self.photo)), [item(.directRcv, "Are you free now?")], call: .ringing)
+            previewRow(.direct(contact: contact("bob")), [item(.directSnd, "Let me call you")], call: .inProgress)
+            row(.group(groupInfo: team, groupChatScope: nil), [item(.groupSnd, "See you there", status: .sndError(agentError: .auth))], ChatStats(unreadCount: 2, unreadMentions: 1))
+            row(.group(groupInfo: moderators, groupChatScope: nil), [mentionItem(moderators, bob, " please check the reports")], ChatStats(unreadCount: 1, unreadMentions: 1, reportsCount: 2))
+            row(.group(groupInfo: group("night owls", incognito: true), groupChatScope: nil), [item(.groupRcv(groupMember: alice), "Spam links in every message")], ChatStats(reportsCount: 1))
         }
     }
 }

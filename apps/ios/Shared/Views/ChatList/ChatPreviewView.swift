@@ -17,6 +17,8 @@ struct ChatPreviewView: View {
     @ObservedObject var chat: Chat
     @Binding var progressByTimeout: Bool
     @State var deleting: Bool = false
+    // do not pass
+    var previewCall: CallMark? = nil
     var darkGreen = Color(red: 0, green: 0.5, blue: 0)
     @State private var activeContentPreview: ActiveContentPreview? = nil
     @State private var showFullscreenGallery: Bool = false
@@ -26,82 +28,106 @@ struct ChatPreviewView: View {
     var dynamicMediaSize: CGFloat { dynamicSize(userFont).mediaSize }
     var dynamicChatInfoSize: CGFloat { dynamicSize(userFont).chatInfoSize }
 
+    enum CallMark {
+        case ringing
+        case inProgress
+    }
+
+    private var draft: ComposeState? {
+        chatModel.draftChatId == chat.id ? chatModel.draft : nil
+    }
+
+    private var callMark: CallMark? {
+        if let previewCall {
+            previewCall
+        } else if chatModel.callInvitations[chat.chatInfo.id] != nil {
+            .ringing
+        } else if chatModel.activeCall?.contact.id == chat.chatInfo.id {
+            .inProgress
+        } else {
+            nil
+        }
+    }
+
     var body: some View {
         let cItem = chat.chatItems.last
-        return ZStack {
-            HStack(spacing: 8) {
-                ZStack(alignment: .bottomTrailing) {
-                    ChatInfoImage(chat: chat, size: dynamicSize(userFont).profileImageSize)
-                    chatPreviewImageOverlayIcon()
-                        .padding([.bottom, .trailing], 1)
-                }
-                .padding(.leading, 4)
+        return HStack(spacing: 8) {
+            ZStack(alignment: .bottomTrailing) {
+                chatAvatar(dynamicSize(userFont).profileImageSize)
+                chatPreviewImageOverlayIcon()
+                    .padding([.bottom, .trailing], 1)
+            }
+            .padding(.leading, 4)
 
-                let chatTs = if let cItem {
-                    cItem.meta.itemTs
-                } else {
-                    chat.chatInfo.chatTs
-                }
-                VStack(spacing: 0) {
-                    HStack(alignment: .top) {
-                        chatPreviewTitle()
-                        Spacer()
+            let chatTs = if let cItem {
+                cItem.meta.itemTs
+            } else {
+                chat.chatInfo.chatTs
+            }
+            VStack(spacing: 0) {
+                HStack(alignment: .top) {
+                    chatPreviewTitle()
+                    Spacer()
+                    if case .invalidJSON = chat.chatInfo {
+                        EmptyView()
+                    } else {
                         (formatTimestampText(chatTs))
                             .font(.subheadline)
                             .frame(minWidth: 60, alignment: .trailing)
                             .foregroundColor(theme.colors.secondary)
                             .padding(.top, 4)
                     }
-                    .padding(.bottom, 4)
-                    .padding(.horizontal, 8)
+                }
+                .padding(.bottom, 4)
+                .padding(.horizontal, 8)
 
-                    ZStack(alignment: .topTrailing) {
-                        let chat = activeContentPreview?.chat ?? chat
-                        let ci = activeContentPreview?.ci ?? chat.chatItems.last
-                        let mc = ci?.content.msgContent
-                        HStack(alignment: .top) {
-                            let deleted = ci?.isDeletedContent == true || ci?.meta.itemDeleted != nil
-                            let showContentPreview = (showChatPreviews && chatModel.draftChatId != chat.id && !deleted) || activeContentPreview != nil
-                            if let ci, showContentPreview {
+                ZStack(alignment: .topTrailing) {
+                    let chat = activeContentPreview?.chat ?? chat
+                    let ci = activeContentPreview?.ci ?? chat.chatItems.last
+                    let mc = ci?.content.msgContent
+                    HStack(alignment: .top) {
+                        let deleted = ci?.isDeletedContent == true || ci?.meta.itemDeleted != nil
+                        let showContentPreview = showChatPreviews || activeContentPreview != nil
+                        if let ci, showContentPreview {
+                            if let draft {
+                                glyphContentPreview(ci, draftGlyph(draft), theme.colors.primary)
+                            } else if deleted {
+                                glyphContentPreview(ci, contentGlyph(ci.content.msgContent), theme.colors.secondary)
+                            } else {
                                 chatItemContentPreview(chat, ci)
                             }
-                            let mcIsVoice = switch mc { case .voice: true; default: false }
-                            if !mcIsVoice || !showContentPreview || mc?.text != "" || chatModel.draftChatId == chat.id {
-                                let hasFilePreview = if case .file = mc { true } else { false }
-                                chatMessagePreview(cItem, hasFilePreview)
-                            } else {
-                                Spacer()
-                                chatInfoIcon(chat).frame(minWidth: 37, alignment: .trailing)
-                            }
                         }
-                        .onChange(of: chatModel.stopPreviousRecPlay?.path) { _ in
-                            checkActiveContentPreview(chat, ci, mc)
+                        let mcIsVoice = switch mc { case .voice: true; default: false }
+                        if !mcIsVoice || !showContentPreview || mc?.text != "" || draft != nil || deleted {
+                            let hasFilePreview = if case .file = mc { true } else { false }
+                            chatMessagePreview(cItem, hasFilePreview)
+                        } else {
+                            Spacer()
                         }
-                        .onChange(of: activeContentPreview) { _ in
-                            checkActiveContentPreview(chat, ci, mc)
-                        }
-                        .onChange(of: showFullscreenGallery) { _ in
-                            checkActiveContentPreview(chat, ci, mc)
-                        }
-                        chatStatusImage()
-                            .padding(.top, dynamicChatInfoSize * 1.44)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.trailing, 8)
-
-                    Spacer()
+                    .onChange(of: chatModel.stopPreviousRecPlay?.path) { _ in
+                        checkActiveContentPreview(chat, ci, mc)
+                    }
+                    .onChange(of: activeContentPreview) { _ in
+                        checkActiveContentPreview(chat, ci, mc)
+                    }
+                    .onChange(of: showFullscreenGallery) { _ in
+                        checkActiveContentPreview(chat, ci, mc)
+                    }
+                    chatInfoIcon(chat).frame(minWidth: 37, alignment: .trailing)
+                    chatStatusImage()
+                        .padding(.top, dynamicChatInfoSize * 1.44)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .frame(maxHeight: .infinity)
-            }
-            .opacity(deleting ? 0.4 : 1)
-            .padding(.bottom, -8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.trailing, 8)
 
-            if deleting {
-                ProgressView()
-                    .scaleEffect(2)
+                Spacer()
             }
+            .frame(maxHeight: .infinity)
         }
+        .opacity(deleting ? 0.4 : 1)
+        .padding(.bottom, -8)
         .onChange(of: chatModel.deletedChats.contains(chat.chatInfo.id)) { contains in
             deleting = contains
             // Stop voice when deleting the chat
@@ -157,8 +183,23 @@ struct ChatPreviewView: View {
 
     private func inactiveIcon() -> some View {
         Image(systemName: "multiply.circle.fill")
-            .foregroundColor(.secondary.opacity(0.65))
-            .background(Circle().foregroundColor(Color(uiColor: .systemBackground)))
+            .resizable()
+            .frame(width: dynamicChatInfoSize, height: dynamicChatInfoSize)
+            .foregroundColor(theme.colors.secondary)
+            .background(Circle().foregroundColor(theme.colors.background))
+    }
+
+    @ViewBuilder private func chatAvatar(_ size: CGFloat) -> some View {
+        if case let .contactConnection(conn) = chat.chatInfo {
+            Image(systemName: conn.initiated ? "link.badge.plus" : "link")
+                .resizable()
+                .scaledToFill()
+                .frame(width: size * 0.76, height: size * 0.76)
+                .foregroundColor(Color(uiColor: .tertiarySystemGroupedBackground).asAnotherColorFromSecondaryVariant(theme))
+                .frame(width: size, height: size)
+        } else {
+            ChatInfoImage(chat: chat, size: size)
+        }
     }
 
     @ViewBuilder private func chatPreviewTitle() -> some View {
@@ -187,6 +228,14 @@ struct ChatPreviewView: View {
                 }
             }
             previewTitle(t).foregroundColor(color)
+        case .contactRequest:
+            NameWithBadge(t.foregroundColor(theme.colors.primary), chat.chatInfo.nameBadge, .title3)
+                .lineLimit(1)
+                .frame(alignment: .topLeading)
+        case .contactConnection:
+            previewTitle(t).foregroundColor(theme.colors.secondary)
+        case .invalidJSON:
+            previewTitle(Text("invalid chat data").font(.title3).fontWeight(.bold)).foregroundColor(.red)
         default: previewTitle(t)
         }
     }
@@ -202,66 +251,48 @@ struct ChatPreviewView: View {
             .kerning(-2)
     }
 
-    private func chatPreviewLayout(_ text: Text?, draft: Bool = false, hasFilePreview: Bool = false, hasSecrets: Bool) -> some View {
-        ZStack(alignment: .topTrailing) {
-            let s = chat.chatStats
-            let mentionWidth: CGFloat = if s.unreadMentions > 0 && s.unreadCount > 1 { dynamicSize(userFont).unreadCorner } else { 0 }
-            let t = text
-                .lineLimit(userFont <= .xxxLarge ? 2 : 1)
-                .multilineTextAlignment(.leading)
-                .if(hasSecrets, transform: hiddenSecretsView)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(.leading, hasFilePreview ? 0 : 8)
-                .padding(.trailing, mentionWidth + (hasFilePreview ? 38 : 36))
-                .offset(x: hasFilePreview ? -2 : 0)
-                .fixedSize(horizontal: false, vertical: true)
-            if !showChatPreviews && !draft {
-                t.privacySensitive(true).redacted(reason: .privacy)
-            } else {
-                t
-            }
-            chatInfoIcon(chat).frame(minWidth: 37, alignment: .trailing)
+    @ViewBuilder private func chatPreviewLayout(_ text: Text?, hidden: Bool = false, hasFilePreview: Bool = false, hasSecrets: Bool) -> some View {
+        let t = text
+            .lineLimit(userFont <= .xxxLarge ? 2 : 1)
+            .multilineTextAlignment(.leading)
+            .if(hasSecrets, transform: hiddenSecretsView)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(.leading, hasFilePreview ? 0 : 8)
+            .padding(.trailing, hasFilePreview ? 38 : 36)
+            .offset(x: hasFilePreview ? -2 : 0)
+            .fixedSize(horizontal: false, vertical: true)
+        if hidden {
+            t.privacySensitive(true).redacted(reason: .privacy)
+        } else {
+            t
         }
     }
 
     @ViewBuilder private func chatInfoIcon(_ chat: Chat) -> some View {
         let s = chat.chatStats
         if s.unreadCount > 0 || s.unreadChat {
-            let mentionColor = mentionColor(chat)
-            HStack(alignment: .center, spacing: 2) {
-                if s.unreadMentions > 0 && s.unreadCount > 1 {
-                    Text("\(MENTION_START)")
-                        .font(userFont <= .xxxLarge ? .body : .callout)
-                        .foregroundColor(mentionColor)
-                        .frame(minWidth: dynamicChatInfoSize, minHeight: dynamicChatInfoSize)
-                        .cornerRadius(dynamicSize(userFont).unreadCorner)
-                        .padding(.bottom, 1)
-                }
-                let singleUnreadIsMention = s.unreadMentions > 0 && s.unreadCount == 1
-                (singleUnreadIsMention ? Text("\(MENTION_START)") : unreadCountText(s.unreadCount))
-                    .font(userFont <= .xxxLarge ? .caption : .caption2)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, dynamicSize(userFont).unreadPadding)
-                    .frame(minWidth: dynamicChatInfoSize, minHeight: dynamicChatInfoSize)
-                    .background(singleUnreadIsMention ? mentionColor : chat.chatInfo.ntfsEnabled(false) || chat.chatInfo.chatType == .local ? theme.colors.primary : theme.colors.secondary)
-                    .cornerRadius(dynamicSize(userFont).unreadCorner)
-            }
-            .frame(height: dynamicChatInfoSize)
+            unreadCountText(s.unreadCount)
+                .font(userFont <= .xxxLarge ? .caption : .caption2)
+                .foregroundColor(.white)
+                .padding(.horizontal, dynamicSize(userFont).unreadPadding)
+                .frame(minWidth: dynamicChatInfoSize, minHeight: dynamicChatInfoSize)
+                .background(chat.chatInfo.ntfsEnabled(false) || chat.chatInfo.chatType == .local ? theme.colors.primary : theme.colors.secondary)
+                .cornerRadius(dynamicSize(userFont).unreadCorner)
+                .frame(height: dynamicChatInfoSize)
         } else if let ntfMode = chat.chatInfo.chatSettings?.enableNtfs, ntfMode != .all {
             let iconSize = ntfMode == .mentions ? dynamicChatInfoSize * 0.8 : dynamicChatInfoSize
-            let iconColor = ntfMode == .mentions ? theme.colors.secondary.opacity(0.7) : theme.colors.secondary
             Image(systemName: ntfMode.iconFilled)
                 .resizable()
                 .scaledToFill()
                 .frame(width: iconSize, height: iconSize)
-                .foregroundColor(iconColor)
+                .foregroundColor(theme.colors.secondary)
         } else if chat.chatInfo.chatSettings?.favorite ?? false {
             Image(systemName: "star.fill")
                 .resizable()
                 .scaledToFill()
                 .frame(width: dynamicChatInfoSize, height: dynamicChatInfoSize)
                 .padding(.trailing, 1)
-                .foregroundColor(theme.colors.secondary.opacity(0.65))
+                .foregroundColor(theme.colors.secondary)
         } else {
             Color.clear.frame(width: 0)
         }
@@ -278,21 +309,49 @@ struct ChatPreviewView: View {
     private func messageDraft(_ draft: ComposeState) -> (Text, Bool) {
         let msg = draft.message
         let r = markdownText(msg, preview: true, mentions: draft.mentions, backgroundColor: theme.colors.background)
-        return (image("rectangle.and.pencil.and.ellipsis", color: theme.colors.primary)
-                    + attachment()
-                    + Text(AttributedString(r.string)),
-                r.hasSecrets)
-
-        func image(_ s: String, color: Color = Color(uiColor: .tertiaryLabel)) -> Text {
-            Text(Image(systemName: s)).foregroundColor(color) + textSpace
-        }
+        return (attachment() + Text(AttributedString(r.string)), r.hasSecrets)
 
         func attachment() -> Text {
             switch draft.preview {
-            case let .filePreview(fileName, _): return image("doc.fill") + Text(fileName) + textSpace
-            case .mediaPreviews: return image("photo")
-            case let .voicePreview(_, duration): return image("play.fill") + Text(durationText(duration))
+            case let .filePreview(fileName, _): return Text(fileName) + textSpace
+            case let .voicePreview(_, duration): return Text(durationText(duration))
             default: return Text("")
+            }
+        }
+    }
+
+    private func draftGlyph(_ draft: ComposeState) -> String {
+        switch draft.preview {
+        case .filePreview: "doc.fill"
+        case .mediaPreviews: "photo"
+        case .voicePreview: "play.fill"
+        default: "rectangle.and.pencil.and.ellipsis"
+        }
+    }
+
+    private func contentGlyph(_ mc: MsgContent?) -> String? {
+        switch mc {
+        case .link: "link"
+        case .image: "photo"
+        case .video: "video"
+        case .voice: "play.fill"
+        case .file: "doc.fill"
+        case let .chat(_, chatLink, _): chatLink.iconName
+        default: nil
+        }
+    }
+
+    @ViewBuilder private func glyphContentPreview(_ ci: ChatItem, _ glyph: String?, _ color: Color) -> some View {
+        if let glyph {
+            let image = Image(systemName: glyph)
+                .resizable()
+                .scaledToFit()
+                .frame(width: dynamicMediaSize / 2, height: dynamicMediaSize / 2)
+                .foregroundColor(color)
+            switch ci.content.msgContent {
+            case .file: smallContentPreviewFile(size: dynamicMediaSize) { image }
+            case .link, .image, .video, .voice, .chat: smallContentPreview(size: dynamicMediaSize) { image }
+            default: EmptyView()
             }
         }
     }
@@ -330,16 +389,6 @@ struct ChatPreviewView: View {
             }
         }
 
-        func attachment() -> String? {
-            switch cItem.content.msgContent {
-            case .file: return "doc.fill"
-            case .image: return "photo"
-            case .video: return "video"
-            case .voice: return "play.fill"
-            default: return nil
-            }
-        }
-
         func prefix() -> NSAttributedString? {
             switch cItem.content.msgContent {
             case let .report(_, reason): reason.attrString
@@ -349,14 +398,14 @@ struct ChatPreviewView: View {
     }
 
     @ViewBuilder private func chatMessagePreview(_ cItem: ChatItem?, _ hasFilePreview: Bool = false) -> some View {
-        if chatModel.draftChatId == chat.id, let draft = chatModel.draft {
+        if let draft {
             let (t, hasSecrets) = messageDraft(draft)
-            chatPreviewLayout(t, draft: true, hasFilePreview: hasFilePreview, hasSecrets: hasSecrets)
+            chatPreviewLayout(t, hasFilePreview: hasFilePreview, hasSecrets: hasSecrets)
         } else if cItem?.content.hasMsgContent != true, let previewText = chatPreviewInfoText() {
-            chatPreviewInfoTextLayout(previewText)
+            chatPreviewLayout(previewText, hasSecrets: false)
         } else if let cItem = cItem {
             let (t, hasSecrets) = chatItemPreview(cItem)
-            chatPreviewLayout(itemStatusMark(cItem) + t, hasFilePreview: hasFilePreview, hasSecrets: hasSecrets)
+            chatPreviewLayout(t, hidden: !showChatPreviews, hasFilePreview: hasFilePreview, hasSecrets: hasSecrets)
         }
     }
 
@@ -395,6 +444,8 @@ struct ChatPreviewView: View {
                 default: nil
                 }
             }
+        case .contactRequest: Text("wants to connect to you!")
+        case let .contactConnection(conn): Text(conn.description)
         default: nil
         }
     }
@@ -463,43 +514,62 @@ struct ChatPreviewView: View {
         : Text("You are invited to group")
     }
 
-    private func chatPreviewInfoTextLayout(_ text: Text) -> some View {
-        text
-            .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44, alignment: .topLeading)
-            .padding([.leading, .trailing], 8)
-            .padding(.bottom, 4)
-    }
-
-    private func itemStatusMark(_ cItem: ChatItem) -> Text {
-        switch cItem.meta.itemStatus {
-        case .sndErrorAuth, .sndError:
-            return Text(Image(systemName: "multiply"))
-                .font(.caption)
-                .foregroundColor(.red) + textSpace
-        case .sndWarning:
-            return Text(Image(systemName: "exclamationmark.triangle.fill"))
-                .font(.caption)
-                .foregroundColor(.orange) + textSpace
-        default: return Text("")
+    private var requestMark: (glyph: String, color: Color, label: LocalizedStringKey)? {
+        switch chat.chatInfo {
+        case .contactRequest:
+            ("person.fill.badge.plus", theme.colors.primary, "wants to connect to you!")
+        case let .direct(contact) where contact.nextAcceptContactRequest && !(contact.groupDirectInv?.memberRemoved ?? false):
+            ("person.fill.badge.plus", theme.colors.primary, "wants to connect to you!")
+        case let .group(groupInfo, _) where groupInfo.membership.memberStatus == .memInvited:
+            ("person.2.fill", chat.chatInfo.incognito ? .indigo : theme.colors.primary, "You are invited to group")
+        default:
+            nil
         }
     }
 
     @ViewBuilder private func chatStatusImage() -> some View {
         let size = dynamicSize(userFont).incognitoSize
-        switch chat.chatInfo {
-        case .group:
-            if progressByTimeout {
-                ProgressView()
-            } else if chat.chatStats.reportsCount > 0 {
-                flagIcon(size: size * 0.8, color: .red)
-            } else if chat.supportUnreadCount > 0 {
-                flagIcon(size: size * 0.8, color: theme.colors.primary)
-            } else if chat.chatInfo.groupInfo?.membership.memberPending ?? false {
-                flagIcon(size: size * 0.8, color: theme.colors.secondary)
-            } else {
-                incognitoIcon(chat.chatInfo.incognito, theme.colors.secondary, size: size)
+        let itemStatus = chat.chatItems.last?.meta.itemStatus
+        let sendFailed = switch itemStatus { case .sndErrorAuth, .sndError: true; default: false }
+        let sendWarning = if case .sndWarning = itemStatus { true } else { false }
+        if progressByTimeout || deleting {
+            ProgressView()
+        } else if let callMark {
+            switch callMark {
+            case .ringing:
+                railIcon("phone.arrow.down.left", size: size * 0.8, color: theme.colors.primary)
+                    .accessibilityLabel(Text("Incoming call"))
+            case .inProgress:
+                railIcon("phone.and.waveform.fill", size: size * 0.8, color: darkGreen)
+                    .accessibilityLabel(Text("call in progress"))
             }
-        default:
+        } else if sendFailed {
+            railIcon("exclamationmark.circle.fill", size: size * 0.8, color: .red)
+                .accessibilityLabel(Text("Message delivery error"))
+        } else if sendWarning {
+            railIcon("exclamationmark.triangle.fill", size: size * 0.8, color: .orange)
+                .accessibilityLabel(Text("Message delivery warning"))
+        } else if let requestMark {
+            railIcon(requestMark.glyph, size: size * 0.8, color: requestMark.color)
+                .accessibilityLabel(Text(requestMark.label))
+        } else if chat.chatStats.unreadMentions > 0 {
+            Text("\(MENTION_START)")
+                .font(userFont <= .xxxLarge ? .caption : .caption2)
+                .foregroundColor(.white)
+                .padding(.horizontal, dynamicSize(userFont).unreadPadding)
+                .frame(minWidth: dynamicChatInfoSize, minHeight: dynamicChatInfoSize)
+                .background(mentionColor(chat))
+                .cornerRadius(dynamicSize(userFont).unreadCorner)
+        } else if draft != nil {
+            railIcon("rectangle.and.pencil.and.ellipsis", size: size * 0.8, color: theme.colors.primary)
+                .accessibilityLabel(Text("Message draft"))
+        } else if chat.chatStats.reportsCount > 0 {
+            railIcon("flag", size: size * 0.8, color: .red)
+        } else if chat.supportUnreadCount > 0 {
+            railIcon("flag", size: size * 0.8, color: theme.colors.primary)
+        } else if chat.chatInfo.groupInfo?.membership.memberPending ?? false {
+            railIcon("flag", size: size * 0.8, color: theme.colors.secondary)
+        } else {
             incognitoIcon(chat.chatInfo.incognito, theme.colors.secondary, size: size)
         }
     }
@@ -512,13 +582,14 @@ struct ChatPreviewView: View {
             .scaledToFit()
             .frame(width: size, height: size)
             .foregroundColor(secondaryColor)
+            .accessibilityLabel(Text("Incognito"))
     } else {
         EmptyView()
     }
 }
 
-func flagIcon(size: CGFloat, color: Color) -> some View {
-    Image(systemName: "flag")
+func railIcon(_ systemName: String, size: CGFloat, color: Color) -> some View {
+    Image(systemName: systemName)
         .resizable()
         .scaledToFit()
         .frame(width: size, height: size)
