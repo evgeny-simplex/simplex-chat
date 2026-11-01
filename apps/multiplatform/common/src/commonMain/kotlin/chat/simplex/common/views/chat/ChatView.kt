@@ -354,7 +354,7 @@ fun ChatView(
                     if (chatInfo is ChatInfo.Group) {
                       val itemIds = selectedChatItems.value
                       if (itemIds != null) {
-                        moderateMessagesAlertDialog(itemIds.sorted(), moderateMessageQuestionText(chatInfo.featureEnabled(ChatFeature.FullDelete), itemIds.size), deleteMessages = { ids ->
+                        moderateMessagesAlertDialog(itemIds.sorted(), chatInfo.featureEnabled(ChatFeature.FullDelete), deleteMessages = { ids ->
                           deleteMessages(chatRh, chatInfo, ids, true, moderate = true) {
                             selectedChatItems.value = null
                           }

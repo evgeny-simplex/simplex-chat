@@ -1502,15 +1502,19 @@ struct ChatView: View {
 
     private func showModerateSelectedMessagesAlert(_ groupInfo: GroupInfo) {
         guard let count = selectedChatItems?.count, count > 0 else { return }
+        let fullDelete = groupInfo.fullGroupPreferences.fullDelete.on
+        let title: LocalizedStringKey = fullDelete
+            ? (count == 1 ? "Delete member message?" : "Delete \(count) messages of members?")
+            : (count == 1 ? "Moderate member message?" : "Moderate \(count) messages of members?")
 
         AlertManager.shared.showAlert(Alert(
-            title: Text(count == 1 ? "Delete member message?" : "Delete \(count) messages of members?"),
+            title: Text(title),
             message: Text(
-                groupInfo.fullGroupPreferences.fullDelete.on
+                fullDelete
                 ? (count == 1 ? "The message will be deleted for all members." : "The messages will be deleted for all members.")
                 : (count == 1 ? "The message will be marked as moderated for all members." : "The messages will be marked as moderated for all members.")
             ),
-            primaryButton: .destructive(Text("Delete")) {
+            primaryButton: .destructive(Text(fullDelete ? "Delete" : "Moderate")) {
                 if let selected = selectedChatItems {
                     deleteMessages(chat, selected.sorted(), .cidmBroadcast, moderate: true, deletedSelectedMessages)
                 }
@@ -2799,14 +2803,15 @@ struct ChatView: View {
 
         private func moderateButton(_ ci: ChatItem, _ groupInfo: GroupInfo) -> Button<some View> {
             Button(role: .destructive) {
+                let fullDelete = groupInfo.fullGroupPreferences.fullDelete.on
                 AlertManager.shared.showAlert(Alert(
-                    title: Text("Delete member message?"),
+                    title: Text(fullDelete ? "Delete member message?" : "Moderate member message?"),
                     message: Text(
-                        groupInfo.fullGroupPreferences.fullDelete.on
+                        fullDelete
                         ? "The message will be deleted for all members."
                         : "The message will be marked as moderated for all members."
                     ),
-                    primaryButton: .destructive(Text("Delete")) {
+                    primaryButton: .destructive(Text(fullDelete ? "Delete" : "Moderate")) {
                         deletingItem = ci
                         deleteMessage(.cidmBroadcast, moderate: true)
                     },

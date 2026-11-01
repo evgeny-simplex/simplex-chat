@@ -446,6 +446,8 @@
   <string name="delete_messages_mark_deleted_warning">Messages will be marked for deletion. The recipient(s) will be able to reveal these messages.</string>
   <string name="delete_member_message__question">Delete member message?</string>
   <string name="delete_members_messages__question">Delete %d messages of members?</string>
+  <string name="moderate_member_message__question">Moderate member message?</string>
+  <string name="moderate_members_messages__question">Moderate %d messages of members?</string>
   <string name="moderate_message_will_be_deleted_warning">The message will be deleted for all members.</string>
   <string name="moderate_messages_will_be_deleted_warning">The messages will be deleted for all members.</string>
   <string name="moderate_message_will_be_marked_warning">The message will be marked as moderated for all members.</string>

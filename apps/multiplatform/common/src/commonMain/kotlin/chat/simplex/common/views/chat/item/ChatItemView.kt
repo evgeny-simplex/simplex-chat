@@ -495,7 +495,7 @@ fun ChatItemView(
                     if (cItem.chatDir !is CIDirection.GroupSnd) {
                       val groupInfo = cItem.memberToModerate(cInfo)?.first
                       if (groupInfo != null) {
-                        ModerateItemAction(cItem, questionText = moderateMessageQuestionText(cInfo.featureEnabled(ChatFeature.FullDelete), 1), showMenu, deleteMessage)
+                        ModerateItemAction(cItem, fullDeleteAllowed = cInfo.featureEnabled(ChatFeature.FullDelete), showMenu, deleteMessage)
                       } else if (cItem.meta.itemDeleted == null && cInfo is ChatInfo.Group && cInfo.groupInfo.groupFeatureEnabled(GroupFeature.Reports) && cInfo.groupInfo.membership.memberRole == GroupMemberRole.Member && !live) {
                         ReportItemAction(cItem, composeState, showMenu)
                       }
@@ -932,7 +932,7 @@ fun DeleteItemAction(
 @Composable
 fun ModerateItemAction(
   cItem: ChatItem,
-  questionText: String,
+  fullDeleteAllowed: Boolean,
   showMenu: MutableState<Boolean>,
   deleteMessage: (Long, CIDeleteMode) -> Unit
 ) {
@@ -941,7 +941,7 @@ fun ModerateItemAction(
     painterResource(MR.images.ic_flag),
     onClick = {
       showMenu.value = false
-      moderateMessageAlertDialog(cItem, questionText, deleteMessage = deleteMessage)
+      moderateMessageAlertDialog(cItem, fullDeleteAllowed, deleteMessage = deleteMessage)
     },
     color = Color.Red
   )
@@ -1473,11 +1473,11 @@ fun moderateMessageQuestionText(fullDeleteAllowed: Boolean, count: Int): String 
   }
 }
 
-fun moderateMessageAlertDialog(chatItem: ChatItem, questionText: String, deleteMessage: (Long, CIDeleteMode) -> Unit) {
+fun moderateMessageAlertDialog(chatItem: ChatItem, fullDeleteAllowed: Boolean, deleteMessage: (Long, CIDeleteMode) -> Unit) {
   AlertManager.shared.showAlertDialog(
-    title = generalGetString(MR.strings.delete_member_message__question),
-    text = questionText,
-    confirmText = generalGetString(MR.strings.delete_verb),
+    title = generalGetString(if (fullDeleteAllowed) MR.strings.delete_member_message__question else MR.strings.moderate_member_message__question),
+    text = moderateMessageQuestionText(fullDeleteAllowed, 1),
+    confirmText = generalGetString(if (fullDeleteAllowed) MR.strings.delete_verb else MR.strings.moderate_verb),
     destructive = true,
     onConfirm = {
       deleteMessage(chatItem.id, CIDeleteMode.cidmBroadcast)
@@ -1485,11 +1485,15 @@ fun moderateMessageAlertDialog(chatItem: ChatItem, questionText: String, deleteM
   )
 }
 
-fun moderateMessagesAlertDialog(itemIds: List<Long>, questionText: String, deleteMessages: (List<Long>) -> Unit) {
+fun moderateMessagesAlertDialog(itemIds: List<Long>, fullDeleteAllowed: Boolean, deleteMessages: (List<Long>) -> Unit) {
   AlertManager.shared.showAlertDialog(
-    title = if (itemIds.size == 1) generalGetString(MR.strings.delete_member_message__question) else generalGetString(MR.strings.delete_members_messages__question).format(itemIds.size),
-    text = questionText,
-    confirmText = generalGetString(MR.strings.delete_verb),
+    title = if (fullDeleteAllowed) {
+      if (itemIds.size == 1) generalGetString(MR.strings.delete_member_message__question) else generalGetString(MR.strings.delete_members_messages__question).format(itemIds.size)
+    } else {
+      if (itemIds.size == 1) generalGetString(MR.strings.moderate_member_message__question) else generalGetString(MR.strings.moderate_members_messages__question).format(itemIds.size)
+    },
+    text = moderateMessageQuestionText(fullDeleteAllowed, itemIds.size),
+    confirmText = generalGetString(if (fullDeleteAllowed) MR.strings.delete_verb else MR.strings.moderate_verb),
     destructive = true,
     onConfirm = { deleteMessages(itemIds) }
   )
