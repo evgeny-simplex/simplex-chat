@@ -295,7 +295,7 @@ struct AdvancedNetworkSettings: View {
             }
         }
         .modifier(BackButton(disabled: Binding.constant(false)) {
-            if netCfg == currentNetCfg {
+            if netCfg == currentNetCfg && (!useNetProxy || netProxy.valid) {
                 dismiss()
                 cfgLoaded = false
             } else {
