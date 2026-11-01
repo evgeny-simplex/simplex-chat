@@ -6,6 +6,12 @@
     --nav-color: #ffffff;
 }
 
+.framed #navbar,
+.framed #mobile-header,
+.framed .footer {
+    display: none;
+}
+
 body.change-nav-color {
     --nav-color: #001796;
 }
