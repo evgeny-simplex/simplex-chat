@@ -119,13 +119,15 @@ fun BadgesChooseBadgeView(modalManager: ModalManager, unwindToDepth: Int) {
     // the action button (matches onboarding pattern where its own 7.5dp top padding is the gap).
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
       ContinueButton(selectedLevel, modalManager, unwindToDepth)
-      // redeeming a code is here only when Support SimpleX offers the browser instead
-      if (badgeBrowserAllowed()) {
-        RedeemCodeButton(modalManager, unwindToDepth)
-      } else {
-        TextButtonBelowOnboardingButton("", null)
+      ReserveSupportArea {
+        // redeeming a code is here only when Support SimpleX offers the browser instead
+        if (badgeBrowserAllowed()) {
+          RedeemCodeButton(modalManager, unwindToDepth)
+        } else {
+          TextButtonBelowOnboardingButton("", null)
+        }
+        BadgeInvestorOffer(selectedLevel)
       }
-      BadgeInvestorOffer(selectedLevel)
     }
   }
 }
@@ -133,23 +135,29 @@ fun BadgesChooseBadgeView(modalManager: ModalManager, unwindToDepth: Int) {
 val LocalReserveStoreRows = staticCompositionLocalOf { false }
 
 @Composable
-fun BadgeInvestorOffer(level: BadgeLevel, shown: Boolean = true) {
-  if (!crowdfundingAvailable()) return
-  if (shown && LocalReserveStoreRows.current) {
-    Box(contentAlignment = Alignment.TopCenter) {
-      Column(Modifier.alpha(0f), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(stringResource(MR.strings.badges_restore_purchases), style = MaterialTheme.typography.body2)
-        Text(
-          stringResource(MR.strings.badges_restore_purchases_footnote),
-          Modifier.padding(top = DEFAULT_PADDING_HALF),
-          style = MaterialTheme.typography.body2,
-          textAlign = TextAlign.Center
-        )
-      }
-      CompositionLocalProvider(LocalReserveStoreRows provides false) { BadgeInvestorOffer(level) }
-    }
+fun ReserveSupportArea(content: @Composable () -> Unit) {
+  if (!LocalReserveStoreRows.current) {
+    content()
     return
   }
+  Box(contentAlignment = Alignment.TopCenter) {
+    Column(Modifier.alpha(0f), horizontalAlignment = Alignment.CenterHorizontally) {
+      TextButtonBelowOnboardingButton(stringResource(MR.strings.badges_buy_in_browser), null)
+      Text(stringResource(MR.strings.badges_restore_purchases), style = MaterialTheme.typography.body2)
+      Text(
+        stringResource(MR.strings.badges_restore_purchases_footnote),
+        Modifier.padding(top = DEFAULT_PADDING_HALF),
+        style = MaterialTheme.typography.body2,
+        textAlign = TextAlign.Center
+      )
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) { content() }
+  }
+}
+
+@Composable
+fun BadgeInvestorOffer(level: BadgeLevel, shown: Boolean = true) {
+  if (!crowdfundingAvailable()) return
   val uriHandler = LocalUriHandler.current
   Column(Modifier.alpha(if (shown) 1f else 0f), horizontalAlignment = Alignment.CenterHorizontally) {
     Text(

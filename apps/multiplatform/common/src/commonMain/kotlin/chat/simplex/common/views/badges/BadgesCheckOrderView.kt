@@ -69,8 +69,10 @@ fun BadgesCheckOrderView(level: BadgeLevel, period: BadgePeriod, modalManager: M
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
       PayButton(level, period, purchasing)
-      BadgeBillingFooter(period)
-      BadgeInvestorOffer(level)
+      ReserveSupportArea {
+        BadgeBillingFooter(period)
+        BadgeInvestorOffer(level)
+      }
     }
   }
 }
