@@ -48,6 +48,8 @@ private const val PREVIEW_QR_LINK = "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoK
 
 private val chatItemFontScales = listOf(1f, 1.4f, 1.5f)
 
+private val chatListFontScales = listOf(1f, 1.5f, 2f)
+
 private class SnapshotScene(val name: String, val fontScales: List<Float> = listOf(1f), val content: @Composable () -> Unit)
 
 @Serializable
@@ -93,19 +95,19 @@ private val previewScenes = listOf(
   SnapshotScene("ChatListNavLinkView.PreviewChatListNavLinkGroup") { PreviewChatListNavLinkGroup() },
   SnapshotScene("ChatListNavLinkView.PreviewChatListNavLinkContactRequest") { PreviewChatListNavLinkContactRequest() },
   SnapshotScene("ChatPreviewView.PreviewChatPreviewView") { PreviewChatPreviewView() },
-  SnapshotScene("ChatListPreviews.ChatListContacts") { ChatListContacts() },
-  SnapshotScene("ChatListPreviews.ChatListConnecting") { ChatListConnecting() },
-  SnapshotScene("ChatListPreviews.ChatListPending") { ChatListPending() },
-  SnapshotScene("ChatListPreviews.ChatListGroups") { ChatListGroups() },
-  SnapshotScene("ChatListPreviews.ChatListGroupStates") { ChatListGroupStates() },
-  SnapshotScene("ChatListPreviews.ChatListFlags") { ChatListFlags() },
-  SnapshotScene("ChatListPreviews.ChatListUnread") { ChatListUnread() },
-  SnapshotScene("ChatListPreviews.ChatListMarks") { ChatListMarks() },
-  SnapshotScene("ChatListPreviews.ChatListMedia") { ChatListMedia() },
-  SnapshotScene("ChatListPreviews.ChatListText") { ChatListText() },
-  SnapshotScene("ChatListPreviews.ChatListDeleted") { ChatListDeleted() },
-  SnapshotScene("ChatListPreviews.ChatListLong") { ChatListLong() },
-  SnapshotScene("ChatListPreviews.ChatListDrafts") { ChatListDrafts() },
+  SnapshotScene("ChatListPreviews.ChatListContacts", chatListFontScales) { ChatListContacts() },
+  SnapshotScene("ChatListPreviews.ChatListConnecting", chatListFontScales) { ChatListConnecting() },
+  SnapshotScene("ChatListPreviews.ChatListPending", chatListFontScales) { ChatListPending() },
+  SnapshotScene("ChatListPreviews.ChatListGroups", chatListFontScales) { ChatListGroups() },
+  SnapshotScene("ChatListPreviews.ChatListGroupStates", chatListFontScales) { ChatListGroupStates() },
+  SnapshotScene("ChatListPreviews.ChatListFlags", chatListFontScales) { ChatListFlags() },
+  SnapshotScene("ChatListPreviews.ChatListUnread", chatListFontScales) { ChatListUnread() },
+  SnapshotScene("ChatListPreviews.ChatListMarks", chatListFontScales) { ChatListMarks() },
+  SnapshotScene("ChatListPreviews.ChatListMedia", chatListFontScales) { ChatListMedia() },
+  SnapshotScene("ChatListPreviews.ChatListText", chatListFontScales) { ChatListText() },
+  SnapshotScene("ChatListPreviews.ChatListDeleted", chatListFontScales) { ChatListDeleted() },
+  SnapshotScene("ChatListPreviews.ChatListLong", chatListFontScales) { ChatListLong() },
+  SnapshotScene("ChatListPreviews.ChatListDrafts", chatListFontScales) { ChatListDrafts() },
   SnapshotScene("DatabaseEncryptionView.PreviewDatabaseEncryptionLayout") { PreviewDatabaseEncryptionLayout() },
   SnapshotScene("DatabaseErrorView.PreviewChatInfoLayout") { chat.simplex.common.views.database.PreviewChatInfoLayout() },
   SnapshotScene("DatabaseView.PreviewDatabaseLayout") { PreviewDatabaseLayout() },
