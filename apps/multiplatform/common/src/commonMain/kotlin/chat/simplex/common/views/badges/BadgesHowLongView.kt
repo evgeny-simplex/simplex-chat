@@ -23,6 +23,7 @@ import chat.simplex.common.ui.theme.*
 import chat.simplex.common.views.helpers.*
 import chat.simplex.common.views.onboarding.OnboardingActionButton
 import chat.simplex.res.*
+import kotlinx.coroutines.launch
 
 // TODO [badges]: replace with types produced by the badge purchase API when it lands.
 enum class BadgePeriod {
@@ -76,6 +77,8 @@ enum class BadgePeriod {
 @Composable
 fun BadgesHowLongView(level: BadgeLevel, modalManager: ModalManager, unwindToDepth: Int) {
   var chosenPeriod by remember { mutableStateOf<BadgePeriod?>(null) }
+  var retrying by remember { mutableStateOf(false) }
+  val scope = rememberCoroutineScope()
   // monthly once subscriptions turn out to be for sale, unless a period was chosen before that
   val selectedPeriod = chosenPeriod ?: (if (BadgeStore.forSale(BadgePeriod.Monthly)) BadgePeriod.Monthly else BadgePeriod.OneMonth)
 
@@ -123,7 +126,24 @@ fun BadgesHowLongView(level: BadgeLevel, modalManager: ModalManager, unwindToDep
     Spacer(Modifier.weight(1f).heightIn(min = 8.dp))
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-      ContinueButton(level, selectedPeriod, modalManager, unwindToDepth) { chosenPeriod = it }
+      if (BadgeStore.pricesFailed || retrying) {
+        Text(
+          stringResource(MR.strings.badges_prices_not_loaded),
+          Modifier.padding(bottom = DEFAULT_PADDING),
+          style = MaterialTheme.typography.body2,
+          color = MaterialTheme.colors.secondary,
+          textAlign = TextAlign.Center
+        )
+        RetryButton(enabled = !retrying) {
+          retrying = true
+          scope.launch {
+            BadgeStore.load()
+            retrying = false
+          }
+        }
+      } else {
+        ContinueButton(level, selectedPeriod, modalManager, unwindToDepth) { chosenPeriod = it }
+      }
       BadgeBillingFooter(selectedPeriod)
     }
   }
@@ -197,6 +217,17 @@ private fun ContinueButton(level: BadgeLevel, selectedPeriod: BadgePeriod, modal
       choosePeriod(selectedPeriod)
       modalManager.showModal(cardScreen = true) { BadgesCheckOrderView(level, selectedPeriod, modalManager, unwindToDepth) }
     }
+  )
+}
+
+@Composable
+private fun RetryButton(enabled: Boolean, retry: () -> Unit) {
+  OnboardingActionButton(
+    modifier = if (appPlatform.isAndroid) Modifier.padding(horizontal = DEFAULT_ONBOARDING_HORIZONTAL_PADDING).fillMaxWidth() else Modifier.widthIn(min = 300.dp),
+    labelId = MR.strings.retry_verb,
+    onboarding = null,
+    enabled = enabled,
+    onclick = retry
   )
 }
 

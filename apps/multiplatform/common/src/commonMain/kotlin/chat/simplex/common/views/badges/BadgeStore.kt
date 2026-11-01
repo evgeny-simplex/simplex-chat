@@ -191,6 +191,8 @@ object BadgeStore {
 
   val checkingPurchases: Boolean get() = badgeStoreAvailable && !reconciledOnce.value
 
+  val pricesFailed: Boolean get() = state.value == LoadState.Failed
+
   fun canBuy(userId: Long?): Boolean =
     badgeStoreAvailable && reconciledOnce.value && !buying.value && purchaseState(userId) == null
 

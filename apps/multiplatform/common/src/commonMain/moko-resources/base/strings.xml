@@ -3208,6 +3208,7 @@
   <string name="badges_why_simplex_is_built">Why SimpleX is built.</string>
   <string name="badges_redeem_code_button">Redeem badge code</string>
   <string name="badges_continue">Continue</string>
+  <string name="badges_prices_not_loaded">Prices could not be loaded.</string>
   <string name="badges_how_it_works_button">How badges protect your privacy</string>
   <string name="badges_how_it_works_title">How badges protect your privacy</string>
   <string name="badges_how_it_works_p1">A badge is an anonymous credential stored in your profile on your device. This credential is never sent to anyone.</string>
