@@ -1811,3 +1811,31 @@ struct NewChatView_Previews: PreviewProvider {
         )
     }
 }
+
+struct InviteView_Previews: PreviewProvider {
+    static var previews: some View {
+        InviteView(
+            invitationUsed: .constant(false),
+            contactConnection: .constant(nil),
+            connLinkInvitation: .constant(CreatedConnLink(
+                connFullLink: "simplex:/invitation#/?v=2-7",
+                connShortLink: "https://smp6.simplex.im/i#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw"
+            )),
+            showShortLink: .constant(true),
+            choosingProfile: .constant(false)
+        )
+    }
+}
+
+struct ConnectView_Previews: PreviewProvider {
+    static var previews: some View {
+        UIPasteboard.general.items = []
+        return ConnectView(showQRCodeScanner: .constant(false), pastedLink: .constant(""), alert: .constant(nil))
+            .onAppear {
+                UIPasteboard.general.string = "https://simplex.chat/contact#/?v=2-7&smp=smp%3A%2F%2Fu2dS9sG8nMNURyZwqASV4yROM28Er0luVTx5X1CsMrU%3D%40smp4.simplex.im%2FKBCmxJ3-lEjpWLPPkI6OWPk-YJneU5uY%23%2F%3Fv%3D1-2%26dh%3DMCowBQYDK2VuAyEAtixHJWDXvYWcoe-77vIfjvI6XWEuzUsapMS9nVHP_Go%253D"
+            }
+            .onDisappear {
+                UIPasteboard.general.items = []
+            }
+    }
+}

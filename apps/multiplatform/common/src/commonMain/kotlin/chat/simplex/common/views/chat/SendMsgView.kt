@@ -697,3 +697,17 @@ fun PreviewSendMsgViewInProgress() {
     )
   }
 }
+
+@Preview
+@Composable
+fun PreviewDisabledVoiceAlert() {
+  remember { showDisabledVoiceAlert(isDirectChat = false) }
+  DisposableEffect(Unit) {
+    onDispose { AlertManager.shared.hideAllAlerts() }
+  }
+  SimpleXTheme {
+    Box(Modifier.fillMaxWidth().height(480.dp)) {
+      AlertManager.shared.showInView()
+    }
+  }
+}

@@ -6,6 +6,7 @@ import SectionTextFooter
 import SectionView
 import SectionViewWithButton
 import TextIconSpaced
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -880,5 +881,39 @@ fun sharedProfileInfo(
     generalGetString(MR.strings.connect__a_new_random_profile_will_be_shared)
   } else {
     String.format(generalGetString(MR.strings.connect__your_profile_will_be_shared), name)
+  }
+}
+
+@Preview
+@Composable
+fun PreviewInviteView() {
+  SimpleXTheme {
+    Column(Modifier.fillMaxWidth()) {
+      Spacer(Modifier.height(DEFAULT_PADDING))
+      InviteView(
+        rhId = null,
+        connLinkInvitation = CreatedConnLink(
+          connFullLink = "simplex:/invitation#/?v=2-7",
+          connShortLink = "https://smp6.simplex.im/i#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw"
+        ),
+        contactConnection = remember { mutableStateOf(null) },
+      )
+    }
+  }
+}
+
+@Preview
+@Composable
+fun PreviewConnectView() {
+  SimpleXTheme {
+    Column(Modifier.fillMaxWidth()) {
+      Spacer(Modifier.height(DEFAULT_PADDING))
+      ConnectView(
+        rhId = null,
+        showQRCodeScanner = remember { mutableStateOf(false) },
+        pastedLink = remember { mutableStateOf("") },
+        close = {},
+      )
+    }
   }
 }

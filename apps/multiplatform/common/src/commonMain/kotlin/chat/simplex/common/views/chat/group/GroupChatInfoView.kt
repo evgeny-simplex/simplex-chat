@@ -1485,3 +1485,45 @@ fun PreviewGroupChatInfoLayout() {
     )
   }
 }
+
+@Preview
+@Composable
+fun PreviewGroupChatInfoLayoutOnlyYou() {
+  SimpleXTheme {
+    ModalData().GroupChatInfoLayout(
+      chat = Chat(
+        remoteHostId = null,
+        chatInfo = ChatInfo.Direct.sampleData,
+        chatItems = arrayListOf()
+      ),
+      groupInfo = GroupInfo.sampleData,
+      User.sampleData,
+      sendReceipts = remember { mutableStateOf(SendReceipts.Yes) },
+      setSendReceipts = {},
+      chatItemTTL = remember { mutableStateOf(ChatItemTTL.fromSeconds(0)) },
+      setChatItemTTL = {},
+      activeSortedMembers = emptyList(),
+      developerTools = false,
+      onLocalAliasChanged = {},
+      groupLink = null,
+      groupLinkLoaded = true,
+      selectedItems = remember { mutableStateOf(null) },
+      appBar = remember { mutableStateOf(null) },
+      scrollToItemId = remember { mutableStateOf(null) },
+      addMembers = {},
+      showMemberInfo = { _, _ -> },
+      editGroupProfile = {},
+      addOrEditWelcomeMessage = {},
+      openMemberSupport = {},
+      openPreferences = {},
+      deleteGroup = {},
+      clearChat = {},
+      leaveGroup = {},
+      manageGroupLink = {},
+      manageWebPage = {},
+      onSearchClicked = {},
+      setSimplexName = {},
+      deletingItems = remember { mutableStateOf(true) }
+    )
+  }
+}

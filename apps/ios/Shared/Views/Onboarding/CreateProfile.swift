@@ -476,3 +476,9 @@ struct CreateProfile_Previews: PreviewProvider {
         CreateProfile()
     }
 }
+
+struct CreateFirstProfile_Previews: PreviewProvider {
+    static var previews: some View {
+        CreateFirstProfile()
+    }
+}

@@ -48,7 +48,7 @@ private const val PREVIEW_QR_LINK = "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoK
 
 private val chatItemFontScales = listOf(1f, 1.4f, 1.5f)
 
-private class SnapshotScene(val name: String, val fontScales: List<Float> = listOf(1f), val content: @Composable () -> Unit)
+private class SnapshotScene(val name: String, val fontScales: List<Float> = listOf(1f), val height: Int = SCENE_MAX_HEIGHT, val content: @Composable () -> Unit)
 
 @Serializable
 private class Snapshot(val scene: String, val theme: String, val fontScale: Float, val file: String, val width: Int, val height: Int)
@@ -114,6 +114,22 @@ private val previewScenes = listOf(
   SnapshotScene("UserAddressView.PreviewUserAddressLayoutAddressCreated") { PreviewUserAddressLayoutAddressCreated() },
   SnapshotScene("AdvancedNetworkSettings.PreviewAdvancedNetworkSettingsLayout") { PreviewAdvancedNetworkSettingsLayout() },
   SnapshotScene("NetworkAndServers.PreviewNetworkAndServersLayout") { PreviewNetworkAndServersLayout() },
+  SnapshotScene("ChatListView.PreviewNoChatsInList") { PreviewNoChatsInList() },
+  SnapshotScene("ChatListView.PreviewNoChatsInListDe") { PreviewNoChatsInListDe() },
+  SnapshotScene("ChatListView.PreviewNoChatsInListFr") { PreviewNoChatsInListFr() },
+  SnapshotScene("ChatListView.PreviewNoChatsInListJa") { PreviewNoChatsInListJa() },
+  SnapshotScene("ChatView.PreviewDateSeparatorEnUs") { PreviewDateSeparatorEnUs() },
+  SnapshotScene("ChatView.PreviewDateSeparatorEnGb") { PreviewDateSeparatorEnGb() },
+  SnapshotScene("ChatView.PreviewDateSeparatorDe") { PreviewDateSeparatorDe() },
+  SnapshotScene("ChatView.PreviewDateSeparatorEs") { PreviewDateSeparatorEs() },
+  SnapshotScene("ChatView.PreviewDateSeparatorHu") { PreviewDateSeparatorHu() },
+  SnapshotScene("ChatView.PreviewDateSeparatorJa") { PreviewDateSeparatorJa() },
+  SnapshotScene("ChatView.PreviewDateSeparatorTr") { PreviewDateSeparatorTr() },
+  SnapshotScene("ChatView.PreviewDateSeparatorZhCn") { PreviewDateSeparatorZhCn() },
+  SnapshotScene("GroupChatInfoView.PreviewGroupChatInfoLayoutOnlyYou", height = 1700) { PreviewGroupChatInfoLayoutOnlyYou() },
+  SnapshotScene("NewChatView.PreviewInviteView") { PreviewInviteView() },
+  SnapshotScene("NewChatView.PreviewConnectView") { PreviewConnectView() },
+  SnapshotScene("SendMsgView.PreviewDisabledVoiceAlert", height = 480) { PreviewDisabledVoiceAlert() },
 )
 
 private val previewsCallingCore = listOf(
@@ -173,7 +189,7 @@ class SnapshotTest {
             ChatModel.terminalItems.value = listOf()
             val file = "${scene.name}-$themeName-font-${(scale * 100).roundToInt()}.png"
             try {
-              val image = renderSnapshot(scene.content)
+              val image = renderSnapshot(scene.height, scene.content)
               File(dir, file).writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
               index += Snapshot(scene.name, themeName, scale, file, image.width, image.height)
             } catch (e: Throwable) {
@@ -203,10 +219,10 @@ class SnapshotTest {
   }
 }
 
-private fun renderSnapshot(content: @Composable () -> Unit): Image {
+private fun renderSnapshot(sceneHeight: Int, content: @Composable () -> Unit): Image {
   var height = 0
   val fixedQRCode = qrCodeBitmap(PREVIEW_QR_LINK, 1024, QrCode.ErrorLevel.M)
-  val frame = renderScene(width = SCENE_WIDTH, height = SCENE_MAX_HEIGHT, frames = 4) {
+  val frame = renderScene(width = SCENE_WIDTH, height = sceneHeight, frames = 4) {
     AppBarHandler.appBarMaxHeightPx = with(LocalDensity.current) { AppBarHeight.roundToPx() }
     Box(Modifier.width(SCENE_WIDTH.dp).background(CurrentColors.collectAsState().value.colors.background).onSizeChanged { height = it.height }) {
       CompositionLocalProvider(LocalAppBarHandler provides rememberAppBarHandler(), LocalFixedQRCode provides fixedQRCode, content = content)

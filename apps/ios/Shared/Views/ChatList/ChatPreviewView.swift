@@ -598,3 +598,23 @@ struct ChatPreviewView_Previews: PreviewProvider {
         .previewLayout(.fixed(width: 360, height: 78))
     }
 }
+
+struct ChatPreviewView_SupportChats_Previews: PreviewProvider {
+    static var previews: some View {
+        let chat = Chat(
+            chatInfo: .group(groupInfo: supportGroupInfo(), groupChatScope: nil),
+            chatItems: [ChatItem.getSample(1, .groupSnd, previewDate, "hello", .sndSent(sndProgress: .complete))]
+        )
+        VStack(spacing: 16) {
+            ChatPreviewView(chat: chat, progressByTimeout: Binding.constant(false))
+            ChatInfoToolbar(chat: chat)
+        }
+        .padding()
+    }
+
+    private static func supportGroupInfo() -> GroupInfo {
+        var g = GroupInfo.sampleData
+        g.membersRequireAttention = 2
+        return g
+    }
+}

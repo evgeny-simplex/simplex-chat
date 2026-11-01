@@ -159,9 +159,10 @@ private struct SnapshotScene {
     var allSizes: Bool
     var view: AnyView
 
-    init<P: PreviewProvider>(_ preview: P.Type, allSizes: Bool = false) {
+    init<P: PreviewProvider>(_ preview: P.Type, allSizes: Bool = false, height: CGFloat? = nil) {
         name = String(describing: preview).replacingOccurrences(of: "_Previews", with: "")
         self.allSizes = allSizes
+        self.height = height
         view = AnyView(preview.previews)
     }
 }
@@ -296,7 +297,14 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(VerifyCodeView_Previews.self),
         SnapshotScene(VersionView_Previews.self),
         SnapshotScene(WhySimpleX_Previews.self),
-        SnapshotScene(YourServersView_Previews.self)
+        SnapshotScene(YourServersView_Previews.self),
+        SnapshotScene(ChatPreviewView_SupportChats_Previews.self),
+        SnapshotScene(ConnectView_Previews.self),
+        SnapshotScene(CreateFirstProfile_Previews.self),
+        SnapshotScene(GroupChatInfoView_OnlyYou_Previews.self, height: 1600),
+        SnapshotScene(InviteView_Previews.self),
+        SnapshotScene(SimpleXInfo_German_Previews.self),
+        SnapshotScene(SimpleXInfo_Russian_Previews.self)
     ]
 }
 

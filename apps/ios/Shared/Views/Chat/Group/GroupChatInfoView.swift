@@ -1234,3 +1234,17 @@ struct GroupChatInfoView_Previews: PreviewProvider {
         )
     }
 }
+
+struct GroupChatInfoView_OnlyYou_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatModel.shared.groupMembers = []
+        return GroupChatInfoView(
+            chat: Chat(chatInfo: ChatInfo.sampleData.group, chatItems: []),
+            groupInfo: Binding.constant(GroupInfo.sampleData),
+            scrollToItemId: Binding.constant(nil),
+            composeState: Binding.constant(ComposeState()),
+            onSearch: {},
+            localAlias: ""
+        )
+    }
+}
