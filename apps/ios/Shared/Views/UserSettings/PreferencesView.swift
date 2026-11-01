@@ -47,7 +47,7 @@ struct PreferencesView: View {
 
     private func featureSection(_ feature: ChatFeature, _ allowFeature: Binding<FeatureAllowed>) -> some View {
         Section {
-            settingsRow(feature.icon, color: theme.colors.secondary) {
+            settingsRow(feature.icon, color: theme.colors.secondary, lightSymbol: true) {
                 Picker(feature.text, selection: allowFeature) {
                     ForEach(FeatureAllowed.values) { allow in
                         Text(allow.text)
@@ -66,7 +66,7 @@ struct PreferencesView: View {
             set: { yes, _ in allowFeature.wrappedValue = yes ? .yes : .no }
         )
         Section {
-            settingsRow(ChatFeature.timedMessages.icon, color: theme.colors.secondary) {
+            settingsRow(ChatFeature.timedMessages.icon, color: theme.colors.secondary, lightSymbol: true) {
                 Toggle(ChatFeature.timedMessages.text, isOn: allow)
             }
             if allow.wrappedValue {
