@@ -129,12 +129,13 @@ struct BadgesRedeemCodeView: View {
 
         codeField()
 
-        if code.filter({ $0 != "-" }).count == badgeCodePrefix.count + badgeCodeBodyLength && canonicalCode == nil {
-            Text("This code is not valid.")
-                .foregroundColor(.red)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        let fullCodeInvalid = code.filter({ $0 != "-" }).count == badgeCodePrefix.count + badgeCodeBodyLength && canonicalCode == nil
+        Text("This code is not valid.")
+            .foregroundColor(.red)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .opacity(fullCodeInvalid ? 1 : 0)
+            .accessibilityHidden(!fullCodeInvalid)
 
         pasteButton()
 

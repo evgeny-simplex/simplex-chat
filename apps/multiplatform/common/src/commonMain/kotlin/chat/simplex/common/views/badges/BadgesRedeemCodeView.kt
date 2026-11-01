@@ -9,6 +9,7 @@ import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -163,15 +164,14 @@ fun BadgesRedeemCodeView(modalManager: ModalManager, unwindToDepth: Int) {
 
     CodeField(code, submitting.value, ::applyCodeInput)
 
-    if (code.value.text.count { it != '-' } == badgeCodePrefix.length + badgeCodeBodyLength && canonicalCode.value == null) {
-      Text(
-        stringResource(MR.strings.badges_error_invalid_code),
-        style = MaterialTheme.typography.body1,
-        color = MaterialTheme.colors.error,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth()
-      )
-    }
+    val fullCodeInvalid = code.value.text.count { it != '-' } == badgeCodePrefix.length + badgeCodeBodyLength && canonicalCode.value == null
+    Text(
+      stringResource(MR.strings.badges_error_invalid_code),
+      style = MaterialTheme.typography.body1,
+      color = MaterialTheme.colors.error,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.fillMaxWidth().alpha(if (fullCodeInvalid) 1f else 0f)
+    )
 
     PasteButton(submitting.value, ::applyCodeInput)
 
