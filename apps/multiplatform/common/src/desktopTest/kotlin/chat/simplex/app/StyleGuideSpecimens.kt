@@ -41,7 +41,7 @@ import chat.simplex.common.views.chat.item.clipChatItem
 import chat.simplex.common.views.chatlist.UnreadBadge
 import chat.simplex.common.views.helpers.*
 import chat.simplex.common.views.usersettings.SettingsActionItem
-import chat.simplex.res.MR
+import chat.simplex.res.*
 import dev.icerock.moko.resources.compose.painterResource
 
 @Composable
