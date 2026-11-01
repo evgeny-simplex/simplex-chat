@@ -300,3 +300,11 @@ struct AddGroupMembersView_Previews: PreviewProvider {
         AddGroupMembersView(chat: Chat(chatInfo: ChatInfo.sampleData.group), groupInfo: GroupInfo.sampleData)
     }
 }
+
+struct AddGroupMembersView_CreatingGroup_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            AddGroupMembersViewCommon(chat: Chat(chatInfo: ChatInfo.sampleData.group), groupInfo: GroupInfo.sampleData, creatingGroup: true, addedMembersCb: { _ in })
+        }
+    }
+}

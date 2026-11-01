@@ -152,3 +152,10 @@ struct ChatInfoToolbar_Previews: PreviewProvider {
             .environmentObject(CurrentColors.toAppTheme())
     }
 }
+
+struct ChatInfoToolbar_Loading_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatInfoToolbar(chat: Chat(chatInfo: ChatInfo.sampleData.group, chatItems: []), loading: true)
+            .environmentObject(CurrentColors.toAppTheme())
+    }
+}
