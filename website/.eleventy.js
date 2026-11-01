@@ -459,7 +459,7 @@ module.exports = function (ty) {
 
   ty.on("eleventy.after", () => {
     const render = (markdown, inputPath) => markdownLib.render(markdown, { page: { inputPath } })
-    const docs = knowledgeBase.writeKnowledgeBase(path.join(outputDir, "kb/en.json"), knowledgeBaseSources.values(), render)
+    const docs = knowledgeBase.writeKnowledgeBase(path.join(outputDir, "kb/en.json"), knowledgeBaseSources.values(), render, outputDir)
     const sectionCount = docs.reduce((count, doc) => count + doc.sections.length, 0)
     console.log(`[kb] Wrote kb/en.json: ${docs.length} documents, ${sectionCount} sections`)
   })
