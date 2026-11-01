@@ -65,6 +65,7 @@ private val previewScenes = listOf(
   SnapshotScene("ComposeFileView.PreviewComposeFileView") { PreviewComposeFileView() },
   SnapshotScene("ComposeVoiceView.PreviewComposeAudioView") { PreviewComposeAudioView() },
   SnapshotScene("ContextItemView.PreviewContextItemView") { PreviewContextItemView() },
+  SnapshotScene("ContextItemView.PreviewComposeStrips") { PreviewComposeStrips() },
   SnapshotScene("SendMsgView.PreviewSendMsgView") { PreviewSendMsgView() },
   SnapshotScene("SendMsgView.PreviewSendMsgViewEditing") { PreviewSendMsgViewEditing() },
   SnapshotScene("SendMsgView.PreviewSendMsgViewInProgress") { PreviewSendMsgViewInProgress() },

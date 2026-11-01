@@ -166,3 +166,58 @@ fun PreviewContextItemView() {
     ) {}
   }
 }
+
+@Preview
+@Composable
+fun PreviewComposeStrips() {
+  SimpleXTheme {
+    val quoted = listOf(ChatItem.getSampleData(1, CIDirection.DirectRcv(), previewDate, "Can you send me the details?"))
+    val edited = listOf(ChatItem.getSampleData(2, CIDirection.DirectSnd(), previewDate, "Our new office"))
+    val reply = painterResource(MR.images.ic_reply)
+    val chatInfo = Chat.sampleData.chatInfo
+    val media = ComposePreview.MediaPreview(
+      images = listOf(LinkPreview.sampleData.image),
+      content = listOf(UploadContent.SimpleImage(java.net.URI("file:///image.jpg")))
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+      Column {
+        ContextItemView(quoted, reply, chatInfo = chatInfo) {}
+        Divider()
+        ComposeLinkView(LinkPreview.sampleData, cancelPreview = {}, true, bandAbove = false)
+      }
+      Column {
+        ContextItemView(quoted, reply, chatInfo = chatInfo) {}
+        Divider()
+        ComposeImageView(media, cancelImages = {}, cancelEnabled = true, bandAbove = false)
+      }
+      Column {
+        ContextItemView(quoted, reply, chatInfo = chatInfo) {}
+        Divider()
+        ComposeFileView("details.pdf", cancelFile = {}, cancelEnabled = true, bandAbove = false)
+      }
+      Box {
+        Box(Modifier.align(Alignment.TopStart).padding(bottom = 69.dp)) {
+          ContextItemView(quoted, reply, chatInfo = chatInfo) {}
+        }
+        Box(Modifier.align(Alignment.BottomStart)) {
+          ComposeVoiceView("voice.m4a", 20000, finishedRecording = true, cancelEnabled = true) {}
+        }
+      }
+      Column {
+        ContextItemView(quoted, reply, chatInfo = chatInfo) {}
+        Divider()
+        ComposeChatLinkView(
+          chatLink = MsgChatLink.Contact(connLink = "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw", profile = Profile.sampleData, business = false),
+          cancelEnabled = true,
+          bandAbove = false,
+          cancelPreview = {}
+        )
+      }
+      Column {
+        ContextItemView(edited, painterResource(MR.images.ic_edit_filled), chatInfo = chatInfo) {}
+        Divider()
+        ComposeImageView(media, cancelImages = {}, cancelEnabled = false, bandAbove = false)
+      }
+    }
+  }
+}
