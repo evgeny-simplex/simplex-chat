@@ -1,5 +1,5 @@
 (function (root) {
-  const stopWords = new Set(("a an the and or but if then else of to in on at by for with from about as is are was were be been being " +
+  const stopWords = new Set(("a an the and or but if then else of to in on at by for with from about as am is are was were be been being " +
     "do does did done have has had i me my mine you your yours we us our it its this that these those there here " +
     "what which whom whose how why when where can could should would will shall may might must not no so than " +
     "too very just also into out up down any all some such only same other more most much many one get gets " +
@@ -10,6 +10,9 @@
   const k1 = 1.2
   const b = 0.75
   const recentBlogDays = 548
+  const quantityPhrases = ["how many", "how much", "number of"]
+  const quantityWords = new Set(["count", "statistics", "stats", "figures", "facts"])
+  const excerptLength = 170
 
   function stem(word) {
     let w = word
@@ -43,12 +46,16 @@
 
   function queryTerms(text, synonyms) {
     const terms = new Map()
+    const alternatives = new Map()
     const add = (term, weight) => terms.set(term, Math.max(terms.get(term) || 0, weight))
     words(text).forEach((word) => {
-      add(stem(word), 1)
-      ;(synonyms[word] || []).forEach((synonym) => tokens(synonym).forEach((term) => add(term, synonymWeight)))
+      const term = stem(word)
+      const synonymTerms = (synonyms[word] || []).flatMap(tokens)
+      add(term, 1)
+      synonymTerms.forEach((synonym) => add(synonym, synonymWeight))
+      alternatives.set(term, new Set([...(alternatives.get(term) || []), term, ...synonymTerms]))
     })
-    return terms
+    return { terms, alternatives }
   }
 
   function plainText(html) {
@@ -56,17 +63,19 @@
   }
 
   function createIndex(entries) {
-    const docs = entries.map(({ ref, fields, weight }) => {
+    const docs = entries.map(({ ref, fields, weight, headingFields = ["heading"] }) => {
       const counts = new Map()
+      const headingTerms = new Set()
       let length = 0
       Object.entries(fields).forEach(([field, text]) => {
         const fieldWeight = fieldWeights[field] || 1
         tokens(text).forEach((term) => {
           counts.set(term, (counts.get(term) || 0) + fieldWeight)
           length += fieldWeight
+          if (headingFields.includes(field)) headingTerms.add(term)
         })
       })
-      return { ref, counts, length, weight: weight || 1 }
+      return { ref, counts, headingTerms, length, weight: weight || 1 }
     })
     const documentFrequency = new Map()
     docs.forEach((doc) => doc.counts.forEach((_, term) => documentFrequency.set(term, (documentFrequency.get(term) || 0) + 1)))
@@ -79,29 +88,31 @@
     return Math.log(1 + (index.docs.length - frequency + 0.5) / (frequency + 0.5))
   }
 
-  function search(index, query, synonyms, coverageIndex) {
-    const terms = queryTerms(query, synonyms || {})
+  function search(index, query, synonyms) {
+    const { terms, alternatives } = queryTerms(query, synonyms || {})
     const idf = new Map(Array.from(terms.keys(), (term) => [term, inverseFrequency(index, term)]))
-    const coverageWeight = new Map(Array.from(terms).filter(([, weight]) => weight === 1)
-      .map(([term]) => [term, inverseFrequency(coverageIndex || index, term)]))
-    const totalWeight = Array.from(coverageWeight.values()).reduce((sum, weight) => sum + weight, 0)
+    const totalWeight = Array.from(alternatives.keys()).reduce((sum, term) => sum + idf.get(term), 0)
     return index.docs.map((doc) => {
       let score = 0
-      let matchedWeight = 0
       terms.forEach((queryWeight, term) => {
         const frequency = doc.counts.get(term)
         if (!frequency) return
         const norm = k1 * (1 - b + b * doc.length / index.averageLength)
         score += queryWeight * idf.get(term) * frequency * (k1 + 1) / (frequency + norm)
-        matchedWeight += coverageWeight.get(term) || 0
       })
-      return { ref: doc.ref, score: score * doc.weight, coverage: totalWeight ? matchedWeight / totalWeight : 0 }
+      const covered = Array.from(alternatives).filter(([, options]) => Array.from(options).some((option) => doc.counts.has(option)))
+      const matchedWeight = covered.reduce((sum, [term]) => sum + idf.get(term), 0)
+      const headed = covered.some(([, options]) => Array.from(options).some((option) => doc.headingTerms.has(option)))
+      return { ref: doc.ref, score: score * doc.weight, coverage: totalWeight ? matchedWeight / totalWeight : 0, matched: covered.length, terms: alternatives.size, headed }
     }).filter((result) => result.score > 0).sort((x, y) => y.score - x.score)
+  }
+
+  function covers(result, coverage) {
+    return result.coverage >= coverage && result.matched >= Math.min(2, result.terms)
   }
 
   function kindWeight(doc, now, docWeights) {
     if (doc.url in docWeights) return docWeights[doc.url]
-    if (doc.kind === "summary") return 1.2
     if (doc.kind === "docs") return 1.1
     if (doc.kind === "blog" && doc.date) {
       const days = (now - Date.parse(doc.date)) / 86400000
@@ -115,10 +126,11 @@
   }
 
   function knowledgeBaseIndex(kb, now, docWeights) {
-    const entries = kb.docs.flatMap((doc) => doc.sections.map((section) => ({
+    const entries = kb.docs.flatMap((doc) => doc.sections.map((section, index) => ({
       ref: { doc, section },
       fields: { title: doc.title + " " + urlName(doc), heading: plainText(section.heading), body: plainText(section.html) },
       weight: kindWeight(doc, now, docWeights || {}),
+      headingFields: index === 0 ? ["title", "heading"] : ["heading"],
     })))
     return createIndex(entries)
   }
@@ -133,16 +145,31 @@
     return index
   }
 
-  function bestIntent(index, query, synonyms, threshold, margin, coverage, coverageIndex) {
+  function bestIntent(index, query, synonyms, threshold, margin, coverage) {
     const exact = index.phrases.get(phrase(query))
     if (exact) return { ref: exact, score: Infinity, coverage: 1 }
-    const [first, second] = search(index, query, synonyms, coverageIndex)
-    if (!first || first.score < threshold || first.coverage < coverage) return null
+    const [first, second] = search(index, query, synonyms)
+    if (!first || first.score < threshold || !covers(first, coverage)) return null
     return !second || first.score >= margin * second.score ? first : null
   }
 
-  function bestDocuments(index, query, synonyms, threshold, count) {
-    const results = search(index, query, synonyms)
+  function factIndex(factTexts) {
+    return createIndex(Object.entries(factTexts).map(([id, text]) => ({ ref: id, fields: { body: text } })))
+  }
+
+  function isQuantity(query) {
+    const text = " " + phrase(query) + " "
+    return quantityPhrases.some((cue) => text.includes(" " + cue + " ")) || allWords(query).some((word) => quantityWords.has(word))
+  }
+
+  function bestFact(index, query, synonyms, coverage) {
+    if (!isQuantity(query)) return null
+    const [first] = search(index, query, synonyms)
+    return first && covers(first, coverage) ? first : null
+  }
+
+  function bestDocuments(index, query, synonyms, threshold, coverage, count) {
+    const results = search(index, query, synonyms).filter((result) => result.headed && covers(result, coverage))
     if (results.length === 0 || results[0].score < threshold) return []
     const seen = new Set()
     const firstPerDocument = results.filter((result) => {
@@ -154,12 +181,20 @@
   }
 
   function personaOfWords(query, personaWords) {
-    const normalized = " " + words(query).join(" ") + " "
-    return Object.keys(personaWords).find((persona) =>
-      personaWords[persona].some((entry) => normalized.includes(" " + entry + " "))) || null
+    const queryWords = words(query)
+    const normalized = " " + queryWords.join(" ") + " "
+    const isStatement = (entry) => normalized.includes(" " + entry + " ") && 2 * entry.split(" ").length >= queryWords.length
+    return Object.keys(personaWords).find((persona) => personaWords[persona].some(isStatement)) || null
   }
 
-  const api = { search, knowledgeBaseIndex, intentIndex, bestIntent, bestDocuments, personaOfWords, plainText }
+  function excerpt(doc) {
+    const text = doc.sections
+      .flatMap((section) => Array.from(section.html.matchAll(/<p>([\s\S]*?)<\/p>/g), (match) => plainText(match[1]).replace(/\s+/g, " ").trim()))
+      .find((paragraph) => paragraph.length > 60 && !paragraph.startsWith("Published")) || ""
+    return text.length > excerptLength ? text.slice(0, excerptLength).replace(/\s+\S*$/, "") + "…" : text
+  }
+
+  const api = { search, knowledgeBaseIndex, intentIndex, bestIntent, factIndex, bestFact, bestDocuments, personaOfWords, plainText, excerpt }
   if (typeof module === "object" && module.exports) module.exports = api
   else root.homeSearch = api
 })(this)

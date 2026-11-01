@@ -5,11 +5,11 @@
   const askEndpoint = location.hostname.endsWith(".onion") ? "" : document.querySelector('meta[name="simplex-ask"]').content
   const intentThreshold = 2.5
   const intentMargin = 1.3
-  const intentCoverage = 0.6
+  const coverage = 0.6
   const searchThreshold = 4
   const relatedThreshold = 2.5
-  const excerptLength = 170
   const answerLength = 900
+  const knowledgeBaseTimeout = 15000
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
 
   const byId = (id) => document.getElementById(id)
@@ -23,14 +23,18 @@
   const knowsButton = byId("knows-btn")
   const pageTitle = document.title
   const homeKey = pathKey(location.pathname)
+  const languageHomeKeys = new Set(data.langs.map((lang) => "/" + lang))
   const frameKeys = new Set(data.frame.map(pathKey))
   const intentsById = new Map(data.intents.map((intent) => [intent.id, intent]))
   const personasById = new Map(data.personas.map((persona) => [persona.id, persona]))
+  const intentIndex = homeSearch.intentIndex(data.intents, answerHeadings())
+  const factIndex = homeSearch.factIndex(data.factTexts)
 
-  const state = { persona: null, asked: [], busy: false }
+  const state = { persona: null, asked: [], pending: 0, generation: 0 }
   const overlay = { url: null, depth: 0, opener: null }
+  let queue = Promise.resolve()
   let knowledgeBase = null
-  let intentIndex = null
+  let catalog = null
 
   function escapeHtml(text) {
     return String(text == null ? "" : text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c])
@@ -51,27 +55,46 @@
 
   function loadKnowledgeBase() {
     if (!knowledgeBase) {
-      knowledgeBase = fetch("/kb/en.json")
-        .then((response) => {
-          if (!response.ok) throw new Error("HTTP " + response.status)
-          return response.json()
+      knowledgeBase = new Promise((resolve, reject) => {
+        const worker = new Worker("/js/home-kb.js")
+        const requests = new Map()
+        let nextId = 0
+        const fail = (error) => {
+          clearTimeout(timer)
+          worker.terminate()
+          knowledgeBase = null
+          reject(error)
+        }
+        const timer = setTimeout(() => fail(new Error("knowledge base timeout")), knowledgeBaseTimeout)
+        const request = (message) => new Promise((done) => {
+          nextId += 1
+          requests.set(nextId, done)
+          worker.postMessage({ ...message, id: nextId })
         })
-        .then((kb) => ({
-          byKey: new Map(kb.docs.map((doc) => [pathKey(doc.url), doc])),
-          index: homeSearch.knowledgeBaseIndex(kb, Date.now(), data.kbWeights),
-        }))
-      knowledgeBase.catch(() => { knowledgeBase = null })
+        worker.onerror = () => fail(new Error("knowledge base worker"))
+        worker.onmessage = ({ data: message }) => {
+          if (message.type === "ready") {
+            clearTimeout(timer)
+            catalog = new Map(message.catalog.map((entry) => [pathKey(entry.url), entry]))
+            resolve({
+              search: (query) => request({ type: "search", query, synonyms: data.synonyms, threshold: searchThreshold, coverage, count: 3 }),
+              doc: (url) => request({ type: "doc", url }),
+            })
+          } else if (message.type === "error") {
+            fail(new Error(message.message))
+          } else {
+            requests.get(message.id)(message.result)
+            requests.delete(message.id)
+          }
+        }
+        worker.postMessage({ type: "load", weights: data.kbWeights })
+      })
     }
     return knowledgeBase
   }
 
   function answerHeadings() {
     return Object.fromEntries(Array.from(qa.querySelectorAll("h2[id]"), (heading) => [heading.id, heading.textContent]))
-  }
-
-  function intents() {
-    intentIndex = intentIndex || homeSearch.intentIndex(data.intents, answerHeadings())
-    return intentIndex
   }
 
   function answerNodes(id) {
@@ -89,22 +112,20 @@
     return element
   }
 
-  function kindLabel(doc) {
-    return strings.kinds[doc.kind] + (doc.date ? " · " + doc.date : "")
+  function kindLabel(entry) {
+    return strings.kinds[entry.kind] + (entry.date ? " · " + entry.date : "")
   }
 
-  function excerpt(doc) {
-    const text = doc.sections
-      .flatMap((section) => Array.from(section.html.matchAll(/<p>([\s\S]*?)<\/p>/g), (match) => homeSearch.plainText(match[1]).replace(/\s+/g, " ").trim()))
-      .find((paragraph) => paragraph.length > 60 && !paragraph.startsWith("Published")) || ""
-    return text.length > excerptLength ? text.slice(0, excerptLength).replace(/\s+\S*$/, "") + "…" : text
+  function cardHtml(entry, section) {
+    const href = entry.url + (section && section.id ? "#" + section.id : "")
+    const heading = section && section.heading ? homeSearch.plainText(section.heading).trim() : ""
+    const title = heading && heading !== entry.title ? heading : entry.title
+    return '<a class="card" lang="en" dir="ltr" href="' + escapeHtml(href) + '"><span class="kind">' + escapeHtml(kindLabel(entry)) + '</span> <span class="title">' +
+      escapeHtml(title) + '</span> <span class="why">' + escapeHtml(title === entry.title ? entry.excerpt : entry.title) + "</span></a>"
   }
 
-  function cardHtml(doc, section) {
-    const href = doc.url + (section && section.id ? "#" + section.id : "")
-    const title = section && section.heading ? homeSearch.plainText(section.heading) : doc.title
-    return '<a class="card" lang="en" dir="ltr" href="' + escapeHtml(href) + '"><span class="kind">' + escapeHtml(kindLabel(doc)) + '</span> <span class="title">' +
-      escapeHtml(title) + '</span> <span class="why">' + escapeHtml(section && section.heading ? doc.title : excerpt(doc)) + "</span></a>"
+  function cardsHtml(cards) {
+    return cards.length ? '<div class="cards">' + cards.join("") + "</div>" : ""
   }
 
   function questionsHtml(ids) {
@@ -114,13 +135,95 @@
   }
 
   function relatedQuestions(text, exclude, filled) {
-    const related = homeSearch.search(intents(), text, data.synonyms)
+    const related = homeSearch.search(intentIndex, text, data.synonyms)
       .filter((result) => result.score >= relatedThreshold)
       .map((result) => result.ref.id)
     const defaults = filled ? data.intents.map((intent) => intent.id) : []
     return related.concat(defaults)
       .filter((id, index, ids) => !exclude.includes(id) && ids.indexOf(id) === index)
       .slice(0, 3)
+  }
+
+  function catalogEntry(link) {
+    const url = new URL(link.getAttribute("href"), location.href)
+    return url.origin === location.origin && catalog ? catalog.get(pathKey(url.pathname)) : undefined
+  }
+
+  function takeDetailsLinks(prose) {
+    const paragraph = prose.lastElementChild
+    if (!paragraph || paragraph.tagName !== "P") return []
+    const nodes = Array.from(paragraph.childNodes)
+    let start = nodes.length
+    while (start > 0 && (nodes[start - 1].nodeName === "A" || (nodes[start - 1].nodeType === Node.TEXT_NODE && /^[\s,.]*$/.test(nodes[start - 1].textContent)))) start -= 1
+    const lead = nodes[start - 1]
+    const links = nodes.slice(start).filter((node) => node.nodeName === "A")
+    const entries = links.map(catalogEntry)
+    const match = lead && lead.nodeType === Node.TEXT_NODE && lead.textContent.match(/\s*(?:Details:|See)\s*$/)
+    if (!match || links.length === 0 || !entries.every(Boolean)) return []
+    lead.textContent = lead.textContent.slice(0, match.index)
+    nodes.slice(start).forEach((node) => node.remove())
+    if (!paragraph.textContent.trim()) paragraph.remove()
+    return entries.filter((entry, index) => entries.indexOf(entry) === index)
+  }
+
+  function addTurn(said, live) {
+    const turn = document.createElement("section")
+    turn.className = "turn"
+    turn.innerHTML = '<p class="you"><span dir="auto"></span></p><article class="answer" aria-busy="true"></article>'
+    turn.querySelector(".you span").textContent = said
+    const answer = turn.querySelector(".answer")
+    if (live) answer.setAttribute("aria-live", "polite")
+    answer.appendChild(byId("busy-template").content.cloneNode(true))
+    turns.appendChild(turn)
+    showComposer()
+    requestAnimationFrame(() => turn.scrollIntoView({ block: "start", behavior: scrollBehavior() }))
+    return answer
+  }
+
+  function showComposer() {
+    composer.hidden = false
+    document.body.classList.add("conversation")
+  }
+
+  function fillTurn(answer, content, focus) {
+    answer.textContent = ""
+    answer.appendChild(content)
+    answer.removeAttribute("aria-busy")
+    const heading = focus && answer.querySelector("h2")
+    if (heading) {
+      heading.tabIndex = -1
+      heading.focus({ preventScroll: true })
+    }
+  }
+
+  function screenOf(section) {
+    const fragment = document.createDocumentFragment()
+    Array.from(section.children).forEach((child) => fragment.appendChild(withoutIds(child.cloneNode(true))))
+    return fragment
+  }
+
+  function htmlFragment(html) {
+    const template = document.createElement("template")
+    template.innerHTML = html
+    return template.content
+  }
+
+  function intentAnswer(id) {
+    const intent = intentsById.get(id)
+    if (intent.screen) return screenOf(byId(intent.screen))
+    if (intent.page) return pageAnswer(intent)
+    const { heading, nodes } = answerNodes(id)
+    const fragment = htmlFragment('<header class="head"><p class="eyebrow">' + escapeHtml(strings.answer) + '</p><h2 lang="en" dir="ltr">' +
+      escapeHtml(heading.textContent) + "</h2></header>")
+    const prose = document.createElement("div")
+    prose.className = "prose"
+    prose.lang = "en"
+    prose.dir = "ltr"
+    prose.append(...nodes)
+    fragment.appendChild(prose)
+    fragment.appendChild(htmlFragment(cardsHtml(takeDetailsLinks(prose).map((entry) => cardHtml(entry)))))
+    fragment.appendChild(htmlFragment(questionsHtml(relatedQuestions(heading.textContent + " " + prose.textContent, [id], true))))
+    return fragment
   }
 
   function docHtml(doc, html) {
@@ -138,90 +241,12 @@
     return container.innerHTML
   }
 
-  function addTurn(said) {
-    const turn = document.createElement("section")
-    turn.className = "turn"
-    turn.innerHTML = '<p class="you"><span dir="auto"></span></p><article class="answer" aria-live="polite" aria-busy="true"></article>'
-    turn.querySelector(".you span").textContent = said
-    const answer = turn.querySelector(".answer")
-    answer.appendChild(byId("busy-template").content.cloneNode(true))
-    turns.appendChild(turn)
-    composer.hidden = false
-    document.body.classList.add("conversation")
-    requestAnimationFrame(() => turn.scrollIntoView({ block: "start", behavior: scrollBehavior() }))
-    return answer
-  }
-
-  function fillTurn(answer, content) {
-    answer.textContent = ""
-    answer.appendChild(content)
-    answer.removeAttribute("aria-busy")
-  }
-
-  function screenOf(section) {
-    const fragment = document.createDocumentFragment()
-    Array.from(section.children).forEach((child) => fragment.appendChild(withoutIds(child.cloneNode(true))))
-    return fragment
-  }
-
-  function choosePersona(id) {
-    if (state.busy) return
-    const persona = personasById.get(id)
-    state.persona = id
-    renderKnows()
-    fillTurn(addTurn(persona.label), screenOf(byId("for-" + id)))
-    loadKnowledgeBase().catch(() => {})
-  }
-
-  function getApp() {
-    if (state.busy) return
-    fillTurn(addTurn(strings.getApp), screenOf(byId("get")))
-  }
-
-  async function intentAnswer(id) {
-    const intent = intentsById.get(id)
-    if (intent.screen) return screenOf(byId(intent.screen))
-    if (intent.page) return pageAnswer(intent)
-    const { heading, nodes } = answerNodes(id)
-    const fragment = htmlFragment('<header class="head"><p class="eyebrow">' + escapeHtml(strings.answer) + '</p><h2 lang="en" dir="ltr">' +
-      escapeHtml(heading.textContent) + "</h2></header>")
-    const prose = document.createElement("div")
-    prose.className = "prose"
-    prose.lang = "en"
-    prose.dir = "ltr"
-    prose.append(...nodes)
-    fragment.appendChild(prose)
-    const base = await loadKnowledgeBase().catch(() => null)
-    if (base) {
-      const docs = Array.from(prose.querySelectorAll("a[href]"), (link) => new URL(link.getAttribute("href"), location.href))
-        .filter((url) => url.origin === location.origin)
-        .map((url) => base.byKey.get(pathKey(url.pathname)))
-        .filter((doc, index, all) => doc && all.indexOf(doc) === index)
-        .slice(0, 3)
-      if (docs.length) fragment.appendChild(htmlFragment('<div class="cards">' + docs.map((doc) => cardHtml(doc)).join("") + "</div>"))
-    }
-    fragment.appendChild(htmlFragment(questionsHtml(relatedQuestions(heading.textContent + " " + prose.textContent, [id], true))))
-    return fragment
-  }
-
   async function pageAnswer(intent) {
     const base = await loadKnowledgeBase()
     const url = new URL(intent.page, location.href)
-    const doc = base.byKey.get(pathKey(url.pathname))
+    const doc = await base.doc(catalog.get(pathKey(url.pathname)).url)
     const sectionId = decodeURIComponent(url.hash.slice(1))
     const section = doc.sections.find((candidate) => sectionId ? candidate.id === sectionId : candidate.html)
-    return searchAnswer(intent.label, [{ ref: { doc, section } }])
-  }
-
-  function htmlFragment(html) {
-    const template = document.createElement("template")
-    template.innerHTML = html
-    return template.content
-  }
-
-  function searchAnswer(question, results) {
-    const [best, ...more] = results
-    const { doc, section } = best.ref
     const heading = section.heading ? homeSearch.plainText(section.heading) : doc.title
     const continueHref = doc.url + (section.id ? "#" + section.id : "")
     const source = heading === doc.title ? "" : '<p class="source" lang="en" dir="ltr"><a href="' + escapeHtml(doc.url) + '">' + escapeHtml(doc.title) + "</a></p>"
@@ -230,8 +255,13 @@
       '<h2 lang="en" dir="ltr">' + escapeHtml(heading) + "</h2>" + source + "</header>" +
       '<div class="prose" lang="en" dir="ltr">' + shortHtml(docHtml(doc, section.html)) + "</div>" +
       '<p class="links"><a class="pill" href="' + escapeHtml(continueHref) + '">' + escapeHtml(strings.continue) + "</a></p>" +
-      (more.length ? '<section class="more"><p class="eyebrow">' + escapeHtml(strings.more) + '</p><div class="cards">' +
-        more.map((result) => cardHtml(result.ref.doc, result.ref.section)).join("") + "</div></section>" : "") +
+      questionsHtml(relatedQuestions(intent.label, [intent.id], false)))
+  }
+
+  function pagesAnswer(question, results) {
+    return htmlFragment(
+      '<header class="head"><h2 class="eyebrow">' + escapeHtml(strings.pages) + "</h2></header>" +
+      cardsHtml(results.map((result) => cardHtml(catalog.get(pathKey(result.url)), result.section))) +
       questionsHtml(relatedQuestions(question, [], false)))
   }
 
@@ -244,9 +274,15 @@
     return fragment
   }
 
-  async function answerFor(question) {
-    const base = await loadKnowledgeBase().catch(() => null)
-    const intent = homeSearch.bestIntent(intents(), question, data.synonyms, intentThreshold, intentMargin, intentCoverage, base && base.index)
+  async function searchAnswer(question) {
+    const base = await loadKnowledgeBase()
+    const results = await base.search(question)
+    return results.length ? pagesAnswer(question, results) : fallbackAnswer(question)
+  }
+
+  function answerFor(question) {
+    if (homeSearch.bestFact(factIndex, question, data.synonyms, coverage)) return screenOf(byId("facts"))
+    const intent = homeSearch.bestIntent(intentIndex, question, data.synonyms, intentThreshold, intentMargin, coverage)
     if (intent) return intentAnswer(intent.ref.id)
     const persona = homeSearch.personaOfWords(question, data.personaWords)
     if (persona) {
@@ -254,40 +290,60 @@
       renderKnows()
       return screenOf(byId("for-" + persona))
     }
-    if (!base) throw new Error("knowledge base unavailable")
-    const results = homeSearch.bestDocuments(base.index, question, data.synonyms, searchThreshold, 3)
-    return results.length ? searchAnswer(question, results) : fallbackAnswer(question)
+    return searchAnswer(question)
   }
 
-  async function respond(said, produce) {
-    if (state.busy) return
-    state.busy = true
+  function respond(said, produce, { live = false, focus = false } = {}) {
+    const generation = state.generation
+    state.pending += 1
     setBusy(true)
-    const answer = addTurn(said)
-    try {
-      fillTurn(answer, await produce())
-    } catch (error) {
-      fillTurn(answer, byId("error-template").content.cloneNode(true))
-    } finally {
-      state.busy = false
-      setBusy(false)
+    const run = async () => {
+      if (generation !== state.generation) return
+      const answer = addTurn(said, live)
+      let content
+      try {
+        content = await produce()
+      } catch (error) {
+        content = byId("error-template").content.cloneNode(true)
+      }
+      if (generation === state.generation) fillTurn(answer, content, focus)
     }
+    queue = queue.then(run).catch(() => {}).then(() => {
+      if (generation !== state.generation) return
+      state.pending -= 1
+      setBusy(state.pending > 0)
+    })
   }
 
-  function ask(question) {
+  function ask(question, form) {
     const text = question.trim().slice(0, 500)
-    if (!text || state.busy) return
+    if (!text || state.pending > 0) return
     state.asked.push(text)
     renderKnows()
-    respond(text, () => answerFor(text))
+    if (form.id === "hero-ask") {
+      showComposer()
+      composer.querySelector("input").focus({ preventScroll: true })
+    }
+    respond(text, () => answerFor(text), { live: true })
   }
 
   function askIntent(id) {
-    if (state.busy) return
     const intent = intentsById.get(id)
     state.asked.push(intent.label)
     renderKnows()
-    respond(intent.label, () => intentAnswer(id))
+    respond(intent.label, () => intentAnswer(id), { focus: true })
+  }
+
+  function choosePersona(id) {
+    const persona = personasById.get(id)
+    state.persona = id
+    renderKnows()
+    respond(persona.label, () => screenOf(byId("for-" + id)), { focus: true })
+    loadKnowledgeBase().catch(() => {})
+  }
+
+  function getApp() {
+    respond(strings.getApp, () => screenOf(byId("get")), { focus: true })
   }
 
   function setBusy(busy) {
@@ -305,14 +361,14 @@
         body: JSON.stringify({ question, who: state.persona || "", recent: state.asked.slice(-4, -1), lang: config.lang }),
       })
       if (!response.ok) throw new Error("HTTP " + response.status)
-      const base = await loadKnowledgeBase()
-      fillTurn(answer, serviceAnswer(await response.json(), base))
+      await loadKnowledgeBase()
+      fillTurn(answer, serviceAnswer(await response.json()), false)
     } catch (error) {
-      fillTurn(answer, byId("error-template").content.cloneNode(true))
+      fillTurn(answer, byId("error-template").content.cloneNode(true), false)
     }
   }
 
-  function serviceBlock(block, base) {
+  function serviceBlock(block) {
     const items = Array.isArray(block.items) ? block.items : []
     switch (block.type) {
       case "lead": return '<p class="lead">' + inlineMarkup(block.text) + "</p>"
@@ -322,15 +378,15 @@
       case "steps": return '<ol class="steps">' + items.map((item) => "<li>" + inlineMarkup(item) + "</li>").join("") + "</ol>"
       case "table": return '<div class="table"><table><thead><tr>' + (block.columns || []).map((column) => "<th>" + escapeHtml(column) + "</th>").join("") +
         "</tr></thead><tbody>" + (block.rows || []).map((row) => "<tr>" + (Array.isArray(row) ? row : []).map((cell) => "<td>" + inlineMarkup(cell) + "</td>").join("") + "</tr>").join("") + "</tbody></table></div>"
-      case "pages": return '<div class="cards">' + items.map((item) => item && base.byKey.get(pathKey(String(item.url || "")))).filter(Boolean).map((doc) => cardHtml(doc)).join("") + "</div>"
+      case "pages": return cardsHtml(items.map((item) => item && catalog.get(pathKey(String(item.url || "")))).filter(Boolean).map((entry) => cardHtml(entry)))
       case "questions": return questionsHtml(items.filter((id) => intentsById.has(id)))
       default: return ""
     }
   }
 
-  function serviceAnswer(response, base) {
+  function serviceAnswer(response) {
     const blocks = Array.isArray(response.blocks) ? response.blocks : []
-    return htmlFragment("<h2>" + escapeHtml(response.title) + "</h2>" + blocks.map((block) => block && typeof block === "object" ? serviceBlock(block, base) : "").join(""))
+    return htmlFragment("<h2>" + escapeHtml(response.title) + "</h2>" + blocks.map((block) => block && typeof block === "object" ? serviceBlock(block) : "").join(""))
   }
 
   function renderKnows() {
@@ -352,14 +408,24 @@
   }
 
   function toggleKnows(open) {
+    const hadFocus = knowsPanel.contains(document.activeElement)
     knowsPanel.hidden = !open
     knowsButton.setAttribute("aria-expanded", String(open))
-    if (open) renderKnows()
+    if (open) {
+      renderKnows()
+      byId("knows-title").focus({ preventScroll: true })
+    } else if (hadFocus) {
+      knowsButton.focus({ preventScroll: true })
+    }
   }
 
   function forget() {
     state.persona = null
     state.asked = []
+    state.generation += 1
+    state.pending = 0
+    queue = Promise.resolve()
+    setBusy(false)
     turns.textContent = ""
     composer.hidden = true
     document.body.classList.remove("conversation")
@@ -368,12 +434,20 @@
     window.scrollTo({ top: 0, behavior: scrollBehavior() })
   }
 
-  function linkTarget(link) {
-    const href = link.getAttribute("href")
+  function linkTarget(href, base) {
     if (!href || href.startsWith("javascript:")) return null
-    const url = new URL(href, location.href)
+    const url = new URL(href, base)
     if (url.protocol !== "http:" && url.protocol !== "https:") return null
-    return url
+    const page = url.origin === location.origin && data.markdownPages[url.pathname]
+    return page ? new URL(page + url.hash, url) : url
+  }
+
+  function linkAction(url) {
+    if (url.origin !== location.origin) return "external"
+    const key = pathKey(url.pathname)
+    if (key === homeKey || key === "/") return "home"
+    if (languageHomeKeys.has(key)) return "navigate"
+    return "open"
   }
 
   function setOverlayHeader(kind, url) {
@@ -390,7 +464,7 @@
     overlay.opener = document.activeElement
     overlayElement.hidden = false
     document.documentElement.classList.add("overlay-open")
-    document.querySelectorAll("body > .top, body > main, body > .foot, body > .composer, body > .knows").forEach((element) => { element.inert = true })
+    document.querySelectorAll("body > .top, body > main, body > .foot, body > .composer").forEach((element) => { element.inert = true })
     byId("sheet-close").focus({ preventScroll: true })
   }
 
@@ -407,8 +481,12 @@
   }
 
   function scrollToHash(hash) {
-    const target = hash && sheetBody.querySelector('[id="' + CSS.escape(decodeURIComponent(hash.slice(1))) + '"]')
-    sheetBody.scrollTop = target ? target.getBoundingClientRect().top - sheetBody.getBoundingClientRect().top + sheetBody.scrollTop - 24 : 0
+    const target = (hash && sheetBody.querySelector('[id="' + CSS.escape(decodeURIComponent(hash.slice(1))) + '"]')) || sheetBody.querySelector("h1")
+    sheetBody.scrollTop = target && hash ? target.getBoundingClientRect().top - sheetBody.getBoundingClientRect().top + sheetBody.scrollTop - 24 : 0
+    if (target) {
+      target.tabIndex = -1
+      target.focus({ preventScroll: true })
+    }
   }
 
   function renderDoc(doc, url) {
@@ -435,6 +513,28 @@
     scrollToHash(url.hash)
   }
 
+  function onFrameClick(event, frame) {
+    const link = event.target.closest && event.target.closest("a[href]")
+    if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    if ((link.target && link.target !== "_self") || link.hasAttribute("download")) return
+    const current = frame.contentWindow.location
+    const url = linkTarget(link.getAttribute("href"), current.href)
+    if (!url) return
+    if (url.origin === location.origin && url.pathname === current.pathname && url.search === current.search) {
+      if (url.hash !== current.hash) {
+        event.preventDefault()
+        current.replace(url.href)
+      }
+      return
+    }
+    event.preventDefault()
+    const action = linkAction(url)
+    if (action === "external") window.open(url.href, "_blank", "noopener")
+    else if (action === "home") closeOverlay()
+    else if (action === "navigate") location.assign(url.href)
+    else openOverlay(url)
+  }
+
   function renderFrame(url) {
     const frame = document.createElement("iframe")
     frame.className = "frame"
@@ -446,6 +546,7 @@
         frame.contentWindow.addEventListener("keydown", (event) => {
           if (event.key === "Escape") closeOverlay()
         })
+        frame.contentDocument.addEventListener("click", (event) => onFrameClick(event, frame))
         document.title = frame.contentDocument.title || pageTitle
         sheet.setAttribute("aria-label", document.title)
         if (current.pathname !== new URL(overlay.url).pathname) {
@@ -479,8 +580,9 @@
     renderMessage(strings.loading, url)
     try {
       const base = await loadKnowledgeBase()
+      const entry = catalog.get(key)
+      const doc = entry && await base.doc(entry.url)
       if (overlay.url !== url.href) return
-      const doc = base.byKey.get(key)
       if (doc) renderDoc(doc, url)
       else renderFrame(url)
     } catch (error) {
@@ -506,15 +608,16 @@
   }
 
   function onLinkClick(event, link) {
-    const url = linkTarget(link)
+    const url = linkTarget(link.getAttribute("href"), location.href)
     if (!url) return
-    if (url.origin !== location.origin) {
+    const action = linkAction(url)
+    if (action === "external") {
       link.target = "_blank"
       link.rel = "noopener"
       return
     }
-    if (link.closest(".sheet-head")) return
-    if (pathKey(url.pathname) === homeKey) {
+    if (link.closest(".sheet-head") || action === "navigate") return
+    if (action === "home") {
       if (overlay.url) {
         event.preventDefault()
         closeOverlay()
@@ -585,7 +688,7 @@
     if (!event.target.matches(".ask")) return
     event.preventDefault()
     const input = event.target.elements.q
-    ask(input.value)
+    ask(input.value, event.target)
     input.value = ""
   })
 
@@ -611,6 +714,7 @@
 
   renderKnows()
   startCountdown()
+  document.documentElement.classList.add("ready")
   const start = decodeURIComponent(location.hash.slice(1))
   if (start.startsWith("for-") && personasById.has(start.slice(4))) choosePersona(start.slice(4))
   else if (intentsById.has(start)) askIntent(start)

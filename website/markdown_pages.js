@@ -93,11 +93,15 @@ function isMarkdownPagePath(pathname) {
   return pathname.endsWith(".html") && (isDoc || pathname.startsWith("/blog/"))
 }
 
-const markdownOnlyUrls = new Set(fs.readdirSync(path.resolve(__dirname, "src/llms"))
-  .map((file) => matter(fs.readFileSync(path.resolve(__dirname, "src/llms", file), "utf8")).data.permalink)
-  .filter((permalink) => permalink && permalink.endsWith(".md")))
+const llmsPages = fs.readdirSync(path.resolve(__dirname, "src/llms"))
+  .map((file) => matter(fs.readFileSync(path.resolve(__dirname, "src/llms", file), "utf8")).data)
+
+const markdownOnlyUrls = new Set(llmsPages.map((page) => page.permalink).filter((permalink) => permalink && permalink.endsWith(".md")))
+
+const summaryPageUrls = Object.fromEntries(llmsPages.filter((page) => page.markdown).map((page) => [page.markdown, page.permalink]))
 
 function pageUrl(url) {
+  if (url in summaryPageUrls) return summaryPageUrls[url]
   if (!url.endsWith(".md") || markdownOnlyUrls.has(url)) return url
   const base = url.slice(0, -3)
   if (isMarkdownPagePath(base + ".html")) return base + ".html"
@@ -278,6 +282,7 @@ module.exports = {
   markdownKind,
   markdownUrl,
   pageUrl,
+  summaryPageUrls,
   markdownFromSource,
   markdownTitle,
   markdownFromHtml,

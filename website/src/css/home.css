@@ -130,9 +130,10 @@
   --raise: #F2F2F5;
   --ink: #1D1D1F;
   --ink-2: #6E6E73;
-  --ink-3: #86868B;
+  --ink-3: #737378;
   --line: #E2E2E7;
   --accent: #0062FF;
+  --accent-fill: #0062FF;
   --accent-ink: #FFFFFF;
   --scrim: rgba(10, 10, 14, 0.32);
   --logo: #030749;
@@ -154,6 +155,7 @@
   --ink-3: #7C7C82;
   --line: #2A2A2F;
   --accent: #3D8BFF;
+  --accent-fill: #1F6FEB;
   --scrim: rgba(0, 0, 0, 0.6);
   --logo: #F5F5F7;
   --shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
@@ -167,6 +169,11 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  scroll-padding-top: var(--top);
+}
+
+html:has(body.conversation) {
+  scroll-padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
 }
 
 html.overlay-open {
@@ -199,6 +206,14 @@ a {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
+:is(.hero, .head, .screen, .answer) > [dir] {
+  justify-self: self-start;
 }
 
 .top {
@@ -278,7 +293,7 @@ a {
 }
 
 .knows-btn.known .badge {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--accent-ink);
 }
 
@@ -310,8 +325,8 @@ a {
 
 .lang-menu ul {
   position: absolute;
-  inset-inline-end: 0;
-  top: calc(100% + 8px);
+  inset-inline-start: 0;
+  bottom: calc(100% + 8px);
   margin: 0;
   padding: 8px;
   list-style: none;
@@ -445,7 +460,7 @@ h1 {
   padding: 12px 24px;
   border: 0;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--accent-ink);
   font-weight: 600;
   cursor: pointer;
@@ -492,7 +507,6 @@ h1 {
   gap: 24px;
   padding-block: 64px 24px;
   border-top: 1px solid var(--line);
-  scroll-margin-top: var(--top);
 }
 
 .turn:last-child {
@@ -531,6 +545,12 @@ h1 {
   font: 700 clamp(34px, 5.6vw, 72px)/1.04 var(--display);
   letter-spacing: -0.04em;
   text-wrap: balance;
+}
+
+.answer h2.eyebrow {
+  max-width: none;
+  font: 600 13px/1.4 var(--text);
+  letter-spacing: 0.12em;
 }
 
 .lead {
@@ -622,6 +642,10 @@ code {
 
 .stat {
   margin: 0;
+}
+
+.stats-source {
+  grid-column: 1 / -1;
 }
 
 .stat b {
@@ -817,7 +841,7 @@ code {
   }
 }
 
-.js .library {
+.ready .library {
   display: none;
 }
 
@@ -825,7 +849,6 @@ code {
 .library .qa {
   padding-block: 64px;
   border-top: 1px solid var(--line);
-  scroll-margin-top: var(--top);
 }
 
 .library .qa h1 {
@@ -839,10 +862,10 @@ code {
   font: 700 24px/1.25 var(--display);
 }
 
-html:not(.js) .knows-btn,
-html:not(.js) .ask,
-html:not(.js) .countdown .digits {
-  display: none;
+html:not(.ready) .knows-btn,
+html:not(.ready) .ask,
+html:not(.ready) .countdown .digits {
+  visibility: hidden;
 }
 
 .foot {
@@ -897,7 +920,7 @@ body.conversation {
 }
 
 .knows {
-  position: fixed;
+  position: absolute;
   z-index: 30;
   top: calc(var(--top) + 8px);
   inset-inline-end: 16px;
@@ -918,6 +941,7 @@ body.conversation {
 .knows h3 {
   margin: 0;
   font: 700 20px/1.25 var(--display);
+  color: var(--ink);
 }
 
 .knows ul {
@@ -1202,7 +1226,12 @@ body.conversation {
   }
 
   .knows-btn .label {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .knows-btn,
@@ -1284,6 +1313,18 @@ body.conversation {
   .invest,
   .get {
     padding-inline: 8px;
+  }
+
+  .knows-btn svg {
+    display: none;
+  }
+
+  .invest {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 34px;
   }
 }
 

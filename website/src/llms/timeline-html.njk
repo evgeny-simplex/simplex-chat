@@ -1,0 +1,9 @@
+---
+layout: layouts/page.html
+permalink: /llms/timeline/
+markdown: /llms/timeline.md
+title: "SimpleX: timeline"
+description: "Key milestones of SimpleX network and SimpleX Chat, with links to the announcements."
+---
+{% set markdown %}{% include "llms/timeline.md" %}{% endset %}
+{{ markdown | renderMarkdown | siteLinks | safe }}

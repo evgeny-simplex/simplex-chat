@@ -9,7 +9,7 @@ active_home: true
 {% set downloadsPrefix = '' if lang == 'en' or not (lang | translated('/downloads/')) else langPrefix %}
 {% from "home/screen.njk" import screen %}
 {% from "home/blocks.njk" import block %}
-{% set menuLanguages = languages.languages | menuLanguages(page.url) %}
+{% set menuLanguages = languages.languages | menuLanguages(page.url, lang) %}
 <!DOCTYPE html>
 <html lang="{{ lang }}"
     {% for language in languages.languages %}
@@ -21,7 +21,6 @@ active_home: true
 <head>
     <meta charset="UTF-8">
     {% include "dark-mode.html" %}
-    <script>document.documentElement.classList.add('js')</script>
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ title }}</title>
@@ -56,32 +55,32 @@ active_home: true
             <svg class="mark" aria-hidden="true" viewBox="120 0 41 40" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M124.336 10.1101L130.957 16.689L137.762 9.92721L141.072 13.2167L134.267 19.9784L140.888 26.5575L137.486 29.9384L130.865 23.3592L124.06 30.1213L120.75 26.8318L127.554 20.0699L120.934 13.491L124.336 10.1101Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M137.433 30L140.809 26.6454L140.807 26.6445L147.56 19.936L140.936 13.3552L140.937 13.3546L137.625 10.0637L131.002 3.48203L134.377 0.127456L141.001 6.70925L147.753 0L151.065 3.29085L144.312 10L150.936 16.5815L157.688 9.87254L161 13.1634L154.247 19.8722L160.872 26.4542L157.496 29.8088L150.871 23.2268L144.12 29.9358L150.744 36.518L147.368 39.8725L140.744 33.2904L133.993 40L130.681 36.7092L137.433 30Z" fill="url(#logo-mark-gradient)"/><defs><linearGradient id="logo-mark-gradient" x1="135.948" y1="-0.816326" x2="132.096" y2="36.9857" gradientUnits="userSpaceOnUse"><stop stop-color="#01F1FF"/><stop offset="1" stop-color="#0197FF"/></linearGradient></defs></svg>
         </a>
         <span class="spacer"></span>
-        <button class="knows-btn" id="knows-btn" type="button" aria-expanded="false" aria-controls="knows" aria-label="{{ 'home-knows' | i18n({}, lang) }}">
+        <button class="knows-btn" id="knows-btn" type="button" aria-expanded="false" aria-controls="knows">
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 10s3.2-5.5 8.5-5.5 8.5 5.5 8.5 5.5-3.2 5.5-8.5 5.5S1.5 10 1.5 10z"/><circle cx="10" cy="10" r="2.6"/></svg>
-            <span class="label">{{ "home-knows" | i18n({}, lang) }}</span>
+            <span class="label"{{ "home-knows" | englishAttrs(lang) | safe }}>{{ "home-knows" | i18n({}, lang) }}</span>
             <span class="badge" id="knows-count">0</span>
         </button>
-        {% if menuLanguages.length > 1 %}
-        <details class="lang-menu">
-            <summary>{{ lang | replace("_", "-") }}</summary>
-            <ul>
-                {% for language in menuLanguages %}
-                <li><a href="{% completeRoute {url: page.url, lang: language.label} %}" lang="{{ language.label | replace('_', '-') }}">{{ language.name }}</a></li>
-                {% endfor %}
-            </ul>
-        </details>
-        {% endif %}
-        <a class="invest" href="https://wefunder.com/simplex.chat?utm_source=home" target="_blank" rel="noopener">{{ "invest" | i18n({}, lang) }}</a>
-        <a class="get" id="get-app" href="{{ downloadsPrefix }}/downloads/">{{ "home-get-app" | i18n({}, lang) }}</a>
+        <div class="knows" id="knows" hidden role="dialog" aria-labelledby="knows-title">
+            <h3 id="knows-title" tabindex="-1"{{ "home-knows-title" | englishAttrs(lang) | safe }}>{{ "home-knows-title" | i18n({}, lang) }}</h3>
+            <ul id="knows-list"></ul>
+            <p class="knows-empty" id="knows-empty"{{ "home-knows-empty" | englishAttrs(lang) | safe }}>{{ "home-knows-empty" | i18n({}, lang) }}</p>
+            <p class="knows-privacy"{{ "home-knows-privacy" | englishAttrs(lang) | safe }}>{{ "home-knows-privacy" | i18n({}, lang) }}</p>
+            <div class="row">
+                <button type="button" class="danger" id="forget"{{ "home-forget" | englishAttrs(lang) | safe }}>{{ "home-forget" | i18n({}, lang) }}</button>
+                <button type="button" id="knows-close"{{ "home-close" | englishAttrs(lang) | safe }}>{{ "home-close" | i18n({}, lang) }}</button>
+            </div>
+        </div>
+        <a class="invest" href="https://wefunder.com/simplex.chat?utm_source=home" target="_blank" rel="noopener"{{ "invest" | englishAttrs(lang) | safe }}>{{ "invest" | i18n({}, lang) }}</a>
+        <a class="get" id="get-app" href="{{ downloadsPrefix }}/downloads/"{{ "home-get-app" | englishAttrs(lang) | safe }}>{{ "home-get-app" | i18n({}, lang) }}</a>
     </header>
 
-    <main id="main">
+    <main id="main"{% if lang != "en" and not (lang | translated("/")) %} lang="en" dir="ltr"{% endif %}>
         <section class="hero" id="hero">
-            <h1>{{ "home-h1" | i18n({}, lang) }}</h1>
-            <p class="sub">{{ "home-sub" | i18n({}, lang) }}</p>
+            <h1{{ "home-h1" | pageLangAttrs(lang) | safe }}>{{ "home-h1" | i18n({}, lang) }}</h1>
+            <p class="sub"{{ "home-sub" | pageLangAttrs(lang) | safe }}>{{ "home-sub" | i18n({}, lang) }}</p>
             <p class="who">
                 {% for persona in home.personas %}
-                <a class="chip" href="#for-{{ persona.id }}" data-persona="{{ persona.id }}">{{ persona.label | i18n({}, lang) }}</a>
+                <a class="chip" href="#for-{{ persona.id }}" data-persona="{{ persona.id }}"{{ persona.label | pageLangAttrs(lang) | safe }}>{{ persona.label | i18n({}, lang) }}</a>
                 {% endfor %}
             </p>
             <form class="ask" id="hero-ask" autocomplete="off" data-markdown-skip>
@@ -89,8 +88,8 @@ active_home: true
                 <button type="submit">{{ "home-ask" | i18n({}, lang) }}</button>
             </form>
             <div class="status">
-                <p class="proof"><b>{{ "messages-per-day" | factFigure }}</b> {{ "home-proof" | i18n({}, lang) }}</p>
-                <p class="countdown"><a href="https://simplex.domains/" target="_blank" rel="noopener"><span id="countdown-lead">{{ "index-hero-countdown-lead" | i18n({}, lang) }}</span> <span class="digits" id="countdown"></span> <span aria-hidden="true">↗</span></a></p>
+                <p class="proof"{{ "home-proof" | pageLangAttrs(lang) | safe }}><b>{{ "messages-per-day" | factFigure }}</b> {{ "home-proof" | i18n({}, lang) }}</p>
+                <p class="countdown"{{ "index-hero-countdown-lead" | pageLangAttrs(lang) | safe }}><a href="https://simplex.domains/" target="_blank" rel="noopener"><span id="countdown-lead">{{ "index-hero-countdown-lead" | i18n({}, lang) }}</span> <span class="digits" id="countdown"></span> <span aria-hidden="true">↗</span></a></p>
             </div>
         </section>
 
@@ -105,11 +104,14 @@ active_home: true
             <section class="screen" id="roadmap">
                 {{ screen(home.roadmap, lang) }}
             </section>
+            <section class="screen" id="facts">
+                {{ screen(home.facts, lang) }}
+            </section>
             <section class="screen" id="get">
-                <h2>{{ "downloads-h1" | i18n({}, lang) }}</h2>
-                <p class="lead">{{ "downloads-lead-1" | i18n({}, lang) }} {{ "downloads-lead-2" | i18n({}, lang) }}</p>
+                <h2{{ "downloads-h1" | pageLangAttrs(lang) | safe }}>{{ "downloads-h1" | i18n({}, lang) }}</h2>
+                <p class="lead"{{ "downloads-lead-1" | pageLangAttrs(lang) | safe }}>{{ "downloads-lead-1" | i18n({}, lang) }} {{ "downloads-lead-2" | i18n({}, lang) }}</p>
                 {{ block({type: "download"}, lang) }}
-                <p class="links"><a class="pill" href="{{ downloadsPrefix }}/downloads/">{{ "home-all-downloads" | i18n({}, lang) }}</a></p>
+                <p class="links"><a class="pill" href="{{ downloadsPrefix }}/downloads/"{{ "home-all-downloads" | pageLangAttrs(lang) | safe }}>{{ "home-all-downloads" | i18n({}, lang) }}</a></p>
             </section>
             <section class="qa" id="qa" lang="en" dir="ltr">
                 {% set answers %}{% mdInclude "llms/answers.md" %}{% endset %}
@@ -119,29 +121,28 @@ active_home: true
     </main>
 
     <footer class="foot">
-        <a href="/about/">{{ "about-and-contact-us" | i18n({}, lang) }}</a>
-        <a href="/privacy/">{{ "terms-and-privacy-policy" | i18n({}, lang) }}</a>
-        <a href="/jobs/">{{ "jobs" | i18n({}, lang) }}</a>
+        <a href="/about/"{{ "about-and-contact-us" | englishAttrs(lang) | safe }}>{{ "about-and-contact-us" | i18n({}, lang) }}</a>
+        <a href="/privacy/"{{ "terms-and-privacy-policy" | englishAttrs(lang) | safe }}>{{ "terms-and-privacy-policy" | i18n({}, lang) }}</a>
+        <a href="/jobs/"{{ "jobs" | englishAttrs(lang) | safe }}>{{ "jobs" | i18n({}, lang) }}</a>
         <a href="https://github.com/simplex-chat/simplex-chat" target="_blank" rel="noopener">GitHub</a>
-        <span class="copyright">{{ "copyright-label" | i18n({}, lang) }}</span>
+        {% if menuLanguages.length > 1 %}
+        <details class="lang-menu">
+            <summary>{{ lang | replace("_", "-") }}</summary>
+            <ul>
+                {% for language in menuLanguages %}
+                <li><a href="{% completeRoute {url: page.url, lang: language.label} %}" lang="{{ language.label | replace('_', '-') }}">{{ language.name }}</a></li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+        <span class="copyright"{{ "copyright-label" | englishAttrs(lang) | safe }}>{{ "copyright-label" | i18n({}, lang) }}</span>
     </footer>
 
     <div class="composer" id="composer" hidden data-markdown-skip>
         <form class="ask" id="ask" autocomplete="off">
             <input name="q" maxlength="500" placeholder="{{ 'home-ask-placeholder' | i18n({}, lang) }}" aria-label="{{ 'home-ask-placeholder' | i18n({}, lang) }}">
-            <button type="submit">{{ "home-ask" | i18n({}, lang) }}</button>
+            <button type="submit"{{ "home-ask" | englishAttrs(lang) | safe }}>{{ "home-ask" | i18n({}, lang) }}</button>
         </form>
-    </div>
-
-    <div class="knows" id="knows" hidden role="dialog" aria-labelledby="knows-title" data-markdown-skip>
-        <h3 id="knows-title">{{ "home-knows-title" | i18n({}, lang) }}</h3>
-        <ul id="knows-list"></ul>
-        <p class="knows-empty" id="knows-empty">{{ "home-knows-empty" | i18n({}, lang) }}</p>
-        <p class="knows-privacy">{{ "home-knows-privacy" | i18n({}, lang) }}</p>
-        <div class="row">
-            <button type="button" class="danger" id="forget">{{ "home-forget" | i18n({}, lang) }}</button>
-            <button type="button" id="knows-close">{{ "home-close" | i18n({}, lang) }}</button>
-        </div>
     </div>
 
     <div class="overlay" id="overlay" hidden data-markdown-skip>
@@ -150,23 +151,23 @@ active_home: true
             <div class="sheet-head">
                 <span class="kind" id="sheet-kind"></span>
                 <a class="uri" id="sheet-uri" href="/"></a>
-                <button type="button" class="hbtn" id="sheet-copy"><span class="copy">{{ "home-copy-link" | i18n({}, lang) }}</span><span class="done" aria-hidden="true">{{ "home-copied" | i18n({}, lang) }}</span></button>
-                <a class="hbtn" id="sheet-open" href="/">{{ "home-open-page" | i18n({}, lang) }}</a>
-                <button type="button" class="hbtn" id="sheet-close" data-close>{{ "home-close" | i18n({}, lang) }}</button>
+                <button type="button" class="hbtn" id="sheet-copy"><span class="copy"{{ "home-copy-link" | englishAttrs(lang) | safe }}>{{ "home-copy-link" | i18n({}, lang) }}</span><span class="done"{{ "home-copied" | englishAttrs(lang) | safe }}>{{ "home-copied" | i18n({}, lang) }}</span></button>
+                <a class="hbtn" id="sheet-open" href="/"{{ "home-open-page" | englishAttrs(lang) | safe }}>{{ "home-open-page" | i18n({}, lang) }}</a>
+                <button type="button" class="hbtn" id="sheet-close" data-close{{ "home-close" | englishAttrs(lang) | safe }}>{{ "home-close" | i18n({}, lang) }}</button>
             </div>
             <div class="sheet-body" id="sheet-body"></div>
         </div>
     </div>
 
-    <template id="busy-template"><p class="busy"><i aria-hidden="true"></i>{{ "home-busy" | i18n({}, lang) }}</p></template>
+    <template id="busy-template"><p class="busy"{{ "home-busy" | pageLangAttrs(lang) | safe }}><i aria-hidden="true"></i>{{ "home-busy" | i18n({}, lang) }}</p></template>
     <template id="fallback-template">
-        <h2>{{ "home-fallback-title" | i18n({}, lang) }}</h2>
-        <p class="lead">{{ "home-fallback-text" | i18n({}, lang) }} <a href="https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw" target="_blank" rel="noopener">{{ "home-fallback-link" | i18n({}, lang) }}</a></p>
-        {% if lang != "en" %}<p class="fine">{{ "home-english-note" | i18n({}, lang) }}</p>{% endif %}
+        <h2{{ "home-fallback-title" | pageLangAttrs(lang) | safe }}>{{ "home-fallback-title" | i18n({}, lang) }}</h2>
+        <p class="lead"{{ "home-fallback-text" | pageLangAttrs(lang) | safe }}>{{ "home-fallback-text" | i18n({}, lang) }} <a href="https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw" target="_blank" rel="noopener">{{ "home-fallback-link" | i18n({}, lang) }}</a></p>
+        {% if lang != "en" %}<p class="fine"{{ "home-english-note" | pageLangAttrs(lang) | safe }}>{{ "home-english-note" | i18n({}, lang) }}</p>{% endif %}
     </template>
     <template id="error-template">
-        <h2>{{ "home-error-title" | i18n({}, lang) }}</h2>
-        <p class="lead">{{ "home-error-text" | i18n({}, lang) }}</p>
+        <h2{{ "home-error-title" | pageLangAttrs(lang) | safe }}>{{ "home-error-title" | i18n({}, lang) }}</h2>
+        <p class="lead"{{ "home-error-text" | pageLangAttrs(lang) | safe }}>{{ "home-error-text" | i18n({}, lang) }}</p>
     </template>
 
     <script type="application/json" id="home-data">{
@@ -174,7 +175,7 @@ active_home: true
         "countdownTo": "2026-12-12T18:00:00Z",
         "strings": {
             "answer": {{ "home-answer-eyebrow" | i18n({}, lang) | dump | safe }},
-            "more": {{ "home-search-more" | i18n({}, lang) | dump | safe }},
+            "pages": {{ "home-search-title" | i18n({}, lang) | dump | safe }},
             "continue": {{ "home-continue" | i18n({}, lang) | dump | safe }},
             "askService": {{ "home-ask-service" | i18n({}, lang) | dump | safe }},
             "asked": {{ "home-knows-asked" | i18n({}, lang) | dump | safe }},
@@ -184,7 +185,6 @@ active_home: true
             "kinds": {
                 "docs": {{ "home-kind-docs" | i18n({}, lang) | dump | safe }},
                 "blog": {{ "home-kind-blog" | i18n({}, lang) | dump | safe }},
-                "summary": {{ "home-kind-summary" | i18n({}, lang) | dump | safe }},
                 "page": "simplex.chat"
             }
         },

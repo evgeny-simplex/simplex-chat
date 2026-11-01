@@ -14,6 +14,7 @@ const markdownPages = require('./markdown_pages')
 const knowledgeBase = require('./knowledge_base')
 const home = require('./src/_data/home.json')
 const llmsFacts = require('./src/_data/llms_facts.json')
+const siteLanguages = require('./src/_data/languages.json').languages
 
 
 // Links page data
@@ -191,7 +192,7 @@ function homeKeys(value) {
 }
 
 const translatedPageDataKeys = {
-  "": homeKeys([home.personas, home.roadmap, home.intents]),
+  "": homeKeys([home.personas, home.roadmap, home.facts, home.intents]),
 }
 
 const translatedPageKeys = Object.fromEntries(Object.entries(translatedPages).map(([route, files]) => {
@@ -205,6 +206,13 @@ const factFigurePattern = /(?:about )?\$?\d[\d,.]*(?: million|M|K)?\+?%?/g
 
 function factFigure(id, nth = 0) {
   return factsById.get(id).value.match(factFigurePattern)[nth].replace(/^about /, "~")
+}
+
+function factsAsOf(items, lang) {
+  const month = new Intl.DateTimeFormat(lang.replace("_", "-"), { month: "long", year: "numeric", timeZone: "UTC" })
+  return [...new Set(items.map((item) => factsById.get(item.fact).asOf))]
+    .map((asOf) => month.format(new Date(Date.parse(`1 ${asOf} UTC`))))
+    .join(", ")
 }
 
 const outputDir = '_site'
@@ -388,6 +396,10 @@ module.exports = function (ty) {
 
   ty.addFilter("factFigure", factFigure)
 
+  ty.addFilter("factsAsOf", factsAsOf)
+
+  ty.addFilter("renderMarkdown", (markdown) => markdownLib.render(markdown))
+
   const outputSections = ["pages", "blog pages", "doc pages", "language pages", "other files", "Markdown files"]
   const outputCounts = new Map()
 
@@ -440,7 +452,7 @@ module.exports = function (ty) {
       addKnowledgeBaseSource(pageUrl, markdownUrl, markdown, this.inputPath)
     } else if (this.outputPath && this.outputPath.endsWith(".md")) {
       const markdownUrl = "/" + path.relative(outputDir, this.outputPath)
-      addKnowledgeBaseSource(markdownUrl, markdownUrl, content, this.inputPath)
+      addKnowledgeBaseSource(markdownPages.pageUrl(markdownUrl), markdownUrl, content, this.inputPath)
     }
     return content
   })
@@ -477,9 +489,13 @@ module.exports = function (ty) {
     intents: home.intents.map(({ label, ...intent }) => ({ ...intent, label: translate(label, lang) })),
     personaWords: home.personaWords,
     frame: home.frame,
+    langs: supportedLangs,
+    markdownPages: markdownPages.summaryPageUrls,
     synonyms: home.synonyms,
     kbWeights: home.kbWeights,
     facts: Object.fromEntries(Array.from(factsById.keys(), (id) => [id, factFigure(id)])),
+    factTexts: Object.fromEntries(home.facts.blocks.find((block) => block.type === "stats").items.map(({ fact, label }) =>
+      [fact, `${factsById.get(fact).fact} ${factsById.get(fact).value} ${translate(label, "en")}`])),
   }))
 
   function isTranslated(lang, url) {
@@ -490,7 +506,17 @@ module.exports = function (ty) {
 
   ty.addFilter("translated", isTranslated)
 
-  ty.addFilter("menuLanguages", (languages, url) => languages.filter((language) => language.enabled && isTranslated(language.label, url)))
+  ty.addFilter("menuLanguages", (languages, url, lang) => languages.filter((language) =>
+    language.enabled && (language.label === lang || isTranslated(language.label, url))))
+
+  ty.addFilter("englishAttrs", (key, lang) =>
+    lang !== "en" && translations[key]?.[lang] === undefined ? ' lang="en" dir="ltr"' : "")
+
+  ty.addFilter("pageLangAttrs", (key, lang) => {
+    if (lang === "en" || isTranslated(lang, "/") || translations[key]?.[lang] === undefined) return ""
+    const language = siteLanguages.find((candidate) => candidate.label === lang)
+    return ` lang="${lang.replace("_", "-")}" dir="${language && language.rtl ? "rtl" : "ltr"}"`
+  })
 
   ty.on("eleventy.before", () => unknownStrings.clear())
 

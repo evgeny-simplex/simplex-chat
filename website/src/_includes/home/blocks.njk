@@ -1,7 +1,6 @@
 {% macro pageKind(url, lang) -%}
 {%- if url.startsWith("/docs/") -%}{{ "home-kind-docs" | i18n({}, lang) }}
 {%- elif url.startsWith("/blog/") -%}{{ "home-kind-blog" | i18n({}, lang) }}
-{%- elif url.endsWith(".md") -%}{{ "home-kind-summary" | i18n({}, lang) }}
 {%- else -%}simplex.chat{%- endif -%}
 {%- endmacro %}
 
@@ -9,42 +8,43 @@
 {% set langPrefix = '' if lang == 'en' else '/' ~ lang %}
 {% set downloadsPrefix = '' if lang == 'en' or not (lang | translated('/downloads/')) else langPrefix %}
 {% if b.type == "lead" %}
-<p class="lead">{{ b.text | i18n({}, lang) | inlineMarkup | safe }}</p>
+<p class="lead"{{ b.text | pageLangAttrs(lang) | safe }}>{{ b.text | i18n({}, lang) | inlineMarkup | safe }}</p>
 {% elif b.type == "text" %}
-<p class="text">{{ b.text | i18n({}, lang) | inlineMarkup | safe }}</p>
+<p class="text"{{ b.text | pageLangAttrs(lang) | safe }}>{{ b.text | i18n({}, lang) | inlineMarkup | safe }}</p>
 {% elif b.type == "fine" %}
-<p class="fine">{{ b.text | i18n({}, lang) | inlineMarkup | safe }}</p>
+<p class="fine"{{ b.text | pageLangAttrs(lang) | safe }}>{{ b.text | i18n({}, lang) | inlineMarkup | safe }}</p>
 {% elif b.type == "stats" %}
 <div class="stats">
 {% for item in b.items %}
-<p class="stat"><b>{{ item.fact | factFigure(item.nth or 0) }}</b> <span>{{ item.label | i18n({}, lang) }}</span></p>
+<p class="stat"><b>{{ item.fact | factFigure(item.nth or 0) }}</b> <span{{ item.label | pageLangAttrs(lang) | safe }}>{{ item.label | i18n({}, lang) }}</span></p>
 {% endfor %}
+<p class="fine stats-source">{{ b.items | factsAsOf(lang) }} · <a href="/llms/facts/"{{ "home-page-facts" | pageLangAttrs(lang) | safe }}>{{ "home-page-facts" | i18n({}, lang) }}</a></p>
 </div>
 {% elif b.type == "steps" %}
 <ol class="steps">
 {% for item in b.items %}
-<li>{{ item.text | i18n({}, lang) | inlineMarkup | safe }}</li>
+<li{{ item.text | pageLangAttrs(lang) | safe }}>{{ item.text | i18n({}, lang) | inlineMarkup | safe }}</li>
 {% endfor %}
 </ol>
 {% elif b.type == "timeline" %}
 <ol class="timeline">
 {% for item in b.items %}
-<li><span class="when">{{ item.when | i18n({}, lang) }}</span> <b>{{ item.title | i18n({}, lang) }}</b> <span class="what">{{ item.text | i18n({}, lang) }}</span></li>
+<li{{ item.title | pageLangAttrs(lang) | safe }}><span class="when">{{ item.when | i18n({}, lang) }}</span> <b>{{ item.title | i18n({}, lang) }}</b> <span class="what">{{ item.text | i18n({}, lang) }}</span></li>
 {% endfor %}
 </ol>
 {% elif b.type == "pages" %}
 <div class="cards">
 {% for item in b.items %}
-<a class="card" href="{{ item.url }}"><span class="kind">{{ pageKind(item.url, lang) }}</span> <span class="title">{{ item.title | i18n({}, lang) }}</span> <span class="why">{{ item.why | i18n({}, lang) }}</span></a>
+<a class="card" href="{{ item.url }}"{{ item.title | pageLangAttrs(lang) | safe }}><span class="kind">{{ pageKind(item.url, lang) }}</span> <span class="title">{{ item.title | i18n({}, lang) }}</span> <span class="why">{{ item.why | i18n({}, lang) }}</span></a>
 {% endfor %}
 </div>
 {% elif b.type == "links" %}
 <p class="links">
 {% for item in b.items %}
 {% if item.url.startsWith("http") %}
-<a class="pill" href="{{ item.url }}" target="_blank" rel="noopener">{{ item.label | i18n({}, lang) }} <span aria-hidden="true">↗</span></a>
+<a class="pill" href="{{ item.url }}" target="_blank" rel="noopener"{{ item.label | pageLangAttrs(lang) | safe }}>{{ item.label | i18n({}, lang) }} <span aria-hidden="true">↗</span></a>
 {% else %}
-<a class="pill" href="{{ item.url }}">{{ item.label | i18n({}, lang) }}</a>
+<a class="pill" href="{{ item.url }}"{{ item.label | pageLangAttrs(lang) | safe }}>{{ item.label | i18n({}, lang) }}</a>
 {% endif %}
 {% endfor %}
 </p>
@@ -53,12 +53,12 @@
 <a class="store" href="https://apps.apple.com/us/app/simplex-chat/id1605771084" target="_blank" rel="noopener">App Store</a>
 <a class="store" href="https://play.google.com/store/apps/details?id=chat.simplex.app" target="_blank" rel="noopener">Google Play</a>
 <a class="store alt" href="{{ langPrefix }}/fdroid/">F-Droid</a>
-<a class="store alt" href="{{ downloadsPrefix }}/downloads/">{{ "home-download-desktop" | i18n({}, lang) }}</a>
+<a class="store alt" href="{{ downloadsPrefix }}/downloads/"{{ "home-download-desktop" | pageLangAttrs(lang) | safe }}>{{ "home-download-desktop" | i18n({}, lang) }}</a>
 </p>
 {% elif b.type == "questions" %}
 <p class="questions">
 {% for id in b.items %}
-<a class="chip" href="#{{ id }}" data-intent="{{ id }}">{{ id | intentLabel | i18n({}, lang) }}</a>
+<a class="chip" href="#{{ id }}" data-intent="{{ id }}"{{ id | intentLabel | pageLangAttrs(lang) | safe }}>{{ id | intentLabel | i18n({}, lang) }}</a>
 {% endfor %}
 </p>
 {% endif %}

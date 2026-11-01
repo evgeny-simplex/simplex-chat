@@ -1,0 +1,9 @@
+---
+layout: layouts/page.html
+permalink: /llms/agents/
+markdown: /llms/agents.md
+title: "SimpleX for AI agents and developers"
+description: "A program connects to SimpleX the same way a person does, with its own keys and addresses."
+---
+{% set markdown %}{% include "llms/agents.md" %}{% endset %}
+{{ markdown | renderMarkdown | siteLinks | safe }}

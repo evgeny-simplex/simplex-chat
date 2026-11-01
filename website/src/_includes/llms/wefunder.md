@@ -2,7 +2,7 @@
 
 SimpleX Chat is conducting an equity crowdfunding offering under Regulation Crowdfunding through Wefunder Portal LLC: [wefunder.com/simplex.chat](https://wefunder.com/simplex.chat). The offering terms are on Wefunder, including its AI-readable profile: [wefunder.com/simplex.chat.ai.txt](https://wefunder.com/simplex.chat.ai.txt).
 
-This page reproduces the memo from the Wefunder page, for AI assistants that cannot read Wefunder.
+This page reproduces the memo from the Wefunder page.
 
 ## Memo
 

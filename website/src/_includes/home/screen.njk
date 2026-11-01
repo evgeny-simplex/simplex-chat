@@ -2,8 +2,8 @@
 
 {% macro screen(sc, lang) %}
 <header class="head">
-<p class="eyebrow">{{ sc.eyebrow | i18n({}, lang) }}</p>
-<h2>{{ sc.title | i18n({}, lang) }}</h2>
+<p class="eyebrow"{{ sc.eyebrow | pageLangAttrs(lang) | safe }}>{{ sc.eyebrow | i18n({}, lang) }}</p>
+<h2{{ sc.title | pageLangAttrs(lang) | safe }}>{{ sc.title | i18n({}, lang) }}</h2>
 </header>
 {% for b in sc.blocks %}{{ block(b, lang) }}{% endfor %}
 {% endmacro %}

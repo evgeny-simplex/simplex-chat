@@ -105,7 +105,7 @@
             { "text": "home-developer-step-3" }
           ] },
           { "type": "pages", "items": [
-            { "url": "/llms/agents.md", "title": "home-page-agents", "why": "home-page-agents-why" },
+            { "url": "/llms/agents/", "title": "home-page-agents", "why": "home-page-agents-why" },
             { "url": "/docs/cli.html", "title": "home-page-cli", "why": "home-page-cli-why" },
             { "url": "/docs/server.html", "title": "home-page-server", "why": "home-page-server-why" }
           ] },
@@ -136,8 +136,8 @@
             { "url": "https://wefunder.com/simplex.chat?utm_source=home", "label": "home-link-wefunder" }
           ] },
           { "type": "pages", "items": [
-            { "url": "/wefunder.md", "title": "home-page-wefunder", "why": "home-page-wefunder-why" },
-            { "url": "/llms/timeline.md", "title": "home-page-timeline", "why": "home-page-timeline-why" }
+            { "url": "/crowdfunding/memo/", "title": "home-page-wefunder", "why": "home-page-wefunder-why" },
+            { "url": "/llms/timeline/", "title": "home-page-timeline", "why": "home-page-timeline-why" }
           ] },
           { "type": "fine", "text": "home-investor-risk" },
           { "type": "questions", "items": [
@@ -164,8 +164,8 @@
           ] },
           { "type": "lead", "text": "home-press-lead" },
           { "type": "pages", "items": [
-            { "url": "/llms/facts.md", "title": "home-page-facts", "why": "home-page-facts-why" },
-            { "url": "/llms/timeline.md", "title": "home-page-timeline", "why": "home-page-timeline-why" },
+            { "url": "/llms/facts/", "title": "home-page-facts", "why": "home-page-facts-why" },
+            { "url": "/llms/timeline/", "title": "home-page-timeline", "why": "home-page-timeline-why" },
             { "url": "/links/", "title": "home-page-links", "why": "home-page-links-why" }
           ] },
           { "type": "questions", "items": [
@@ -193,12 +193,39 @@
       ] }
     ]
   },
+  "facts": {
+    "eyebrow": "home-facts-eyebrow",
+    "title": "home-facts-title",
+    "blocks": [
+      { "type": "stats", "items": [
+        { "fact": "monthly-users", "label": "home-stat-monthly-users" },
+        { "fact": "downloads", "label": "home-stat-downloads" },
+        { "fact": "messages-per-day", "label": "home-stat-messages-per-day" },
+        { "fact": "growth", "label": "home-stat-growth" },
+        { "fact": "volunteer-servers", "label": "home-stat-volunteer-servers" },
+        { "fact": "channels-created", "label": "home-stat-channels-created" },
+        { "fact": "directory", "label": "home-stat-directory" },
+        { "fact": "businesses", "label": "home-stat-businesses" },
+        { "fact": "investment", "label": "home-stat-investment" },
+        { "fact": "donations", "label": "home-stat-donations" }
+      ] },
+      { "type": "pages", "items": [
+        { "url": "/llms/facts/", "title": "home-page-facts", "why": "home-page-facts-why" },
+        { "url": "/llms/timeline/", "title": "home-page-timeline", "why": "home-page-timeline-why" }
+      ] },
+      { "type": "questions", "items": [
+        "what-are-simplexs-limitations",
+        "how-will-simplex-chat-make-money",
+        "roadmap"
+      ] }
+    ]
+  },
   "intents": [
     { "id": "what-is-simplex-in-one-sentence", "label": "home-q-what-is-simplex", "phrases": ["what is simplex", "what is simplex chat", "tell me about simplex", "what does simplex do", "explain simplex"] },
     { "id": "what-is-the-difference-between-simplex-network-and-simplex-chat", "label": "home-q-network-vs-chat", "phrases": ["simplex network vs simplex chat", "is simplex chat a company", "difference between the app and the network"] },
     { "id": "how-does-simplex-deliver-messages-without-user-identifiers", "label": "home-q-deliver", "phrases": ["how can a network have no identifiers", "how does it work", "how are messages delivered without ids", "how does simplex work", "no user ids how", "message queues"] },
     { "id": "what-can-servers-and-network-observers-see", "label": "home-q-servers-see", "phrases": ["what can servers see", "what do servers know", "can the server read my messages", "metadata", "can my ip address be seen", "can the police read my messages"] },
-    { "id": "how-strong-is-the-encryption", "label": "home-q-encryption", "phrases": ["is it encrypted", "is it end to end encrypted", "are messages encrypted", "what encryption does it use", "end to end encryption", "post quantum", "quantum resistant", "double ratchet", "is it quantum safe"] },
+    { "id": "how-strong-is-the-encryption", "label": "home-q-encryption", "phrases": ["is it encrypted", "is it end to end encrypted", "are messages encrypted", "what encryption does it use", "end to end encryption", "post quantum", "quantum resistant", "double ratchet", "is it quantum safe", "are groups encrypted", "group encryption"] },
     { "id": "why-are-public-channels-not-end-to-end-encrypted", "label": "home-q-channels-encryption", "phrases": ["are channels encrypted", "why channels are not encrypted", "channel privacy"] },
     { "id": "is-simplex-audited", "label": "home-q-audited", "phrases": ["security audit", "has it been audited", "trail of bits", "independent review of security"] },
     { "id": "what-are-simplexs-limitations", "label": "home-q-limitations", "phrases": ["what are the weaknesses", "limitations", "what does simplex not protect", "downsides"] },
@@ -206,12 +233,13 @@
     { "id": "can-people-find-or-contact-me-without-my-consent", "label": "home-q-consent", "phrases": ["can strangers message me", "spam", "can someone find me", "unwanted contacts"] },
     { "id": "who-controls-the-network", "label": "home-q-controls", "phrases": ["who owns the network", "who runs the servers", "is it decentralized", "governance", "consortium", "foundation"] },
     { "id": "is-simplex-free-and-open-source", "label": "home-q-open-source", "phrases": ["is it free", "source code", "open source license", "agpl", "github"] },
-    { "id": "how-will-simplex-chat-make-money", "label": "home-q-money", "phrases": ["business model", "how do you make money", "revenue", "will it stay free", "who pays"] },
+    { "id": "how-will-simplex-chat-make-money", "label": "home-q-money", "phrases": ["business model", "how do you make money", "revenue", "will it stay free", "who pays", "freemium", "paid plan", "will users pay"] },
     { "id": "what-are-simplex-public-names", "label": "home-q-names", "phrases": ["public names", "simplex domains", "simplex names", "register a name", "name sale"] },
     { "id": "how-can-ai-agents-and-developers-use-simplex", "label": "home-q-agents", "phrases": ["build a bot", "ai agent", "api", "sdk", "chat bot"] },
     { "id": "how-can-i-invest-in-simplex-chat", "label": "home-q-invest", "phrases": ["invest", "buy shares", "crowdfunding", "wefunder", "equity"] },
     { "id": "how-do-i-contact-the-simplex-team", "label": "home-q-contact", "phrases": ["contact the team", "support", "talk to someone", "email", "help"] },
     { "id": "roadmap", "label": "home-q-roadmap", "screen": "roadmap", "phrases": ["roadmap", "what is next", "future plans", "community credits", "what are you building next"] },
+    { "id": "get-app", "label": "home-q-get-app", "screen": "get", "phrases": ["download the app", "install the app", "iphone app", "android app", "desktop app", "app for windows", "app for mac", "app for linux", "app store", "google play"] },
     { "id": "host-server", "label": "home-q-host-server", "page": "/docs/server.html", "phrases": ["run my own server", "host my own server", "self host a server", "set up a server", "use my own servers", "smp server"] },
     { "id": "notifications", "label": "home-q-notifications", "page": "/faq/#i-do-not-receive-messages-or-message-notifications", "phrases": ["notifications do not work", "not receiving notifications", "messages do not arrive", "no notifications"] }
   ],
@@ -236,6 +264,7 @@
   ],
   "kbExclude": [
     "/index.md",
+    "/llms/answers.md",
     "/blog.md",
     "/docs.md",
     "/directory.md",
@@ -259,7 +288,9 @@
     "phone": ["number"],
     "host": ["server"],
     "vc": ["investor"],
-    "vcs": ["investor"]
+    "vcs": ["investor"],
+    "raised": ["investment"],
+    "funding": ["investment"]
   },
   "kbWeights": {
     "/links/": 0.7

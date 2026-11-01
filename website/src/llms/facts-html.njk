@@ -1,0 +1,9 @@
+---
+layout: layouts/page.html
+permalink: /llms/facts/
+markdown: /llms/facts.md
+title: "SimpleX: key facts"
+description: "Facts about SimpleX network and SimpleX Chat, each with the date it was stated and its source."
+---
+{% set markdown %}{% include "llms/facts.md" %}{% endset %}
+{{ markdown | renderMarkdown | siteLinks | safe }}

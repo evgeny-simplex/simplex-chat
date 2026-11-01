@@ -1,0 +1,9 @@
+---
+layout: layouts/page.html
+permalink: /crowdfunding/memo/
+markdown: /wefunder.md
+title: "SimpleX Chat equity crowdfunding on Wefunder"
+description: "The memo from the Wefunder page of SimpleX Chat."
+---
+{% set markdown %}{% include "llms/wefunder.md" %}{% endset %}
+{{ markdown | renderMarkdown | siteLinks | safe }}
