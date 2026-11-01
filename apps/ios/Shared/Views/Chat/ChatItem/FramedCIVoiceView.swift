@@ -50,7 +50,8 @@ struct FramedCIVoiceView: View {
                 playbackTime: $playbackTime
             )
             .foregroundColor(theme.colors.secondary)
-            .frame(width: 50, alignment: .leading)
+            .fixedSize()
+            .frame(minWidth: 50, alignment: .leading)
             if .playing == playbackState || (playbackTime ?? 0) > 0 || !allowMenu {
                 playbackSlider()
             }
