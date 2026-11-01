@@ -29,15 +29,17 @@ struct ContextMemberContactActionsView: View {
                 HStack(spacing: 0) {
                     Button(role: .destructive, action: { showRejectMemberContactRequestAlert(contact) }) {
                         Label("Reject", systemImage: "multiply")
+                            .frame(maxWidth: .infinity, minHeight: 60)
+                            .contentShape(Rectangle())
                     }
-                    .frame(maxWidth: .infinity, minHeight: 60)
 
                     Button {
                         acceptMemberContactRequest(contact, inProgress: $inProgress)
                     } label: {
                         Label("Accept", systemImage: "checkmark")
+                            .frame(maxWidth: .infinity, minHeight: 60)
+                            .contentShape(Rectangle())
                     }
-                    .frame(maxWidth: .infinity, minHeight: 60)
                 }
             }
         }
