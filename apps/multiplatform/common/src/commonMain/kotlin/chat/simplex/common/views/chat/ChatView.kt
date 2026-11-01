@@ -17,7 +17,7 @@ import androidx.compose.ui.draw.*
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.*
@@ -1598,43 +1598,45 @@ fun ChatInfoToolbarTitle(
   // do not pass
   chatSubStatus: SubscriptionStatus? = chatModel.chatSubStatus.value
 ) {
-  Row(
-    horizontalArrangement = Arrangement.Center,
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    if (cInfo.incognito) {
-      IncognitoImage(size = 36.dp * fontSizeSqrtMultiplier, Indigo)
-    }
-    ChatInfoImage(cInfo, size = imageSize * fontSizeSqrtMultiplier, iconColor)
-    Column(
-      Modifier.padding(start = 8.dp),
-      horizontalAlignment = Alignment.CenterHorizontally
+  Layout({
+    Row(
+      horizontalArrangement = Arrangement.Center,
+      verticalAlignment = Alignment.CenterVertically
     ) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        if ((cInfo as? ChatInfo.Direct)?.contact?.verified == true) {
-          ContactVerifiedShield()
+      if (cInfo.incognito) {
+        IncognitoImage(size = 36.dp * fontSizeSqrtMultiplier, Indigo)
+      }
+      ChatInfoImage(cInfo, size = imageSize * fontSizeSqrtMultiplier, iconColor)
+      Column(
+        Modifier.padding(start = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+      ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          if ((cInfo as? ChatInfo.Direct)?.contact?.verified == true) {
+            ContactVerifiedShield()
+          }
+          NameWithBadge(
+            cInfo.displayName, cInfo.nameBadge, fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis
+          )
         }
-        NameWithBadge(
-          cInfo.displayName, cInfo.nameBadge, fontWeight = FontWeight.SemiBold,
-          maxLines = 1, overflow = TextOverflow.Ellipsis
-        )
-      }
-      if (cInfo.fullName != "" && cInfo.fullName != cInfo.displayName && cInfo.localAlias.isEmpty()) {
-        Text(
-          cInfo.fullName,
-          maxLines = 1, overflow = TextOverflow.Ellipsis
-        )
-      }
-      val channelSubscriberCount = (cInfo as? ChatInfo.Group)?.let { g ->
-        if (g.groupInfo.useRelays) g.groupInfo.groupSummary.publicMemberCount?.takeIf { it > 0 } else null
-      }
-      if (channelSubscriberCount != null) {
-        Text(
-          subscriberCountStr(channelSubscriberCount),
-          style = MaterialTheme.typography.body2,
-          color = MaterialTheme.colors.secondary,
-          maxLines = 1, overflow = TextOverflow.Ellipsis
-        )
+        if (cInfo.fullName != "" && cInfo.fullName != cInfo.displayName && cInfo.localAlias.isEmpty()) {
+          Text(
+            cInfo.fullName,
+            maxLines = 1, overflow = TextOverflow.Ellipsis
+          )
+        }
+        val channelSubscriberCount = (cInfo as? ChatInfo.Group)?.let { g ->
+          if (g.groupInfo.useRelays) g.groupInfo.groupSummary.publicMemberCount?.takeIf { it > 0 } else null
+        }
+        if (channelSubscriberCount != null) {
+          Text(
+            subscriberCountStr(channelSubscriberCount),
+            style = MaterialTheme.typography.body2,
+            color = MaterialTheme.colors.secondary,
+            maxLines = 1, overflow = TextOverflow.Ellipsis
+          )
+        }
       }
     }
     if (
@@ -1645,15 +1647,19 @@ fun ChatInfoToolbarTitle(
       chatSubStatus != SubscriptionStatus.Active
       ) {
       Box(
-        Modifier
-          .layout { measurable, constraints ->
-            val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity))
-            layout(0, placeable.height) { placeable.placeRelative(0, 0) }
-          }
-          .padding(start = 10.dp)
+        Modifier.padding(start = 10.dp)
       ) {
         SubStatusView(chatSubStatus)
       }
+    }
+  }) { measurables, constraints ->
+    val status = measurables.getOrNull(1)?.measure(Constraints())
+    val width = min(measurables[0].maxIntrinsicWidth(constraints.maxHeight), constraints.maxWidth)
+    val statusOverflow = max(0, (status?.width ?: 0) - (constraints.maxWidth - width) / 2)
+    val title = measurables[0].measure(constraints.copy(minWidth = 0, maxWidth = max(0, width - statusOverflow)))
+    layout(width, title.height) {
+      title.placeRelative(0, 0)
+      status?.placeRelative(title.width, Alignment.CenterVertically.align(status.height, title.height))
     }
   }
 }
