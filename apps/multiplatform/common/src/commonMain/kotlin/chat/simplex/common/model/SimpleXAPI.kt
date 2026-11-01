@@ -5908,7 +5908,7 @@ fun timeText(seconds: Int?): String {
   if (seconds == 0) {
     String.format(generalGetString(MR.strings.ttl_sec), 0)
   }
-  return CustomTimeUnit.toText(seconds)
+  return CustomTimeUnit.toText(seconds).replace(' ', ' ')
 }
 
 fun shortTimeText(seconds: Int?): String {

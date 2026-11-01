@@ -1091,8 +1091,8 @@ public enum CustomTimeUnit: Hashable {
 
 public func timeText(_ seconds: Int?) -> String {
     guard let seconds = seconds else { return NSLocalizedString("off", comment: "time to disappear") }
-    if seconds == 0 { return NSLocalizedString("0 sec", comment: "time to disappear") }
-    return CustomTimeUnit.toText(seconds: seconds)
+    let text = seconds == 0 ? NSLocalizedString("0 sec", comment: "time to disappear") : CustomTimeUnit.toText(seconds: seconds)
+    return text.replacingOccurrences(of: " ", with: "\u{00A0}")
 }
 
 public func shortTimeText(_ seconds: Int?) -> LocalizedStringKey {
