@@ -396,7 +396,7 @@ module.exports = function (ty) {
 
   ty.addFilter("factFigure", factFigure)
 
-  ty.addFilter("factsAsOf", factsAsOf)
+  ty.addFilter("factsAsOf", (items, lang) => factsAsOf(items, isTranslated(lang, "/") ? lang : "en"))
 
   ty.addFilter("renderMarkdown", (markdown) => markdownLib.render(markdown))
 

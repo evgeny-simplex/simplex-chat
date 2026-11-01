@@ -636,7 +636,7 @@ code {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 24px 32px;
 }
 
@@ -650,8 +650,9 @@ code {
 
 .stat b {
   display: block;
-  font: 700 clamp(40px, 4.4vw, 60px)/1 var(--display);
+  font: 700 clamp(40px, 3.6vw, 52px)/1 var(--display);
   letter-spacing: -0.04em;
+  white-space: nowrap;
 }
 
 .stat span {

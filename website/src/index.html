@@ -10,6 +10,7 @@ active_home: true
 {% from "home/screen.njk" import screen %}
 {% from "home/blocks.njk" import block %}
 {% set menuLanguages = languages.languages | menuLanguages(page.url, lang) %}
+{% set englishHome = lang != "en" and not (lang | translated("/")) %}
 <!DOCTYPE html>
 <html lang="{{ lang }}"
     {% for language in languages.languages %}
@@ -74,7 +75,7 @@ active_home: true
         <a class="get" id="get-app" href="{{ downloadsPrefix }}/downloads/"{{ "home-get-app" | englishAttrs(lang) | safe }}>{{ "home-get-app" | i18n({}, lang) }}</a>
     </header>
 
-    <main id="main"{% if lang != "en" and not (lang | translated("/")) %} lang="en" dir="ltr"{% endif %}>
+    <main id="main"{% if englishHome %} lang="en" dir="ltr"{% endif %}>
         <section class="hero" id="hero">
             <h1{{ "home-h1" | pageLangAttrs(lang) | safe }}>{{ "home-h1" | i18n({}, lang) }}</h1>
             <p class="sub"{{ "home-sub" | pageLangAttrs(lang) | safe }}>{{ "home-sub" | i18n({}, lang) }}</p>
@@ -84,7 +85,7 @@ active_home: true
                 {% endfor %}
             </p>
             <form class="ask" id="hero-ask" autocomplete="off" data-markdown-skip>
-                <input name="q" maxlength="500" placeholder="{{ 'home-ask-hero' | i18n({}, lang) }}" aria-label="{{ 'home-ask-hero' | i18n({}, lang) }}">
+                <input name="q" maxlength="500" dir="auto" placeholder="{{ 'home-ask-hero' | i18n({}, lang) }}" aria-label="{{ 'home-ask-hero' | i18n({}, lang) }}">
                 <button type="submit">{{ "home-ask" | i18n({}, lang) }}</button>
             </form>
             <div class="status">
@@ -138,9 +139,9 @@ active_home: true
         <span class="copyright"{{ "copyright-label" | englishAttrs(lang) | safe }}>{{ "copyright-label" | i18n({}, lang) }}</span>
     </footer>
 
-    <div class="composer" id="composer" hidden data-markdown-skip>
+    <div class="composer" id="composer" hidden data-markdown-skip{% if englishHome %} lang="en" dir="ltr"{% endif %}>
         <form class="ask" id="ask" autocomplete="off">
-            <input name="q" maxlength="500" placeholder="{{ 'home-ask-placeholder' | i18n({}, lang) }}" aria-label="{{ 'home-ask-placeholder' | i18n({}, lang) }}">
+            <input name="q" maxlength="500" dir="auto" placeholder="{{ 'home-ask-placeholder' | i18n({}, lang) }}" aria-label="{{ 'home-ask-placeholder' | i18n({}, lang) }}">
             <button type="submit"{{ "home-ask" | englishAttrs(lang) | safe }}>{{ "home-ask" | i18n({}, lang) }}</button>
         </form>
     </div>
