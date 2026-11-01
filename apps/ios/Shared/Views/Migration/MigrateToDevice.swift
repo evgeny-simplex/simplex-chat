@@ -243,6 +243,12 @@ struct MigrateToDevice: View {
         }
         .disabled(!pasteboardHasStrings)
         .frame(maxWidth: .infinity, alignment: .center)
+        .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in
+            pasteboardHasStrings = UIPasteboard.general.hasStrings
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            pasteboardHasStrings = UIPasteboard.general.hasStrings
+        }
     }
 
     private func archiveImportFromFileView() -> some View {
