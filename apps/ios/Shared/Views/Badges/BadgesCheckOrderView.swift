@@ -67,18 +67,18 @@ struct BadgesCheckOrderLayout: View {
 
                     if case let .price(p) = prices.price(period) {
                         switch period {
-                        case .monthly: footnote("Payment is charged to your Apple ID when you confirm the purchase. The subscription renews automatically at \(p) per month unless you cancel it at least 24 hours before the end of the current period. You can manage and cancel it in your App Store account settings.")
-                        case .annual: footnote("Payment is charged to your Apple ID when you confirm the purchase. The subscription renews automatically at \(p) per year unless you cancel it at least 24 hours before the end of the current period. You can manage and cancel it in your App Store account settings.")
+                        case .monthly: footnote("Renews at \(p) a month until you cancel it in the App Store.")
+                        case .annual: footnote("Renews at \(p) a year until you cancel it in the App Store.")
                         case .oneMonth: EmptyView()
                         }
                     }
 
                     if !prices.forSale(period) && prices.subscribedBefore {
-                        footnote("This Apple ID already has a badge subscription. Only the profile that bought it can continue it.")
+                        footnote("Subscribed on another profile.")
                     }
 
                     if !AppStore.canMakePayments {
-                        footnote("In-app purchases are not allowed on this device.")
+                        footnote("Purchases are off on this device.")
                     }
 
                     Spacer(minLength: 20)
@@ -143,7 +143,7 @@ struct BadgesCheckOrderLayout: View {
                         alert = SomeAlert(
                             alert: mkAlert(
                                 title: "Cannot verify this purchase",
-                                message: "The store returned a transaction that Apple has not signed. SimpleX cannot verify this purchase with the App Store."
+                                message: "Apple did not sign this purchase, so it cannot be verified."
                             ),
                             id: "badgePurchaseUnverified"
                         )

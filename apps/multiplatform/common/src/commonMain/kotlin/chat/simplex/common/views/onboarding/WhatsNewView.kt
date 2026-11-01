@@ -25,7 +25,6 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalUriHandler
 import dev.icerock.moko.resources.compose.painterResource
@@ -1028,67 +1027,44 @@ private val versionDescriptions: List<VersionDescription> = listOf(
 
 @Composable
 private fun SupporterBadgeWhatsNew(modalManager: ModalManager) {
-  Row(Modifier.padding(bottom = 12.dp).fillMaxWidth()) {
-    Column(Modifier.weight(1f)) {
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(bottom = 4.dp)
-      ) {
-        Image(painterResource(MR.images.badge_supporter), stringResource(MR.strings.v7_1_supporter_badge_title), Modifier.size(24.dp))
-        Text(
-          stringResource(MR.strings.v7_1_supporter_badge_title),
-          style = MaterialTheme.typography.h4,
-          fontWeight = FontWeight.Medium,
-          modifier = Modifier.padding(bottom = 6.dp)
-        )
-      }
+  Column(Modifier.padding(bottom = 12.dp)) {
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      modifier = Modifier.padding(bottom = 4.dp)
+    ) {
+      Image(painterResource(MR.images.badge_supporter), stringResource(MR.strings.v7_1_supporter_badge_title), Modifier.size(24.dp))
       Text(
-        stringResource(MR.strings.v7_1_supporter_badge_descr),
-        fontSize = 15.sp,
-        maxLines = 10
+        stringResource(MR.strings.v7_1_supporter_badge_title),
+        style = MaterialTheme.typography.h4,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(bottom = 6.dp)
       )
-      if (currentShownBadge() != null) {
-        Text(stringResource(MR.strings.v7_1_supporter_badge_have), Modifier.padding(top = 6.dp), fontSize = 15.sp)
-      } else if (noShownBadge()) {
-        Text(
-          stringResource(MR.strings.v7_1_supporter_badge_get),
-          color = MaterialTheme.colors.primary,
-          fontSize = 15.sp,
-          modifier = Modifier
-            .padding(top = 6.dp)
-            .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(
-              interactionSource = remember { MutableInteractionSource() },
-              indication = null
-            ) {
-              modalManager.showCustomModal(id = ModalViewId.BADGES) { close -> BadgesView(modalManager, close) }
-            }
-        )
-      }
     }
-    val isDark = isInDarkTheme()
-    if (BuildConfigCommon.SIMPLEX_ASSETS) {
-      Image(
-        painterResource(if (isDark) MR.images.phone_supporter_light else MR.images.phone_supporter),
-        contentDescription = null,
-        contentScale = ContentScale.Fit,
-        modifier = Modifier.spill(x = 23.dp, y = (-24).dp).size(width = 115.dp, height = 144.dp)
-      )
-    } else {
-      Image(
-        painterResource(MR.images.badge_supporter),
-        contentDescription = null,
-        contentScale = ContentScale.Fit,
-        modifier = Modifier.padding(start = 24.dp).size(72.dp)
+    Text(
+      stringResource(MR.strings.v7_1_supporter_badge_descr),
+      fontSize = 15.sp,
+      maxLines = 10
+    )
+    if (currentShownBadge() != null) {
+      Text(stringResource(MR.strings.v7_1_supporter_badge_have), Modifier.padding(top = 6.dp), fontSize = 15.sp)
+    } else if (noShownBadge()) {
+      Text(
+        stringResource(MR.strings.v7_1_supporter_badge_get),
+        color = MaterialTheme.colors.primary,
+        fontSize = 15.sp,
+        modifier = Modifier
+          .padding(top = 6.dp)
+          .pointerHoverIcon(PointerIcon.Hand)
+          .clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null
+          ) {
+            modalManager.showCustomModal(id = ModalViewId.BADGES) { close -> BadgesView(modalManager, close) }
+          }
       )
     }
   }
-}
-
-private fun Modifier.spill(x: Dp, y: Dp): Modifier = layout { measurable, constraints ->
-  val placeable = measurable.measure(constraints)
-  layout(0, 0) { placeable.place(x.roundToPx() - placeable.width, y.roundToPx()) }
 }
 
 private val lastVersion = versionDescriptions.last().version
@@ -1181,13 +1157,11 @@ private fun InvestInSimpleXChatView() {
           )
       )
     }
-    Text(generalGetString(MR.strings.v7_1_invest_descr), fontSize = 15.sp)
     Text(
       generalGetString(MR.strings.v7_1_invest_learn_more),
       color = MaterialTheme.colors.primary,
       fontSize = 15.sp,
       modifier = Modifier
-        .padding(top = 6.dp)
         .pointerHoverIcon(PointerIcon.Hand)
         .clickable(
           interactionSource = remember { MutableInteractionSource() },
