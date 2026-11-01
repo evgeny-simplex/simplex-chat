@@ -50,11 +50,19 @@ fun ChatListUnread() = ChatListScene { it.unread() }
 
 @Preview
 @Composable
+fun ChatListCounts() = ChatListScene { it.counts() }
+
+@Preview
+@Composable
 fun ChatListMarks() = ChatListScene { it.marks() }
 
 @Preview
 @Composable
 fun ChatListMedia() = ChatListScene { it.media() }
+
+@Preview
+@Composable
+fun ChatListCorners() = ChatListScene { it.corners() }
 
 @Preview
 @Composable
@@ -376,6 +384,23 @@ private class ChatListFixtures {
   }
 
   @Composable
+  fun counts() {
+    val hikers = group("hikers", ntfs = MsgFilter.None)
+    val team = group("team", "My Team")
+    val quiet = group("announcements", ntfs = MsgFilter.Mentions)
+    ChatRow(ChatInfo.Group(hikers, null), listOf(item(CIDirection.GroupRcv(bob), "Photos from Sunday are in the shared album")), Chat.ChatStats(unreadCount = 128))
+    ChatRow(ChatInfo.Group(hikers, null), listOf(mentionItem(hikers, bob, " are you joining the walk on Sunday morning?")), Chat.ChatStats(unreadCount = 128, unreadMentions = 1))
+    ChatRow(ChatInfo.Group(team, null), listOf(mentionItem(team, carol, " can you review the plan before the call?")), Chat.ChatStats(unreadCount = 12, unreadMentions = 2))
+    ChatRow(ChatInfo.Group(team, null), listOf(mentionItem(team, bob, " the release is ready, please check the notes")), Chat.ChatStats(unreadCount = 128, unreadMentions = 1))
+    ChatRow(ChatInfo.Group(quiet, null), listOf(mentionItem(quiet, bob, " the agenda for Monday is in the pinned message")), Chat.ChatStats(unreadCount = 12, unreadMentions = 3))
+    ChatRow(ChatInfo.Direct(contact("grace", activeConn = Connection.sampleData.copy(connStatus = ConnStatus.Joined))), stats = Chat.ChatStats(unreadCount = 1))
+    ChatRow(
+      ChatInfo.Direct(contact("dan")),
+      listOf(item(CIDirection.DirectSnd(), "", MsgContent.MCVoice("", 12), status = CIStatus.CISSndError(SndError.Auth()), file = file("voice.m4a", sent = true)))
+    )
+  }
+
+  @Composable
   fun marks() {
     val quiet = group("announcements", ntfs = MsgFilter.Mentions)
     ChatRow(ChatInfo.Direct(contact("alice", ntfs = MsgFilter.None)), listOf(item(CIDirection.DirectRcv(), "Muted chat")))
@@ -400,6 +425,18 @@ private class ChatListFixtures {
       ChatInfo.Direct(contact("grace")),
       listOf(item(CIDirection.DirectRcv(), "https://simplex.chat", MsgContent.MCLink("https://simplex.chat", linkPreview), formattedText = listOf(FormattedText("https://simplex.chat", Format.Uri()))))
     )
+  }
+
+  @Composable
+  fun corners() {
+    val linkPreview = LinkPreview(uri = "https://simplex.chat", title = "SimpleX Chat: private and secure messenger without any user IDs", description = "", image = landscape)
+    val sharedContact = MsgChatLink.Contact(link.connFullLink, Profile(displayName = "carol", fullName = "Carol", shortDescr = "Designer in Lisbon", image = photo2), business = false)
+    ChatRow(ChatInfo.Direct(contact("bob")), listOf(item(CIDirection.DirectRcv(), "", MsgContent.MCImage("", landscape), file = file("photo.jpg"))))
+    ChatRow(
+      ChatInfo.Direct(contact("grace")),
+      listOf(item(CIDirection.DirectRcv(), "https://simplex.chat", MsgContent.MCLink("https://simplex.chat", linkPreview), formattedText = listOf(FormattedText("https://simplex.chat", Format.Uri()))))
+    )
+    ChatRow(ChatInfo.Direct(contact("alice")), listOf(item(CIDirection.DirectSnd(), "", MsgContent.MCChat("", sharedContact))))
   }
 
   @Composable

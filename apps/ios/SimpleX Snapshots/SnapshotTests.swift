@@ -192,6 +192,8 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(ChatItemView_Previews.self, allSizes: true),
         SnapshotScene(ChatListConnecting_Previews.self, allSizes: true),
         SnapshotScene(ChatListContacts_Previews.self, allSizes: true),
+        SnapshotScene(ChatListCorners_Previews.self),
+        SnapshotScene(ChatListCounts_Previews.self, allSizes: true),
         SnapshotScene(ChatListDeleted_Previews.self, allSizes: true),
         SnapshotScene(ChatListFlags_Previews.self, allSizes: true),
         SnapshotScene(ChatListGroupStates_Previews.self, allSizes: true),
@@ -489,6 +491,12 @@ struct ChatListUnread_Previews: PreviewProvider {
     }
 }
 
+struct ChatListCounts_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().counts()
+    }
+}
+
 struct ChatListMarks_Previews: PreviewProvider {
     static var previews: some View {
         ChatListFixtures().marks()
@@ -498,6 +506,12 @@ struct ChatListMarks_Previews: PreviewProvider {
 struct ChatListMedia_Previews: PreviewProvider {
     static var previews: some View {
         ChatListFixtures().media()
+    }
+}
+
+struct ChatListCorners_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().corners()
     }
 }
 
@@ -932,6 +946,8 @@ private final class ChatListFixtures {
         defaults.set(false, forKey: DEFAULT_PRIVACY_SHOW_CHAT_PREVIEWS)
         return defaults
     }()
+    private static let squareCorners = cornerDefaults("chat-list-square-corners", 0)
+    private static let roundCorners = cornerDefaults("chat-list-round-corners", 1)
     private let alice = ChatListFixtures.member(2, "alice", image: ChatListFixtures.photo)
     private let bob = ChatListFixtures.member(3, "bob")
     private let carol = ChatListFixtures.member(4, "carol", image: ChatListFixtures.photo2)
@@ -945,6 +961,12 @@ private final class ChatListFixtures {
         m.localDisplayName = name
         m.memberProfile = LocalProfile(profileId: id, displayName: name, fullName: "", image: image, localAlias: "")
         return m
+    }
+
+    private static func cornerDefaults(_ suiteName: String, _ roundness: Double) -> UserDefaults {
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(roundness, forKey: DEFAULT_CHAT_ITEM_ROUNDNESS)
+        return defaults
     }
 
     private func newId() -> Int64 {
@@ -1169,6 +1191,23 @@ private final class ChatListFixtures {
         }
     }
 
+    func counts() -> some View {
+        let hikers = group("hikers", ntfs: .none)
+        let team = group("team", fullName: "My Team")
+        let quiet = group("announcements", ntfs: .mentions)
+        var joining = contact("grace")
+        joining.activeConn?.connStatus = .joined
+        return VStack(spacing: 0) {
+            row(.group(groupInfo: hikers, groupChatScope: nil), [item(.groupRcv(groupMember: bob), "Photos from Sunday are in the shared album")], ChatStats(unreadCount: 128))
+            row(.group(groupInfo: hikers, groupChatScope: nil), [mentionItem(hikers, bob, " are you joining the walk on Sunday morning?")], ChatStats(unreadCount: 128, unreadMentions: 1))
+            row(.group(groupInfo: team, groupChatScope: nil), [mentionItem(team, carol, " can you review the plan before the call?")], ChatStats(unreadCount: 12, unreadMentions: 2))
+            row(.group(groupInfo: team, groupChatScope: nil), [mentionItem(team, bob, " the release is ready, please check the notes")], ChatStats(unreadCount: 128, unreadMentions: 1))
+            row(.group(groupInfo: quiet, groupChatScope: nil), [mentionItem(quiet, bob, " the agenda for Monday is in the pinned message")], ChatStats(unreadCount: 12, unreadMentions: 3))
+            row(.direct(contact: joining), [], ChatStats(unreadCount: 1))
+            row(.direct(contact: contact("dan")), [item(.directSnd, "", .voice(text: "", duration: 12), status: .sndError(agentError: .auth), file: file("voice.m4a", sent: true))])
+        }
+    }
+
     func marks() -> some View {
         let notes = NoteFolder(noteFolderId: newId(), favorite: false, unread: false, createdAt: previewDate, updatedAt: previewDate, chatTs: previewDate)
         let quiet = group("announcements", ntfs: .mentions)
@@ -1193,6 +1232,23 @@ private final class ChatListFixtures {
             row(.direct(contact: contact("erin")), [item(.directSnd, "Listen to this", .voice(text: "Listen to this", duration: 34), file: file("voice.m4a", sent: true))])
             row(.direct(contact: contact("frank")), [item(.directRcv, "", .file(""), file: file("report.pdf"))])
             row(.direct(contact: contact("grace")), [item(.directRcv, "https://simplex.chat", .link(text: "https://simplex.chat", preview: linkPreview), formattedText: [FormattedText(text: "https://simplex.chat", format: .uri)])])
+        }
+    }
+
+    func corners() -> some View {
+        VStack(spacing: 0) {
+            cornerRows().defaultAppStorage(Self.squareCorners)
+            cornerRows().defaultAppStorage(Self.roundCorners)
+        }
+    }
+
+    private func cornerRows() -> some View {
+        let linkPreview = LinkPreview(uri: "https://simplex.chat", title: "SimpleX Chat: private and secure messenger without any user IDs", image: Self.landscape)
+        let sharedContact = MsgChatLink.contact(connLink: Self.link.connFullLink, profile: Profile(displayName: "carol", fullName: "Carol", shortDescr: "Designer in Lisbon", image: Self.photo2), business: false)
+        return VStack(spacing: 0) {
+            row(.direct(contact: contact("bob")), [item(.directRcv, "", .image(text: "", image: Self.landscape), file: file("photo.jpg"))])
+            row(.direct(contact: contact("grace")), [item(.directRcv, "https://simplex.chat", .link(text: "https://simplex.chat", preview: linkPreview), formattedText: [FormattedText(text: "https://simplex.chat", format: .uri)])])
+            row(.direct(contact: contact("alice")), [item(.directSnd, "", .chat(text: "", chatLink: sharedContact, ownerSig: nil))])
         }
     }
 
