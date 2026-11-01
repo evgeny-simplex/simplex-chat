@@ -123,7 +123,7 @@ struct NewChatSheet: View {
                             .modifier(ThemedBackground(grouped: true))
                             .navigationBarTitleDisplayMode(.inline)
                     } label: {
-                        navigateOnTap(Label("Scan / Paste link", systemImage: "qrcode")) {
+                        navigateOnTap(Label("Paste link / Scan", systemImage: "qrcode")) {
                             isScanPasteLinkActive = true
                         }
                     }
