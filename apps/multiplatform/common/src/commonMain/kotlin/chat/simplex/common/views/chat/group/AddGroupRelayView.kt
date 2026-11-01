@@ -5,6 +5,7 @@ import SectionCustomFooter
 import SectionDividerSpaced
 import SectionItemView
 import SectionView
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
@@ -168,6 +169,21 @@ private fun AddGroupRelayLayout(
       }
     }
     SectionBottomSpacer()
+  }
+}
+
+@Preview
+@Composable
+fun PreviewAddGroupRelayLayoutNoRelays() {
+  SimpleXTheme {
+    AddGroupRelayLayout(
+      availableRelays = emptyList(),
+      selectedRelayIds = emptySet(),
+      isLoading = false,
+      isAdding = false,
+      onToggleRelay = {},
+      onAddRelays = {}
+    )
   }
 }
 

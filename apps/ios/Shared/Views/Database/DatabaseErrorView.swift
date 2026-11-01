@@ -301,3 +301,15 @@ struct DatabaseErrorView_Previews: PreviewProvider {
         DatabaseErrorView(status: .errorNotADatabase(dbFile: "simplex_v1_chat.db"))
     }
 }
+
+struct DatabaseErrorView_SQL_Previews: PreviewProvider {
+    static var previews: some View {
+        DatabaseErrorView(status: .errorSQL(dbFile: "/private/var/mobile/Containers/Shared/AppGroup/simplex_v1_chat.db", migrationSQLError: "SQLError {sqlError = ErrorIO, sqlErrorDetails = \"disk I/O error\", sqlErrorContext = \"open\"}"))
+    }
+}
+
+struct DatabaseErrorView_Migration_Previews: PreviewProvider {
+    static var previews: some View {
+        DatabaseErrorView(status: .errorMigration(dbFile: "/private/var/mobile/Containers/Shared/AppGroup/simplex_v1_chat.db", migrationError: .migrationError(mtrError: .different(appMigration: "20260222_chat_relays", dbMigration: "20260301_member_badges"))))
+    }
+}

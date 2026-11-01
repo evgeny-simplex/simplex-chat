@@ -110,3 +110,14 @@ struct ContextMemberContactActionsView_Previews: PreviewProvider {
         )
     }
 }
+
+struct ContextMemberContactActionsView_Removed_Previews: PreviewProvider {
+    static var previews: some View {
+        var removed = GroupDirectInvitation.sampleData
+        removed.fromGroupMemberId_ = nil
+        return ContextMemberContactActionsView(
+            contact: Contact.sampleData,
+            groupDirectInv: removed
+        )
+    }
+}

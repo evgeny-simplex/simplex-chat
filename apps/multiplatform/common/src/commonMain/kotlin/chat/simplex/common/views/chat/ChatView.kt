@@ -4030,6 +4030,17 @@ fun PreviewGroupChatLayout() = BubblePreview {
   }
 }
 
+@Preview
+@Composable
+fun PreviewChatInfoToolbarTitleLoading() {
+  SimpleXTheme {
+    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+      ChatInfoToolbarTitle(ChatInfo.Direct.sampleData)
+      ChatInfoToolbarTitle(ChatInfo.Group.sampleData)
+    }
+  }
+}
+
 enum class ContentFilter(
   val contentTag: MsgContentTag,
   val label: StringResource,
