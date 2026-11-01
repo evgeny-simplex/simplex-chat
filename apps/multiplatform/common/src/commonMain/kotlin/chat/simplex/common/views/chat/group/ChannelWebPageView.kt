@@ -10,8 +10,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,7 +42,7 @@ fun ChannelWebPageView(
   val access = groupInfo.groupProfile.publicGroup?.publicGroupAccess
   val webPage = rememberSaveable { mutableStateOf(access?.groupWebPage ?: "") }
   val allowEmbedding = rememberSaveable { mutableStateOf(access?.allowEmbedding ?: false) }
-  val groupRelays = remember { mutableStateListOf<GroupRelay>() }
+  val groupRelays = remember { mutableStateOf<List<GroupRelay>?>(null) }
 
   val dataUnchanged = webPage.value.trim() == (access?.groupWebPage ?: "") &&
     allowEmbedding.value == (access?.allowEmbedding ?: false)
@@ -81,9 +84,7 @@ fun ChannelWebPageView(
   }
 
   LaunchedEffect(Unit) {
-    val relays = chatModel.controller.apiGetGroupRelays(rhId, groupInfo.groupId)
-    groupRelays.clear()
-    groupRelays.addAll(relays)
+    groupRelays.value = chatModel.controller.apiGetGroupRelays(rhId, groupInfo.groupId)
   }
 
   BackHandler(onBack = closeWithAlert)
@@ -92,7 +93,7 @@ fun ChannelWebPageView(
       isChannel = isChannel,
       webPage = webPage,
       allowEmbedding = allowEmbedding,
-      groupRelays = groupRelays,
+      groupRelays = groupRelays.value,
       groupInfo = groupInfo,
       dataUnchanged = dataUnchanged,
       save = save
@@ -105,7 +106,7 @@ private fun ChannelWebPageLayout(
   isChannel: Boolean,
   webPage: MutableState<String>,
   allowEmbedding: MutableState<Boolean>,
-  groupRelays: List<GroupRelay>,
+  groupRelays: List<GroupRelay>?,
   groupInfo: GroupInfo,
   dataUnchanged: Boolean,
   save: () -> Unit
@@ -114,30 +115,40 @@ private fun ChannelWebPageLayout(
   ColumnWithScrollBar {
     AppBarTitle(stringResource(if (isChannel) MR.strings.channel_webpage else MR.strings.group_webpage))
 
-    val embedCode = embedCode(groupRelays, groupInfo)
-    if (embedCode != null) {
-      SectionTextFooter(stringResource(MR.strings.webpage_info))
-      SectionDividerSpaced()
+    val embedCode = groupRelays?.let { embedCode(it, groupInfo) }
+    if (groupRelays == null || embedCode != null) {
+      Box(contentAlignment = Alignment.Center) {
+        Column(if (embedCode == null) Modifier.alpha(0f).clearAndSetSemantics {} else Modifier) {
+          SectionTextFooter(stringResource(MR.strings.webpage_info))
+          SectionDividerSpaced()
 
-      SectionView(stringResource(MR.strings.webpage_code)) {
-        SectionItemView {
-          Text(
-            embedCode,
-            style = MaterialTheme.typography.body2.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
-            maxLines = 6,
-            overflow = TextOverflow.Ellipsis
-          )
+          SectionView(stringResource(MR.strings.webpage_code)) {
+            SectionItemView {
+              Text(
+                embedCode ?: "",
+                style = MaterialTheme.typography.body2.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+                minLines = 6,
+                maxLines = 6,
+                overflow = TextOverflow.Ellipsis
+              )
+            }
+            SectionItemView(if (embedCode != null) {
+              {
+                clipboard.setText(AnnotatedString(embedCode))
+                showToast(generalGetString(MR.strings.copied))
+              }
+            } else null) {
+              Icon(painterResource(MR.images.ic_content_copy), null, tint = MaterialTheme.colors.primary)
+              Spacer(Modifier.width(8.dp))
+              Text(stringResource(MR.strings.copy_code), color = MaterialTheme.colors.primary)
+            }
+          }
+          SectionTextFooter(stringResource(MR.strings.webpage_code_footer))
         }
-        SectionItemView({
-          clipboard.setText(AnnotatedString(embedCode))
-          showToast(generalGetString(MR.strings.copied))
-        }) {
-          Icon(painterResource(MR.images.ic_content_copy), null, tint = MaterialTheme.colors.primary)
-          Spacer(Modifier.width(8.dp))
-          Text(stringResource(MR.strings.copy_code), color = MaterialTheme.colors.primary)
+        if (embedCode == null) {
+          CircularProgressIndicator(Modifier.size(30.dp), color = MaterialTheme.colors.secondary, strokeWidth = 2.5.dp)
         }
       }
-      SectionTextFooter(stringResource(MR.strings.webpage_code_footer))
     } else {
       SectionTextFooter(stringResource(MR.strings.relays_no_web_support))
     }

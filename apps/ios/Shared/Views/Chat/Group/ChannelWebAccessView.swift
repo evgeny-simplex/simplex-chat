@@ -16,7 +16,7 @@ struct ChannelWebAccessView: View {
     @State private var webPage: String
     @State private var allowEmbedding: Bool
     @State private var saving = false
-    @State private var groupRelays: [GroupRelay] = []
+    @State private var groupRelays: [GroupRelay]? = nil
 
     init(groupInfo: Binding<GroupInfo>) {
         _groupInfo = groupInfo
@@ -27,26 +27,37 @@ struct ChannelWebAccessView: View {
 
     var body: some View {
         List {
-            if let code = embedCode {
+            if groupRelays == nil || embedCode != nil {
+                let loading = groupRelays == nil
                 webpageInfo("Create a webpage to show your channel preview to visitors before they subscribe. Host it yourself or use any static hosting.")
+                    .opacity(loading ? 0 : 1)
 
                 Section {
-                    ScrollView {
-                        Text(code)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
+                    if let code = embedCode {
+                        ScrollView {
+                            Text(code)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                        .frame(maxHeight: 88)
+                    } else {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, minHeight: 88)
                     }
-                    .frame(maxHeight: 88)
                     Button {
-                        UIPasteboard.general.string = code
+                        UIPasteboard.general.string = embedCode
                     } label: {
                         Label("Copy code", systemImage: "doc.on.doc")
                     }
+                    .opacity(loading ? 0 : 1)
+                    .disabled(loading)
                 } header: {
-                    Text("Webpage code")
+                    Text("Webpage code").opacity(loading ? 0 : 1)
                 } footer: {
-                    Text("Add this code to your webpage. It will display the preview of your channel / group.")
+                    Text("Add this code to your webpage. It will display the preview of your channel / group.").opacity(loading ? 0 : 1)
                 }
+                .listRowBackground(loading ? Color.clear : nil)
+                .listRowSeparator(loading ? .hidden : .automatic)
             } else {
                 webpageInfo("Used chat relays do not support webpages.")
             }
@@ -117,7 +128,7 @@ struct ChannelWebAccessView: View {
     }
 
     private var relayDomains: [String] {
-        groupRelays.compactMap { $0.relayCap.webDomain }
+        (groupRelays ?? []).compactMap { $0.relayCap.webDomain }
     }
 
     private var embedCode: String? {
