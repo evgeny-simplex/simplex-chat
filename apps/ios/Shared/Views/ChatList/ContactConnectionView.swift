@@ -59,6 +59,7 @@ struct ContactConnectionView: View {
 
                 ZStack(alignment: .topTrailing) {
                     Text(contactConnection.description)
+                        .lineLimit(userFont <= .xxxLarge ? 2 : 1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 8)
                         .padding(.trailing, 36)
