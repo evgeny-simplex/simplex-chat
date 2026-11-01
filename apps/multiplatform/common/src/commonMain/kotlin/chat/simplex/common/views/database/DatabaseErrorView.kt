@@ -14,9 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import chat.simplex.common.model.AppPreferences
+import chat.simplex.common.model.json
 import chat.simplex.common.platform.*
 import chat.simplex.common.ui.theme.*
 import chat.simplex.common.views.helpers.*
@@ -29,6 +31,7 @@ import dev.icerock.moko.resources.compose.stringResource
 import kotlinx.coroutines.*
 import kotlinx.datetime.Clock
 import java.io.File
+import java.net.URLEncoder
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import kotlin.io.path.Path
@@ -149,6 +152,7 @@ fun DatabaseErrorView(
             Text(String.format(generalGetString(MR.strings.error_with_info), mtrErrorDescription(err.mtrError)))
           }
           OpenDatabaseDirectoryButton()
+          SendUsEmailButton(status)
         }
       }
       is DBMigrationResult.ErrorSQL -> {
@@ -157,24 +161,28 @@ fun DatabaseErrorView(
           Text(String.format(generalGetString(MR.strings.error_with_info), status.migrationSQLError))
         }
         OpenDatabaseDirectoryButton()
+        SendUsEmailButton(status)
       }
       is DBMigrationResult.ErrorKeychain -> {
         DatabaseErrorDetails(MR.strings.keychain_error) {
           Text(generalGetString(MR.strings.cannot_access_keychain))
         }
         OpenDatabaseDirectoryButton()
+        SendUsEmailButton(status)
       }
       is DBMigrationResult.InvalidConfirmation -> {
         DatabaseErrorDetails(MR.strings.invalid_migration_confirmation) {
           // this can only happen if incorrect parameter is passed
         }
         OpenDatabaseDirectoryButton()
+        SendUsEmailButton(status)
       }
       is DBMigrationResult.Unknown -> {
         DatabaseErrorDetails(MR.strings.database_error) {
           Text(String.format(generalGetString(MR.strings.unknown_database_error_with_info), status.json))
         }
         OpenDatabaseDirectoryButton()
+        SendUsEmailButton(status)
       }
       is DBMigrationResult.OK -> {}
       null -> {}
@@ -330,6 +338,19 @@ private fun OpenDatabaseDirectoryButton() {
       ::desktopOpenDatabaseDir
     )
   }
+}
+
+@Composable
+private fun SendUsEmailButton(status: DBMigrationResult) {
+  val uriHandler = LocalUriHandler.current
+  val body = URLEncoder.encode(json.encodeToString(DBMigrationResult.serializer(), status), "UTF-8").replace("+", "%20")
+  Spacer(Modifier.padding(top = DEFAULT_PADDING))
+  SettingsActionItem(
+    painterResource(MR.images.ic_mail),
+    stringResource(MR.strings.send_us_an_email),
+    { uriHandler.openUriCatching("mailto:chat@simplex.chat?body=$body") },
+    textColor = MaterialTheme.colors.primary
+  )
 }
 
 @Composable

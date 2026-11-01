@@ -290,6 +290,15 @@ struct DatabaseErrorView: View {
                     .multilineTextAlignment(.center)
                     .font(.footnote)
             }
+            Text("[Send us email](mailto:chat@simplex.chat)")
+                .environment(\.openURL, OpenURLAction { url in
+                    let body = String(describing: status).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+")))
+                    if let body, let mailto = URL(string: "\(url.absoluteString)?body=\(body)") {
+                        UIApplication.shared.open(mailto)
+                        return .handled
+                    }
+                    return .systemAction
+                })
         }
         .padding()
         .frame(maxWidth: .infinity)
