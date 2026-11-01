@@ -296,7 +296,8 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(VerifyCodeView_Previews.self),
         SnapshotScene(VersionView_Previews.self),
         SnapshotScene(WhySimpleX_Previews.self),
-        SnapshotScene(YourServersView_Previews.self)
+        SnapshotScene(YourServersView_Previews.self),
+        SnapshotScene(ConnectView_Previews.self)
     ]
 }
 
