@@ -98,7 +98,7 @@ private fun SharePreviewView(chat: Chat, disabled: Boolean) {
       horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
       if (chat.chatInfo is ChatInfo.Local) {
-        ProfileImage(size = 42.dp, null, icon = MR.images.ic_folder_filled, color = NoteFolderIconColor)
+        ChatInfoImage(chat.chatInfo, size = 42.dp)
       } else if (chat.chatInfo is ChatInfo.Group) {
         ProfileImage(size = 42.dp, chat.chatInfo.image, icon = MR.images.ic_supervised_user_circle_filled)
       } else {
