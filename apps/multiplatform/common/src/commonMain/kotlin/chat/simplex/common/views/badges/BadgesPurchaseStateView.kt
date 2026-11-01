@@ -1,5 +1,6 @@
 package chat.simplex.common.views.badges
 
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
@@ -16,6 +17,7 @@ import dev.icerock.moko.resources.compose.painterResource
 import dev.icerock.moko.resources.compose.stringResource
 import chat.simplex.common.model.BadgeIssueFailure
 import chat.simplex.common.platform.ColumnWithScrollBar
+import chat.simplex.common.ui.theme.SimpleXTheme
 import chat.simplex.common.views.helpers.openVerifiedSimplexUri
 import chat.simplex.common.views.onboarding.TextButtonBelowOnboardingButton
 import chat.simplex.common.views.usersettings.simplexTeamUri
@@ -76,6 +78,14 @@ fun BadgesPurchaseStateView(title: StringResource, message: StringResource?, fai
       TextButtonBelowOnboardingButton(stringResource(MR.strings.badges_dismiss), onDismiss)
       TextButtonBelowOnboardingButton("", null)
     }
+  }
+}
+
+@Preview
+@Composable
+fun PreviewBadgesPurchaseStateViewFailed() {
+  SimpleXTheme {
+    BadgesPurchaseStateView(BadgePurchaseState.Issuing.title, BadgePurchaseState.Issuing.message, BadgeIssueFailure.ServiceTimeout, onDismiss = {})
   }
 }
 
