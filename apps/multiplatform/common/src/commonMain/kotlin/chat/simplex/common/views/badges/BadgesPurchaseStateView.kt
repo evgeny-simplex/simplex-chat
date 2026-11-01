@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -15,7 +16,9 @@ import dev.icerock.moko.resources.compose.painterResource
 import dev.icerock.moko.resources.compose.stringResource
 import chat.simplex.common.model.BadgeIssueFailure
 import chat.simplex.common.platform.ColumnWithScrollBar
+import chat.simplex.common.views.helpers.openVerifiedSimplexUri
 import chat.simplex.common.views.onboarding.TextButtonBelowOnboardingButton
+import chat.simplex.common.views.usersettings.simplexTeamUri
 import chat.simplex.res.*
 
 @Composable
@@ -54,6 +57,8 @@ fun BadgesPurchaseStateView(title: StringResource, message: StringResource?, fai
           textAlign = TextAlign.Center,
           modifier = Modifier.fillMaxWidth()
         )
+        val uriHandler = LocalUriHandler.current
+        TextButtonBelowOnboardingButton(stringResource(MR.strings.badges_contact_team), { uriHandler.openVerifiedSimplexUri(simplexTeamUri) })
       }
     }
 
