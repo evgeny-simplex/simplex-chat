@@ -75,6 +75,9 @@ struct BadgesSupportSimplexView: View {
                         RedeemCodeButton()
                     }
                     .frame(height: 22)
+                    if isInUS {
+                        BadgeInvestorOffer(level: .supporter).hidden()
+                    }
                 }
                 .padding(.bottom, g.safeAreaInsets.bottom == 0 ? 20 : 0)
             }

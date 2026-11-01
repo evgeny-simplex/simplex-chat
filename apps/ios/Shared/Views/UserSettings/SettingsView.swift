@@ -371,15 +371,17 @@ struct SettingsView: View {
                         .modifier(ThemedBackground())
                 } label: {
                     let badgeType = chatModel.currentUser?.profile.localBadge?.badge.badgeType ?? .supporter
-                    let badgeShown = badgeModel.userId == chatModel.currentUser?.userId && badgeModel.badgeState?.shown == true
                     ZStack(alignment: .leading) {
                         Image(badgeImageName(badgeType))
                             .resizable()
                             .scaledToFit()
                             .frame(width: 24, height: 24)
-                        Text(badgeShown ? "Your badge" : "Get a supporter badge").padding(.leading, indent)
+                        Text(badgeRow.label).padding(.leading, indent)
                     }
                 }
+            } footer: {
+                Text(badgeRow.benefits)
+                    .foregroundColor(theme.colors.secondary)
             }
 
             Section(header: Text("Advanced settings").foregroundColor(theme.colors.secondary)) {
@@ -421,9 +423,9 @@ struct SettingsView: View {
             }
 
             if isInUS {
-                Section(header: Text("You can now invest in SimpleX Chat").foregroundColor(theme.colors.secondary)) {
+                Section(header: Text("Own a part of SimpleX Chat").foregroundColor(theme.colors.secondary)) {
                     NavigationLink {
-                        GetStakeView(fromSettings: true, showFirstImage: true)
+                        GetStakeView(fromSettings: true)
                             .navigationBarTitle("", displayMode: .inline)
                     } label: {
                         settingsRow("dollarsign.circle", color: theme.colors.secondary) { Text("Crowdfunding on Wefunder") }
@@ -436,6 +438,15 @@ struct SettingsView: View {
         .onDisappear {
             chatModel.showingTerminal = false
             chatModel.terminalItems = []
+        }
+    }
+
+    private var badgeRow: (label: LocalizedStringKey, benefits: LocalizedStringKey) {
+        switch currentShownBadge()?.badgeType {
+        case nil: ("Support SimpleX", "Larger files available for longer.")
+        case .supporter: ("Your supporter badge", "Files up to 2 GB, stored for 7 days.")
+        case .legend: ("Your legend badge", "Files up to 5 GB, stored for 21 days.")
+        case .investor, .unknown: ("Your badge", "Files up to 2 GB, stored for 7 days.")
         }
     }
 
