@@ -402,8 +402,8 @@ private fun MutableState<MigrationFromState>.FinishedView(chatDeletion: Boolean)
         textColor = MaterialTheme.colors.primary,
         click = {
           AlertManager.shared.showAlertDialog(
-            title = generalGetString(MR.strings.delete_chat_profile_question),
-            text = generalGetString(MR.strings.delete_chat_profile_action_cannot_be_undone_warning),
+            title = generalGetString(MR.strings.delete_database_question),
+            text = generalGetString(MR.strings.delete_database_all_profiles_warning),
             confirmText = generalGetString(MR.strings.delete_verb),
             onConfirm = {
               deleteChatAndDismiss()

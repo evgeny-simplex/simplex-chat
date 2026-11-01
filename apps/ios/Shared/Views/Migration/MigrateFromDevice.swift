@@ -26,7 +26,7 @@ private enum MigrationFromState: Equatable {
 
 private enum MigrateFromDeviceViewAlert: Identifiable {
     case finishMigration(_ fileId: Int64, _ ctrl: chat_ctrl)
-    case deleteChat(_ title: LocalizedStringKey = "Delete chat profile?", _ text: LocalizedStringKey = "This action cannot be undone - your profile, contacts, messages and files will be irreversibly lost.")
+    case deleteChat(_ title: LocalizedStringKey = "Delete database?", _ text: LocalizedStringKey = "All chat profiles, contacts, messages and files on this device will be deleted. This cannot be undone.")
     case startChat(_ title: LocalizedStringKey = "Start chat?", _ text: LocalizedStringKey = "Warning: starting chat on multiple devices is not supported and will cause message delivery failures")
 
     case wrongPassphrase(title: LocalizedStringKey = "Wrong passphrase!", message: LocalizedStringKey = "Enter correct passphrase.")
