@@ -797,8 +797,8 @@ private val versionDescriptions: List<VersionDescription> = listOf(
           Column {
             val src = (operatorsInfo[OperatorTag.Flux] ?: dummyOperatorInfo).largeLogo
             Image(painterResource(src), null, modifier = Modifier.height(48.dp))
-            Text(stringResource(MR.strings.v6_2_network_decentralization_descr), modifier = Modifier.padding(top = 8.dp))
-            Text(stringResource(MR.strings.v6_2_network_decentralization_enable_flux))
+            Text(stringResource(MR.strings.v6_2_network_decentralization_descr), modifier = Modifier.padding(top = 8.dp), fontSize = 17.sp)
+            Text(stringResource(MR.strings.v6_2_network_decentralization_enable_flux), fontSize = 17.sp)
           }
         }
       ),
