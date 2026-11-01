@@ -117,6 +117,8 @@ private val previewScenes = listOf(
   SnapshotScene("UserAddressView.PreviewUserAddressLayoutAddressCreated") { PreviewUserAddressLayoutAddressCreated() },
   SnapshotScene("AdvancedNetworkSettings.PreviewAdvancedNetworkSettingsLayout") { PreviewAdvancedNetworkSettingsLayout() },
   SnapshotScene("NetworkAndServers.PreviewNetworkAndServersLayout") { PreviewNetworkAndServersLayout() },
+  SnapshotScene("BadgeRenders.PreviewWhatsNewWithBadge") { chat.simplex.common.views.badges.PreviewWhatsNewWithBadge() },
+  SnapshotScene("BadgeRenders.PreviewWhatsNewBadgeStateLoading") { chat.simplex.common.views.badges.PreviewWhatsNewBadgeStateLoading() },
 )
 
 private val previewsCallingCore = listOf(
