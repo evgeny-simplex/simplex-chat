@@ -24,15 +24,16 @@ struct ContactConnectionView: View {
     }
 
     func contactConnectionView(_ contactConnection: PendingContactConnection) -> some View {
-        HStack(spacing: 8) {
+        let size = dynamicSize(userFont)
+        return HStack(spacing: 8) {
             Group {
                 Image(systemName: contactConnection.initiated ? "link.badge.plus" : "link")
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 48, height: 48)
+                    .frame(width: size.profileImageSize * 48 / 63, height: size.profileImageSize * 48 / 63)
                     .foregroundColor(Color(uiColor: .tertiarySystemGroupedBackground).asAnotherColorFromSecondaryVariant(theme))
             }
-            .frame(width: 63, height: 63)
+            .frame(width: size.profileImageSize, height: size.profileImageSize)
             .padding(.leading, 4)
 
             VStack(alignment: .leading, spacing: 0) {
@@ -42,35 +43,36 @@ struct ContactConnectionView: View {
                         .bold()
                         .allowsTightening(false)
                         .foregroundColor(theme.colors.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.top, 1)
-                        .padding(.bottom, 0.5)
+                        .lineLimit(1)
                         .frame(alignment: .topLeading)
 
                     Spacer()
 
                     formatTimestampText(contactConnection.updatedAt)
                         .font(.subheadline)
-                        .padding(.trailing, 8)
-                        .padding(.vertical, 4)
+                        .padding(.top, 4)
                         .frame(minWidth: 60, alignment: .trailing)
                         .foregroundColor(theme.colors.secondary)
                 }
-                .padding(.bottom, 2)
+                .padding(.bottom, 4)
+                .padding(.horizontal, 8)
 
                 ZStack(alignment: .topTrailing) {
                     Text(contactConnection.description)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    incognitoIcon(contactConnection.incognito, theme.colors.secondary, size: dynamicSize(userFont).incognitoSize)
-                        .padding(.top, 26)
+                        .padding(.leading, 8)
+                        .padding(.trailing, 36)
+                    incognitoIcon(contactConnection.incognito, theme.colors.secondary, size: size.incognitoSize)
+                        .padding(.top, size.chatInfoSize * 1.44)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .padding(.horizontal, 8)
+                .padding(.trailing, 8)
 
                 Spacer()
             }
             .frame(maxHeight: .infinity)
         }
+        .padding(.bottom, -8)
     }
 }
 

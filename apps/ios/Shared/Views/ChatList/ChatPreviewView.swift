@@ -22,9 +22,11 @@ struct ChatPreviewView: View {
     @State private var showFullscreenGallery: Bool = false
 
     @AppStorage(DEFAULT_PRIVACY_SHOW_CHAT_PREVIEWS) private var showChatPreviews = true
+    @AppStorage(DEFAULT_CHAT_ITEM_ROUNDNESS) private var roundness = defaultChatItemRoundness
 
     var dynamicMediaSize: CGFloat { dynamicSize(userFont).mediaSize }
     var dynamicChatInfoSize: CGFloat { dynamicSize(userFont).chatInfoSize }
+    var mediaCornerRadius: CGFloat { 12 * roundness }
 
     var body: some View {
         let cItem = chat.chatItems.last
@@ -70,6 +72,11 @@ struct ChatPreviewView: View {
                                 let hasFilePreview = if case .file = mc { true } else { false }
                                 chatMessagePreview(cItem, hasFilePreview)
                             } else {
+                                if let ci {
+                                    itemStatusMark(ci)
+                                        .frame(height: voiceMessageSizeBasedOnSquareSize(dynamicMediaSize))
+                                        .padding(.vertical, dynamicMediaSize / 6)
+                                }
                                 Spacer()
                                 chatInfoIcon(chat).frame(minWidth: 37, alignment: .trailing)
                             }
@@ -157,8 +164,10 @@ struct ChatPreviewView: View {
 
     private func inactiveIcon() -> some View {
         Image(systemName: "multiply.circle.fill")
-            .foregroundColor(.secondary.opacity(0.65))
-            .background(Circle().foregroundColor(Color(uiColor: .systemBackground)))
+            .resizable()
+            .frame(width: dynamicChatInfoSize, height: dynamicChatInfoSize)
+            .foregroundColor(theme.colors.secondary)
+            .background(Circle().foregroundColor(theme.colors.background))
     }
 
     @ViewBuilder private func chatPreviewTitle() -> some View {
@@ -202,10 +211,9 @@ struct ChatPreviewView: View {
             .kerning(-2)
     }
 
-    private func chatPreviewLayout(_ text: Text?, draft: Bool = false, hasFilePreview: Bool = false, hasSecrets: Bool) -> some View {
+    private func chatPreviewLayout(_ text: Text?, privacySensitive: Bool = true, hasFilePreview: Bool = false, hasSecrets: Bool) -> some View {
         ZStack(alignment: .topTrailing) {
-            let s = chat.chatStats
-            let mentionWidth: CGFloat = if s.unreadMentions > 0 && s.unreadCount > 1 { dynamicSize(userFont).unreadCorner } else { 0 }
+            let mentionWidth: CGFloat = if case .group = chat.chatInfo { dynamicSize(userFont).unreadCorner } else { 0 }
             let t = text
                 .lineLimit(userFont <= .xxxLarge ? 2 : 1)
                 .multilineTextAlignment(.leading)
@@ -215,7 +223,7 @@ struct ChatPreviewView: View {
                 .padding(.trailing, mentionWidth + (hasFilePreview ? 38 : 36))
                 .offset(x: hasFilePreview ? -2 : 0)
                 .fixedSize(horizontal: false, vertical: true)
-            if !showChatPreviews && !draft {
+            if !showChatPreviews && privacySensitive {
                 t.privacySensitive(true).redacted(reason: .privacy)
             } else {
                 t
@@ -229,7 +237,7 @@ struct ChatPreviewView: View {
         if s.unreadCount > 0 || s.unreadChat {
             let mentionColor = mentionColor(chat)
             HStack(alignment: .center, spacing: 2) {
-                if s.unreadMentions > 0 && s.unreadCount > 1 {
+                if s.unreadMentions > 0 {
                     Text("\(MENTION_START)")
                         .font(userFont <= .xxxLarge ? .body : .callout)
                         .foregroundColor(mentionColor)
@@ -237,31 +245,15 @@ struct ChatPreviewView: View {
                         .cornerRadius(dynamicSize(userFont).unreadCorner)
                         .padding(.bottom, 1)
                 }
-                let singleUnreadIsMention = s.unreadMentions > 0 && s.unreadCount == 1
-                (singleUnreadIsMention ? Text("\(MENTION_START)") : unreadCountText(s.unreadCount))
+                unreadCountText(s.unreadCount)
                     .font(userFont <= .xxxLarge ? .caption : .caption2)
                     .foregroundColor(.white)
                     .padding(.horizontal, dynamicSize(userFont).unreadPadding)
                     .frame(minWidth: dynamicChatInfoSize, minHeight: dynamicChatInfoSize)
-                    .background(singleUnreadIsMention ? mentionColor : chat.chatInfo.ntfsEnabled(false) || chat.chatInfo.chatType == .local ? theme.colors.primary : theme.colors.secondary)
+                    .background(chat.chatInfo.ntfsEnabled(false) || chat.chatInfo.chatType == .local ? theme.colors.primary : theme.colors.secondary)
                     .cornerRadius(dynamicSize(userFont).unreadCorner)
             }
             .frame(height: dynamicChatInfoSize)
-        } else if let ntfMode = chat.chatInfo.chatSettings?.enableNtfs, ntfMode != .all {
-            let iconSize = ntfMode == .mentions ? dynamicChatInfoSize * 0.8 : dynamicChatInfoSize
-            let iconColor = ntfMode == .mentions ? theme.colors.secondary.opacity(0.7) : theme.colors.secondary
-            Image(systemName: ntfMode.iconFilled)
-                .resizable()
-                .scaledToFill()
-                .frame(width: iconSize, height: iconSize)
-                .foregroundColor(iconColor)
-        } else if chat.chatInfo.chatSettings?.favorite ?? false {
-            Image(systemName: "star.fill")
-                .resizable()
-                .scaledToFill()
-                .frame(width: dynamicChatInfoSize, height: dynamicChatInfoSize)
-                .padding(.trailing, 1)
-                .foregroundColor(theme.colors.secondary.opacity(0.65))
         } else {
             Color.clear.frame(width: 0)
         }
@@ -351,9 +343,9 @@ struct ChatPreviewView: View {
     @ViewBuilder private func chatMessagePreview(_ cItem: ChatItem?, _ hasFilePreview: Bool = false) -> some View {
         if chatModel.draftChatId == chat.id, let draft = chatModel.draft {
             let (t, hasSecrets) = messageDraft(draft)
-            chatPreviewLayout(t, draft: true, hasFilePreview: hasFilePreview, hasSecrets: hasSecrets)
+            chatPreviewLayout(t, privacySensitive: false, hasFilePreview: hasFilePreview, hasSecrets: hasSecrets)
         } else if cItem?.content.hasMsgContent != true, let previewText = chatPreviewInfoText() {
-            chatPreviewInfoTextLayout(previewText)
+            chatPreviewLayout(previewText, privacySensitive: false, hasSecrets: false)
         } else if let cItem = cItem {
             let (t, hasSecrets) = chatItemPreview(cItem)
             chatPreviewLayout(itemStatusMark(cItem) + t, hasFilePreview: hasFilePreview, hasSecrets: hasSecrets)
@@ -403,7 +395,7 @@ struct ChatPreviewView: View {
         let mc = ci.content.msgContent
         switch mc {
         case let .link(_, preview):
-            smallContentPreview(size: dynamicMediaSize) {
+            smallContentPreview(size: dynamicMediaSize, cornerRadius: mediaCornerRadius) {
                 ZStack(alignment: .topTrailing) {
                     Image(uiImage: imageFromBase64(preview.image) ?? UIImage(systemName: "arrow.up.right")!)
                         .resizable()
@@ -425,11 +417,11 @@ struct ChatPreviewView: View {
                 }
             }
         case let .image(_, image):
-            smallContentPreview(size: dynamicMediaSize) {
+            smallContentPreview(size: dynamicMediaSize, cornerRadius: mediaCornerRadius) {
                 CIImageView(chatItem: ci, preview: imageFromBase64(image), maxWidth: dynamicMediaSize, smallView: true, showFullScreenImage: $showFullscreenGallery)
             }
         case let .video(_,image, duration):
-            smallContentPreview(size: dynamicMediaSize) {
+            smallContentPreview(size: dynamicMediaSize, cornerRadius: mediaCornerRadius) {
                 CIVideoView(chatItem: ci, preview: imageFromBase64(image), duration: duration, maxWidth: dynamicMediaSize, videoWidth: nil, smallView: true, showFullscreenPlayer: $showFullscreenGallery)
             }
         case let .voice(_, duration):
@@ -441,7 +433,7 @@ struct ChatPreviewView: View {
                 CIFileView(chat: chat, file: ci.file, meta: ci.meta, smallViewSize: dynamicMediaSize)
             }
         case let .chat(_, chatLink, ownerSig):
-            smallContentPreview(size: dynamicMediaSize, borderColor: chatLink.image != nil ? .secondary : .clear) {
+            smallContentPreview(size: dynamicMediaSize, cornerRadius: mediaCornerRadius, borderColor: chatLink.image != nil ? .secondary : .clear) {
                 ProfileImage(
                     imageStr: chatLink.image,
                     icon: Image(systemName: chatLink.iconName),
@@ -461,13 +453,6 @@ struct ChatPreviewView: View {
         groupInfo.membership.memberIncognito
         ? Text("Join as \(groupInfo.membership.memberProfile.displayName)")
         : Text("You are invited to group")
-    }
-
-    private func chatPreviewInfoTextLayout(_ text: Text) -> some View {
-        text
-            .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44, alignment: .topLeading)
-            .padding([.leading, .trailing], 8)
-            .padding(.bottom, 4)
     }
 
     private func itemStatusMark(_ cItem: ChatItem) -> Text {
@@ -525,11 +510,11 @@ func flagIcon(size: CGFloat, color: Color) -> some View {
         .foregroundColor(color)
 }
 
-func smallContentPreview(size: CGFloat, borderColor: Color = .secondary, _ view: @escaping () -> some View) -> some View {
+func smallContentPreview(size: CGFloat, cornerRadius: CGFloat, borderColor: Color = .secondary, _ view: @escaping () -> some View) -> some View {
     view()
     .frame(width: size, height: size)
-    .cornerRadius(8)
-    .overlay(RoundedRectangle(cornerSize: CGSize(width: 8, height: 8))
+    .cornerRadius(cornerRadius)
+    .overlay(RoundedRectangle(cornerSize: CGSize(width: cornerRadius, height: cornerRadius))
         .strokeBorder(borderColor, lineWidth: 0.3, antialiased: true))
     .padding(.vertical, size / 6)
     .padding(.leading, 3)

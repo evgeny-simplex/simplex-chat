@@ -156,13 +156,13 @@ struct ChatListNavLink: View {
                             Button {
                                 acceptMemberContactRequest(contact)
                             } label: {
-                                Label("Accept", systemImage: "checkmark")
+                                SwipeLabel(NSLocalizedString("Accept", comment: "swipe action"), systemImage: "checkmark", inverted: oneHandUI)
                             }
                             .tint(theme.colors.primary)
                             Button {
                                 showRejectMemberContactRequestAlert(contact)
                             } label: {
-                                Label("Reject", systemImage: "multiply")
+                                SwipeLabel(NSLocalizedString("Reject", comment: "swipe action"), systemImage: "multiply", inverted: oneHandUI)
                             }
                             .tint(.red)
                         } else {

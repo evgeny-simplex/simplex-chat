@@ -30,26 +30,28 @@ struct ContactRequestView: View {
                         chat.chatInfo.nameBadge,
                         .title3
                     )
-                    .padding(.leading, 8)
+                    .lineLimit(1)
                     .frame(alignment: .topLeading)
                     Spacer()
                     formatTimestampText(contactRequest.updatedAt)
                         .font(.subheadline)
-                        .padding(.trailing, 8)
                         .padding(.top, 4)
                         .frame(minWidth: 60, alignment: .trailing)
                         .foregroundColor(theme.colors.secondary)
                 }
-                .padding(.bottom, 2)
+                .padding(.bottom, 4)
+                .padding(.horizontal, 8)
 
                 Text("wants to connect to you!")
                     .frame(alignment: .topLeading)
                     .padding([.leading, .trailing], 8)
-                
+                    .padding(.trailing, 36)
+
                 Spacer()
             }
             .frame(maxHeight: .infinity)
         }
+        .padding(.bottom, -8)
     }
 }
 
