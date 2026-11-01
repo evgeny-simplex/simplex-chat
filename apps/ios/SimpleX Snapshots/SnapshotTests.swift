@@ -190,7 +190,19 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(ChatItemInfoView_Previews.self),
         SnapshotScene(ChatItemView_NonMsgContentDeleted_Previews.self, allSizes: true),
         SnapshotScene(ChatItemView_Previews.self, allSizes: true),
+        SnapshotScene(ChatListConnecting_Previews.self, allSizes: true),
+        SnapshotScene(ChatListContacts_Previews.self, allSizes: true),
+        SnapshotScene(ChatListDeleted_Previews.self, allSizes: true),
+        SnapshotScene(ChatListFlags_Previews.self, allSizes: true),
+        SnapshotScene(ChatListGroupStates_Previews.self, allSizes: true),
+        SnapshotScene(ChatListGroups_Previews.self, allSizes: true),
+        SnapshotScene(ChatListLong_Previews.self, allSizes: true),
+        SnapshotScene(ChatListMarks_Previews.self, allSizes: true),
+        SnapshotScene(ChatListMedia_Previews.self, allSizes: true),
         SnapshotScene(ChatListNavLink_Previews.self),
+        SnapshotScene(ChatListPending_Previews.self, allSizes: true),
+        SnapshotScene(ChatListText_Previews.self, allSizes: true),
+        SnapshotScene(ChatListUnread_Previews.self, allSizes: true),
         SnapshotScene(ChatListView_Previews.self),
         SnapshotScene(ChatPreviewView_Previews.self),
         SnapshotScene(ChatView_Previews.self),
@@ -432,6 +444,78 @@ struct TerminalOverviewChannel_Previews: PreviewProvider {
 struct ClassicOverviewChannel_Previews: PreviewProvider {
     static var previews: some View {
         SnapshotFixtures().overviewChannel(terminal: false)
+    }
+}
+
+struct ChatListContacts_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().contacts()
+    }
+}
+
+struct ChatListConnecting_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().connecting()
+    }
+}
+
+struct ChatListPending_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().pending()
+    }
+}
+
+struct ChatListGroups_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().groups()
+    }
+}
+
+struct ChatListGroupStates_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().groupStates()
+    }
+}
+
+struct ChatListFlags_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().flags()
+    }
+}
+
+struct ChatListUnread_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().unread()
+    }
+}
+
+struct ChatListMarks_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().marks()
+    }
+}
+
+struct ChatListMedia_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().media()
+    }
+}
+
+struct ChatListText_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().text()
+    }
+}
+
+struct ChatListDeleted_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().deleted()
+    }
+}
+
+struct ChatListLong_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().long()
     }
 }
 
@@ -826,5 +910,327 @@ private final class SnapshotFixtures {
             msg(.channelRcv, "## What's new\n- terminal layout\n- faster sync", -190),
             msg(.channelRcv, "Screenshot of the new layout", -180, content: .image(text: "Screenshot of the new layout", image: landscape), file: imageFile("screenshot.jpg"))
         ], terminal: terminal)
+    }
+}
+
+private struct ChatListRow<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var userFont: DynamicTypeSize
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content().frame(height: dynamicSize(userFont).rowHeight)
+    }
+}
+
+private final class ChatListFixtures {
+    private static let photo = imageBase64(UIColor(red: 0.85, green: 0.45, blue: 0.3, alpha: 1), CGSize(width: 64, height: 64))
+    private static let photo2 = imageBase64(UIColor(red: 0.55, green: 0.35, blue: 0.75, alpha: 1), CGSize(width: 64, height: 64))
+    private static let landscape = imageBase64(UIColor(red: 0.25, green: 0.55, blue: 0.35, alpha: 1), CGSize(width: 320, height: 200))
+    private static let link = CreatedConnLink(connFullLink: "https://simplex.chat/contact#/?v=2-7&smp=smp%3A%2F%2Fexample.simplex.im", connShortLink: nil)
+    private static let hiddenPreviews: UserDefaults = {
+        let defaults = UserDefaults(suiteName: "chat-list-hidden-previews")!
+        defaults.set(false, forKey: DEFAULT_PRIVACY_SHOW_CHAT_PREVIEWS)
+        return defaults
+    }()
+    private let alice = ChatListFixtures.member(2, "alice", image: ChatListFixtures.photo)
+    private let bob = ChatListFixtures.member(3, "bob")
+    private let carol = ChatListFixtures.member(4, "carol", image: ChatListFixtures.photo2)
+    private var nextId: Int64 = 100
+
+    private static func member(_ id: Int64, _ name: String, image: String? = nil) -> GroupMember {
+        var m = GroupMember.sampleData
+        m.groupMemberId = id
+        m.memberId = "member-\(id)"
+        m.memberRole = .member
+        m.localDisplayName = name
+        m.memberProfile = LocalProfile(profileId: id, displayName: name, fullName: "", image: image, localAlias: "")
+        return m
+    }
+
+    private func newId() -> Int64 {
+        nextId += 1
+        return nextId
+    }
+
+    private func badge(_ type: BadgeType, _ status: BadgeStatus) -> LocalBadge {
+        LocalBadge(badge: BadgeInfo(badgeType: type, badgeExpiry: previewDate), status: status)
+    }
+
+    private func contact(_ name: String, fullName: String = "", image: String? = nil, peerType: ChatPeerType? = nil, badge: LocalBadge? = nil, contactLink: String? = nil, ntfs: MsgFilter = .all, favorite: Bool = false) -> Contact {
+        var c = Contact.sampleData
+        c.contactId = newId()
+        c.localDisplayName = name
+        c.profile = LocalProfile(profileId: c.contactId, displayName: name, fullName: fullName, image: image, contactLink: contactLink, peerType: peerType, localBadge: badge, localAlias: "")
+        c.chatSettings = ChatSettings(enableNtfs: ntfs, sendRcpts: nil, favorite: favorite)
+        c.createdAt = previewDate
+        c.updatedAt = previewDate
+        c.chatTs = previewDate
+        return c
+    }
+
+    private func group(_ name: String, fullName: String = "", status: GroupMemberStatus = .memComplete, incognito: Bool = false, ntfs: MsgFilter = .all) -> GroupInfo {
+        var g = GroupInfo.sampleData
+        g.groupId = newId()
+        g.localDisplayName = name
+        g.groupProfile = GroupProfile(displayName: name, fullName: fullName)
+        g.membership.memberStatus = status
+        if incognito {
+            g.membership.memberProfile = LocalProfile(profileId: 50, displayName: "Fluffy Panda", fullName: "", localAlias: "")
+        }
+        g.chatSettings = ChatSettings(enableNtfs: ntfs, sendRcpts: nil, favorite: false)
+        g.createdAt = previewDate
+        g.updatedAt = previewDate
+        g.chatTs = previewDate
+        return g
+    }
+
+    private func business(_ name: String, _ type: BusinessChatType) -> GroupInfo {
+        var g = group(name)
+        g.businessChat = BusinessChatInfo(chatType: type, businessId: "business", customerId: "customer")
+        return g
+    }
+
+    private func prepared(_ g: GroupInfo) -> GroupInfo {
+        var g = g
+        g.preparedGroup = PreparedGroup(connLinkToConnect: Self.link, connLinkPreparedConnection: false, connLinkStartedConnection: false)
+        return g
+    }
+
+    private func connection(_ status: ConnStatus, viaContactUri: Bool, groupLinkId: String? = nil, incognito: Bool = false, alias: String = "") -> PendingContactConnection {
+        var c = PendingContactConnection.getSampleData(status, viaContactUri: viaContactUri)
+        c.pccConnId = newId()
+        c.groupLinkId = groupLinkId
+        c.customUserProfileId = incognito ? 50 : nil
+        c.localAlias = alias
+        c.createdAt = previewDate
+        c.updatedAt = previewDate
+        return c
+    }
+
+    private func file(_ name: String, sent: Bool = false) -> CIFile {
+        CIFile.getSample(fileId: newId(), fileName: name, fileSize: 184_320, filePath: nil, fileStatus: sent ? .sndComplete : .rcvInvitation)
+    }
+
+    private func item(_ dir: CIDirection, _ text: String, _ content: MsgContent? = nil, status: CIStatus? = nil, file: CIFile? = nil, formattedText: [FormattedText]? = nil, mentions: [String: CIMention]? = nil, deleted: CIDeleted? = nil) -> ChatItem {
+        let mc = content ?? .text(text)
+        return ChatItem(
+            chatDir: dir,
+            meta: CIMeta.getSample(newId(), previewDate, text, status ?? (dir.sent ? CIStatus.sndSent(sndProgress: .complete) : CIStatus.rcvRead), itemDeleted: deleted),
+            content: dir.sent ? .sndMsgContent(msgContent: mc) : .rcvMsgContent(msgContent: mc),
+            formattedText: formattedText,
+            mentions: mentions,
+            file: file
+        )
+    }
+
+    private func mentionItem(_ g: GroupInfo, _ sender: GroupMember, _ rest: String) -> ChatItem {
+        item(
+            .groupRcv(groupMember: sender),
+            "@alice" + rest,
+            formattedText: [FormattedText(text: "@alice", format: .mention(memberName: "alice")), FormattedText(text: rest)],
+            mentions: ["alice": CIMention(groupMember: g.membership)]
+        )
+    }
+
+    private func row(_ chatInfo: ChatInfo, _ items: [ChatItem] = [], _ stats: ChatStats = ChatStats()) -> some View {
+        ChatListNavLink(chat: Chat(chatInfo: chatInfo, chatItems: items, chatStats: stats), parentSheet: .constant(nil))
+    }
+
+    private func previewRow(_ chatInfo: ChatInfo, _ items: [ChatItem] = [], progress: Bool = false, deleting: Bool = false) -> some View {
+        ChatListRow {
+            ChatPreviewView(chat: Chat(chatInfo: chatInfo, chatItems: items), progressByTimeout: .constant(progress), deleting: deleting)
+        }
+    }
+
+    func contacts() -> some View {
+        var verified = contact("alice", fullName: "Alice", image: Self.photo)
+        verified.activeConn?.connectionCode = SecurityCode(securityCode: "123 456", verifiedAt: previewDate)
+        let supporter = contact("bob", badge: badge(.supporter, .active))
+        let expired = contact("carol", badge: badge(.legend, .expired))
+        let unverified = contact("dan", badge: badge(.investor, .failed))
+        let bot = contact("SimpleX Directory", peerType: .bot)
+        let agent = contact("Assistant", peerType: .agent)
+        var incognito = contact("erin")
+        incognito.activeConn?.customUserProfileId = 50
+        var deleted = contact("frank", badge: badge(.supporter, .active))
+        deleted.contactStatus = .deleted
+        deleted.activeConn?.connStatus = .deleted
+        return VStack(spacing: 0) {
+            row(.direct(contact: verified), [item(.directRcv, "Hi! Are you coming tonight?")])
+            row(.direct(contact: supporter), [item(.directSnd, "Sure, see you at 7")])
+            row(.direct(contact: expired), [item(.directRcv, "Thanks for the photos")])
+            row(.direct(contact: unverified), [item(.directRcv, "Did you get my message?")])
+            row(.direct(contact: bot), [item(.directRcv, "Send a group name to search")])
+            row(.direct(contact: agent), [item(.directRcv, "Here is a summary of today's messages")])
+            row(.direct(contact: incognito), [item(.directRcv, "Nice to meet you")])
+            row(.direct(contact: deleted), [item(.directRcv, "Bye!")])
+        }
+    }
+
+    func connecting() -> some View {
+        var joining = contact("grace")
+        joining.activeConn?.connStatus = .joined
+        var shouldAccept = contact("heidi")
+        shouldAccept.activeConn?.connStatus = .joined
+        shouldAccept.preparedContact = PreparedContact(connLinkToConnect: Self.link, uiConnLinkType: .con)
+        var preparedContact = contact("ivan")
+        preparedContact.activeConn = nil
+        preparedContact.preparedContact = PreparedContact(connLinkToConnect: Self.link, uiConnLinkType: .con)
+        var preparedBot = contact("SimpleX Directory", peerType: .bot)
+        preparedBot.activeConn = nil
+        preparedBot.preparedContact = PreparedContact(connLinkToConnect: Self.link, uiConnLinkType: .con)
+        var request = contact("judy")
+        request.activeConn = nil
+        request.contactRequestId = 7
+        var memberRequest = contact("ken")
+        memberRequest.activeConn = nil
+        memberRequest.groupDirectInv = GroupDirectInvitation.sampleData
+        var card = contact("laura", contactLink: Self.link.connFullLink)
+        card.activeConn = nil
+        var contactRequest = UserContactRequest.sampleData
+        contactRequest.contactRequestId = newId()
+        contactRequest.localDisplayName = "mike"
+        contactRequest.profile = LocalProfile(profileId: contactRequest.contactRequestId, displayName: "mike", fullName: "Mike", localAlias: "")
+        contactRequest.createdAt = previewDate
+        contactRequest.updatedAt = previewDate
+        return VStack(spacing: 0) {
+            row(.direct(contact: joining))
+            row(.direct(contact: shouldAccept))
+            row(.direct(contact: preparedContact))
+            row(.direct(contact: preparedBot))
+            row(.direct(contact: request))
+            row(.direct(contact: memberRequest))
+            row(.direct(contact: card))
+            row(.contactRequest(contactRequest: contactRequest))
+        }
+    }
+
+    func pending() -> some View {
+        VStack(spacing: 0) {
+            row(.contactConnection(contactConnection: connection(.new, viaContactUri: false)))
+            row(.contactConnection(contactConnection: connection(.new, viaContactUri: true)))
+            row(.contactConnection(contactConnection: connection(.new, viaContactUri: true, groupLinkId: "group-link")))
+            row(.contactConnection(contactConnection: connection(.joined, viaContactUri: false, incognito: true)))
+            row(.contactConnection(contactConnection: connection(.new, viaContactUri: false, incognito: true, alias: "Bob's laptop")))
+            row(.invalidJSON(json: nil))
+        }
+    }
+
+    func groups() -> some View {
+        var news = group("SimpleX news")
+        news.useRelays = true
+        news.groupProfile.publicGroup = PublicGroupProfile(groupType: .channel, groupLink: "", publicGroupId: "news")
+        let notes = NoteFolder(noteFolderId: newId(), favorite: false, unread: false, createdAt: previewDate, updatedAt: previewDate, chatTs: previewDate)
+        return VStack(spacing: 0) {
+            row(.group(groupInfo: group("team", fullName: "My Team"), groupChatScope: nil), [item(.groupRcv(groupMember: alice), "Lunch at 1?")])
+            row(.group(groupInfo: news, groupChatScope: nil), [item(.channelRcv, "Version 7.1 is out")])
+            row(.group(groupInfo: business("Acme support", .business), groupChatScope: nil), [item(.groupRcv(groupMember: bob), "Your order has shipped")])
+            row(.group(groupInfo: business("nina", .customer), groupChatScope: nil), [item(.groupSnd, "Thank you for your order!")])
+            row(.local(noteFolder: notes), [item(.localSnd, "Buy milk and bread")])
+            row(.group(groupInfo: group("book club", status: .memInvited), groupChatScope: nil))
+            row(.group(groupInfo: group("night owls", status: .memInvited, incognito: true), groupChatScope: nil))
+        }
+    }
+
+    func groupStates() -> some View {
+        VStack(spacing: 0) {
+            row(.group(groupInfo: group("hiking", status: .memAccepted), groupChatScope: nil))
+            previewRow(.group(groupInfo: group("book club", status: .memInvited), groupChatScope: nil), progress: true)
+            row(.group(groupInfo: group("neighbours", status: .memPendingReview), groupChatScope: nil))
+            row(.group(groupInfo: prepared(group("SimpleX users")), groupChatScope: nil))
+            row(.group(groupInfo: prepared(business("Acme support", .business)), groupChatScope: nil))
+            row(.group(groupInfo: group("private club", status: .memRejected), groupChatScope: nil))
+            row(.group(groupInfo: group("old team", status: .memLeft), groupChatScope: nil), [item(.groupRcv(groupMember: bob), "See you all next year")])
+        }
+    }
+
+    func flags() -> some View {
+        var support = group("helpdesk")
+        support.membersRequireAttention = 1
+        return VStack(spacing: 0) {
+            row(.group(groupInfo: group("moderators"), groupChatScope: nil), [item(.groupRcv(groupMember: bob), "Please check the reports")], ChatStats(reportsCount: 2))
+            row(.group(groupInfo: support, groupChatScope: nil), [item(.groupRcv(groupMember: carol), "How do I join?")])
+            row(.group(groupInfo: group("night owls", incognito: true), groupChatScope: nil), [item(.groupRcv(groupMember: alice), "Good night everyone")])
+            row(.group(groupInfo: group("old project", status: .memRemoved), groupChatScope: nil), [item(.groupRcv(groupMember: bob), "Closing this group")])
+            row(.group(groupInfo: group("archive", status: .memGroupDeleted), groupChatScope: nil), [item(.groupRcv(groupMember: alice), "Thanks, everyone")])
+        }
+    }
+
+    func unread() -> some View {
+        let team = group("team", fullName: "My Team")
+        return VStack(spacing: 0) {
+            row(.direct(contact: contact("alice", fullName: "Alice", image: Self.photo)), [item(.directRcv, "All messages are read")])
+            row(.direct(contact: contact("bob")), [item(.directRcv, "Three new messages")], ChatStats(unreadCount: 3))
+            row(.direct(contact: contact("carol")), [item(.directRcv, "Over a thousand new messages")], ChatStats(unreadCount: 1234))
+            row(.direct(contact: contact("dan", ntfs: .none)), [item(.directRcv, "Muted, five new messages")], ChatStats(unreadCount: 5))
+            row(.group(groupInfo: team, groupChatScope: nil), [mentionItem(team, bob, " can you check the release notes?")], ChatStats(unreadCount: 4, unreadMentions: 1))
+            row(.group(groupInfo: team, groupChatScope: nil), [mentionItem(team, carol, " are you there?")], ChatStats(unreadCount: 1, unreadMentions: 1))
+            row(.direct(contact: contact("erin")), [item(.directRcv, "Marked as unread")], ChatStats(unreadChat: true))
+        }
+    }
+
+    func marks() -> some View {
+        let notes = NoteFolder(noteFolderId: newId(), favorite: false, unread: false, createdAt: previewDate, updatedAt: previewDate, chatTs: previewDate)
+        let quiet = group("announcements", ntfs: .mentions)
+        return VStack(spacing: 0) {
+            row(.direct(contact: contact("alice", ntfs: .none)), [item(.directRcv, "Muted chat")])
+            row(.group(groupInfo: quiet, groupChatScope: nil), [item(.groupRcv(groupMember: bob), "Mentions only")])
+            row(.direct(contact: contact("carol", favorite: true)), [item(.directRcv, "Favorite chat")])
+            row(.direct(contact: contact("dan", favorite: true)), [item(.directRcv, "Favorite chat with two new messages")], ChatStats(unreadCount: 2))
+            row(.direct(contact: contact("erin", ntfs: .none, favorite: true)), [item(.directRcv, "Muted favorite chat")])
+            row(.group(groupInfo: quiet, groupChatScope: nil), [mentionItem(quiet, bob, " the release is ready")], ChatStats(unreadCount: 3, unreadMentions: 1))
+            row(.local(noteFolder: notes), [item(.localSnd, "Unread notes")], ChatStats(unreadCount: 2))
+        }
+    }
+
+    func media() -> some View {
+        let linkPreview = LinkPreview(uri: "https://simplex.chat", title: "SimpleX Chat: private and secure messenger without any user IDs", image: Self.landscape)
+        return VStack(spacing: 0) {
+            row(.direct(contact: contact("alice")), [item(.directRcv, "Sunset at the beach", .image(text: "Sunset at the beach", image: Self.landscape), file: file("sunset.jpg"))])
+            row(.direct(contact: contact("bob")), [item(.directRcv, "", .image(text: "", image: Self.landscape), file: file("photo.jpg"))])
+            row(.direct(contact: contact("carol")), [item(.directRcv, "", .video(text: "", image: Self.landscape, duration: 42), file: file("video.mp4"))])
+            row(.direct(contact: contact("dan")), [item(.directRcv, "", .voice(text: "", duration: 12), file: file("voice.m4a"))])
+            row(.direct(contact: contact("erin")), [item(.directSnd, "Listen to this", .voice(text: "Listen to this", duration: 34), file: file("voice.m4a", sent: true))])
+            row(.direct(contact: contact("frank")), [item(.directRcv, "", .file(""), file: file("report.pdf"))])
+            row(.direct(contact: contact("grace")), [item(.directRcv, "https://simplex.chat", .link(text: "https://simplex.chat", preview: linkPreview), formattedText: [FormattedText(text: "https://simplex.chat", format: .uri)])])
+        }
+    }
+
+    func text() -> some View {
+        let team = group("team", fullName: "My Team")
+        let sharedContact = MsgChatLink.contact(connLink: Self.link.connFullLink, profile: Profile(displayName: "carol", fullName: "Carol", shortDescr: "Designer in Lisbon", image: Self.photo2), business: false)
+        let sharedChannel = MsgChatLink.group(connLink: Self.link.connFullLink, groupProfile: GroupProfile(displayName: "SimpleX news", fullName: "", shortDescr: "Release announcements", publicGroup: PublicGroupProfile(groupType: .channel, groupLink: "", publicGroupId: "news")))
+        return VStack(spacing: 0) {
+            row(.direct(contact: contact("alice")), [item(.directSnd, "", .chat(text: "", chatLink: sharedContact, ownerSig: nil))])
+            row(.direct(contact: contact("bob")), [item(.directRcv, "", .chat(text: "", chatLink: sharedChannel, ownerSig: nil))])
+            row(.group(groupInfo: group("moderators"), groupChatScope: nil), [item(.groupRcv(groupMember: bob), "Spam links in every message", .report(text: "Spam links in every message", reason: .spam))])
+            row(.direct(contact: contact("carol")), [item(.directSnd, "Are you there?", status: .sndError(agentError: .auth))])
+            row(.direct(contact: contact("dan")), [item(.directSnd, "I will call you later", status: .sndWarning(agentError: .quota))])
+            row(.direct(contact: contact("erin")), [item(.directRcv, "The door code is 4721", formattedText: [FormattedText(text: "The door code is "), FormattedText(text: "4721", format: .secret)])])
+            row(.group(groupInfo: team, groupChatScope: nil), [mentionItem(team, bob, " please review the draft")])
+        }
+    }
+
+    func deleted() -> some View {
+        let team = group("team", fullName: "My Team")
+        return VStack(spacing: 0) {
+            row(.direct(contact: contact("alice")), [item(.directRcv, "", .image(text: "", image: Self.landscape), file: file("photo.jpg"), deleted: .deleted(deletedTs: previewDate))])
+            row(.group(groupInfo: team, groupChatScope: nil), [item(.groupRcv(groupMember: bob), "Buy cheap watches", deleted: .moderated(deletedTs: previewDate, byGroupMember: alice))])
+            row(.group(groupInfo: team, groupChatScope: nil), [item(.groupRcv(groupMember: carol), "Blocked message", deleted: .blocked(deletedTs: previewDate))])
+            row(.group(groupInfo: team, groupChatScope: nil), [item(.groupRcv(groupMember: bob), "Blocked by admin", deleted: .blockedByAdmin(deletedTs: previewDate))])
+            row(.group(groupInfo: group("moderators"), groupChatScope: nil), [item(.groupRcv(groupMember: bob), "Spam links in every message", .report(text: "Spam links in every message", reason: .spam), deleted: .deleted(deletedTs: previewDate))])
+        }
+    }
+
+    func long() -> some View {
+        let longText = "We are meeting at the station at eight, bring warm clothes, water and snacks for the whole day, the forecast says it will be cold"
+        return VStack(spacing: 0) {
+            row(.direct(contact: contact("Alexandra Konstantinopoulou", fullName: "Alexandra Konstantinopoulou-Papadimitriou", badge: badge(.supporter, .active))), [item(.directRcv, "Long names are cut at the end")])
+            row(.group(groupInfo: group("Weekend trip planning committee", fullName: "Mountains, lakes and long walks"), groupChatScope: nil), [item(.groupRcv(groupMember: alice), longText)])
+            row(.direct(contact: contact("لينا")), [item(.directRcv, "مرحبا! هل ستأتي إلى الاجتماع غدا في الساعة العاشرة؟")])
+            row(.direct(contact: contact("bob")), [item(.directRcv, "Sunset at the beach", .image(text: "Sunset at the beach", image: Self.landscape), file: file("sunset.jpg"))])
+                .defaultAppStorage(Self.hiddenPreviews)
+            previewRow(.direct(contact: contact("carol")), [item(.directRcv, "This chat is being deleted")], deleting: true)
+        }
     }
 }
