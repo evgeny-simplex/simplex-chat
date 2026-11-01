@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import chat.simplex.common.BuildConfigCommon
@@ -143,7 +144,7 @@ fun ModalData.WhatsNewView(updatedConditions: Boolean = false, viaSettings: Bool
               .padding(8.dp)
           ) {
             Icon(painterResource(MR.images.ic_arrow_back_ios_new), "previous", tint = MaterialTheme.colors.primary)
-            Text(versionDescriptions[prev].version, color = MaterialTheme.colors.primary)
+            Text(versionDescriptions[prev].version, color = MaterialTheme.colors.primary, fontSize = 17.sp)
           }
         }
       }
@@ -158,7 +159,7 @@ fun ModalData.WhatsNewView(updatedConditions: Boolean = false, viaSettings: Bool
               .clickable { currentVersion.value = next }
               .padding(8.dp)
           ) {
-            Text(versionDescriptions[next].version, color = MaterialTheme.colors.primary)
+            Text(versionDescriptions[next].version, color = MaterialTheme.colors.primary, fontSize = 17.sp)
             Icon(painterResource(MR.images.ic_arrow_forward_ios), "next", tint = MaterialTheme.colors.primary)
           }
         }
@@ -192,13 +193,14 @@ fun ModalData.WhatsNewView(updatedConditions: Boolean = false, viaSettings: Bool
       }
 
       if (v.post != null) {
-        ReadMoreButton(v.post)
+        ReadMoreButton(v.post, fontSize = 17.sp)
       }
 
       if (updatedConditions) {
         Text(
           stringResource(MR.strings.view_updated_conditions),
           color = MaterialTheme.colors.primary,
+          fontSize = 17.sp,
           modifier = Modifier
             .clickable(
               interactionSource = remember { MutableInteractionSource() },
@@ -231,7 +233,7 @@ fun ModalData.WhatsNewView(updatedConditions: Boolean = false, viaSettings: Bool
             ) {
               Text(
                 generalGetString(MR.strings.ok),
-                style = MaterialTheme.typography.h3,
+                fontSize = 20.sp,
                 color = MaterialTheme.colors.primary
               )
             }
@@ -248,12 +250,13 @@ fun ModalData.WhatsNewView(updatedConditions: Boolean = false, viaSettings: Bool
 }
 
 @Composable
-fun ReadMoreButton(url: String) {
+fun ReadMoreButton(url: String, fontSize: TextUnit = TextUnit.Unspecified) {
   val uriHandler = LocalUriHandler.current
   Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = DEFAULT_PADDING.div(4))) {
     Text(
       stringResource(MR.strings.whats_new_read_more),
       color = MaterialTheme.colors.primary,
+      fontSize = fontSize,
       modifier = Modifier
         .clickable(
           interactionSource = remember { MutableInteractionSource() },
