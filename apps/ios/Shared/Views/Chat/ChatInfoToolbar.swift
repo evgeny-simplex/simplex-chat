@@ -76,7 +76,8 @@ struct ChatInfoToolbar: View {
                        chatSubStatus != .active {
                         SubStatusView(status: chatSubStatus)
                             .fixedSize()
-                            .alignmentGuide(.trailing) { $0[.leading] - 12 }
+                            .padding(.leading, 12)
+                            .frame(width: 0, alignment: .leading)
                     }
                 }
         }
