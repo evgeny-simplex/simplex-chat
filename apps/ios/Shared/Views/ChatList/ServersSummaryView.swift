@@ -11,7 +11,6 @@ import SimpleXChat
 
 struct ServersSummaryView: View {
     @EnvironmentObject var m: ChatModel
-    @EnvironmentObject var theme: AppTheme
     @State private var serversSummary: PresentedServersSummary? = nil
     @State private var selectedUserCategory: PresentedUserCategory = .allUsers
     @State private var selectedServerType: PresentedServerType = .smp
@@ -193,9 +192,7 @@ struct ServersSummaryView: View {
                 }
             }
         } else {
-            Text("No info, try to reload")
-                .foregroundColor(theme.colors.secondary)
-                .background(theme.colors.background)
+            ProgressView().scaleEffect(2)
         }
     }
 

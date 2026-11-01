@@ -745,12 +745,7 @@ fun ModalData.ServersSummaryView(rh: RemoteHostInfo?, serversSummary: MutableSta
         bottomPadding = bottomPadding
       )
       if (serversSummary.value == null) {
-        Box(
-          modifier = Modifier
-            .fillMaxSize()
-        ) {
-          Text(generalGetString(MR.strings.servers_info_missing), Modifier.align(Alignment.Center), color = MaterialTheme.colors.secondary)
-        }
+        DefaultProgressView(null)
       } else {
         val userOptions by remember {
           mutableStateOf(
