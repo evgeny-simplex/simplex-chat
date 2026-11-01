@@ -1696,10 +1696,23 @@ private fun SubProgressView() {
 @Composable
 fun PreviewChatInfoToolbarTitleStates() {
   SimpleXTheme {
-    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-      listOf(null, SubscriptionStatus.NoSub).forEach { status ->
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-          ChatInfoToolbarTitle(ChatInfo.Direct.sampleData, chatSubStatus = status)
+    Column(Modifier.width(360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      listOf("Alice", "Alice Johnson", "Alice Konstantinou-Whitfield").forEach { fullName ->
+        val cInfo = ChatInfo.Direct(Contact.sampleData.copy(profile = LocalProfile.sampleData.copy(fullName = fullName)))
+        listOf(null, SubscriptionStatus.NoSub).forEach { status ->
+          DefaultAppBar(
+            navigationButton = { NavigationButtonBack(onButtonClicked = {}) },
+            title = { ChatInfoToolbarTitle(cInfo, chatSubStatus = status) },
+            onTop = true,
+            buttons = {
+              IconButton({}) {
+                Icon(painterResource(MR.images.ic_call_500), null, tint = MaterialTheme.colors.primary)
+              }
+              IconButton({}) {
+                Icon(MoreVertFilled, null, tint = MaterialTheme.colors.primary)
+              }
+            }
+          )
         }
       }
     }
