@@ -32,6 +32,8 @@ struct AddGroupMembersViewCommon: View {
     @State private var selectedRole: GroupMemberRole = .member
     @State private var alert: AddGroupMembersAlert?
     @State private var searchText: String = ""
+    @State private var groupLink: GroupLink?
+    @State private var groupLinkMemberRole: GroupMemberRole = .member
     @FocusState private var searchFocussed
 
     private enum AddGroupMembersAlert: Identifiable {
@@ -75,6 +77,23 @@ struct AddGroupMembersViewCommon: View {
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .center)
                         .listRowBackground(Color.clear)
+                    if creatingGroup {
+                        Section {
+                            MemberAdmissionButton(
+                                groupInfo: $groupInfo,
+                                admission: groupInfo.groupProfile.memberAdmission_,
+                                currentAdmission: groupInfo.groupProfile.memberAdmission_,
+                                creatingGroup: true
+                            )
+                            GroupPreferencesButton(
+                                groupInfo: $groupInfo,
+                                preferences: groupInfo.fullGroupPreferences,
+                                currentPreferences: groupInfo.fullGroupPreferences,
+                                creatingGroup: true
+                            )
+                            groupLinkButton()
+                        }
+                    }
                 } else {
                     let count = selectedContacts.count
                     Section {
@@ -151,6 +170,21 @@ struct AddGroupMembersViewCommon: View {
         dummy.contactId = -1
         return dummy
     }()
+
+    private func groupLinkButton() -> some View {
+        NavigationLink {
+            GroupLinkView(
+                groupId: groupInfo.groupId,
+                groupLink: $groupLink,
+                groupLinkMemberRole: $groupLinkMemberRole
+            )
+            .navigationBarTitle("Group link")
+            .modifier(ThemedBackground(grouped: true))
+            .navigationBarTitleDisplayMode(.large)
+        } label: {
+            Text("Create group link")
+        }
+    }
 
     private func inviteMembersButton() -> some View {
         let label: LocalizedStringKey = groupInfo.businessChat == nil ? "Invite to group" : "Invite to chat"

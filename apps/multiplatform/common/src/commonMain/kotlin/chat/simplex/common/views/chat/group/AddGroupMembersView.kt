@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import chat.simplex.common.model.*
 import chat.simplex.common.ui.theme.*
 import chat.simplex.common.views.chat.ChatInfoToolbarTitle
+import chat.simplex.common.views.chat.openGroupLink
 import chat.simplex.common.views.helpers.*
 import chat.simplex.common.views.usersettings.SettingsActionItem
 import chat.simplex.common.model.GroupInfo
@@ -64,6 +65,7 @@ fun AddGroupMembersView(rhId: Long?, groupInfo: GroupInfo, creatingGroup: Boolea
         )
       }
     },
+    openGroupLink = { openGroupLink(groupInfo, rhId) },
     inviteMembers = {
       allowModifyMembers = false
       withLongRunningApi(slow = 120_000) {
@@ -121,6 +123,7 @@ fun AddGroupMembersLayout(
   searchText: MutableState<TextFieldValue>,
   openPreferences: () -> Unit,
   openMemberAdmission: () -> Unit,
+  openGroupLink: () -> Unit,
   inviteMembers: () -> Unit,
   clearSelection: () -> Unit,
   addContact: (Long) -> Unit,
@@ -172,6 +175,21 @@ fun AddGroupMembersLayout(
           Modifier.padding(),
           color = MaterialTheme.colors.secondary
         )
+      }
+      if (creatingGroup) {
+        SectionDividerSpaced()
+        SectionView {
+          SectionItemView(openMemberAdmission) {
+            Text(stringResource(MR.strings.set_member_admission))
+          }
+          SectionItemView(openPreferences) {
+            Text(stringResource(MR.strings.set_group_preferences))
+          }
+          SectionItemView(openGroupLink) {
+            Text(stringResource(MR.strings.create_group_link))
+          }
+          SkipInvitingButton(close)
+        }
       }
     } else {
       SectionView {
@@ -392,6 +410,7 @@ fun PreviewAddGroupMembersLayout() {
       searchText = remember { mutableStateOf(TextFieldValue("")) },
       openPreferences = {},
       openMemberAdmission = {},
+      openGroupLink = {},
       inviteMembers = {},
       clearSelection = {},
       addContact = {},
