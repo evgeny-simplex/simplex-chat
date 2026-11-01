@@ -67,3 +67,11 @@ func openBadgesView() {
 func noShownBadge() -> Bool {
     BadgeModel.shared.badgeState?.shown != true && BadgeModel.shared.userId == ChatModel.shared.currentUser?.userId
 }
+
+func currentShownBadge() -> BadgeState? {
+    guard BadgeModel.shared.userId == ChatModel.shared.currentUser?.userId,
+          let badgeState = BadgeModel.shared.badgeState,
+          badgeState.shown
+    else { return nil }
+    return badgeState
+}
