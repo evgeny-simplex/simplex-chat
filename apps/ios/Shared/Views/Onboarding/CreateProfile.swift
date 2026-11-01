@@ -101,10 +101,11 @@ struct CreateProfile: View {
                     TextField("Bio", text: $profileBio)
                         .padding(.leading, 36)
                 }
+                let canCreate = canCreateProfile(displayName) && bioFitsLimit()
                 Button(action: createProfile) {
-                    settingsRow("checkmark", color: theme.colors.primary) { Text("Create profile") }
+                    settingsRow("checkmark", color: canCreate ? theme.colors.primary : theme.colors.secondary) { Text("Create profile") }
                 }
-                .disabled(!canCreateProfile(displayName) || !bioFitsLimit())
+                .disabled(!canCreate)
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Your profile is stored on your device and only shared with your contacts.")
