@@ -482,11 +482,15 @@ module.exports = function (ty) {
     facts: Object.fromEntries(Array.from(factsById.keys(), (id) => [id, factFigure(id)])),
   }))
 
-  ty.addFilter("translated", (lang, url) => {
+  function isTranslated(lang, url) {
     const [first, second] = url.split("/").slice(1)
     const keys = translatedPageKeys[supportedLangs.includes(first) ? second : first]
     return !keys || keys.every((key) => translations[key]?.[lang] !== undefined)
-  })
+  }
+
+  ty.addFilter("translated", isTranslated)
+
+  ty.addFilter("menuLanguages", (languages, url) => languages.filter((language) => language.enabled && isTranslated(language.label, url)))
 
   ty.on("eleventy.before", () => unknownStrings.clear())
 

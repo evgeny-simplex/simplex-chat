@@ -25,7 +25,7 @@
   }
 
   function allWords(text) {
-    return String(text || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase()
+    return String(text || "").normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()
       .split(/[^\p{L}\p{N}]+/u).filter(Boolean)
   }
 
@@ -142,25 +142,24 @@
   }
 
   function bestDocuments(index, query, synonyms, threshold, count) {
-    const results = []
+    const results = search(index, query, synonyms)
+    if (results.length === 0 || results[0].score < threshold) return []
     const seen = new Set()
-    for (const result of search(index, query, synonyms)) {
-      if (result.score < threshold && results.length === 0) return []
-      if (seen.has(result.ref.doc.url)) continue
-      seen.add(result.ref.doc.url)
-      results.push(result)
-      if (results.length === count) break
-    }
-    return results
+    const firstPerDocument = results.filter((result) => {
+      if (seen.has(result.ref.doc)) return false
+      seen.add(result.ref.doc)
+      return true
+    })
+    return firstPerDocument.slice(0, count)
   }
 
   function personaOfWords(query, personaWords) {
     const normalized = " " + words(query).join(" ") + " "
     return Object.keys(personaWords).find((persona) =>
-      personaWords[persona].some((phrase) => normalized.includes(" " + phrase + " "))) || null
+      personaWords[persona].some((entry) => normalized.includes(" " + entry + " "))) || null
   }
 
-  const api = { tokens, search, createIndex, knowledgeBaseIndex, intentIndex, bestIntent, bestDocuments, personaOfWords, plainText }
+  const api = { search, knowledgeBaseIndex, intentIndex, bestIntent, bestDocuments, personaOfWords, plainText }
   if (typeof module === "object" && module.exports) module.exports = api
   else root.homeSearch = api
 })(this)

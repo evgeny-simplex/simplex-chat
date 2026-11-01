@@ -6,12 +6,10 @@ active_home: true
 ---
 {% set lang = page.url | getlang %}
 {% set langPrefix = '' if lang == 'en' else '/' ~ lang %}
+{% set downloadsPrefix = '' if lang == 'en' or not (lang | translated('/downloads/')) else langPrefix %}
 {% from "home/screen.njk" import screen %}
 {% from "home/blocks.njk" import block %}
-{% set menuLanguages = [] %}
-{% for language in languages.languages %}
-    {% if language.enabled and (language.label | translated(page.url)) %}{% set menuLength = menuLanguages.push(language) %}{% endif %}
-{% endfor %}
+{% set menuLanguages = languages.languages | menuLanguages(page.url) %}
 <!DOCTYPE html>
 <html lang="{{ lang }}"
     {% for language in languages.languages %}
@@ -74,7 +72,7 @@ active_home: true
         </details>
         {% endif %}
         <a class="invest" href="https://wefunder.com/simplex.chat?utm_source=home" target="_blank" rel="noopener">{{ "invest" | i18n({}, lang) }}</a>
-        <a class="get" id="get-app" href="{{ '' if lang == 'en' or not (lang | translated('/downloads/')) else '/' ~ lang }}/downloads/">{{ "home-get-app" | i18n({}, lang) }}</a>
+        <a class="get" id="get-app" href="{{ downloadsPrefix }}/downloads/">{{ "home-get-app" | i18n({}, lang) }}</a>
     </header>
 
     <main id="main">
@@ -111,7 +109,7 @@ active_home: true
                 <h2>{{ "downloads-h1" | i18n({}, lang) }}</h2>
                 <p class="lead">{{ "downloads-lead-1" | i18n({}, lang) }} {{ "downloads-lead-2" | i18n({}, lang) }}</p>
                 {{ block({type: "download"}, lang) }}
-                <p class="links"><a class="pill" href="/downloads/">{{ "home-all-downloads" | i18n({}, lang) }}</a></p>
+                <p class="links"><a class="pill" href="{{ downloadsPrefix }}/downloads/">{{ "home-all-downloads" | i18n({}, lang) }}</a></p>
             </section>
             <section class="qa" id="qa" lang="en" dir="ltr">
                 {% set answers %}{% mdInclude "llms/answers.md" %}{% endset %}
@@ -181,7 +179,6 @@ active_home: true
             "askService": {{ "home-ask-service" | i18n({}, lang) | dump | safe }},
             "asked": {{ "home-knows-asked" | i18n({}, lang) | dump | safe }},
             "loading": {{ "home-loading" | i18n({}, lang) | dump | safe }},
-            "overlayError": {{ "home-overlay-error" | i18n({}, lang) | dump | safe }},
             "getApp": {{ "home-get-app" | i18n({}, lang) | dump | safe }},
             "countdownDone": {{ "index-hero-countdown-done" | i18n({}, lang) | dump | safe }},
             "kinds": {

@@ -7,6 +7,7 @@
 
 {% macro block(b, lang) %}
 {% set langPrefix = '' if lang == 'en' else '/' ~ lang %}
+{% set downloadsPrefix = '' if lang == 'en' or not (lang | translated('/downloads/')) else langPrefix %}
 {% if b.type == "lead" %}
 <p class="lead">{{ b.text | i18n({}, lang) | inlineMarkup | safe }}</p>
 {% elif b.type == "text" %}
@@ -52,7 +53,7 @@
 <a class="store" href="https://apps.apple.com/us/app/simplex-chat/id1605771084" target="_blank" rel="noopener">App Store</a>
 <a class="store" href="https://play.google.com/store/apps/details?id=chat.simplex.app" target="_blank" rel="noopener">Google Play</a>
 <a class="store alt" href="{{ langPrefix }}/fdroid/">F-Droid</a>
-<a class="store alt" href="/downloads/">{{ "home-download-desktop" | i18n({}, lang) }}</a>
+<a class="store alt" href="{{ downloadsPrefix }}/downloads/">{{ "home-download-desktop" | i18n({}, lang) }}</a>
 </p>
 {% elif b.type == "questions" %}
 <p class="questions">
