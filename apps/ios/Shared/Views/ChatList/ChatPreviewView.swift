@@ -164,10 +164,8 @@ struct ChatPreviewView: View {
 
     private func inactiveIcon() -> some View {
         Image(systemName: "multiply.circle.fill")
-            .resizable()
-            .frame(width: dynamicChatInfoSize, height: dynamicChatInfoSize)
-            .foregroundColor(theme.colors.secondary)
-            .background(Circle().foregroundColor(theme.colors.background))
+            .foregroundColor(.secondary.opacity(0.65))
+            .background(Circle().foregroundColor(Color(uiColor: .systemBackground)))
     }
 
     @ViewBuilder private func chatPreviewTitle() -> some View {
@@ -213,7 +211,7 @@ struct ChatPreviewView: View {
 
     private func chatPreviewLayout(_ text: Text?, privacySensitive: Bool = true, hasFilePreview: Bool = false, hasSecrets: Bool) -> some View {
         ZStack(alignment: .topTrailing) {
-            let mentionWidth: CGFloat = if case .group = chat.chatInfo { dynamicSize(userFont).unreadCorner } else { 0 }
+            let mentionWidth: CGFloat = if case .group = chat.chatInfo { dynamicSize(userFont).unreadCorner + 2 } else { 0 }
             let t = text
                 .lineLimit(userFont <= .xxxLarge ? 2 : 1)
                 .multilineTextAlignment(.leading)
@@ -269,7 +267,7 @@ struct ChatPreviewView: View {
 
     private func messageDraft(_ draft: ComposeState) -> (Text, Bool) {
         let msg = draft.message
-        let r = markdownText(msg, preview: true, mentions: draft.mentions, backgroundColor: theme.colors.background)
+        let r = markdownText(msg, preview: true, plainLinks: true, mentions: draft.mentions, backgroundColor: theme.colors.background)
         return (image("rectangle.and.pencil.and.ellipsis", color: theme.colors.primary)
                     + attachment()
                     + Text(AttributedString(r.string)),
@@ -291,7 +289,7 @@ struct ChatPreviewView: View {
 
     func chatItemPreview(_ cItem: ChatItem) -> (Text, Bool) {
         let (itemText, itemFormattedText) = chatItemPreviewText(cItem)
-        let r = messageText(itemText, itemFormattedText, markdownBlocks: itemFormattedText == nil ? nil : cItem.markdownBlocks, sender: cItem.meta.showGroupAsSender ? nil : cItem.memberDisplayName, preview: true, mentions: cItem.mentions, userMemberId: chat.chatInfo.groupInfo?.membership.memberId, showSecrets: nil, backgroundColor: UIColor(theme.colors.background), prefix: prefix())
+        let r = messageText(itemText, itemFormattedText, markdownBlocks: itemFormattedText == nil ? nil : cItem.markdownBlocks, sender: cItem.meta.showGroupAsSender ? nil : cItem.memberDisplayName, preview: true, plainLinks: true, mentions: cItem.mentions, userMemberId: chat.chatInfo.groupInfo?.membership.memberId, showSecrets: nil, backgroundColor: UIColor(theme.colors.background), prefix: prefix())
         return (Text(AttributedString(r.string)), r.hasSecrets)
 
         func chatItemPreviewText(_ ci: ChatItem) -> (String, [FormattedText]?) {

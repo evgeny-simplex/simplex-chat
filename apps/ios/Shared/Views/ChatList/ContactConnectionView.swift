@@ -62,7 +62,7 @@ struct ContactConnectionView: View {
                         .lineLimit(userFont <= .xxxLarge ? 2 : 1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 8)
-                        .padding(.trailing, 36)
+                        .padding(.trailing, userFont <= .xxxLarge ? 36 : 0)
                     incognitoIcon(contactConnection.incognito, theme.colors.secondary, size: size.incognitoSize)
                         .padding(.top, size.chatInfoSize * 1.44)
                         .frame(maxWidth: .infinity, alignment: .trailing)

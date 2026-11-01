@@ -46,7 +46,6 @@ struct ContactRequestView: View {
                     .lineLimit(userFont <= .xxxLarge ? 2 : 1)
                     .frame(alignment: .topLeading)
                     .padding([.leading, .trailing], 8)
-                    .padding(.trailing, 36)
 
                 Spacer()
             }

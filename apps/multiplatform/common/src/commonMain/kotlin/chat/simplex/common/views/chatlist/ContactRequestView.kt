@@ -45,7 +45,7 @@ fun ContactRequestView(contactRequest: ChatInfo.ContactRequest) {
       }
       Text(
         stringResource(MR.strings.contact_wants_to_connect_with_you),
-        Modifier.heightIn(min = 46.sp.toDp()).padding(top = 3.sp.toDp(), end = (8 + 34).sp.toDp()),
+        Modifier.heightIn(min = 46.sp.toDp()).padding(top = 3.sp.toDp()),
         maxLines = 2,
         style = TextStyle(
           fontFamily = Inter,

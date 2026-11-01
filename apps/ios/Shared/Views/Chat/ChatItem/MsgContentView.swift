@@ -438,6 +438,7 @@ func markdownText(
     textStyle: UIFont.TextStyle = .body,
     sender: String? = nil,
     preview: Bool = false,
+    plainLinks: Bool = false,
     mentions: [String: CIMention]? = nil,
     userMemberId: String? = nil,
     showSecrets: Set<Int>? = nil,
@@ -451,6 +452,7 @@ func markdownText(
         textStyle: textStyle,
         sender: sender,
         preview: preview,
+        plainLinks: plainLinks,
         mentions: mentions,
         userMemberId: userMemberId,
         showSecrets: showSecrets,
@@ -507,6 +509,7 @@ func messageText(
     textStyle: UIFont.TextStyle = .body,
     sender: String?,
     preview: Bool = false,
+    plainLinks: Bool = false,
     mentions: [String: CIMention]?,
     userMemberId: String?,
     showSecrets: Set<Int>?,
@@ -534,14 +537,10 @@ func messageText(
     var secretIdx: Int = secretStart
 
     if let sender {
-        if preview {
-            res.append(NSAttributedString(string: sender + ": ", attributes: plain))
-        } else {
-            var attrs = plain
-            attrs[.font] = UIFont(descriptor: descr.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: UIFont.Weight.medium]]), size: descr.pointSize)
-            res.append(NSAttributedString(string: sender, attributes: attrs))
-            res.append(NSAttributedString(string: ": ", attributes: plain))
-        }
+        var attrs = plain
+        attrs[.font] = UIFont(descriptor: descr.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: UIFont.Weight.medium]]), size: descr.pointSize)
+        res.append(NSAttributedString(string: sender, attributes: attrs))
+        res.append(NSAttributedString(string: ": ", attributes: plain))
     }
 
     if let prefix {
@@ -723,11 +722,11 @@ func messageText(
         }
 
         func linkAttrs() -> [NSAttributedString.Key: Any] {
-            link = link ?? [
+            link = link ?? (plainLinks ? plain : [
                 .font: font,
                 .foregroundColor: uiLinkColor,
                 .underlineStyle: NSUnderlineStyle.single.rawValue
-            ]
+            ])
             return link!
         }
     }

@@ -317,6 +317,7 @@ fun ChatPreviewView(
         toggleSecrets = false,
         linkMode = linkMode,
         senderBold = true,
+        plainLinks = true,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
         style = previewTextStyle,

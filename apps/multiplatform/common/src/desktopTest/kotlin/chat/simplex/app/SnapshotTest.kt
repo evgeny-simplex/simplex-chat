@@ -44,13 +44,20 @@ import kotlin.test.assertEquals
 
 private const val SCENE_WIDTH = 402
 private const val SCENE_MAX_HEIGHT = 874
+private const val CHAT_LIST_MAX_HEIGHT = 1600
 private const val PREVIEW_QR_LINK = "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw"
 
 private val chatItemFontScales = listOf(1f, 1.4f, 1.5f)
 
 private val chatListFontScales = listOf(1f, 1.5f, 2f)
 
-private class SnapshotScene(val name: String, val fontScales: List<Float> = listOf(1f), val content: @Composable () -> Unit)
+private class SnapshotScene(
+  val name: String,
+  val fontScales: List<Float> = listOf(1f),
+  val height: Int = SCENE_MAX_HEIGHT,
+  val roundness: List<Float> = listOf(0.75f),
+  val content: @Composable () -> Unit
+)
 
 @Serializable
 private class Snapshot(val scene: String, val theme: String, val fontScale: Float, val file: String, val width: Int, val height: Int)
@@ -95,19 +102,21 @@ private val previewScenes = listOf(
   SnapshotScene("ChatListNavLinkView.PreviewChatListNavLinkGroup") { PreviewChatListNavLinkGroup() },
   SnapshotScene("ChatListNavLinkView.PreviewChatListNavLinkContactRequest") { PreviewChatListNavLinkContactRequest() },
   SnapshotScene("ChatPreviewView.PreviewChatPreviewView") { PreviewChatPreviewView() },
-  SnapshotScene("ChatListPreviews.ChatListContacts", chatListFontScales) { ChatListContacts() },
-  SnapshotScene("ChatListPreviews.ChatListConnecting", chatListFontScales) { ChatListConnecting() },
-  SnapshotScene("ChatListPreviews.ChatListPending", chatListFontScales) { ChatListPending() },
-  SnapshotScene("ChatListPreviews.ChatListGroups", chatListFontScales) { ChatListGroups() },
-  SnapshotScene("ChatListPreviews.ChatListGroupStates", chatListFontScales) { ChatListGroupStates() },
-  SnapshotScene("ChatListPreviews.ChatListFlags", chatListFontScales) { ChatListFlags() },
-  SnapshotScene("ChatListPreviews.ChatListUnread", chatListFontScales) { ChatListUnread() },
-  SnapshotScene("ChatListPreviews.ChatListMarks", chatListFontScales) { ChatListMarks() },
-  SnapshotScene("ChatListPreviews.ChatListMedia", chatListFontScales) { ChatListMedia() },
-  SnapshotScene("ChatListPreviews.ChatListText", chatListFontScales) { ChatListText() },
-  SnapshotScene("ChatListPreviews.ChatListDeleted", chatListFontScales) { ChatListDeleted() },
-  SnapshotScene("ChatListPreviews.ChatListLong", chatListFontScales) { ChatListLong() },
-  SnapshotScene("ChatListPreviews.ChatListDrafts", chatListFontScales) { ChatListDrafts() },
+  SnapshotScene("ChatListPreviews.ChatListContacts", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListContacts() },
+  SnapshotScene("ChatListPreviews.ChatListConnecting", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListConnecting() },
+  SnapshotScene("ChatListPreviews.ChatListPending", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListPending() },
+  SnapshotScene("ChatListPreviews.ChatListGroups", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListGroups() },
+  SnapshotScene("ChatListPreviews.ChatListGroupStates", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListGroupStates() },
+  SnapshotScene("ChatListPreviews.ChatListFlags", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListFlags() },
+  SnapshotScene("ChatListPreviews.ChatListUnread", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListUnread() },
+  SnapshotScene("ChatListPreviews.ChatListCounts", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListCounts() },
+  SnapshotScene("ChatListPreviews.ChatListMarks", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListMarks() },
+  SnapshotScene("ChatListPreviews.ChatListMedia", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListMedia() },
+  SnapshotScene("ChatListPreviews.ChatListCorners", roundness = listOf(0f, 1f)) { ChatListCorners() },
+  SnapshotScene("ChatListPreviews.ChatListText", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListText() },
+  SnapshotScene("ChatListPreviews.ChatListDeleted", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListDeleted() },
+  SnapshotScene("ChatListPreviews.ChatListLong", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListLong() },
+  SnapshotScene("ChatListPreviews.ChatListDrafts", chatListFontScales, CHAT_LIST_MAX_HEIGHT) { ChatListDrafts() },
   SnapshotScene("DatabaseEncryptionView.PreviewDatabaseEncryptionLayout") { PreviewDatabaseEncryptionLayout() },
   SnapshotScene("DatabaseErrorView.PreviewChatInfoLayout") { chat.simplex.common.views.database.PreviewChatInfoLayout() },
   SnapshotScene("DatabaseView.PreviewDatabaseLayout") { PreviewDatabaseLayout() },
@@ -184,15 +193,19 @@ class SnapshotTest {
         val themeName = base.name.lowercase()
         for (scene in previewScenes) {
           for (scale in scene.fontScales) {
-            appPrefs.fontScale.set(scale)
-            ChatModel.terminalItems.value = listOf()
-            val file = "${scene.name}-$themeName-font-${(scale * 100).roundToInt()}.png"
-            try {
-              val image = renderSnapshot(scene.content)
-              File(dir, file).writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
-              index += Snapshot(scene.name, themeName, scale, file, image.width, image.height)
-            } catch (e: Throwable) {
-              failures += "$file: ${e.stackTraceToString()}"
+            for (roundness in scene.roundness) {
+              appPrefs.fontScale.set(scale)
+              appPrefs.chatItemRoundness.set(roundness)
+              ChatModel.terminalItems.value = listOf()
+              val corners = if (scene.roundness.size > 1) "-roundness-${(roundness * 100).roundToInt()}" else ""
+              val file = "${scene.name}-$themeName-font-${(scale * 100).roundToInt()}$corners.png"
+              try {
+                val image = renderSnapshot(scene.content, scene.height)
+                File(dir, file).writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
+                index += Snapshot(scene.name, themeName, scale, file, image.width, image.height)
+              } catch (e: Throwable) {
+                failures += "$file: ${e.stackTraceToString()}"
+              }
             }
           }
         }
@@ -218,10 +231,10 @@ class SnapshotTest {
   }
 }
 
-private fun renderSnapshot(content: @Composable () -> Unit): Image {
+private fun renderSnapshot(content: @Composable () -> Unit, maxHeight: Int): Image {
   var height = 0
   val fixedQRCode = qrCodeBitmap(PREVIEW_QR_LINK, 1024, QrCode.ErrorLevel.M)
-  val frame = renderScene(width = SCENE_WIDTH, height = SCENE_MAX_HEIGHT, frames = 4) {
+  val frame = renderScene(width = SCENE_WIDTH, height = maxHeight, frames = 4) {
     AppBarHandler.appBarMaxHeightPx = with(LocalDensity.current) { AppBarHeight.roundToPx() }
     Box(Modifier.width(SCENE_WIDTH.dp).background(CurrentColors.collectAsState().value.colors.background).onSizeChanged { height = it.height }) {
       CompositionLocalProvider(LocalAppBarHandler provides rememberAppBarHandler(), LocalFixedQRCode provides fixedQRCode, content = content)

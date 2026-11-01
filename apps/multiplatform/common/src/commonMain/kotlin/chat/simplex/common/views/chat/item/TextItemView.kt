@@ -188,6 +188,7 @@ fun MarkdownText (
   overflow: TextOverflow = TextOverflow.Clip,
   uriHandler: UriHandler? = null,
   senderBold: Boolean = false,
+  plainLinks: Boolean = false,
   modifier: Modifier = Modifier,
   linkMode: SimplexLinkMode,
   inlineContent: Pair<AnnotatedString.Builder.() -> Unit, Map<String, InlineTextContent>>? = null,
@@ -226,7 +227,7 @@ fun MarkdownText (
             text, formattedText, markdownBlocks, sender = if (index == 0) sender else null, meta = if (last) meta else null, chatTTL = chatTTL,
             encrypted = encrypted, signedFileVerified = signedFileVerified,
             mentions = mentions, userMemberId = userMemberId, toggleSecrets = toggleSecrets, sendCommandMsg = sendCommandMsg, style = blockStyle,
-            uriHandler = uriHandler, senderBold = senderBold, modifier = blockModifier, linkMode = linkMode, onLinkLongClick = onLinkLongClick,
+            uriHandler = uriHandler, senderBold = senderBold, plainLinks = plainLinks, modifier = blockModifier, linkMode = linkMode, onLinkLongClick = onLinkLongClick,
             showViaProxy = showViaProxy, showTimestamp = showTimestamp, prefix = if (index == 0) prefix else null,
             selection = selection, textIndex = index, range = r.from until r.to, softWrap = blockSoftWrap, parentDirection = direction
           )
@@ -315,6 +316,7 @@ fun MarkdownText (
       var hasCommands = false
       var hasModals = false
       val hiddenSecrets = mutableListOf<IntRange>()
+      val linkStyle = if (plainLinks) SpanStyle() else Format.linkStyle
       val annotatedText = buildAnnotatedString {
         inlineContent?.first?.invoke(this)
         appendSender(this, sender, senderBold)
@@ -381,7 +383,7 @@ fun MarkdownText (
               }
             is Format.Uri -> {
               hasLinks = true
-              val ftStyle = Format.linkStyle
+              val ftStyle = linkStyle
               val s = ft.text
               val link = if (s.startsWith("http://") || s.startsWith("https://")) s else "https://$s"
               withAnnotation(tag = "WEB_URL", annotation = link) {
@@ -390,14 +392,14 @@ fun MarkdownText (
             }
             is Format.HyperLink -> {
               hasLinks = true
-              val ftStyle = Format.linkStyle
+              val ftStyle = linkStyle
               withAnnotation(tag = if (ft.format.isEmail) "OTHER_URL" else "WEB_URL", annotation = ft.format.linkUri) {
                 withStyle(ftStyle) { append(ft.format.showText ?: ft.text) }
               }
             }
             is Format.SimplexLink -> {
               hasLinks = true
-              val ftStyle = Format.linkStyle
+              val ftStyle = linkStyle
               val link =
                 if (linkMode == SimplexLinkMode.BROWSER && ft.format.showText == null && !ft.text.startsWith("[")) ft.text
                 else ft.format.simplexUri
@@ -413,28 +415,28 @@ fun MarkdownText (
             }
             is Format.SimplexName -> {
               hasLinks = true
-              val ftStyle = Format.linkStyle
+              val ftStyle = linkStyle
               withAnnotation(tag = "SIMPLEX_NAME", annotation = i.toString()) {
                 withStyle(ftStyle) { append(ft.text) }
               }
             }
             is Format.Email -> {
               hasLinks = true
-              val ftStyle = Format.linkStyle
+              val ftStyle = linkStyle
               withAnnotation(tag = "OTHER_URL", annotation = "mailto:${ft.text}") {
                 withStyle(ftStyle) { append(ft.text) }
               }
             }
             is Format.Phone -> {
               hasLinks = true
-              val ftStyle = Format.linkStyle
+              val ftStyle = linkStyle
               withAnnotation(tag = "OTHER_URL", annotation = "tel:${ft.text}") {
                 withStyle(ftStyle) { append(ft.text) }
               }
             }
             is Format.Modal -> {
               hasModals = true
-              val ftStyle = Format.linkStyle
+              val ftStyle = linkStyle
               withAnnotation(tag = "MODAL", annotation = i.toString()) {
                 withStyle(ftStyle) { append(ft.text) }
               }
