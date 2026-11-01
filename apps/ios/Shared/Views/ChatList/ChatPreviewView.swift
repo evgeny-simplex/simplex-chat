@@ -364,7 +364,7 @@ struct ChatPreviewView: View {
         switch (chat.chatInfo) {
         case let .direct(contact):
             if contact.isContactCard {
-                Text("Tap to Connect")
+                Text("Tap to connect")
                     .foregroundColor(theme.colors.primary)
             } else if contact.isBot && contact.nextConnectPrepared {
                 Text("Open to use bot")
