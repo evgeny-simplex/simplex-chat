@@ -63,12 +63,14 @@
           clearTimeout(timer)
           worker.terminate()
           knowledgeBase = null
+          requests.forEach(({ failed }) => failed(error))
+          requests.clear()
           reject(error)
         }
         const timer = setTimeout(() => fail(new Error("knowledge base timeout")), knowledgeBaseTimeout)
-        const request = (message) => new Promise((done) => {
+        const request = (message) => new Promise((done, failed) => {
           nextId += 1
-          requests.set(nextId, done)
+          requests.set(nextId, { done, failed })
           worker.postMessage({ ...message, id: nextId })
         })
         worker.onerror = () => fail(new Error("knowledge base worker"))
@@ -83,7 +85,7 @@
           } else if (message.type === "error") {
             fail(new Error(message.message))
           } else {
-            requests.get(message.id)(message.result)
+            requests.get(message.id).done(message.result)
             requests.delete(message.id)
           }
         }
