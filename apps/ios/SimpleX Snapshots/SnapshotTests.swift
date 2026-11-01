@@ -193,9 +193,11 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(ChatListConnecting_Previews.self, allSizes: true),
         SnapshotScene(ChatListContacts_Previews.self, allSizes: true),
         SnapshotScene(ChatListDeleted_Previews.self, allSizes: true),
+        SnapshotScene(ChatListDrafts_Previews.self, allSizes: true),
         SnapshotScene(ChatListFlags_Previews.self, allSizes: true),
         SnapshotScene(ChatListGroupStates_Previews.self, allSizes: true),
         SnapshotScene(ChatListGroups_Previews.self, allSizes: true),
+        SnapshotScene(ChatListLargeText_Previews.self),
         SnapshotScene(ChatListLong_Previews.self, allSizes: true),
         SnapshotScene(ChatListMarks_Previews.self, allSizes: true),
         SnapshotScene(ChatListMedia_Previews.self, allSizes: true),
@@ -523,6 +525,18 @@ struct ChatListLong_Previews: PreviewProvider {
 struct ChatListRail_Previews: PreviewProvider {
     static var previews: some View {
         ChatListFixtures().rail()
+    }
+}
+
+struct ChatListDrafts_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().drafts()
+    }
+}
+
+struct ChatListLargeText_Previews: PreviewProvider {
+    static var previews: some View {
+        ChatListFixtures().largeText()
     }
 }
 
@@ -1043,10 +1057,20 @@ private final class ChatListFixtures {
         ChatListNavLink(chat: Chat(chatInfo: chatInfo, chatItems: items, chatStats: stats), parentSheet: .constant(nil))
     }
 
-    private func previewRow(_ chatInfo: ChatInfo, _ items: [ChatItem] = [], progress: Bool = false, deleting: Bool = false, call: ChatPreviewView.CallMark? = nil) -> some View {
+    private func previewRow(_ chatInfo: ChatInfo, _ items: [ChatItem] = [], progress: Bool = false, deleting: Bool = false, call: ChatPreviewView.CallMark? = nil, draft: Bool = false) -> some View {
         ChatListRow {
-            ChatPreviewView(chat: Chat(chatInfo: chatInfo, chatItems: items), progressByTimeout: .constant(progress), deleting: deleting, previewCall: call)
+            ChatPreviewView(chat: Chat(chatInfo: chatInfo, chatItems: items), progressByTimeout: .constant(progress), deleting: deleting, previewCall: call, previewDraft: draft)
         }
+    }
+
+    private func contactRequest(_ name: String, fullName: String) -> UserContactRequest {
+        var request = UserContactRequest.sampleData
+        request.contactRequestId = newId()
+        request.localDisplayName = name
+        request.profile = LocalProfile(profileId: request.contactRequestId, displayName: name, fullName: fullName, localAlias: "")
+        request.createdAt = previewDate
+        request.updatedAt = previewDate
+        return request
     }
 
     func contacts() -> some View {
@@ -1094,12 +1118,7 @@ private final class ChatListFixtures {
         memberRequest.groupDirectInv = GroupDirectInvitation.sampleData
         var card = contact("laura", contactLink: Self.link.connFullLink)
         card.activeConn = nil
-        var contactRequest = UserContactRequest.sampleData
-        contactRequest.contactRequestId = newId()
-        contactRequest.localDisplayName = "mike"
-        contactRequest.profile = LocalProfile(profileId: contactRequest.contactRequestId, displayName: "mike", fullName: "Mike", localAlias: "")
-        contactRequest.createdAt = previewDate
-        contactRequest.updatedAt = previewDate
+        let mike = contactRequest("mike", fullName: "Mike")
         return VStack(spacing: 0) {
             row(.direct(contact: joining))
             row(.direct(contact: shouldAccept))
@@ -1108,7 +1127,7 @@ private final class ChatListFixtures {
             row(.direct(contact: request))
             row(.direct(contact: memberRequest))
             row(.direct(contact: card))
-            row(.contactRequest(contactRequest: contactRequest))
+            row(.contactRequest(contactRequest: mike))
         }
     }
 
@@ -1250,6 +1269,35 @@ private final class ChatListFixtures {
             row(.group(groupInfo: team, groupChatScope: nil), [item(.groupSnd, "See you there", status: .sndError(agentError: .auth))], ChatStats(unreadCount: 2, unreadMentions: 1))
             row(.group(groupInfo: moderators, groupChatScope: nil), [mentionItem(moderators, bob, " please check the reports")], ChatStats(unreadCount: 1, unreadMentions: 1, reportsCount: 2))
             row(.group(groupInfo: group("night owls", incognito: true), groupChatScope: nil), [item(.groupRcv(groupMember: alice), "Spam links in every message")], ChatStats(reportsCount: 1))
+        }
+    }
+
+    func drafts() -> some View {
+        let photoChat = ChatInfo.direct(contact: contact("alice", fullName: "Alice", image: Self.photo))
+        let image = [item(.directRcv, "Sunset at the beach", .image(text: "Sunset at the beach", image: Self.landscape), file: file("sunset.jpg"))]
+        return VStack(spacing: 0) {
+            previewRow(photoChat, image)
+            previewRow(photoChat, image, draft: true)
+            previewRow(.direct(contact: contact("bob")), [item(.directRcv, "Can you send the report?")], draft: true)
+            previewRow(.direct(contact: contact("carol")), [item(.directRcv, "Tell me in a voice message")], draft: true)
+            previewRow(.direct(contact: contact("dan")), [item(.directRcv, "Any photos from the trip?")], draft: true)
+            previewRow(.direct(contact: contact("dan")), [item(.directSnd, "I will call you later", status: .sndWarning(agentError: .quota))], draft: true)
+        }
+    }
+
+    func largeText() -> some View {
+        VStack(spacing: 0) {
+            statusLines().dynamicTypeSize(.accessibility3)
+            statusLines().dynamicTypeSize(.accessibility5)
+        }
+    }
+
+    private func statusLines() -> some View {
+        VStack(spacing: 0) {
+            row(.contactRequest(contactRequest: contactRequest("mike", fullName: "Mike")))
+            row(.contactConnection(contactConnection: connection(.joined, viaContactUri: false, incognito: true)))
+            row(.group(groupInfo: group("book club", status: .memInvited), groupChatScope: nil))
+            row(.group(groupInfo: group("hiking", status: .memAccepted, incognito: true), groupChatScope: nil))
         }
     }
 }

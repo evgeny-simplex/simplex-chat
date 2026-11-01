@@ -47,6 +47,7 @@ private const val SCENE_MAX_HEIGHT = 874
 private const val PREVIEW_QR_LINK = "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw"
 
 private val chatItemFontScales = listOf(1f, 1.4f, 1.5f)
+private val chatListFontScales = listOf(1f, 1.5f)
 
 private class SnapshotScene(val name: String, val fontScales: List<Float> = listOf(1f), val content: @Composable () -> Unit)
 
@@ -95,7 +96,7 @@ private val previewScenes = listOf(
   SnapshotScene("ChatPreviewView.PreviewChatPreviewView") { PreviewChatPreviewView() },
   SnapshotScene("ChatListPreviews.ChatListContacts") { ChatListContacts() },
   SnapshotScene("ChatListPreviews.ChatListConnecting") { ChatListConnecting() },
-  SnapshotScene("ChatListPreviews.ChatListPending") { ChatListPending() },
+  SnapshotScene("ChatListPreviews.ChatListPending", chatListFontScales) { ChatListPending() },
   SnapshotScene("ChatListPreviews.ChatListGroups") { ChatListGroups() },
   SnapshotScene("ChatListPreviews.ChatListGroupStates") { ChatListGroupStates() },
   SnapshotScene("ChatListPreviews.ChatListFlags") { ChatListFlags() },
@@ -105,8 +106,8 @@ private val previewScenes = listOf(
   SnapshotScene("ChatListPreviews.ChatListText") { ChatListText() },
   SnapshotScene("ChatListPreviews.ChatListDeleted") { ChatListDeleted() },
   SnapshotScene("ChatListPreviews.ChatListLong") { ChatListLong() },
-  SnapshotScene("ChatListPreviews.ChatListDrafts") { ChatListDrafts() },
-  SnapshotScene("ChatListPreviews.ChatListRail") { ChatListRail() },
+  SnapshotScene("ChatListPreviews.ChatListDrafts", chatListFontScales) { ChatListDrafts() },
+  SnapshotScene("ChatListPreviews.ChatListRail", chatListFontScales) { ChatListRail() },
   SnapshotScene("DatabaseEncryptionView.PreviewDatabaseEncryptionLayout") { PreviewDatabaseEncryptionLayout() },
   SnapshotScene("DatabaseErrorView.PreviewChatInfoLayout") { chat.simplex.common.views.database.PreviewChatInfoLayout() },
   SnapshotScene("DatabaseView.PreviewDatabaseLayout") { PreviewDatabaseLayout() },

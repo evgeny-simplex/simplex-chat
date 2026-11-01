@@ -52,7 +52,7 @@ fun ChatPreviewView(
 ) {
   val cInfo = chat.chatInfo
   val deleting by remember(disabled, chat.id) { mutableStateOf(chatModel.deletedChats.value.contains(chat.remoteHostId to chat.chatInfo.id)) }
-  val draft = if (chatModelDraftChatId == chat.id) chatModelDraft else null
+  val hasDraft = chatModelDraftChatId == chat.id && chatModelDraft != null
 
   @Composable
   fun inactiveIcon() {
@@ -99,21 +99,6 @@ fun ChatPreviewView(
   fun VerifiedIcon() {
     Icon(painterResource(MR.images.ic_verified_user), null, Modifier.size(19.sp.toDp()).padding(end = 3.sp.toDp(), top = 1.sp.toDp()), tint = MaterialTheme.colors.secondary)
   }
-
-  fun draftAttachmentText(draft: ComposeState): AnnotatedString? =
-    when (draft.preview) {
-      is ComposePreview.FilePreview -> AnnotatedString(draft.preview.fileName + " ")
-      is ComposePreview.VoicePreview -> AnnotatedString(durationText(draft.preview.durationMs / 1000) + " ")
-      else -> null
-    }
-
-  fun draftGlyph(draft: ComposeState): ImageResource =
-    when (draft.preview) {
-      is ComposePreview.FilePreview -> MR.images.ic_draft_filled
-      is ComposePreview.MediaPreview -> MR.images.ic_image
-      is ComposePreview.VoicePreview -> MR.images.ic_play_arrow_filled
-      else -> MR.images.ic_edit_note
-    }
 
   fun contentGlyph(mc: MsgContent?): ImageResource? =
     when (mc) {
@@ -217,19 +202,7 @@ fun ChatPreviewView(
   fun chatPreviewText() {
     val previewText = chatPreviewInfoText()
     val ci = chat.chatItems.lastOrNull()
-    if (draft != null) {
-      MarkdownText(
-        draft.message.text,
-        formattedText = null,
-        toggleSecrets = false,
-        linkMode = linkMode,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-        style = chatPreviewTextStyle(),
-        modifier = Modifier.fillMaxWidth(),
-        prefix = draftAttachmentText(draft)
-      )
-    } else if (ci?.content?.hasMsgContent != true && previewText != null) {
+    if (ci?.content?.hasMsgContent != true && previewText != null) {
       Text(previewText.first, color = previewText.second, maxLines = 2, overflow = TextOverflow.Ellipsis, style = chatPreviewTextStyle())
     } else if (ci != null && showChatPreviews) {
       val (text: CharSequence, inlineTextContent) = when {
@@ -436,7 +409,7 @@ fun ChatPreviewView(
       RailIcon(requestMark.first, requestMark.second, requestMark.third)
     } else if (chat.chatStats.unreadMentions > 0) {
       mentionMark()
-    } else if (draft != null) {
+    } else if (hasDraft) {
       RailIcon(MR.images.ic_edit_note, MaterialTheme.colors.primary, stringResource(MR.strings.privacy_message_draft))
     } else if (chat.chatStats.reportsCount > 0) {
       FlagIcon(color = MaterialTheme.colors.error)
@@ -470,14 +443,14 @@ fun ChatPreviewView(
     val deleted = ci?.isDeletedContent == true || ci?.meta?.itemDeleted != null
     val showContentPreview = showChatPreviews || activeVoicePreview.value != null
     if (ci != null && showContentPreview) {
-      when {
-        draft != null -> GlyphContentPreview(if (contentGlyph(mc) != null) draftGlyph(draft) else null, MaterialTheme.colors.primary)
-        deleted -> GlyphContentPreview(contentGlyph(mc), MaterialTheme.colors.secondary)
-        else -> key(ci.id) { chatItemContentPreview(chat, ci) }
+      if (deleted) {
+        GlyphContentPreview(contentGlyph(mc))
+      } else {
+        key(ci.id) { chatItemContentPreview(chat, ci) }
       }
     }
-    if (mc !is MsgContent.MCVoice || !showContentPreview || mc.text.isNotEmpty() || draft != null || deleted) {
-      Box(Modifier.offset(x = if (mc is MsgContent.MCFile && !deleted && draft == null) -15.sp.toDp() else 0.dp)) {
+    if (mc !is MsgContent.MCVoice || !showContentPreview || mc.text.isNotEmpty() || deleted) {
+      Box(Modifier.offset(x = if (mc is MsgContent.MCFile && !deleted) -15.sp.toDp() else 0.dp)) {
         chatPreviewText()
       }
     }
@@ -557,10 +530,10 @@ fun chatPreviewTextStyle(): TextStyle =
   )
 
 @Composable
-private fun GlyphContentPreview(glyph: ImageResource?, color: Color) {
+private fun GlyphContentPreview(glyph: ImageResource?) {
   if (glyph != null) {
     SmallContentPreview {
-      Icon(painterResource(glyph), null, Modifier.align(Alignment.Center).size(18.sp.toDp()), tint = color)
+      Icon(painterResource(glyph), null, Modifier.align(Alignment.Center).size(18.sp.toDp()), tint = MaterialTheme.colors.secondary)
     }
   }
 }
