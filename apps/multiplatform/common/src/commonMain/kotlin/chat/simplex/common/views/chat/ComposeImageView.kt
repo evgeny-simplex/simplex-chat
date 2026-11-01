@@ -19,11 +19,11 @@ import chat.simplex.common.ui.theme.*
 import chat.simplex.common.views.helpers.UploadContent
 
 @Composable
-fun ComposeImageView(media: ComposePreview.MediaPreview, cancelImages: () -> Unit, cancelEnabled: Boolean) {
+fun ComposeImageView(media: ComposePreview.MediaPreview, cancelImages: () -> Unit, cancelEnabled: Boolean, bandAbove: Boolean = true) {
   val sentColor = MaterialTheme.appColors.sentMessage
   Row(
     Modifier
-      .padding(top = 8.dp)
+      .padding(top = if (bandAbove) 8.dp else 0.dp)
       .background(sentColor),
     verticalAlignment = Alignment.CenterVertically,
   ) {

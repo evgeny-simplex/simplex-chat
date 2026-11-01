@@ -15,13 +15,13 @@ import chat.simplex.common.ui.theme.*
 import chat.simplex.res.*
 
 @Composable
-fun ComposeFileView(fileName: String, cancelFile: () -> Unit, cancelEnabled: Boolean) {
+fun ComposeFileView(fileName: String, cancelFile: () -> Unit, cancelEnabled: Boolean, bandAbove: Boolean = true) {
   val sentColor = MaterialTheme.appColors.sentMessage
   Row(
     Modifier
-      .height(60.dp)
+      .padding(top = if (bandAbove) 8.dp else 0.dp)
+      .height(52.dp)
       .fillMaxWidth()
-      .padding(top = 8.dp)
       .background(sentColor),
     verticalAlignment = Alignment.CenterVertically
   ) {

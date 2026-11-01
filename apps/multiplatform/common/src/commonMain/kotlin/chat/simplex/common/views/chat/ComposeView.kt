@@ -1191,23 +1191,36 @@ fun ComposeView(
 
   @Composable
   fun previewView() {
+    val stacked = composeState.value.contextItem != ComposeContextItem.NoContextItem
     when (val preview = composeState.value.preview) {
       ComposePreview.NoPreview -> {}
-      is ComposePreview.CLinkPreview -> ComposeLinkView(
-        preview.linkPreview,
-        ::cancelLinkPreview,
-        cancelEnabled = !composeState.value.inProgress
-      )
-      is ComposePreview.ChatLinkPreview -> ComposeChatLinkView(
-        chatLink = preview.chatLink,
-        cancelEnabled = !composeState.value.inProgress,
-        cancelPreview = { composeState.value = composeState.value.copy(preview = ComposePreview.NoPreview) }
-      )
-      is ComposePreview.MediaPreview -> ComposeImageView(
-        preview,
-        ::cancelImages,
-        cancelEnabled = !composeState.value.editing && !composeState.value.inProgress
-      )
+      is ComposePreview.CLinkPreview -> {
+        if (stacked) Divider()
+        ComposeLinkView(
+          preview.linkPreview,
+          ::cancelLinkPreview,
+          cancelEnabled = !composeState.value.inProgress,
+          bandAbove = !stacked
+        )
+      }
+      is ComposePreview.ChatLinkPreview -> {
+        if (stacked) Divider()
+        ComposeChatLinkView(
+          chatLink = preview.chatLink,
+          cancelEnabled = !composeState.value.inProgress,
+          bandAbove = !stacked,
+          cancelPreview = { composeState.value = composeState.value.copy(preview = ComposePreview.NoPreview) }
+        )
+      }
+      is ComposePreview.MediaPreview -> {
+        if (stacked) Divider()
+        ComposeImageView(
+          preview,
+          ::cancelImages,
+          cancelEnabled = !composeState.value.editing && !composeState.value.inProgress,
+          bandAbove = !stacked
+        )
+      }
       is ComposePreview.VoicePreview -> ComposeVoiceView(
         preview.voice,
         preview.durationMs,
@@ -1215,11 +1228,15 @@ fun ComposeView(
         cancelEnabled = !composeState.value.editing && !composeState.value.inProgress,
         ::cancelVoice
       )
-      is ComposePreview.FilePreview -> ComposeFileView(
-        preview.fileName,
-        ::cancelFile,
-        cancelEnabled = !composeState.value.editing && !composeState.value.inProgress
-      )
+      is ComposePreview.FilePreview -> {
+        if (stacked) Divider()
+        ComposeFileView(
+          preview.fileName,
+          ::cancelFile,
+          cancelEnabled = !composeState.value.editing && !composeState.value.inProgress,
+          bandAbove = !stacked
+        )
+      }
     }
   }
 

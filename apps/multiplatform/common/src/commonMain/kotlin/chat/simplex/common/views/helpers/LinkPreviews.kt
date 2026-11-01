@@ -147,10 +147,10 @@ suspend fun getLinkPreview(url: String): LinkPreview? {
 }
 
 @Composable
-fun ComposeLinkView(linkPreview: LinkPreview?, cancelPreview: () -> Unit, cancelEnabled: Boolean) {
+fun ComposeLinkView(linkPreview: LinkPreview?, cancelPreview: () -> Unit, cancelEnabled: Boolean, bandAbove: Boolean = true) {
   val sentColor = MaterialTheme.appColors.sentMessage
   Row(
-    Modifier.fillMaxWidth().padding(top = 8.dp).background(sentColor),
+    Modifier.fillMaxWidth().padding(top = if (bandAbove) 8.dp else 0.dp).background(sentColor),
     verticalAlignment = Alignment.CenterVertically
   ) {
     if (linkPreview == null) {

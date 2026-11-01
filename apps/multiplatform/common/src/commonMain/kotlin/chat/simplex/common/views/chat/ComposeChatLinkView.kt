@@ -9,7 +9,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import chat.simplex.common.model.MsgChatLink
+import chat.simplex.common.ui.theme.FileDark
+import chat.simplex.common.ui.theme.FileLight
 import chat.simplex.common.ui.theme.appColors
+import chat.simplex.common.ui.theme.isInDarkTheme
 import chat.simplex.common.views.helpers.ProfileImage
 import dev.icerock.moko.resources.compose.painterResource
 import chat.simplex.res.*
@@ -18,18 +21,19 @@ import chat.simplex.res.*
 fun ComposeChatLinkView(
   chatLink: MsgChatLink,
   cancelEnabled: Boolean,
+  bandAbove: Boolean = true,
   cancelPreview: () -> Unit
 ) {
   val sentColor = MaterialTheme.appColors.sentMessage
   Row(
     Modifier
       .fillMaxWidth()
-      .padding(top = 8.dp)
+      .padding(top = if (bandAbove) 8.dp else 0.dp)
       .background(sentColor)
       .padding(start = 8.dp, top = 6.dp, bottom = 6.dp),
     verticalAlignment = Alignment.CenterVertically
   ) {
-    ProfileImage(size = 54.dp, image = chatLink.image, icon = chatLink.iconRes)
+    ProfileImage(size = 54.dp, image = chatLink.image, icon = chatLink.iconRes, color = if (isInDarkTheme()) FileDark else FileLight)
     Column(
       Modifier.fillMaxWidth().weight(1f).padding(horizontal = 8.dp)
     ) {
