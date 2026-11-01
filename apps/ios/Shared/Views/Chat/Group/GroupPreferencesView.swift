@@ -134,7 +134,7 @@ struct GroupPreferencesView: View {
                     get: { enableFeature.wrappedValue == .on },
                     set: { on, _ in enableFeature.wrappedValue = on ? .on : .off }
                 )
-                settingsRow(icon, color: color) {
+                settingsRow(icon, color: color, lightSymbol: true) {
                     Toggle(feature.text(isChannel: groupInfo.isChannel), isOn: enable)
                 }
                 .disabled(disabled)
@@ -157,7 +157,7 @@ struct GroupPreferencesView: View {
                     .frame(height: 36)
                 }
             } else {
-                settingsRow(icon, color: color) {
+                settingsRow(icon, color: color, lightSymbol: true) {
                     infoRow(Text(feature.text(isChannel: groupInfo.isChannel)), enableFeature.wrappedValue.text)
                 }
                 if timedOn {
