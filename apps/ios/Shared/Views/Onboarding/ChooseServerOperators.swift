@@ -324,6 +324,7 @@ struct ChooseServerOperators: View {
             RoundedRectangle(cornerRadius: 18)
                 .stroke(Color(uiColor: .secondarySystemFill), lineWidth: 2)
         )
+        .contentShape(RoundedRectangle(cornerRadius: 18))
         .padding(.horizontal, 2)
         .onTapGesture {
             if checked {
