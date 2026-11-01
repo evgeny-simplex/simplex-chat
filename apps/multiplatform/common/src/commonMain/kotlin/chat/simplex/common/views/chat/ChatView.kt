@@ -4030,6 +4030,60 @@ fun PreviewGroupChatLayout() = BubblePreview {
   }
 }
 
+@Composable
+fun PreviewLocale(tag: String, content: @Composable () -> Unit) {
+  val defaultLocale = remember { java.util.Locale.getDefault() }
+  remember { java.util.Locale.setDefault(java.util.Locale.forLanguageTag(tag)) }
+  DisposableEffect(Unit) {
+    onDispose { java.util.Locale.setDefault(defaultLocale) }
+  }
+  content()
+}
+
+@Composable
+private fun DateSeparatorInLocale(tag: String) {
+  PreviewLocale(tag) {
+    SimpleXTheme {
+      Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(tag, Modifier.padding(start = DEFAULT_PADDING).width(64.dp), fontSize = 14.sp, color = MaterialTheme.colors.secondary)
+        DateSeparator(Instant.parse("2025-01-15T12:00:00Z"))
+      }
+    }
+  }
+}
+
+@Preview
+@Composable
+fun PreviewDateSeparatorEnUs() = DateSeparatorInLocale("en-US")
+
+@Preview
+@Composable
+fun PreviewDateSeparatorEnGb() = DateSeparatorInLocale("en-GB")
+
+@Preview
+@Composable
+fun PreviewDateSeparatorDe() = DateSeparatorInLocale("de")
+
+@Preview
+@Composable
+fun PreviewDateSeparatorEs() = DateSeparatorInLocale("es")
+
+@Preview
+@Composable
+fun PreviewDateSeparatorHu() = DateSeparatorInLocale("hu")
+
+@Preview
+@Composable
+fun PreviewDateSeparatorJa() = DateSeparatorInLocale("ja")
+
+@Preview
+@Composable
+fun PreviewDateSeparatorTr() = DateSeparatorInLocale("tr")
+
+@Preview
+@Composable
+fun PreviewDateSeparatorZhCn() = DateSeparatorInLocale("zh-CN")
+
 enum class ContentFilter(
   val contentTag: MsgContentTag,
   val label: StringResource,

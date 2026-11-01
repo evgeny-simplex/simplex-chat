@@ -1811,3 +1811,18 @@ struct NewChatView_Previews: PreviewProvider {
         )
     }
 }
+
+struct InviteView_Previews: PreviewProvider {
+    static var previews: some View {
+        InviteView(
+            invitationUsed: .constant(false),
+            contactConnection: .constant(nil),
+            connLinkInvitation: .constant(CreatedConnLink(
+                connFullLink: "simplex:/invitation#/?v=2-7",
+                connShortLink: "https://smp6.simplex.im/i#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw"
+            )),
+            showShortLink: .constant(true),
+            choosingProfile: .constant(false)
+        )
+    }
+}

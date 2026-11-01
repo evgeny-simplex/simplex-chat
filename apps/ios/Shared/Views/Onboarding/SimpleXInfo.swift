@@ -146,3 +146,17 @@ struct SimpleXInfo_Previews: PreviewProvider {
         SimpleXInfo(onboarding: true)
     }
 }
+
+struct SimpleXInfo_German_Previews: PreviewProvider {
+    static var previews: some View {
+        SimpleXInfo(onboarding: true)
+            .environment(\.locale, Locale(identifier: "de"))
+    }
+}
+
+struct SimpleXInfo_Russian_Previews: PreviewProvider {
+    static var previews: some View {
+        SimpleXInfo(onboarding: true)
+            .environment(\.locale, Locale(identifier: "ru"))
+    }
+}
