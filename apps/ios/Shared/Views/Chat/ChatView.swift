@@ -1472,7 +1472,7 @@ struct ChatView: View {
                 Task { await chatModel.loadGroupMembers(gInfo) { showAddMembersSheet = true } }
             }
         } label: {
-            Label("Invite member", systemImage: "person.crop.circle.badge.plus")
+            Label("Invite members", systemImage: "person.crop.circle.badge.plus")
         }
     }
 
