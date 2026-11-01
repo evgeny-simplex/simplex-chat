@@ -144,6 +144,7 @@ kotlin {
         implementation("net.java.dev.jna:jna:5.14.0")
         implementation(project(":external:nanohttpd"))
         implementation("com.squareup.okhttp3:okhttp:4.12.0")
+        implementation("com.ibm.icu:icu4j:73.1")
       }
     }
     val desktopTest by getting {
