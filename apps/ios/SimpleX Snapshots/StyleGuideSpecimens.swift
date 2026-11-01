@@ -102,9 +102,9 @@ private struct SpecimenTypeRoles: View {
             }
             Group {
                 SpecimenBlock(label: "type.markdown.heading.chat: bold × 1.25^(3 − level) of the message size") {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
                         ForEach([1.5625, 1.25, 1] as [CGFloat], id: \.self) { f in
-                            Text(verbatim: "Heading").font(.system(size: base * f, weight: .bold))
+                            Text(verbatim: "Heading \(specimenPoints(base * f)) pt").font(.system(size: base * f, weight: .bold))
                         }
                     }
                 }
@@ -200,7 +200,7 @@ private struct SpecimenRadii: View {
                 SpecimenTile(token: "radius.bubble", value: "21.6 × r, quadratic") {
                     fill
                         .modifier(ChatTailPadding())
-                        .frame(width: 73, height: 44)
+                        .frame(width: 73, height: 56)
                         .modifier(ChatItemClipped(textItem, tailVisible: true))
                         .padding(.leading, 9)
                 }
@@ -211,12 +211,12 @@ private struct SpecimenRadii: View {
             SpecimenLabel(text: "fixed")
             HStack(alignment: .top, spacing: 8) {
                 SpecimenTile(token: "radius.bar", value: "2 on a 4 bar") {
-                    RoundedRectangle(cornerRadius: 2).fill(tileColour).frame(width: 4, height: 44)
+                    RoundedRectangle(cornerRadius: 2).fill(tileColour).frame(width: 4, height: 56)
                 }
                 SpecimenTile(token: "radius.avatar", value: "R \(specimenPoints(avatarRadius)) % of the side") {
-                    clipProfileImage(Image(uiImage: specimenImage(UIColor(tileColour))), size: 44, radius: avatarRadius)
+                    clipProfileImage(Image(uiImage: specimenImage(UIColor(tileColour))), size: 56, radius: avatarRadius)
                 }
-                SpecimenShapeTile(token: "radius.tile", value: "22.5 % of the side", radius: 44 * 0.225, width: 44)
+                SpecimenShapeTile(token: "radius.tile", value: "22.5 % of the side", radius: 56 * 0.225, width: 56)
                 SpecimenShapeTile(token: "radius.pill", value: "half the height", radius: 14, height: 28)
             }
             HStack(alignment: .top, spacing: 8) {
@@ -234,10 +234,10 @@ private struct SpecimenRadii: View {
             SpecimenLabel(text: "changes: now → proposed")
             HStack(alignment: .top, spacing: 8) {
                 SpecimenTile(token: "deleted item", value: "now 8 × r") {
-                    fill.frame(width: 82, height: 44).modifier(ChatItemClipped(ChatItem.getDeletedContentSample(), tailVisible: false))
+                    fill.frame(width: 82, height: 56).modifier(ChatItemClipped(ChatItem.getDeletedContentSample(), tailVisible: false))
                 }
                 SpecimenTile(token: "deleted item", value: "proposed bubble, no tail (U33)") {
-                    fill.frame(width: 82, height: 44).modifier(ChatItemClipped(textItem, tailVisible: false))
+                    fill.frame(width: 82, height: 56).modifier(ChatItemClipped(textItem, tailVisible: false))
                 }
                 SpecimenShapeTile(token: "connect banner", value: "now 18", radius: 18)
                 SpecimenShapeTile(token: "connect banner", value: "proposed 16 (Q11)", radius: 16)
@@ -290,7 +290,7 @@ private struct SpecimenIcons: View {
                 } proposed: {
                     menuItem("multiply")
                 }
-                SpecimenLabel(text: "icon.fill · 'photo.on.rectangle.fill' is not a symbol, so the button is empty now")
+                SpecimenLabel(text: "icon.fill · content filter button: 'photo.on.rectangle.fill' now, 'photo.fill.on.rectangle.fill' proposed; this render is made on the iOS 26.5 simulator")
                 SpecimenNowProposed {
                     Image(systemName: "photo.on.rectangle.fill").font(.body).foregroundColor(theme.colors.primary).frame(height: 24)
                 } proposed: {
@@ -576,7 +576,7 @@ private struct SpecimenTile<Sample: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            sample().frame(width: 82, height: 44, alignment: .leading)
+            sample().frame(width: 82, height: 56, alignment: .leading)
             SpecimenLabel(text: token, strong: true)
             SpecimenLabel(text: value)
         }
@@ -590,7 +590,7 @@ private struct SpecimenShapeTile: View {
     var value: String
     var radius: CGFloat
     var width: CGFloat = 82
-    var height: CGFloat = 44
+    var height: CGFloat = 56
 
     var body: some View {
         SpecimenTile(token: token, value: value) {

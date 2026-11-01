@@ -216,7 +216,7 @@ fun StyleGuideSpacingCards() {
 @Composable
 fun StyleGuideRadii() {
   val r = appPrefs.chatItemRoundness.get()
-  SpecimenSheet("Corner radii · Android, desktop · roundness r = ${"%.2f".format(r)}") {
+  SpecimenSheet("Corner radii · Android, desktop · r = ${"%.2f".format(r)}") {
     SpecimenLabel("chat content, scaled by r")
     TileGrid {
       Tile("radius.bubble", "21.6 × r, quadratic") {
@@ -364,7 +364,7 @@ fun StyleGuideColours() {
 }
 
 private val TILE_W = 82.dp
-private val TILE_H = 44.dp
+private val TILE_H = 56.dp
 
 @Composable
 private fun SpecimenSheet(title: String, content: @Composable ColumnScope.() -> Unit) {
