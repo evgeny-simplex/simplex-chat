@@ -376,3 +376,25 @@ fun PreviewChatInfoLayout() {
     )
   }
 }
+
+@Preview
+@Composable
+fun PreviewDatabaseErrorSQL() {
+  SimpleXTheme {
+    DatabaseErrorView(
+      remember { mutableStateOf(DBMigrationResult.ErrorSQL("/home/user/.local/share/simplex/simplex_v1_chat.db", "SQLError {sqlError = ErrorIO, sqlErrorDetails = \"disk I/O error\", sqlErrorContext = \"open\"}")) },
+      AppPreferences()
+    )
+  }
+}
+
+@Preview
+@Composable
+fun PreviewDatabaseErrorKeychain() {
+  SimpleXTheme {
+    DatabaseErrorView(
+      remember { mutableStateOf(DBMigrationResult.ErrorKeychain) },
+      AppPreferences()
+    )
+  }
+}

@@ -1,6 +1,7 @@
 package chat.simplex.common.views.chat
 
 import TextIconSpaced
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import chat.simplex.common.model.*
 import chat.simplex.common.platform.chatModel
 import chat.simplex.common.ui.theme.DEFAULT_PADDING_HALF
+import chat.simplex.common.ui.theme.SimpleXTheme
 import chat.simplex.common.views.helpers.*
 import chat.simplex.res.*
 import dev.icerock.moko.resources.compose.painterResource
@@ -120,6 +122,21 @@ fun ComposeContextMemberContactActionsView(
 
     if (progressByTimeout) {
       ComposeProgressIndicator()
+    }
+  }
+}
+
+@Preview
+@Composable
+fun PreviewComposeContextMemberContactActionsView() {
+  SimpleXTheme {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+      ComposeContextMemberContactActionsView(null, Contact.sampleData, GroupDirectInvitation("simplex_link", 1, 1, 1, false))
+      listOf(360.dp, 402.dp).forEach { width ->
+        Box(Modifier.width(width)) {
+          ComposeContextMemberContactActionsView(null, Contact.sampleData, GroupDirectInvitation("simplex_link", null, null, null, false))
+        }
+      }
     }
   }
 }

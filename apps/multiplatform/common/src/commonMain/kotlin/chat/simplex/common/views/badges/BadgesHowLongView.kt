@@ -1,5 +1,6 @@
 package chat.simplex.common.views.badges
 
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +26,7 @@ import chat.simplex.common.views.helpers.*
 import chat.simplex.common.views.onboarding.OnboardingActionButton
 import chat.simplex.res.*
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 // TODO [badges]: replace with types produced by the badge purchase API when it lands.
 enum class BadgePeriod {
@@ -147,10 +149,15 @@ fun BadgesHowLongView(level: BadgeLevel, modalManager: ModalManager, unwindToDep
 // Replicates TextButtonBelowOnboardingButton spacing (7.5dp outer + 5dp inner) without a
 // TextButton so the footer has no hover/click affordance.
 @Composable
-fun BadgeBillingFooter(period: BadgePeriod, pricesFailed: Boolean = false) {
+fun BadgeBillingFooter(
+  period: BadgePeriod,
+  pricesFailed: Boolean = false,
+  // do not pass
+  today: LocalDate = LocalDate.now()
+) {
   Box(Modifier.padding(top = 7.5.dp, bottom = 7.5.dp).padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
     Text(
-      stringResource(billingFooter(period)).format(billingDate(period)),
+      stringResource(billingFooter(period)).format(billingDate(period, today)),
       if (pricesFailed) Modifier.padding(vertical = 5.dp).alpha(0f).clearAndSetSemantics {} else Modifier.padding(vertical = 5.dp),
       style = MaterialTheme.typography.body2,
       color = MaterialTheme.colors.secondary,
@@ -242,8 +249,24 @@ private fun billingFooter(period: BadgePeriod): StringResource = when (period) {
 
 // TODO [badges] from now only because a purchase is refused while a badge is held (refuseWhileBadgeHeld);
 // a top-up must count from the end of the existing balance
-private fun billingDate(period: BadgePeriod): String {
-  val date = java.time.LocalDate.now().plusMonths(period.months.toLong())
+private fun billingDate(period: BadgePeriod, today: LocalDate): String {
+  val date = today.plusMonths(period.months.toLong())
   val formatter = java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.LONG)
   return date.format(formatter)
+}
+
+@Preview
+@Composable
+fun PreviewBadgeBillingFooter() {
+  SimpleXTheme {
+    Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+      listOf(310.dp, 352.dp).forEach { width ->
+        listOf(false, true).forEach { pricesFailed ->
+          Column(Modifier.width(width).border(1.dp, MaterialTheme.colors.secondary), horizontalAlignment = Alignment.CenterHorizontally) {
+            BadgeBillingFooter(BadgePeriod.Monthly, pricesFailed, today = LocalDate.of(2026, 8, 31))
+          }
+        }
+      }
+    }
+  }
 }

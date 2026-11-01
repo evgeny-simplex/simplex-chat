@@ -5,6 +5,7 @@ import SectionDividerSpaced
 import SectionItemView
 import SectionTextFooter
 import SectionView
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
@@ -178,6 +179,53 @@ private fun ChannelWebPageLayout(
     }
 
     SectionBottomSpacer()
+  }
+}
+
+private val previewChannelInfo = GroupInfo.sampleData.copy(
+  useRelays = true,
+  groupProfile = GroupProfile.sampleData.copy(publicGroup = PublicGroupProfile(GroupType.Channel, "https://smp4.simplex.im/c#channel", "channel-1"))
+)
+
+private val previewGroupRelays = listOf(
+  GroupRelay(
+    groupRelayId = 1,
+    groupMemberId = 1,
+    userChatRelay = UserChatRelay(chatRelayId = 1, address = "https://relay.simplex.im/r#relay", relayProfile = RelayProfile("relay", ""), domains = listOf("relay.simplex.im"), preset = true, enabled = true, deleted = false),
+    relayStatus = RelayStatus.Active,
+    relayCap = RelayCapabilities(webDomain = "relay.simplex.im")
+  )
+)
+
+@Preview
+@Composable
+fun PreviewChannelWebPageLayoutLoading() {
+  SimpleXTheme {
+    ChannelWebPageLayout(
+      isChannel = true,
+      webPage = remember { mutableStateOf("") },
+      allowEmbedding = remember { mutableStateOf(false) },
+      groupRelays = null,
+      groupInfo = previewChannelInfo,
+      dataUnchanged = true,
+      save = {}
+    )
+  }
+}
+
+@Preview
+@Composable
+fun PreviewChannelWebPageLayoutLoaded() {
+  SimpleXTheme {
+    ChannelWebPageLayout(
+      isChannel = true,
+      webPage = remember { mutableStateOf("") },
+      allowEmbedding = remember { mutableStateOf(false) },
+      groupRelays = previewGroupRelays,
+      groupInfo = previewChannelInfo,
+      dataUnchanged = true,
+      save = {}
+    )
   }
 }
 

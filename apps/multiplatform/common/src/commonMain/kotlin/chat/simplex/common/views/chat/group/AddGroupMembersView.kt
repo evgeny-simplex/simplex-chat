@@ -419,3 +419,27 @@ fun PreviewAddGroupMembersLayout() {
     )
   }
 }
+
+@Preview
+@Composable
+fun PreviewAddGroupMembersLayoutCreatingGroup() {
+  SimpleXTheme {
+    AddGroupMembersLayout(
+      groupInfo = GroupInfo.sampleData,
+      creatingGroup = true,
+      contactsToAdd = emptyList(),
+      selectedContacts = remember { mutableStateListOf() },
+      selectedRole = remember { mutableStateOf(GroupMemberRole.Member) },
+      allowModifyMembers = true,
+      searchText = remember { mutableStateOf(TextFieldValue("")) },
+      openPreferences = {},
+      openMemberAdmission = {},
+      openGroupLink = {},
+      inviteMembers = {},
+      clearSelection = {},
+      addContact = {},
+      removeContact = {},
+      close = {},
+    )
+  }
+}
