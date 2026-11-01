@@ -24,7 +24,7 @@ struct CreateSimpleXAddress: View {
             ScrollView {
                 ZStack {
                     VStack(alignment: .leading) {
-                        Text("SimpleX Address")
+                        Text("SimpleX address")
                             .font(.largeTitle)
                             .bold()
                             .frame(maxWidth: .infinity)
