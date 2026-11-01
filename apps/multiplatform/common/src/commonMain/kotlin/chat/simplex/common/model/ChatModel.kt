@@ -4112,14 +4112,10 @@ data class CITimed(
 
 fun getTimestampDateText(t: Instant): String {
   val tz = TimeZone.currentSystemDefault()
-  val time = t.toLocalDateTime(tz).toJavaLocalDateTime()
-  val weekday = time.format(DateTimeFormatter.ofPattern("EEE"))
-  val dayMonthYear = time.format(DateTimeFormatter.ofPattern(
-    if (Clock.System.now().toLocalDateTime(tz).year == time.year) "d MMM" else "d MMM yyyy")
-  )
-
-  return "$weekday, $dayMonthYear"
+  return dateSeparatorText(t, withYear = Clock.System.now().toLocalDateTime(tz).year != t.toLocalDateTime(tz).year)
 }
+
+expect fun dateSeparatorText(t: Instant, withYear: Boolean): String
 
 fun getTimestampText(t: Instant, shortFormat: Boolean = false): String {
   val tz = TimeZone.currentSystemDefault()
