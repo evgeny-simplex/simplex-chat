@@ -116,7 +116,7 @@ struct BadgesSupportSimplexView: View {
             Button { whyBuiltActive = true } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "info.circle")
-                    Text("Why SimpleX is built.").fontWeight(.medium)
+                    Text("Why SimpleX is built").fontWeight(.medium)
                 }
                 .font(.body)
             }

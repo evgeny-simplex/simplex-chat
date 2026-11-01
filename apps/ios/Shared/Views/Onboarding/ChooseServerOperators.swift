@@ -83,7 +83,7 @@ struct OnboardingConditionsView: View {
                 Button {
                     showConditionsSheet = true
                 } label: {
-                    Text("Privacy policy and conditions of use.")
+                    Text("Privacy policy and conditions of use")
                         .fontWeight(.medium)
                         .fixedSize(horizontal: false, vertical: true)
                 }

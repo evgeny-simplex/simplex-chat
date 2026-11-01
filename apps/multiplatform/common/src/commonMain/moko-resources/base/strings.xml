@@ -1336,7 +1336,7 @@
   <string name="onboarding_private_and_secure">Private and secure messaging.</string>
   <string name="onboarding_first_network">The first network where you own\nyour contacts and groups.</string>
   <string name="get_started">Get started</string>
-  <string name="why_simplex_is_built">Why SimpleX is built.</string>
+  <string name="why_simplex_is_built">Why SimpleX is built</string>
   <string name="onboarding_your_profile">Your profile</string>
   <string name="onboarding_on_your_phone">On your phone, not on servers.</string>
   <string name="onboarding_no_account">No account. No phone. No email. No ID.\nThe most secure encryption.</string>
@@ -1376,7 +1376,7 @@
   <!-- ChooseServerOperators.kt -->
   <string name="onboarding_conditions_private_chats_not_accessible">Operators commit to:\n- Be independent\n- Minimize metadata usage\n- Run verified open-source code</string>
   <string name="onboarding_conditions_by_using_you_agree">You commit to:\n- Only legal content in public groups\n- Respect other users — no spam</string>
-  <string name="onboarding_conditions_privacy_policy_and_conditions_of_use">Privacy policy and conditions of use.</string>
+  <string name="onboarding_conditions_privacy_policy_and_conditions_of_use">Privacy policy and conditions of use</string>
   <string name="onboarding_conditions_accept">Accept</string>
   <string name="onboarding_choose_server_operators">Server operators</string>
   <string name="onboarding_network_operators">Network operators</string>
@@ -3205,7 +3205,7 @@
   <string name="badges_how_long_title">How long?</string>
   <string name="badges_support_simplex_title">Support SimpleX</string>
   <string name="badges_support_simplex_body">Get a badge to send larger files (2-5GB) that stay available longer (7-21 days), and to show it on your profile.</string>
-  <string name="badges_why_simplex_is_built">Why SimpleX is built.</string>
+  <string name="badges_why_simplex_is_built">Why SimpleX is built</string>
   <string name="badges_redeem_code_button">Redeem badge code</string>
   <string name="badges_continue">Continue</string>
   <string name="badges_how_it_works_button">How badges protect your privacy</string>
