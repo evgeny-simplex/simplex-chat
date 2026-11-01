@@ -67,8 +67,14 @@ import dev.icerock.moko.resources.StringResource
 import kotlin.math.absoluteValue
 
 @Composable
-fun ModalData.WhatsNewView(updatedConditions: Boolean = false, viaSettings: Boolean = false, close: () -> Unit) {
-  val currentVersion = remember { mutableStateOf(versionDescriptions.lastIndex) }
+fun ModalData.WhatsNewView(
+  updatedConditions: Boolean = false,
+  viaSettings: Boolean = false,
+  // do not pass
+  initialVersion: Int = versionDescriptions.lastIndex,
+  close: () -> Unit
+) {
+  val currentVersion = remember { mutableStateOf(initialVersion) }
   val rhId = chatModel.remoteHostId()
 
   if (updatedConditions) {
@@ -1437,6 +1443,18 @@ fun PreviewWhatsNewView() {
     val data = remember { ModalData() }
     data.WhatsNewView(
       viaSettings = true,
+      close = {}
+    )
+  }
+}
+
+@Preview
+@Composable
+fun PreviewWhatsNewViewEarlierVersion() {
+  SimpleXTheme {
+    val data = remember { ModalData() }
+    data.WhatsNewView(
+      initialVersion = versionDescriptions.indexOfFirst { it.version == "v6.2" },
       close = {}
     )
   }
