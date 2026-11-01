@@ -1,7 +1,10 @@
 package chat.simplex.common.views.chatlist
 
 import SectionItemView
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -108,6 +111,22 @@ private fun SharePreviewView(chat: Chat, disabled: Boolean) {
         chat.chatInfo.chatViewName, chat.chatInfo.nameBadge, maxLines = 1, overflow = TextOverflow.Ellipsis,
         color = if (disabled) MaterialTheme.colors.secondary else if (chat.chatInfo.incognito) Indigo else Color.Unspecified
       )
+    }
+  }
+}
+
+@Preview
+@Composable
+fun PreviewShareListNavLinkView() {
+  SimpleXTheme {
+    LazyColumn {
+      items(listOf(ChatInfo.Local.sampleData, ChatInfo.Direct.sampleData, ChatInfo.Group.sampleData)) { chatInfo ->
+        ShareListNavLinkLayout(
+          chatLinkPreview = { SharePreviewView(Chat(remoteHostId = null, chatInfo = chatInfo, chatItems = listOf()), disabled = false) },
+          click = {},
+          stopped = false
+        )
+      }
     }
   }
 }

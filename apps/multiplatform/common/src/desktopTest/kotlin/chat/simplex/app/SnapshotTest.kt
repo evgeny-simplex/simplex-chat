@@ -93,6 +93,7 @@ private val previewScenes = listOf(
   SnapshotScene("ChatListNavLinkView.PreviewChatListNavLinkGroup") { PreviewChatListNavLinkGroup() },
   SnapshotScene("ChatListNavLinkView.PreviewChatListNavLinkContactRequest") { PreviewChatListNavLinkContactRequest() },
   SnapshotScene("ChatPreviewView.PreviewChatPreviewView") { PreviewChatPreviewView() },
+  SnapshotScene("ShareListNavLinkView.PreviewShareListNavLinkView") { PreviewShareListNavLinkView() },
   SnapshotScene("DatabaseEncryptionView.PreviewDatabaseEncryptionLayout") { PreviewDatabaseEncryptionLayout() },
   SnapshotScene("DatabaseErrorView.PreviewChatInfoLayout") { chat.simplex.common.views.database.PreviewChatInfoLayout() },
   SnapshotScene("DatabaseView.PreviewDatabaseLayout") { PreviewDatabaseLayout() },
