@@ -175,7 +175,7 @@ fun CustomServer(
   SectionView(
     stringResource(MR.strings.smp_servers_your_server_address),
     icon = painterResource(MR.images.ic_error),
-    iconTint = if (!valid.value) MaterialTheme.colors.error else Color.Transparent,
+    iconTint = if (!valid.value && serverAddress.value.trim().isNotEmpty()) MaterialTheme.colors.error else Color.Transparent,
   ) {
     val testedPreviously = remember { mutableMapOf<String, Boolean?>() }
     TextEditor(

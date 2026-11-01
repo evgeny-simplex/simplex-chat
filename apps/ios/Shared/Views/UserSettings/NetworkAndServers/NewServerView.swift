@@ -29,7 +29,14 @@ struct NewServerView: View {
             }
         }
         .modifier(BackButton(disabled: Binding.constant(false)) {
-            addServer(serverToEdit, $userServers, $serverErrors, $serverWarnings, dismiss)
+            if addressTyped && parseServerAddress(serverToEdit.server) == nil {
+                showAlert(
+                    NSLocalizedString("Invalid server address!", comment: "alert title"),
+                    message: NSLocalizedString("Check server address and try again.", comment: "alert title")
+                )
+            } else {
+                addServer(serverToEdit, $userServers, $serverErrors, $serverWarnings, dismiss)
+            }
         })
         .alert(isPresented: $showTestFailure) {
             Alert(
@@ -37,6 +44,10 @@ struct NewServerView: View {
                 message: Text(testFailure?.localizedDescription ?? "")
             )
         }
+    }
+
+    private var addressTyped: Bool {
+        serverToEdit.server.trimmingCharacters(in: .whitespaces) != ""
     }
 
     // TODO Possibly refactor - similar functions in ProtocolServerView
@@ -58,7 +69,7 @@ struct NewServerView: View {
                     HStack {
                         Text("Your server address")
                             .foregroundColor(theme.colors.secondary)
-                        if !valid {
+                        if !valid && addressTyped {
                             Spacer()
                             Image(systemName: "exclamationmark.circle").foregroundColor(.red)
                         }

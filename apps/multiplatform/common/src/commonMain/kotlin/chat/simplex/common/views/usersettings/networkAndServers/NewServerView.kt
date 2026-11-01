@@ -24,15 +24,22 @@ fun ModalData.NewServerView(
   val newServer = remember { mutableStateOf(UserServer.empty) }
 
   ModalView(close = {
-    addServer(
-      scope,
-      newServer.value,
-      userServers,
-      serverErrors,
-      serverWarnings,
-      rhId,
-      close = close
-    )
+    if (newServer.value.server.trim().isNotEmpty() && parseServerAddress(newServer.value.server) == null) {
+      AlertManager.shared.showAlertMsg(
+        title = generalGetString(MR.strings.smp_servers_invalid_address),
+        text = generalGetString(MR.strings.smp_servers_check_address)
+      )
+    } else {
+      addServer(
+        scope,
+        newServer.value,
+        userServers,
+        serverErrors,
+        serverWarnings,
+        rhId,
+        close = close
+      )
+    }
   }) {
     Box {
       NewServerLayout(
