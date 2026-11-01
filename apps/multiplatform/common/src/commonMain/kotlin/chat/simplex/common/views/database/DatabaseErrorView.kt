@@ -18,7 +18,6 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import chat.simplex.common.model.AppPreferences
-import chat.simplex.common.model.json
 import chat.simplex.common.platform.*
 import chat.simplex.common.ui.theme.*
 import chat.simplex.common.views.helpers.*
@@ -152,7 +151,7 @@ fun DatabaseErrorView(
             Text(String.format(generalGetString(MR.strings.error_with_info), mtrErrorDescription(err.mtrError)))
           }
           OpenDatabaseDirectoryButton()
-          SendUsEmailButton(status)
+          SendUsEmailButton(MR.strings.incompatible_database_version, File(status.dbFile).name, mtrErrorDescription(err.mtrError))
         }
       }
       is DBMigrationResult.ErrorSQL -> {
@@ -161,28 +160,28 @@ fun DatabaseErrorView(
           Text(String.format(generalGetString(MR.strings.error_with_info), status.migrationSQLError))
         }
         OpenDatabaseDirectoryButton()
-        SendUsEmailButton(status)
+        SendUsEmailButton(MR.strings.database_error, File(status.dbFile).name, status.migrationSQLError)
       }
       is DBMigrationResult.ErrorKeychain -> {
         DatabaseErrorDetails(MR.strings.keychain_error) {
           Text(generalGetString(MR.strings.cannot_access_keychain))
         }
         OpenDatabaseDirectoryButton()
-        SendUsEmailButton(status)
+        SendUsEmailButton(MR.strings.keychain_error, generalGetString(MR.strings.cannot_access_keychain))
       }
       is DBMigrationResult.InvalidConfirmation -> {
         DatabaseErrorDetails(MR.strings.invalid_migration_confirmation) {
           // this can only happen if incorrect parameter is passed
         }
         OpenDatabaseDirectoryButton()
-        SendUsEmailButton(status)
+        SendUsEmailButton(MR.strings.invalid_migration_confirmation)
       }
       is DBMigrationResult.Unknown -> {
         DatabaseErrorDetails(MR.strings.database_error) {
           Text(String.format(generalGetString(MR.strings.unknown_database_error_with_info), status.json))
         }
         OpenDatabaseDirectoryButton()
-        SendUsEmailButton(status)
+        SendUsEmailButton(MR.strings.database_error, status.json)
       }
       is DBMigrationResult.OK -> {}
       null -> {}
@@ -341,9 +340,9 @@ private fun OpenDatabaseDirectoryButton() {
 }
 
 @Composable
-private fun SendUsEmailButton(status: DBMigrationResult) {
+private fun SendUsEmailButton(title: StringResource, vararg details: String) {
   val uriHandler = LocalUriHandler.current
-  val body = URLEncoder.encode(json.encodeToString(DBMigrationResult.serializer(), status), "UTF-8").replace("+", "%20")
+  val body = URLEncoder.encode((listOf(generalGetString(title)) + details).joinToString("\n"), "UTF-8").replace("+", "%20")
   Spacer(Modifier.padding(top = DEFAULT_PADDING))
   SettingsActionItem(
     painterResource(MR.images.ic_mail),

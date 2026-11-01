@@ -292,7 +292,7 @@ struct DatabaseErrorView: View {
             }
             Text("[Send us email](mailto:chat@simplex.chat)")
                 .environment(\.openURL, OpenURLAction { url in
-                    let body = String(describing: status).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+")))
+                    let body = emailBody.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+")))
                     if let body, let mailto = URL(string: "\(url.absoluteString)?body=\(body)") {
                         UIApplication.shared.open(mailto)
                         return .handled
@@ -302,6 +302,14 @@ struct DatabaseErrorView: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
+    }
+
+    private var emailBody: String {
+        switch status {
+        case let .errorMigration(dbFile, migrationError): "\((dbFile as NSString).lastPathComponent)\n\(String(describing: migrationError))"
+        case let .errorSQL(dbFile, migrationSQLError): "\((dbFile as NSString).lastPathComponent)\n\(migrationSQLError)"
+        default: String(describing: status)
+        }
     }
 }
 
