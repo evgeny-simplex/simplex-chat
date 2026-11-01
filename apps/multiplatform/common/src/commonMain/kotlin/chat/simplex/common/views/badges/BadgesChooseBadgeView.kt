@@ -130,9 +130,26 @@ fun BadgesChooseBadgeView(modalManager: ModalManager, unwindToDepth: Int) {
   }
 }
 
+val LocalReserveStoreRows = staticCompositionLocalOf { false }
+
 @Composable
 fun BadgeInvestorOffer(level: BadgeLevel, shown: Boolean = true) {
   if (!crowdfundingAvailable()) return
+  if (shown && LocalReserveStoreRows.current) {
+    Box(contentAlignment = Alignment.TopCenter) {
+      Column(Modifier.alpha(0f), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(stringResource(MR.strings.badges_restore_purchases), style = MaterialTheme.typography.body2)
+        Text(
+          stringResource(MR.strings.badges_restore_purchases_footnote),
+          Modifier.padding(top = DEFAULT_PADDING_HALF),
+          style = MaterialTheme.typography.body2,
+          textAlign = TextAlign.Center
+        )
+      }
+      CompositionLocalProvider(LocalReserveStoreRows provides false) { BadgeInvestorOffer(level) }
+    }
+    return
+  }
   val uriHandler = LocalUriHandler.current
   Column(Modifier.alpha(if (shown) 1f else 0f), horizontalAlignment = Alignment.CenterHorizontally) {
     Text(

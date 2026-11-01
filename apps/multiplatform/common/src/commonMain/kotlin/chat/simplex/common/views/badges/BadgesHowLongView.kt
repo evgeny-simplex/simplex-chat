@@ -229,3 +229,55 @@ fun PreviewPeriodCards() {
     }
   }
 }
+
+@Composable
+private fun PlayPreview(reserve: Boolean, content: @Composable () -> Unit) {
+  androidPlayStoreCountry.value = "US"
+  SimpleXTheme {
+    CompositionLocalProvider(LocalReserveStoreRows provides reserve) {
+      Box(Modifier.fillMaxWidth().height(874.dp)) { content() }
+    }
+  }
+}
+
+@Preview
+@Composable
+fun PreviewPlaySupportSimplex() {
+  PlayPreview(false) { BadgesSupportSimplexView(ModalManager.start, 0) }
+}
+
+@Preview
+@Composable
+fun PreviewPlayChooseA() {
+  PlayPreview(false) { BadgesChooseBadgeView(ModalManager.start, 0) }
+}
+
+@Preview
+@Composable
+fun PreviewPlayChooseB() {
+  PlayPreview(true) { BadgesChooseBadgeView(ModalManager.start, 0) }
+}
+
+@Preview
+@Composable
+fun PreviewPlayHowLongA() {
+  PlayPreview(false) { BadgesHowLongView(BadgeLevel.Supporter, ModalManager.start, 0) }
+}
+
+@Preview
+@Composable
+fun PreviewPlayHowLongB() {
+  PlayPreview(true) { BadgesHowLongView(BadgeLevel.Supporter, ModalManager.start, 0) }
+}
+
+@Preview
+@Composable
+fun PreviewPlayCheckOrderA() {
+  PlayPreview(false) { BadgesCheckOrderView(BadgeLevel.Supporter, BadgePeriod.Monthly, ModalManager.start, 0) }
+}
+
+@Preview
+@Composable
+fun PreviewPlayCheckOrderB() {
+  PlayPreview(true) { BadgesCheckOrderView(BadgeLevel.Supporter, BadgePeriod.Monthly, ModalManager.start, 0) }
+}
