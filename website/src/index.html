@@ -4,11 +4,18 @@ description: "SimpleX Chat - a private and encrypted messenger without any user 
 templateEngineOverride: njk
 active_home: true
 ---
-
+{% set lang = page.url | getlang %}
+{% set langPrefix = '' if lang == 'en' else '/' ~ lang %}
+{% from "home/screen.njk" import screen %}
+{% from "home/blocks.njk" import block %}
+{% set menuLanguages = [] %}
+{% for language in languages.languages %}
+    {% if language.enabled and (language.label | translated(page.url)) %}{% set menuLength = menuLanguages.push(language) %}{% endif %}
+{% endfor %}
 <!DOCTYPE html>
-<html class="bg-[#C1E3FE] dark:bg-[#050920]" lang="{{ page.url | getlang }}"
+<html lang="{{ lang }}"
     {% for language in languages.languages %}
-        {% if language.label == page.url | getlang %}
+        {% if language.label == lang %}
             dir="{{ "rtl" if language.rtl else "ltr" }}"
         {% endif %}
     {% endfor %}>
@@ -16,6 +23,7 @@ active_home: true
 <head>
     <meta charset="UTF-8">
     {% include "dark-mode.html" %}
+    <script>document.documentElement.classList.add('js')</script>
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ title }}</title>
@@ -33,411 +41,166 @@ active_home: true
     <meta property="og:description" content="{{ description }}"/>
     <meta property="og:image" content="{% cfg 'siteLocation' %}/img/share_simplex.jpg"/>
     <meta name="twitter:card" content="summary"/>
+    <meta name="simplex-ask" content="{{ home.askEndpoint }}">
     <link rel="icon" type="image/png" sizes="96x96" href="/img/favicon.ico"/>
     {% include "markdown-alternate.html" %}
-    <meta name="theme-color" content="#C1E3FE">
-
-    <link rel="preload" href="/img/design_3/cover.webp" as="image" type="image/webp">
-    <link rel="preload" href="/img/design_3/cover-light.webp" as="image" type="image/webp" media="(prefers-color-scheme: light)">
-    <link rel="preload" href="/img/new/logo-dark.png" as="image">
-    <link rel="preload" href="/img/new/logo-light.png" as="image" media="(prefers-color-scheme: light)">
-    <link rel="preload" href="/img/design_3/publications/trail-of-bits.png" as="image">
-
-    <link rel="preload" href="/fonts/GT-Walsheim/GT-Walsheim-LC-Bold.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="/fonts/GT-Walsheim/GT-Walsheim-LC-Regular.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="/fonts/Manrope/Manrope-ExtraLight.ttf" as="font" type="font/ttf" crossorigin>
-    <link rel="preload" href="/fonts/Manrope/Manrope-Light.ttf" as="font" type="font/ttf" crossorigin>
-    <link rel="preload" href="/fonts/Manrope/Manrope-Medium.ttf" as="font" type="font/ttf" crossorigin>
-    <link rel="preload" href="/fonts/Manrope/Manrope-Bold.ttf" as="font" type="font/ttf" crossorigin>
-
-    <link rel="preload" href="/img/new/apple_store.svg" as="image">
-    <link rel="preload" href="/img/new/google_play.svg" as="image">
-    <link rel="preload" href="/img/new/f_droid_icon.svg" as="image" media="(max-width: 1015px)">
-    <link rel="preload" href="/img/design_3/testflight-dark.png" as="image" media="(max-width: 1015px)">
-    <link rel="preload" href="/img/design_3/socials/linux.png" as="image" media="(min-width: 1016px)">
-    <link rel="preload" href="/img/design_3/socials/apple.png" as="image" media="(min-width: 1016px)">
-    <link rel="preload" href="/img/design_3/socials/windows.png" as="image" media="(min-width: 1016px)">
-
-    <link href="/css/tailwind.css" rel="stylesheet"/>
-    <link rel="stylesheet" href="/css/design3.css">
-    <link rel="stylesheet" href="/css/design3-nav.css">
-    <style>
-        .sd-sale-banner {
-            position: absolute;
-            top: 60.4px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 12;
-            white-space: nowrap;
-            font-family: "Manrope", sans-serif;
-            font-weight: 400;
-            font-size: clamp(18px, calc(var(--sec-vwu) * 2.14), 34.92px);
-            line-height: 1.3;
-            text-decoration: none;
-            background-image: linear-gradient(90deg, #001aa7 0%, #0095e7 100%);
-        }
-        .sd-digits { font-variant-numeric: tabular-nums; }
-        .sd-icon { display: inline-block; width: 0.85em; height: 0.85em; vertical-align: -0.08em; margin-left: 0.35em; }
-        .sd-icon path, .sd-icon polygon { fill: #0095e7; }
-        .dark .sd-icon path, .dark .sd-icon polygon { fill: #c8feff; }
-        @media screen and (min-width: 1016px), screen and (max-width: 1015px) and (orientation: landscape) {
-            .sd-sale-banner { top: auto; bottom: calc(22px + var(--cover-bottom-ext, 0px)); transform: translateX(calc(-50% - max(0px, 50% + var(--cover-socials-w, 435px) + 54px - 50vw))); font-size: 16px; text-align: center; background-image: none; -webkit-text-fill-color: #ffffff; color: #ffffff; }
-            [dir="rtl"] .sd-sale-banner { transform: translateX(calc(-50% + max(0px, 50% + var(--cover-socials-w, 435px) + 54px - 50vw))); }
-            .sd-lead, .sd-tail { display: block; }
-            .sd-icon path, .sd-icon polygon { fill: #ffffff; }
-        }
-        @media screen and (max-width: 1015px) and (orientation: portrait), screen and (max-width: 1015px) and (orientation: landscape) and (max-height: 500px) {
-            .sd-sale-banner { display: none; }
-        }
-    </style>
-    <script src="/js/flag-anchor.js"></script>
-    <script>
-        function detectMobileBrowser() {
-            const ua = navigator.userAgent;
-
-            // Chrome on iOS
-            if (/CriOS/.test(ua)) {
-                document.documentElement.classList.add('chrome-ios');
-            }
-            // Safari on iOS
-            else if (/Safari/.test(ua) && /iPhone|iPad|iPod/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)) {
-                document.documentElement.classList.add('safari-ios');
-            }
-            // Chrome on Android
-            else if (/Chrome/.test(ua) && /Android/.test(ua)) {
-                document.documentElement.classList.add('chrome-android');
-            }
-        }
-
-        detectMobileBrowser();
-    </script>
+    <meta name="theme-color" content="#FBFBFD" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <link rel="preload" href="/fonts/Inter/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/Inter-Tight/inter-tight-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/home.css">
 </head>
 
-<body class="bg-[#C1E3FE] dark:bg-[#050920]">
-    {% include "navbar.html" %}
-    {% set lang = page.url | getlang %}
+<body>
+    <header class="top" data-markdown-skip>
+        <a class="logo" href="{{ langPrefix }}/" aria-label="SimpleX">
+            <svg class="word" aria-hidden="true" viewBox="0 0 161 40" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.36956 9.95312C9.07658 9.95312 9.77404 10.0183 10.462 10.1487C11.1499 10.2791 11.8091 10.4467 12.4397 10.6516C13.0703 10.8565 13.6579 11.0894 14.2025 11.3502C14.7471 11.6109 15.2487 11.8717 15.7073 12.1325L13.6435 15.9324L13.6153 15.9014C13.5338 15.822 13.3426 15.6926 13.0416 15.5133C12.6977 15.3084 12.2677 15.0942 11.7518 14.8707C11.2359 14.6472 10.6721 14.4516 10.0607 14.2839C9.4492 14.1163 8.83772 14.0325 8.22625 14.0325C6.54469 14.0325 5.70391 14.582 5.70391 15.681C5.70391 16.0162 5.79468 16.2956 5.97621 16.5192C6.15774 16.7427 6.42526 16.9429 6.77877 17.1199C7.13228 17.2969 7.57656 17.4598 8.1116 17.6089C8.64664 17.7579 9.26767 17.9255 9.97469 18.1118C10.9492 18.3726 11.8282 18.6566 12.6117 18.964C13.3951 19.2713 14.0591 19.6532 14.6037 20.1095C15.1483 20.5659 15.5687 21.1201 15.8649 21.772C16.1611 22.424 16.3092 23.2063 16.3092 24.119C16.3092 25.2367 16.0942 26.182 15.6643 26.955C15.2343 27.728 14.6658 28.352 13.9588 28.827C13.2518 29.302 12.4397 29.6466 11.5225 29.8608C10.6053 30.075 9.65939 30.1821 8.68486 30.1821C7.93962 30.1821 7.17528 30.1263 6.39182 30.0145C5.60837 29.9027 4.84403 29.7398 4.09879 29.5255C3.35356 29.3113 2.63221 29.0552 1.93475 28.7572C1.23728 28.4591 0.592366 28.1145 0 27.7234L2.06373 23.7279L2.10045 23.7667C2.20495 23.8665 2.44112 24.0305 2.80896 24.2587C3.22935 24.5195 3.75006 24.7803 4.37109 25.0411C4.99212 25.3018 5.68481 25.5347 6.44915 25.7396C7.21349 25.9445 7.98739 26.0469 8.77084 26.0469C10.4333 26.0469 11.2645 25.5533 11.2645 24.5661C11.2645 24.1935 11.1403 23.8862 10.8919 23.644C10.6435 23.4019 10.2995 23.183 9.86003 22.9874C9.42054 22.7918 8.89983 22.6102 8.29791 22.4426C7.69599 22.2749 7.04152 22.0887 6.3345 21.8838C5.39818 21.6044 4.58606 21.3017 3.89815 20.9757C3.21024 20.6497 2.64176 20.2725 2.19271 19.8441C1.74366 19.4157 1.40926 18.9221 1.18951 18.3633C0.969761 17.8044 0.859887 17.1525 0.859887 16.4074C0.859887 15.3643 1.06053 14.4423 1.46181 13.6413C1.86309 12.8403 2.40768 12.1651 3.09559 11.6156C3.7835 11.0661 4.58129 10.6516 5.48894 10.3722C6.3966 10.0928 7.35681 9.95312 8.36956 9.95312ZM27.1234 10.1208V29.9586H22.4226V10.1208H27.1234ZM39.4853 10.1208L44.7593 20.4867L50.0619 10.1208H55.1353V29.9586H50.4345V18.0839L46.0205 26.7175H43.4981L39.084 18.0839V29.9586H34.3833V10.1208H39.4853ZM86.6338 10.1208V25.9352H96.4939V29.9586H81.9331V10.1208H86.6338ZM115.547 10.1208V14.1442H106.203V18H114.229V21.7161H106.203V25.9352H115.805V29.9586H101.502V10.1208H115.547ZM70.5198 10.1208L70.8416 10.128C71.6918 10.1666 72.4779 10.3598 73.1998 10.7075C74.0119 11.0987 74.7093 11.6109 75.2922 12.2443C75.875 12.8776 76.3336 13.5947 76.668 14.3957C77.0024 15.1967 77.1696 16.0069 77.1696 16.8265C77.1696 17.702 77.0119 18.5402 76.6966 19.3412C76.3813 20.1421 75.9419 20.8593 75.3781 21.4926C74.8144 22.1259 74.1313 22.6289 73.3287 23.0014C72.6154 23.3326 71.834 23.5165 70.9848 23.5533L70.6631 23.5602H66.5356V29.9586H61.8349V10.1208H70.5198ZM70.2045 14.1442H66.5356V19.5647H70.3765C70.9306 19.5647 71.4083 19.3319 71.8096 18.8662C72.2109 18.4005 72.4115 17.7206 72.4115 16.8265C72.4115 16.3608 72.3494 15.9604 72.2252 15.6251C72.101 15.2898 71.9338 15.0104 71.7236 14.7869C71.5134 14.5633 71.2746 14.4003 71.0071 14.2979C70.7395 14.1954 70.472 14.1442 70.2045 14.1442Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M124.336 10.1101L130.957 16.689L137.762 9.92721L141.072 13.2167L134.267 19.9784L140.888 26.5575L137.486 29.9384L130.865 23.3592L124.06 30.1213L120.75 26.8318L127.554 20.0699L120.934 13.491L124.336 10.1101Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M137.433 30L140.809 26.6454L140.807 26.6445L147.56 19.936L140.936 13.3552L140.937 13.3546L137.625 10.0637L131.002 3.48203L134.377 0.127456L141.001 6.70925L147.753 0L151.065 3.29085L144.312 10L150.936 16.5815L157.688 9.87254L161 13.1634L154.247 19.8722L160.872 26.4542L157.496 29.8088L150.871 23.2268L144.12 29.9358L150.744 36.518L147.368 39.8725L140.744 33.2904L133.993 40L130.681 36.7092L137.433 30Z" fill="url(#logo-gradient)"/><defs><linearGradient id="logo-gradient" x1="135.948" y1="-0.816326" x2="132.096" y2="36.9857" gradientUnits="userSpaceOnUse"><stop stop-color="#01F1FF"/><stop offset="1" stop-color="#0197FF"/></linearGradient></defs></svg>
+            <svg class="mark" aria-hidden="true" viewBox="120 0 41 40" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M124.336 10.1101L130.957 16.689L137.762 9.92721L141.072 13.2167L134.267 19.9784L140.888 26.5575L137.486 29.9384L130.865 23.3592L124.06 30.1213L120.75 26.8318L127.554 20.0699L120.934 13.491L124.336 10.1101Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M137.433 30L140.809 26.6454L140.807 26.6445L147.56 19.936L140.936 13.3552L140.937 13.3546L137.625 10.0637L131.002 3.48203L134.377 0.127456L141.001 6.70925L147.753 0L151.065 3.29085L144.312 10L150.936 16.5815L157.688 9.87254L161 13.1634L154.247 19.8722L160.872 26.4542L157.496 29.8088L150.871 23.2268L144.12 29.9358L150.744 36.518L147.368 39.8725L140.744 33.2904L133.993 40L130.681 36.7092L137.433 30Z" fill="url(#logo-mark-gradient)"/><defs><linearGradient id="logo-mark-gradient" x1="135.948" y1="-0.816326" x2="132.096" y2="36.9857" gradientUnits="userSpaceOnUse"><stop stop-color="#01F1FF"/><stop offset="1" stop-color="#0197FF"/></linearGradient></defs></svg>
+        </a>
+        <span class="spacer"></span>
+        <button class="knows-btn" id="knows-btn" type="button" aria-expanded="false" aria-controls="knows" aria-label="{{ 'home-knows' | i18n({}, lang) }}">
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 10s3.2-5.5 8.5-5.5 8.5 5.5 8.5 5.5-3.2 5.5-8.5 5.5S1.5 10 1.5 10z"/><circle cx="10" cy="10" r="2.6"/></svg>
+            <span class="label">{{ "home-knows" | i18n({}, lang) }}</span>
+            <span class="badge" id="knows-count">0</span>
+        </button>
+        {% if menuLanguages.length > 1 %}
+        <details class="lang-menu">
+            <summary>{{ lang | replace("_", "-") }}</summary>
+            <ul>
+                {% for language in menuLanguages %}
+                <li><a href="{% completeRoute {url: page.url, lang: language.label} %}" lang="{{ language.label | replace('_', '-') }}">{{ language.name }}</a></li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+        <a class="invest" href="https://wefunder.com/simplex.chat?utm_source=home" target="_blank" rel="noopener">{{ "invest" | i18n({}, lang) }}</a>
+        <a class="get" id="get-app" href="{{ '' if lang == 'en' or not (lang | translated('/downloads/')) else '/' ~ lang }}/downloads/">{{ "home-get-app" | i18n({}, lang) }}</a>
+    </header>
 
-    <div class="screen">
-        <section class="page-1 cover page">
-            <a class="sd-sale-banner gradient-text" href="https://simplex.domains/" target="_blank" rel="noopener"><span class="sd-lead" id="sd-lead">{{ "index-hero-countdown-lead" | i18n({}, lang) }} </span><span class="sd-tail" id="sd-tail"><span class="sd-digits" id="sd-cd"></span>&#8288;<svg class="sd-icon" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" viewBox="0 0 100 100"><path d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path><polygon points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></span></a>
-            <script>
-                (function () {
-                    var target = Date.UTC(2026, 11, 12, 18, 0, 0);
-                    var lead = document.getElementById("sd-lead");
-                    var cd = document.getElementById("sd-cd");
-                    var days = new Intl.RelativeTimeFormat({{ lang | replace("_", "-") | dump | safe }} + "-u-nu-latn", { numeric: "always" });
-                    var timer;
-                    function pad(n) { return String(n).padStart(2, "0"); }
-                    function tick() {
-                        var ms = target - Date.now();
-                        if (ms <= 0) {
-                            clearInterval(timer);
-                            lead.style.display = "none";
-                            cd.textContent = {{ "index-hero-countdown-done" | i18n({}, lang) | dump | safe }};
-                            return;
-                        }
-                        var s = Math.floor(ms / 1000);
-                        var d = Math.floor(s / 86400);
-                        cd.textContent = days.format(d, "day") + " " + pad(Math.floor((s % 86400) / 3600)) + ":" + pad(Math.floor((s % 3600) / 60)) + ":" + pad(s % 60);
-                    }
-                    timer = setInterval(tick, 1000);
-                    tick();
-                })();
-            </script>
-            <div class="cover-art" aria-hidden="true">
-                <img class="cover-phone" src="/img/crowdfunding/phone.png" alt="">
-                <div class="cover-fade"></div>
-            </div>
-            <div class="area">
-                <div class="content">
-                    <h1>{{ "index-hero-h1" | i18n({}, lang) | replace("<br>", " <br>") | safe }}</h1>
-                    <h2 class="gradient-text">{{ "index-hero-h2" | i18n({}, lang) | safe }}</h2>
-                    <p>{{ "index-hero-p1" | i18n({}, lang) | safe }}</p>
-                    <p class="invest">{{ "index-hero-own-part" | i18n({}, lang) | safe }} <a class="gradient-text" href="https://wefunder.com/simplex.chat?utm_source=home" target="_blank" rel="noopener">{{ "index-hero-invest" | i18n({}, lang) | safe }}</a></p>
-                    <div class="cover-stats">
-                        <div class="cover-stat"><b>3M</b><span>{{ "index-hero-downloads" | i18n({}, lang) }}</span></div>
-                        <div class="cover-stat"><b>600K</b><span>{{ "index-hero-monthly-users" | i18n({}, lang) }}</span></div>
-                    </div>
-
-                    <div class="socials">
-                        <a href="{{ '' if lang == 'en' or not (lang | translated('/downloads/')) else '/' ~ lang }}/downloads" class="desktop-app-btn hidden" title="{{ 'index-hero-download-desktop-btn-title' | i18n({}, lang) }}">
-                            <div class="btn-content">
-                                <div>
-                                    <img class="no-border" src="/img/design_3/socials/linux.png">
-                                    <img class="no-border" src="/img/design_3/socials/apple.png" alt="">
-                                    <img class="no-border" src="/img/design_3/socials/windows.png" alt="">
-                                </div>
-                                <p>Download<br>Desktop App</p>
-                            </div>
-                        </a>
-                        <a class="apple-store-btn hidden" href="https://apps.apple.com/us/app/simplex-chat/id1605771084" target="_blank" rel="noopener"><img src="/img/new/apple_store.svg" alt="App Store"></a>
-                        <a class="google-play-btn hidden" href="https://play.google.com/store/apps/details?id=chat.simplex.app" target="_blank" rel="noopener"><img src="/img/new/google_play.svg" alt="Google Play"></a>
-                        <a class="f-droid-btn hidden" href="{{ '' if lang == 'en' else '/' ~ lang }}/fdroid" title="{{ 'index-f-droid-title' | i18n({}, lang) }}"><img src="/img/new/f_droid_icon.svg" alt="F-Droid"></a>
-                        <a class="testflight-btn hidden" href="https://testflight.apple.com/join/DWuT2LQu" target="_blank" rel="noopener"><img class="no-border" src="/img/design_3/testflight-dark.png" title="{{ 'index-testflight-title' | i18n({}, lang) }}" alt="TestFlight"></a>
-                    </div>
-                    <div class="security-btns">
-                        <a title="{{ 'index-security-assessment-title' | i18n({}, lang) }}" href="https://www.trailofbits.com/about" target="_blank" rel="noopener">
-                            <img src="/img/design_3/publications/trail-of-bits.png" alt="Trail of Bits">
-                        </a>
-                        <a class="box-btn btn-1" title="{{ 'index-security-review-2022-title' | i18n({}, lang) }}" href="/blog/20221108-simplex-chat-v4.2-security-audit-new-website.html">
-                            2022
-                        </a>
-                        <a class="box-btn gold-gradient" title="{{ 'index-security-review-2024-title' | i18n({}, lang) }}" href="/blog/20241014-simplex-network-v6-1-security-review-better-calls-user-experience.html">
-                            2024
-                        </a>
-                        <p class="security-audits">
-                            {{ 'index-security-audits-label' | i18n({}, lang) | safe }}
-                        </p>
-                    </div>
-                </div>
-            </div>
+    <main id="main">
+        <section class="hero" id="hero">
+            <h1>{{ "home-h1" | i18n({}, lang) }}</h1>
+            <p class="sub">{{ "home-sub" | i18n({}, lang) }}</p>
+            <p class="who">
+                {% for persona in home.personas %}
+                <a class="chip" href="#for-{{ persona.id }}" data-persona="{{ persona.id }}">{{ persona.label | i18n({}, lang) }}</a>
+                {% endfor %}
+            </p>
+            <form class="ask" id="hero-ask" autocomplete="off" data-markdown-skip>
+                <input name="q" maxlength="500" placeholder="{{ 'home-ask-hero' | i18n({}, lang) }}" aria-label="{{ 'home-ask-hero' | i18n({}, lang) }}">
+                <button type="submit">{{ "home-ask" | i18n({}, lang) }}</button>
+            </form>
+            <p class="proof"><b>{{ "messages-per-day" | factFigure }}</b> {{ "home-proof" | i18n({}, lang) }}</p>
+            <p class="countdown"><a href="https://simplex.domains/" target="_blank" rel="noopener"><span id="countdown-lead">{{ "index-hero-countdown-lead" | i18n({}, lang) }}</span> <span class="digits" id="countdown"></span> <span aria-hidden="true">↗</span></a></p>
         </section>
 
-        <main>
-            <div class="section-bg"></div>
+        <div class="turns" id="turns"></div>
 
-            <section id="messaging" class="page-2 page">
-                <div class="area">
-                    <div class="text-container">
-                        <h2>{{ "worlds-most-secure-messaging" | i18n({}, lang ) | safe }}</h2>
-                        <p>{{ "index-messaging-p1" | i18n({}, lang) }}</p>
-                        <p>{{ "index-messaging-p2" | i18n({}, lang) | safe }}</p>
-                        <a class="gradient-text" href="{{ '' if lang == 'en' else '/' ~ lang }}/messaging">{{ "index-messaging-cta" | i18n({}, lang) }}</a>
-                    </div>
-                </div>
+        <div class="library" id="library">
+            {% for persona in home.personas %}
+            <section class="screen" id="for-{{ persona.id }}" data-persona="{{ persona.id }}">
+                {{ screen(persona.screen, lang) }}
             </section>
+            {% endfor %}
+            <section class="screen" id="roadmap" data-intent="roadmap">
+                {{ screen(home.roadmap, lang) }}
+            </section>
+            <section class="screen" id="get">
+                <h2>{{ "downloads-h1" | i18n({}, lang) }}</h2>
+                <p class="lead">{{ "downloads-lead-1" | i18n({}, lang) }} {{ "downloads-lead-2" | i18n({}, lang) }}</p>
+                {{ block({type: "download"}, lang) }}
+                <p class="links"><a class="pill" href="/downloads/">{{ "home-all-downloads" | i18n({}, lang) }}</a></p>
+            </section>
+            <section class="qa" id="qa" lang="en" dir="ltr">
+                {% set answers %}{% mdInclude "llms/answers.md" %}{% endset %}
+                {{ answers | siteLinks | safe }}
+            </section>
+        </div>
+    </main>
 
-            <section id="nextweb" class="page-3 page">
-                <div class="area">
-                    <div class="text-container">
-                        <h2>{{ "index-nextweb-h2" | i18n({}, lang) | safe }}</h2>
-                        <p>{{ "index-nextweb-p1" | i18n({}, lang) | safe }}</p>
-                        <p>{{ "index-nextweb-p2" | i18n({}, lang) }}</p>
-                        <a class="gradient-text" href="{{ '' if lang == 'en' else '/' ~ lang }}/why">{{ "why-footer-link" | i18n({}, lang) | safe }}</a>
-                    </div>
-                </div>
-            </section>
+    <footer class="foot">
+        <a href="/about/">{{ "about-and-contact-us" | i18n({}, lang) }}</a>
+        <a href="/privacy/">{{ "terms-and-privacy-policy" | i18n({}, lang) }}</a>
+        <a href="/jobs/">{{ "jobs" | i18n({}, lang) }}</a>
+        <a href="https://github.com/simplex-chat/simplex-chat" target="_blank" rel="noopener">GitHub</a>
+        <span class="copyright">{{ "copyright-label" | i18n({}, lang) }}</span>
+    </footer>
 
-            <section id="token" class="page-4 page">
-                <div class="area">
-                    <div class="text-container">
-                        <h2>{{ "index-token-h2" | i18n({}, lang) }}</h2>
-                        <p>{{ "index-token-p1" | i18n({}, lang) }}</p>
-                        <p>{{ "index-token-p2-cf" | i18n({}, lang) | safe }}</p>
-                        <a class="gradient-text" href="https://wefunder.com/simplex.chat?utm_source=home" target="_blank" rel="noopener">{{ "index-token-cta-cf" | i18n({}, lang) | safe }}</a>
-                    </div>
-                </div>
-            </section>
-
-            <section id="roadmap" class="page-5 page">
-                <div class="area">
-                    <div class="roadmap-labels" data-markdown-skip>
-                        <span class="roadmap-label roadmap-label-now">{{ "index-roadmap-now" | i18n({}, lang) }}</span>
-                        <span class="roadmap-label roadmap-label-1">{{ "index-roadmap-1" | i18n({}, lang) }}</span>
-                        <span class="roadmap-label roadmap-label-2">{{ "index-roadmap-2" | i18n({}, lang) }}</span>
-                        <span class="roadmap-label roadmap-label-3">{{ "index-roadmap-3" | i18n({}, lang) }}</span>
-                    </div>
-                    <div class="text-container">
-                        <h2>{{ "index-roadmap-h2" | i18n({}, lang) }}</h2>
-                        <div class="roadmap">
-                            <p>{{ "index-roadmap-1" | i18n({}, lang) }} </p>
-                            <p class="title"><span class="ltr:order-first rtl:order-last">: </span>{{ "index-roadmap-1-title" | i18n({}, lang) }}</p>
-                            <p>{{ "index-roadmap-1-desc" | i18n({}, lang) }}</p>
-                        </div>
-                        <div class="roadmap">
-                            <p>{{ "index-roadmap-2" | i18n({}, lang) }} </p>
-                            <p class="title"><span class="ltr:order-first rtl:order-last">: </span>{{ "index-roadmap-2-title" | i18n({}, lang) }}</p>
-                            <p>{{ "index-roadmap-2-desc" | i18n({}, lang) }}</p>
-                        </div>
-                        <div class="roadmap">
-                            <p>{{ "index-roadmap-3" | i18n({}, lang) }} </p>
-                            <p class="title"><span class="ltr:order-first rtl:order-last">: </span>{{ "index-roadmap-3-title" | i18n({}, lang) }}</p>
-                            <p>{{ "index-roadmap-3-desc" | i18n({}, lang) }}</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-        <section id="directory" class="page-6 page">
-            <div class="area">
-                <div class="group-images">
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="https://smp4.simplex.im/g#hr4lvFeBmndWMKTwqiodPz3VBo_6UmdGWocXd1SupsM" class="simplex-image" title="{{ 'index-directory-users-group-title' | i18n({}, lang) }}" target="_blank" rel="noopener simplex">
-                        <img class="block dark:hidden" src="/img/new/logo-symbol-light.svg">
-                        <img class="hidden dark:block" src="/img/new/logo-symbol-dark.svg">
-                    </a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                    <a href="/directory" class="group-image" target="_blank" rel="noopener"><img src="/img/group.svg"></a>
-                </div>
-                <div class="text-container">
-                    <h2>{{ "index-directory-h2" | i18n({}, lang) }}</h2>
-                    <p>{{ "index-directory-p1" | i18n({}, lang) }}</p>
-                    <p>{{ "index-directory-p2" | i18n({}, lang) }}</p>
-                    <a class="gradient-text" href="/directory">{{ "index-directory-cta" | i18n({}, lang) }}</a>
-                </div>
-            </div>
-        </section>
-        {% include "footer.html" %}
+    <div class="composer" id="composer" hidden data-markdown-skip>
+        <form class="ask" id="ask" autocomplete="off">
+            <input name="q" maxlength="500" placeholder="{{ 'home-ask-placeholder' | i18n({}, lang) }}" aria-label="{{ 'home-ask-placeholder' | i18n({}, lang) }}">
+            <button type="submit">{{ "home-ask" | i18n({}, lang) }}</button>
+        </form>
     </div>
 
+    <div class="knows" id="knows" hidden role="dialog" aria-labelledby="knows-title" data-markdown-skip>
+        <h3 id="knows-title">{{ "home-knows-title" | i18n({}, lang) }}</h3>
+        <ul id="knows-list"></ul>
+        <p class="knows-empty" id="knows-empty">{{ "home-knows-empty" | i18n({}, lang) }}</p>
+        <p class="knows-privacy">{{ "home-knows-privacy" | i18n({}, lang) }}</p>
+        <div class="row">
+            <button type="button" class="danger" id="forget">{{ "home-forget" | i18n({}, lang) }}</button>
+            <button type="button" id="knows-close">{{ "home-close" | i18n({}, lang) }}</button>
+        </div>
+    </div>
 
-    <script src="/js/directory.js"></script>
-    <script src="/js/design3.js"></script>
-    <script>
-    (function navColorOnScroll(){
-        const header = document.querySelector('header#navbar');
-        const cover = document.querySelector('.page-1.cover');
-        const footer = document.querySelector('.footer.page');
-        if (!header || !cover || !footer || !('IntersectionObserver' in window)) {
-            window.addEventListener('load', () => header && document.body.classList.toggle('change-nav-color', window.scrollY > 10));
-            window.addEventListener('scroll', () => header && document.body.classList.toggle('change-nav-color', window.scrollY > 10));
-            return;
-        }
-        const io = new IntersectionObserver((entries) => {
-            // if cover or footer is mostly visible, keep white nav; else switch to #001796
-            const onObserved = entries.some((e) => e.isIntersecting && e.intersectionRatio >= 0.02);
-            document.body.classList.toggle('change-nav-color', !onObserved);
-        }, { threshold: [0, 0.02, 1] });
-        io.observe(cover);
-        io.observe(footer);
-    })();
-    </script>
-    <script>
-    (function coverMetrics(){
-        const cover = document.querySelector('.page-1.cover');
-        const invest = cover.querySelector('.content > p.invest');
-        const socials = cover.querySelector('.socials');
-        const stats = cover.querySelector('.cover-stats');
-        const observer = new ResizeObserver(() => {
-            cover.style.setProperty('--cover-text-b', `${invest.getBoundingClientRect().bottom - cover.getBoundingClientRect().top}px`);
-            cover.style.setProperty('--cover-socials-w', `${socials.offsetWidth}px`);
-            cover.style.setProperty('--cover-stats-w', `${stats.offsetWidth}px`);
-        });
-        cover.querySelectorAll('.content > *').forEach((el) => observer.observe(el));
-    })();
-    </script>
-    <script>
-    (function sectionHeaderState(){
-        const mobileHeader = document.getElementById('mobile-header');
-        if (!mobileHeader) return;
+    <div class="overlay" id="overlay" hidden data-markdown-skip>
+        <div class="scrim" data-close></div>
+        <div class="sheet" role="dialog" aria-modal="true" id="sheet">
+            <div class="sheet-head">
+                <span class="kind" id="sheet-kind"></span>
+                <a class="uri" id="sheet-uri" href="/"></a>
+                <button type="button" class="hbtn" id="sheet-copy"><span class="copy">{{ "home-copy-link" | i18n({}, lang) }}</span><span class="done" aria-hidden="true">{{ "home-copied" | i18n({}, lang) }}</span></button>
+                <a class="hbtn" id="sheet-open" href="/">{{ "home-open-page" | i18n({}, lang) }}</a>
+                <button type="button" class="hbtn" id="sheet-close" data-close>{{ "home-close" | i18n({}, lang) }}</button>
+            </div>
+            <div class="sheet-body" id="sheet-body"></div>
+        </div>
+    </div>
 
-        const cover     = document.querySelector('.page-1.cover');
-        const messaging = document.getElementById('messaging');
-        const nextweb   = document.getElementById('nextweb');
-        const token     = document.getElementById('token');
-        const roadmap   = document.getElementById('roadmap');
-        const directory = document.getElementById('directory');
-        const footer    = document.querySelector('footer, .footer, #footer');
+    <template id="busy-template"><p class="busy"><i aria-hidden="true"></i>{{ "home-busy" | i18n({}, lang) }}</p></template>
+    <template id="fallback-template">
+        <p class="eyebrow">{{ "home-search-eyebrow" | i18n({}, lang) }}</p>
+        <h2>{{ "home-fallback-title" | i18n({}, lang) }}</h2>
+        <p class="lead">{{ "home-fallback-text" | i18n({}, lang) }} <a href="https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw" target="_blank" rel="noopener">{{ "home-fallback-link" | i18n({}, lang) }}</a></p>
+        {% if lang != "en" %}<p class="fine">{{ "home-english-note" | i18n({}, lang) }}</p>{% endif %}
+    </template>
+    <template id="error-template">
+        <h2>{{ "home-error-title" | i18n({}, lang) }}</h2>
+        <p class="lead">{{ "home-error-text" | i18n({}, lang) }}</p>
+    </template>
 
-        const observed = [
-            { key: 'cover',  el: cover },
-            { key: 'main',   el: messaging },
-            { key: 'main',   el: nextweb },
-            { key: 'main',   el: token },
-            { key: 'main',   el: roadmap },
-            { key: 'main',   el: directory },
-            { key: 'footer', el: footer }
-        ].filter(t => t.el);
-
-        if (!observed.length) return;
-
-        const MIN_COVER = 0.02;
-
-        function clear(){
-            mobileHeader.classList.remove('cover','main','footer');
-        }
-
-        function apply(key){
-            clear();
-            if (key) mobileHeader.classList.add(key);
-        }
-
-        function viewportCoverageY(el){
-            const r  = el.getBoundingClientRect();
-            const vh = window.innerHeight || document.documentElement.clientHeight;
-            const visibleY = Math.max(0, Math.min(vh, r.bottom) - Math.max(0, r.top));
-            return visibleY / Math.max(1, vh);
-        }
-
-        function computeKeyMax(){
-            const keyMax = { cover: 0, main: 0, footer: 0 };
-            for (const t of observed) {
-                const ratio = viewportCoverageY(t.el);
-                if (ratio > keyMax[t.key]) keyMax[t.key] = ratio;
+    <script type="application/json" id="home-data">{
+        "lang": {{ lang | dump | safe }},
+        "countdownTo": "2026-12-12T18:00:00Z",
+        "strings": {
+            "answer": {{ "home-answer-eyebrow" | i18n({}, lang) | dump | safe }},
+            "fromSite": {{ "home-search-eyebrow" | i18n({}, lang) | dump | safe }},
+            "more": {{ "home-search-more" | i18n({}, lang) | dump | safe }},
+            "continue": {{ "home-continue" | i18n({}, lang) | dump | safe }},
+            "askService": {{ "home-ask-service" | i18n({}, lang) | dump | safe }},
+            "asked": {{ "home-knows-asked" | i18n({}, lang) | dump | safe }},
+            "loading": {{ "home-loading" | i18n({}, lang) | dump | safe }},
+            "overlayError": {{ "home-overlay-error" | i18n({}, lang) | dump | safe }},
+            "getApp": {{ "home-get-app" | i18n({}, lang) | dump | safe }},
+            "countdownDone": {{ "index-hero-countdown-done" | i18n({}, lang) | dump | safe }},
+            "kinds": {
+                "docs": {{ "home-kind-docs" | i18n({}, lang) | dump | safe }},
+                "blog": {{ "home-kind-blog" | i18n({}, lang) | dump | safe }},
+                "summary": {{ "home-kind-summary" | i18n({}, lang) | dump | safe }},
+                "page": "simplex.chat"
             }
-            return keyMax;
-        }
-
-        let lastKey = null;
-        let rafId = null;
-
-        function update(){
-            rafId = null; // Reset RAF flag
-
-            const keyMax = computeKeyMax();
-
-            let bestKey = null, best = MIN_COVER;
-            for (const [k, r] of Object.entries(keyMax)) {
-                if (r > best) { best = r; bestKey = k; }
-            }
-
-            // Only update DOM if state actually changed
-            if (bestKey !== lastKey) {
-                if (bestKey) {
-                    apply(bestKey);
-                } else {
-                    clear();
-                }
-                lastKey = bestKey;
-            }
-        }
-
-        function scheduleUpdate(){
-            if (rafId) return; // Already scheduled
-            rafId = requestAnimationFrame(update);
-        }
-
-        let observer = null;
-
-        if ('IntersectionObserver' in window) {
-            observer = new IntersectionObserver(scheduleUpdate, {
-                threshold: [0, 0.02, 0.1, 0.25, 0.5, 0.75, 1],
-                rootMargin: '0px 0px -35% 0px'
-            });
-            observed.forEach(t => observer.observe(t.el));
-            scheduleUpdate(); // Initial update
-        } else {
-            // Fallback for older browsers
-            ['scroll','resize','load'].forEach(ev =>
-                window.addEventListener(ev, scheduleUpdate, { passive: true })
-            );
-            scheduleUpdate();
-        }
-    })();
+        },
+        "data": {{ lang | homeClientData | dump | safe }}
+    }</script>
+    <script>{% include "utm.js" %}</script>
+    <script type="module">
+    import { init, track } from '/js/page.js';
+    {% include "events.js" %}
+    init(pageEvents);
     </script>
+    <script src="/js/home-search.js"></script>
+    <script src="/js/home.js"></script>
 </body>
 
 </html>

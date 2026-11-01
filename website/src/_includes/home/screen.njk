@@ -1,0 +1,7 @@
+{% from "home/blocks.njk" import block %}
+
+{% macro screen(sc, lang) %}
+<p class="eyebrow">{{ sc.eyebrow | i18n({}, lang) }}</p>
+<h2>{{ sc.title | i18n({}, lang) }}</h2>
+{% for b in sc.blocks %}{{ block(b, lang) }}{% endfor %}
+{% endmacro %}

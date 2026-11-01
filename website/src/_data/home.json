@@ -1,0 +1,266 @@
+{
+  "personas": [
+    {
+      "id": "people",
+      "label": "home-who-people",
+      "said": "home-said-people",
+      "screen": {
+        "eyebrow": "home-people-eyebrow",
+        "title": "home-people-title",
+        "blocks": [
+          { "type": "lead", "text": "home-people-lead" },
+          { "type": "steps", "items": [
+            { "text": "home-people-step-1" },
+            { "text": "home-people-step-2" },
+            { "text": "home-people-step-3" }
+          ] },
+          { "type": "stats", "items": [
+            { "fact": "monthly-users", "label": "home-stat-monthly-users" },
+            { "fact": "downloads", "label": "home-stat-downloads" },
+            { "fact": "messages-per-day", "label": "home-stat-messages-per-day" }
+          ] },
+          { "type": "download" },
+          { "type": "pages", "items": [
+            { "url": "/docs/simplex.html", "title": "home-page-simplex", "why": "home-page-simplex-why" },
+            { "url": "/docs/guide/making-connections.html", "title": "home-page-connections", "why": "home-page-connections-why" },
+            { "url": "/docs/guide/privacy-security.html", "title": "home-page-privacy-settings", "why": "home-page-privacy-settings-why" }
+          ] },
+          { "type": "questions", "items": [
+            "how-does-simplex-deliver-messages-without-user-identifiers",
+            "what-can-servers-and-network-observers-see",
+            "how-does-simplex-compare-with-signal-session-matrix-briar-and-others"
+          ] }
+        ]
+      }
+    },
+    {
+      "id": "community",
+      "label": "home-who-community",
+      "said": "home-said-community",
+      "screen": {
+        "eyebrow": "home-community-eyebrow",
+        "title": "home-community-title",
+        "blocks": [
+          { "type": "lead", "text": "home-community-lead" },
+          { "type": "stats", "items": [
+            { "fact": "channels-created", "label": "home-stat-channels-created" },
+            { "fact": "directory", "label": "home-stat-directory" },
+            { "fact": "directory", "nth": 1, "label": "home-stat-directory-active" }
+          ] },
+          { "type": "text", "text": "home-community-names" },
+          { "type": "links", "items": [
+            { "url": "/directory/", "label": "home-link-directory" }
+          ] },
+          { "type": "pages", "items": [
+            { "url": "/docs/protocol/channels-overview.html", "title": "home-page-channels", "why": "home-page-channels-why" },
+            { "url": "/docs/directory.html", "title": "home-page-directory", "why": "home-page-directory-why" },
+            { "url": "/docs/guide/channel-webpage.html", "title": "home-page-channel-webpage", "why": "home-page-channel-webpage-why" }
+          ] },
+          { "type": "questions", "items": [
+            "why-are-public-channels-not-end-to-end-encrypted",
+            "what-are-simplex-public-names",
+            "who-controls-the-network"
+          ] }
+        ]
+      }
+    },
+    {
+      "id": "business",
+      "label": "home-who-business",
+      "said": "home-said-business",
+      "screen": {
+        "eyebrow": "home-business-eyebrow",
+        "title": "home-business-title",
+        "blocks": [
+          { "type": "lead", "text": "home-business-lead" },
+          { "type": "stats", "items": [
+            { "fact": "businesses", "label": "home-stat-businesses" },
+            { "fact": "monthly-users", "label": "home-stat-monthly-users" }
+          ] },
+          { "type": "text", "text": "home-business-names" },
+          { "type": "pages", "items": [
+            { "url": "/docs/business.html", "title": "home-page-business", "why": "home-page-business-why" },
+            { "url": "/docs/protocol/names-overview.html", "title": "home-page-names", "why": "home-page-names-why" }
+          ] },
+          { "type": "questions", "items": [
+            "what-are-simplex-public-names",
+            "how-will-simplex-chat-make-money",
+            "how-can-ai-agents-and-developers-use-simplex"
+          ] }
+        ]
+      }
+    },
+    {
+      "id": "developer",
+      "label": "home-who-developer",
+      "said": "home-said-developer",
+      "screen": {
+        "eyebrow": "home-developer-eyebrow",
+        "title": "home-developer-title",
+        "blocks": [
+          { "type": "lead", "text": "home-developer-lead" },
+          { "type": "steps", "items": [
+            { "text": "home-developer-step-1" },
+            { "text": "home-developer-step-2" },
+            { "text": "home-developer-step-3" }
+          ] },
+          { "type": "pages", "items": [
+            { "url": "/llms/agents.md", "title": "home-page-agents", "why": "home-page-agents-why" },
+            { "url": "/docs/cli.html", "title": "home-page-cli", "why": "home-page-cli-why" },
+            { "url": "/docs/server.html", "title": "home-page-server", "why": "home-page-server-why" }
+          ] },
+          { "type": "questions", "items": [
+            "is-simplex-free-and-open-source",
+            "who-controls-the-network",
+            "what-can-servers-and-network-observers-see"
+          ] }
+        ]
+      }
+    },
+    {
+      "id": "investor",
+      "label": "home-who-investor",
+      "said": "home-said-investor",
+      "screen": {
+        "eyebrow": "home-investor-eyebrow",
+        "title": "home-investor-title",
+        "blocks": [
+          { "type": "lead", "text": "home-investor-lead" },
+          { "type": "stats", "items": [
+            { "fact": "investment", "label": "home-stat-investment" },
+            { "fact": "donations", "label": "home-stat-donations" },
+            { "fact": "growth", "label": "home-stat-growth" }
+          ] },
+          { "type": "text", "text": "home-investor-text" },
+          { "type": "links", "items": [
+            { "url": "https://wefunder.com/simplex.chat?utm_source=home", "label": "home-link-wefunder" }
+          ] },
+          { "type": "pages", "items": [
+            { "url": "/wefunder.md", "title": "home-page-wefunder", "why": "home-page-wefunder-why" },
+            { "url": "/llms/timeline.md", "title": "home-page-timeline", "why": "home-page-timeline-why" }
+          ] },
+          { "type": "fine", "text": "home-investor-risk" },
+          { "type": "questions", "items": [
+            "how-will-simplex-chat-make-money",
+            "roadmap",
+            "is-simplex-audited"
+          ] }
+        ]
+      }
+    },
+    {
+      "id": "press",
+      "label": "home-who-press",
+      "said": "home-said-press",
+      "screen": {
+        "eyebrow": "home-press-eyebrow",
+        "title": "home-press-title",
+        "blocks": [
+          { "type": "stats", "items": [
+            { "fact": "monthly-users", "label": "home-stat-monthly-users" },
+            { "fact": "downloads", "label": "home-stat-downloads" },
+            { "fact": "messages-per-day", "label": "home-stat-messages-per-day" },
+            { "fact": "volunteer-servers", "label": "home-stat-volunteer-servers" }
+          ] },
+          { "type": "lead", "text": "home-press-lead" },
+          { "type": "pages", "items": [
+            { "url": "/llms/facts.md", "title": "home-page-facts", "why": "home-page-facts-why" },
+            { "url": "/llms/timeline.md", "title": "home-page-timeline", "why": "home-page-timeline-why" },
+            { "url": "/links/", "title": "home-page-links", "why": "home-page-links-why" }
+          ] },
+          { "type": "questions", "items": [
+            "what-are-simplexs-limitations",
+            "how-does-simplex-compare-with-signal-session-matrix-briar-and-others",
+            "how-do-i-contact-the-simplex-team"
+          ] }
+        ]
+      }
+    }
+  ],
+  "roadmap": {
+    "eyebrow": "home-roadmap-eyebrow",
+    "title": "index-roadmap-h2",
+    "blocks": [
+      { "type": "timeline", "items": [
+        { "when": "index-roadmap-1", "title": "index-roadmap-1-title", "text": "index-roadmap-1-desc" },
+        { "when": "index-roadmap-2", "title": "index-roadmap-2-title", "text": "index-roadmap-2-desc" },
+        { "when": "index-roadmap-3", "title": "index-roadmap-3-title", "text": "index-roadmap-3-desc" }
+      ] },
+      { "type": "questions", "items": [
+        "how-will-simplex-chat-make-money",
+        "who-controls-the-network",
+        "how-can-i-invest-in-simplex-chat"
+      ] }
+    ]
+  },
+  "intents": [
+    { "id": "what-is-simplex-in-one-sentence", "label": "home-q-what-is-simplex", "phrases": ["what is simplex", "what is simplex chat", "tell me about simplex", "what does simplex do", "explain simplex"] },
+    { "id": "what-is-the-difference-between-simplex-network-and-simplex-chat", "label": "home-q-network-vs-chat", "phrases": ["simplex network vs simplex chat", "is simplex chat a company", "difference between the app and the network"] },
+    { "id": "how-does-simplex-deliver-messages-without-user-identifiers", "label": "home-q-deliver", "phrases": ["how can a network have no identifiers", "how does it work", "how are messages delivered without ids", "how does simplex work", "no user ids how", "message queues"] },
+    { "id": "what-can-servers-and-network-observers-see", "label": "home-q-servers-see", "phrases": ["what can servers see", "what do servers know", "can the server read my messages", "metadata", "can my ip address be seen", "can the police read my messages"] },
+    { "id": "how-strong-is-the-encryption", "label": "home-q-encryption", "phrases": ["is it encrypted", "is it end to end encrypted", "are messages encrypted", "what encryption does it use", "end to end encryption", "post quantum", "quantum resistant", "double ratchet", "is it quantum safe"] },
+    { "id": "why-are-public-channels-not-end-to-end-encrypted", "label": "home-q-channels-encryption", "phrases": ["are channels encrypted", "why channels are not encrypted", "channel privacy"] },
+    { "id": "is-simplex-audited", "label": "home-q-audited", "phrases": ["security audit", "has it been audited", "trail of bits", "independent review of security"] },
+    { "id": "what-are-simplexs-limitations", "label": "home-q-limitations", "phrases": ["what are the weaknesses", "limitations", "what does simplex not protect", "downsides"] },
+    { "id": "how-does-simplex-compare-with-signal-session-matrix-briar-and-others", "label": "home-q-compare", "phrases": ["simplex vs signal", "compare with whatsapp", "better than signal", "comparison with session matrix briar", "why not telegram"] },
+    { "id": "can-people-find-or-contact-me-without-my-consent", "label": "home-q-consent", "phrases": ["can strangers message me", "spam", "can someone find me", "unwanted contacts"] },
+    { "id": "who-controls-the-network", "label": "home-q-controls", "phrases": ["who owns the network", "who runs the servers", "is it decentralized", "governance", "consortium", "foundation"] },
+    { "id": "is-simplex-free-and-open-source", "label": "home-q-open-source", "phrases": ["is it free", "source code", "open source license", "agpl", "github"] },
+    { "id": "how-will-simplex-chat-make-money", "label": "home-q-money", "phrases": ["business model", "how do you make money", "revenue", "will it stay free", "who pays"] },
+    { "id": "what-are-simplex-public-names", "label": "home-q-names", "phrases": ["public names", "simplex domains", "simplex names", "register a name", "name sale"] },
+    { "id": "how-can-ai-agents-and-developers-use-simplex", "label": "home-q-agents", "phrases": ["build a bot", "ai agent", "api", "sdk", "chat bot"] },
+    { "id": "how-can-i-invest-in-simplex-chat", "label": "home-q-invest", "phrases": ["invest", "buy shares", "crowdfunding", "wefunder", "equity"] },
+    { "id": "how-do-i-contact-the-simplex-team", "label": "home-q-contact", "phrases": ["contact the team", "support", "talk to someone", "email", "help"] },
+    { "id": "roadmap", "label": "home-q-roadmap", "phrases": ["roadmap", "what is next", "future plans", "community credits", "what are you building next"] }
+  ],
+  "personaWords": {
+    "investor": ["investor", "investors", "investing", "shareholder", "shares", "equity", "valuation"],
+    "press": ["journalist", "press", "reporter", "media kit", "interview"],
+    "developer": ["developer", "developers", "bot", "bots", "sdk", "agent", "agents", "programming"]
+  },
+  "frame": [
+    "/directory/",
+    "/news/",
+    "/crowdfunding-news/",
+    "/contact/",
+    "/invitation/",
+    "/file/",
+    "/blog/",
+    "/downloads/",
+    "/links/",
+    "/crowdfunding/",
+    "/livestream/",
+    "/fdroid/"
+  ],
+  "kbExclude": [
+    "/index.md",
+    "/blog.md",
+    "/docs.md",
+    "/directory.md",
+    "/news.md",
+    "/crowdfunding-news.md",
+    "/contact.md",
+    "/invitation.md",
+    "/file.md"
+  ],
+  "synonyms": {
+    "id": ["identifier"],
+    "ids": ["identifier"],
+    "e2e": ["end", "encryption"],
+    "e2ee": ["end", "encryption"],
+    "pq": ["post", "quantum"],
+    "ip": ["address"],
+    "invest": ["wefunder", "crowdfunding"],
+    "audit": ["trail", "bits"],
+    "audited": ["trail", "bits"],
+    "offline": ["internet"],
+    "phone": ["number"],
+    "host": ["server"],
+    "vc": ["investor"],
+    "vcs": ["investor"]
+  },
+  "kbWeights": {
+    "/links/": 0.7
+  },
+  "askEndpoint": ""
+}

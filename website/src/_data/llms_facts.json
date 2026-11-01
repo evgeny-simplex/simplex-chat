@@ -11,24 +11,28 @@
           "sources": [{ "title": "How SimpleX works", "url": "https://simplex.chat/docs/simplex.md" }]
         },
         {
+          "id": "monthly-users",
           "fact": "Monthly active users",
           "value": "600,000+",
           "asOf": "October 2026",
           "sources": [{ "title": "Wefunder memo", "url": "https://simplex.chat/wefunder.md" }]
         },
         {
+          "id": "growth",
           "fact": "User growth",
           "value": "about 70% in the last six months",
           "asOf": "October 2026",
           "sources": [{ "title": "Wefunder memo", "url": "https://simplex.chat/wefunder.md" }]
         },
         {
+          "id": "downloads",
           "fact": "App downloads",
           "value": "3 million+",
           "asOf": "October 2026",
           "sources": [{ "title": "Wefunder memo", "url": "https://simplex.chat/wefunder.md" }]
         },
         {
+          "id": "messages-per-day",
           "fact": "Messages per day via preset servers",
           "value": "20 million+",
           "asOf": "October 2026",
@@ -52,6 +56,7 @@
       "title": "Network participants",
       "facts": [
         {
+          "id": "volunteer-servers",
           "fact": "Servers run by volunteers",
           "value": "about 1,000",
           "asOf": "October 2026",
@@ -64,12 +69,14 @@
           "sources": [{ "title": "Blog", "url": "https://simplex.chat/blog/20241210-simplex-network-v6-2-servers-by-flux-business-chats.md" }]
         },
         {
+          "id": "channels-created",
           "fact": "Public channels created",
           "value": "12,500+ in the five months since scalable channels shipped",
           "asOf": "October 2026",
           "sources": [{ "title": "Wefunder memo", "url": "https://simplex.chat/wefunder.md" }]
         },
         {
+          "id": "directory",
           "fact": "Curated directory",
           "value": "500+ public groups and channels, 30% active daily",
           "asOf": "October 2026",
@@ -79,6 +86,7 @@
           ]
         },
         {
+          "id": "businesses",
           "fact": "Businesses supporting customers over SimpleX",
           "value": "50+",
           "asOf": "October 2026",
@@ -152,12 +160,14 @@
           "sources": [{ "title": "Ajv", "url": "https://github.com/ajv-validator/ajv" }]
         },
         {
+          "id": "investment",
           "fact": "Total investment to date",
           "value": "$1.7M",
           "asOf": "October 2026",
           "sources": [{ "title": "Wefunder memo", "url": "https://simplex.chat/wefunder.md" }]
         },
         {
+          "id": "donations",
           "fact": "User donations",
           "value": "$650,000+, including from Vitalik Buterin",
           "asOf": "October 2026",

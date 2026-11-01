@@ -93,6 +93,17 @@ function isMarkdownPagePath(pathname) {
   return pathname.endsWith(".html") && (isDoc || pathname.startsWith("/blog/"))
 }
 
+const markdownOnlyUrls = new Set(fs.readdirSync(path.resolve(__dirname, "src/llms"))
+  .map((file) => matter(fs.readFileSync(path.resolve(__dirname, "src/llms", file), "utf8")).data.permalink)
+  .filter((permalink) => permalink && permalink.endsWith(".md")))
+
+function pageUrl(url) {
+  if (!url.endsWith(".md") || markdownOnlyUrls.has(url)) return url
+  const base = url.slice(0, -3)
+  if (isMarkdownPagePath(base + ".html")) return base + ".html"
+  return base.endsWith("/index") ? base.slice(0, -5) : base + "/"
+}
+
 function absoluteMarkdownLink(link, inputPath, resolveLink) {
   if (link.startsWith("<")) return `<${absoluteMarkdownLink(link.slice(1, -1), inputPath, resolveLink)}>`
   if (link.startsWith("#")) return link
@@ -266,6 +277,7 @@ function plainText(html) {
 module.exports = {
   markdownKind,
   markdownUrl,
+  pageUrl,
   markdownFromSource,
   markdownTitle,
   markdownFromHtml,

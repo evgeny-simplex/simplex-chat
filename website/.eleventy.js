@@ -11,6 +11,9 @@ const pluginRss = require('@11ty/eleventy-plugin-rss')
 const { JSDOM } = require('jsdom')
 const parse5 = require('parse5')
 const markdownPages = require('./markdown_pages')
+const knowledgeBase = require('./knowledge_base')
+const home = require('./src/_data/home.json')
+const llmsFacts = require('./src/_data/llms_facts.json')
 
 
 // Links page data
@@ -173,15 +176,36 @@ fs.readdir(translationsDirectoryPath, (err, files) => {
 const translations = require("./translations.json")
 
 const translatedPages = {
-  "": "src/index.html",
-  why: "src/why.html",
-  downloads: "src/_includes/downloads_hero.html",
+  "": ["src/index.html", "src/_includes/home/blocks.njk"],
+  why: ["src/why.html"],
+  downloads: ["src/_includes/downloads_hero.html"],
 }
 
-const translatedPageKeys = Object.fromEntries(Object.entries(translatedPages).map(([route, file]) => {
-  const template = fs.readFileSync(path.resolve(__dirname, file), "utf8")
-  return [route, [...new Set(Array.from(template.matchAll(/["']([\w-]+)["']\s*\|\s*i18n/g), (match) => match[1]))]]
+const homeKeyFields = new Set(["label", "said", "eyebrow", "title", "text", "why", "when"])
+
+function homeKeys(value) {
+  if (Array.isArray(value)) return value.flatMap(homeKeys)
+  if (!value || typeof value !== "object") return []
+  return Object.entries(value).flatMap(([field, item]) =>
+    typeof item === "string" ? (homeKeyFields.has(field) ? [item] : []) : homeKeys(item))
+}
+
+const translatedPageDataKeys = {
+  "": homeKeys([home.personas, home.roadmap, home.intents]),
+}
+
+const translatedPageKeys = Object.fromEntries(Object.entries(translatedPages).map(([route, files]) => {
+  const templates = files.map((file) => fs.readFileSync(path.resolve(__dirname, file), "utf8")).join("\n")
+  const templateKeys = Array.from(templates.matchAll(/["']([\w-]+)["']\s*\|\s*i18n/g), (match) => match[1])
+  return [route, [...new Set([...templateKeys, ...(translatedPageDataKeys[route] || [])])]]
 }))
+
+const factsById = new Map(llmsFacts.groups.flatMap((group) => group.facts).filter((fact) => fact.id).map((fact) => [fact.id, fact]))
+const factFigurePattern = /(?:about )?\$?\d[\d,.]*(?: million|M|K)?\+?%?/g
+
+function factFigure(id, nth = 0) {
+  return factsById.get(id).value.match(factFigurePattern)[nth].replace(/^about /, "~")
+}
 
 const outputDir = '_site'
 
@@ -360,6 +384,10 @@ module.exports = function (ty) {
 
   ty.addFilter("plainText", markdownPages.plainText)
 
+  ty.addFilter("siteLinks", (html) => knowledgeBase.siteLinks(html))
+
+  ty.addFilter("factFigure", factFigure)
+
   const outputSections = ["pages", "blog pages", "doc pages", "language pages", "other files", "Markdown files"]
   const outputCounts = new Map()
 
@@ -387,6 +415,16 @@ module.exports = function (ty) {
     return content
   })
 
+  const knowledgeBaseSources = new Map()
+
+  function addKnowledgeBaseSource(url, markdownUrl, markdown, inputPath) {
+    if (!supportedLangs.includes(url.split("/")[1]) && !home.kbExclude.includes(markdownUrl)) {
+      knowledgeBaseSources.set(url, { url, markdown, inputPath })
+    }
+  }
+
+  ty.on("eleventy.before", () => knowledgeBaseSources.clear())
+
   ty.addTransform("markdownPages", function (content) {
     const kind = markdownPages.markdownKind(this.inputPath, supportedLangs)
     if (kind && this.outputPath) {
@@ -394,24 +432,55 @@ module.exports = function (ty) {
       const markdown = kind === "source"
         ? markdownPages.markdownFromSource(this.inputPath, replaceLink)
         : markdownPages.markdownFromHtml(content, pageUrl)
-      const markdownPath = path.join(outputDir, markdownPages.markdownUrl(pageUrl, supportedLangs))
+      const markdownUrl = markdownPages.markdownUrl(pageUrl, supportedLangs)
+      const markdownPath = path.join(outputDir, markdownUrl)
       fs.mkdirSync(path.dirname(markdownPath), { recursive: true })
       fs.writeFileSync(markdownPath, markdown)
       countOutput("Markdown files")
+      addKnowledgeBaseSource(pageUrl, markdownUrl, markdown, this.inputPath)
+    } else if (this.outputPath && this.outputPath.endsWith(".md")) {
+      const markdownUrl = "/" + path.relative(outputDir, this.outputPath)
+      addKnowledgeBaseSource(markdownUrl, markdownUrl, content, this.inputPath)
     }
     return content
+  })
+
+  ty.on("eleventy.after", () => {
+    const render = (markdown, inputPath) => markdownLib.render(markdown, { page: { inputPath } })
+    const docs = knowledgeBase.writeKnowledgeBase(path.join(outputDir, "kb/en.json"), knowledgeBaseSources.values(), render)
+    const sectionCount = docs.reduce((count, doc) => count + doc.sections.length, 0)
+    console.log(`[kb] Wrote kb/en.json: ${docs.length} documents, ${sectionCount} sections`)
   })
 
   ty.addPlugin(pluginRss)
 
   const unknownStrings = new Set()
 
-  ty.addFilter("i18n", function (key, _data, lang) {
-    const locale = lang || (this.page || this.ctx.page)?.url?.split("/")[1]
+  function translate(key, locale) {
     const strings = translations[key] || {}
     if (strings.en === undefined) unknownStrings.add(key)
     return strings[locale] ?? strings.en ?? key
+  }
+
+  ty.addFilter("i18n", function (key, _data, lang) {
+    return translate(key, lang || (this.page || this.ctx.page)?.url?.split("/")[1])
   })
+
+  ty.addFilter("intentLabel", (id) => home.intents.find((intent) => intent.id === id).label)
+
+  ty.addFilter("inlineMarkup", (text) => text
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>"))
+
+  ty.addFilter("homeClientData", (lang) => ({
+    personas: home.personas.map(({ id, label, said }) => ({ id, label: translate(label, lang), said: translate(said, lang) })),
+    intents: home.intents.map(({ id, label, phrases }) => ({ id, label: translate(label, lang), phrases })),
+    personaWords: home.personaWords,
+    frame: home.frame,
+    synonyms: home.synonyms,
+    kbWeights: home.kbWeights,
+    facts: Object.fromEntries(Array.from(factsById.keys(), (id) => [id, factFigure(id)])),
+  }))
 
   ty.addFilter("translated", (lang, url) => {
     const [first, second] = url.split("/").slice(1)
