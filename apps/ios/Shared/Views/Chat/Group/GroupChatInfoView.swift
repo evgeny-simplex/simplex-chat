@@ -208,7 +208,7 @@ struct GroupChatInfoView: View {
                     }
 
                     if !groupInfo.nextConnectPrepared && !groupInfo.useRelays {
-                        Section(header: Text("\(members.count + 1) members").foregroundColor(theme.colors.secondary)) {
+                        Section(header: Text(members.isEmpty ? "1 member" : "\(members.count + 1) members").foregroundColor(theme.colors.secondary)) {
                             if groupInfo.canAddMembers {
                                 if (chat.chatInfo.incognito) {
                                     Label("Invite members", systemImage: "plus")

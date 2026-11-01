@@ -756,7 +756,8 @@ fun ModalData.GroupChatInfoLayout(
       SectionDividerSpaced()
 
       if (!groupInfo.nextConnectPrepared && !groupInfo.useRelays) {
-        SectionView(title = String.format(generalGetString(MR.strings.group_info_section_title_num_members), activeSortedMembers.count() + 1), cardShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)) {
+        val membersTitle = if (activeSortedMembers.isEmpty()) generalGetString(MR.strings.group_info_section_title_one_member) else String.format(generalGetString(MR.strings.group_info_section_title_num_members), activeSortedMembers.count() + 1)
+        SectionView(title = membersTitle, cardShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)) {
           if (groupInfo.canAddMembers) {
             val onAddMembersClick = if (chat.chatInfo.incognito) ::cantInviteIncognitoAlert else addMembers
             val tint = if (chat.chatInfo.incognito) MaterialTheme.colors.secondary else MaterialTheme.colors.primary
