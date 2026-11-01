@@ -24,21 +24,28 @@ fun ContactRequestView(contactRequest: ChatInfo.ContactRequest) {
     ChatInfoImage(contactRequest, size = 72.dp * fontSizeSqrtMultiplier)
     Column(
       modifier = Modifier
-        .padding(start = 8.dp, end = 8.sp.toDp())
+        .padding(start = 8.dp)
         .weight(1F)
     ) {
-      NameWithBadge(
-        contactRequest.chatViewName,
-        contactRequest.nameBadge,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        style = MaterialTheme.typography.h3,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colors.primary,
-      )
+      Row {
+        Box(Modifier.weight(1f)) {
+          NameWithBadge(
+            contactRequest.chatViewName,
+            contactRequest.nameBadge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.h3,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colors.primary,
+          )
+        }
+        Spacer(Modifier.width(8.sp.toDp()))
+        val ts = getTimestampText(contactRequest.contactRequest.updatedAt)
+        ChatListTimestampView(ts)
+      }
       Text(
         stringResource(MR.strings.contact_wants_to_connect_with_you),
-        Modifier.heightIn(min = 46.sp.toDp()).padding(top = 3.sp.toDp()),
+        Modifier.heightIn(min = 46.sp.toDp()).padding(top = 3.sp.toDp(), end = (8 + 34).sp.toDp()),
         maxLines = 2,
         style = TextStyle(
           fontFamily = Inter,
@@ -48,7 +55,5 @@ fun ContactRequestView(contactRequest: ChatInfo.ContactRequest) {
         )
       )
     }
-    val ts = getTimestampText(contactRequest.contactRequest.updatedAt)
-    ChatListTimestampView(ts)
   }
 }

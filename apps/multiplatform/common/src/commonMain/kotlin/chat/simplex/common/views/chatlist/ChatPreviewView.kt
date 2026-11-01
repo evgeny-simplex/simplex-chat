@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
@@ -135,6 +137,30 @@ fun ChatPreviewView(
   }
 
   @Composable
+  fun sendFailureIcon(ci: ChatItem): Pair<ImageResource, Color>? =
+    when (ci.meta.itemStatus) {
+      is CIStatus.SndErrorAuth, is CIStatus.CISSndError, is CIStatus.SndWarning -> ci.meta.itemStatus.statusIcon(MaterialTheme.colors.primary)
+      else -> null
+    }
+
+  @Composable
+  fun itemStatusMark(ci: ChatItem): Pair<AnnotatedString.Builder.() -> Unit, Map<String, InlineTextContent>>? {
+    val (icon, color) = sendFailureIcon(ci) ?: return null
+    val inlineContentBuilder: AnnotatedString.Builder.() -> Unit = {
+      appendInlineContent(id = "statusIcon")
+      append(" ")
+    }
+    val inlineContent: Map<String, InlineTextContent> = mapOf(
+      "statusIcon" to InlineTextContent(
+        Placeholder(15.sp, 15.sp, PlaceholderVerticalAlign.TextCenter)
+      ) {
+        Icon(painterResource(icon), null, Modifier.fillMaxSize(), tint = color)
+      }
+    )
+    return inlineContentBuilder to inlineContent
+  }
+
+  @Composable
   fun chatPreviewTitle() {
     val deleting by remember(disabled, chat.id) { mutableStateOf(chatModel.deletedChats.value.contains(chat.remoteHostId to chat.chatInfo.id)) }
     when (cInfo) {
@@ -226,6 +252,12 @@ fun ChatPreviewView(
   fun chatPreviewText() {
     val previewText = chatPreviewInfoText()
     val ci = chat.chatItems.lastOrNull()
+    val previewTextStyle = TextStyle(
+      fontFamily = Inter,
+      fontSize = 15.sp,
+      color = if (isInDarkTheme()) MessagePreviewDark else MessagePreviewLight,
+      lineHeight = 21.sp
+    )
     if (chatModelDraftChatId == chat.id && chatModelDraft != null) {
       val sp20 = with(LocalDensity.current) { 20.sp.toDp() }
       val (text: CharSequence, inlineTextContent) = remember(chatModelDraft) { chatModelDraft.message.text to messageDraft(chatModelDraft, sp20) }
@@ -237,26 +269,21 @@ fun ChatPreviewView(
         linkMode = linkMode,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
-        style = TextStyle(
-          fontFamily = Inter,
-          fontSize = 15.sp,
-          color = if (isInDarkTheme()) MessagePreviewDark else MessagePreviewLight,
-          lineHeight = 21.sp
-        ),
+        style = previewTextStyle,
         inlineContent = inlineTextContent,
         modifier = Modifier.fillMaxWidth()
       )
     } else if (ci?.content?.hasMsgContent != true && previewText != null) {
-      Text(previewText.first, color = previewText.second)
+      Text(previewText.first, color = previewText.second, maxLines = 2, overflow = TextOverflow.Ellipsis, style = previewTextStyle)
     } else if (ci != null && showChatPreviews) {
-      val (text: CharSequence, inlineTextContent) = when {
-        ci.meta.itemDeleted != null -> markedDeletedText(ci, chat.chatInfo) to null
+      val text: CharSequence = when {
+        ci.meta.itemDeleted != null -> markedDeletedText(ci, chat.chatInfo)
         ci.content.msgContent is MsgContent.MCChat -> {
           val chatLink = (ci.content.msgContent as MsgContent.MCChat).chatLink
           val descr = chatLink.shortDescription?.let { "\n$it" } ?: ""
-          (chatLink.displayName + descr) to null
+          chatLink.displayName + descr
         }
-        else -> ci.text(chat.chatInfo.isChannel) to null
+        else -> ci.text(chat.chatInfo.isChannel)
       }
       val formattedText: List<FormattedText>? = when {
         ci.meta.itemDeleted != null -> null
@@ -292,13 +319,8 @@ fun ChatPreviewView(
         senderBold = true,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
-        style = TextStyle(
-          fontFamily = Inter,
-          fontSize = 15.sp,
-          color = if (isInDarkTheme()) MessagePreviewDark else MessagePreviewLight,
-          lineHeight = 21.sp
-        ),
-        inlineContent = inlineTextContent,
+        style = previewTextStyle,
+        inlineContent = itemStatusMark(ci),
         modifier = Modifier.fillMaxWidth(),
         prefix = prefix
       )
@@ -433,6 +455,13 @@ fun ChatPreviewView(
               Box(Modifier.offset(x = if (mc is MsgContent.MCFile && ci.meta.itemDeleted == null) -15.sp.toDp() else 0.dp)) {
                 chatPreviewText()
               }
+            } else {
+              val failure = ci?.let { sendFailureIcon(it) }
+              if (failure != null) {
+                Box(Modifier.padding(top = 2.sp.toDp()).height(voiceMessageSizeBasedOnSquareSize(36f).sp.toDp()), contentAlignment = Alignment.Center) {
+                  Icon(painterResource(failure.first), null, Modifier.size(15.sp.toDp()), tint = failure.second)
+                }
+              }
             }
             LaunchedEffect(AudioPlayer.currentlyPlaying.value, activeVoicePreview.value) {
               val playing = AudioPlayer.currentlyPlaying.value
@@ -458,9 +487,13 @@ fun ChatPreviewView(
 
           Spacer(Modifier.width(8.sp.toDp()))
 
-          Box(Modifier.widthIn(min = 34.sp.toDp()), contentAlignment = Alignment.TopEnd) {
+          Box(
+            Modifier
+              .widthIn(min = (if (cInfo is ChatInfo.Group) 43 else 34).sp.toDp())
+              .semantics { if (chat.chatInfo.chatSettings?.favorite == true) contentDescription = generalGetString(MR.strings.favorite_chat) },
+            contentAlignment = Alignment.TopEnd
+          ) {
             val n = chat.chatStats.unreadCount
-            val ntfsMode = chat.chatInfo.chatSettings?.enableNtfs
             val showNtfsIcon = !chat.chatInfo.ntfsEnabled(false) && (chat.chatInfo is ChatInfo.Direct || chat.chatInfo is ChatInfo.Group)
             if (n > 0 || chat.chatStats.unreadChat) {
               val unreadMentions = chat.chatStats.unreadMentions
@@ -474,7 +507,7 @@ fun ChatPreviewView(
 
                   else -> if (showNtfsIcon) MaterialTheme.colors.secondary else MaterialTheme.colors.primaryVariant
                 }
-                if (unreadMentions > 0 && n > 1) {
+                if (unreadMentions > 0) {
                   Icon(
                     painterResource(MR.images.ic_alternate_email),
                     contentDescription = generalGetString(MR.strings.notifications),
@@ -483,42 +516,12 @@ fun ChatPreviewView(
                   )
                 }
 
-                if (unreadMentions > 0 && n == 1) {
-                  Box(modifier = Modifier.offset(y = 2.sp.toDp()).size(15.sp.toDp()).background(mentionColor, shape = CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(
-                      painterResource(MR.images.ic_alternate_email),
-                      contentDescription = generalGetString(MR.strings.notifications),
-                      tint = Color.White,
-                      modifier = Modifier.size(9.sp.toDp())
-                    )
-                  }
-                } else {
-                  UnreadBadge(
-                    text = if (n > 0) unreadCountStr(n) else "",
-                    backgroundColor = if (disabled || showNtfsIcon) MaterialTheme.colors.secondary else MaterialTheme.colors.primaryVariant,
-                    yOffset = 3.dp
-                  )
-                }
+                UnreadBadge(
+                  text = if (n > 0) unreadCountStr(n) else "",
+                  backgroundColor = if (disabled || showNtfsIcon) MaterialTheme.colors.secondary else MaterialTheme.colors.primaryVariant,
+                  yOffset = 3.sp.toDp()
+                )
               }
-            } else if (showNtfsIcon && ntfsMode != null) {
-              Icon(
-                painterResource(ntfsMode.iconFilled),
-                contentDescription = generalGetString(MR.strings.notifications),
-                tint = MaterialTheme.colors.secondary,
-                modifier = Modifier
-                  .padding(start = 2.sp.toDp())
-                  .size(18.sp.toDp())
-                  .offset(x = 2.5.sp.toDp(), y = 2.sp.toDp())
-              )
-            } else if (chat.chatInfo.chatSettings?.favorite == true) {
-              Icon(
-                painterResource(MR.images.ic_star_filled),
-                contentDescription = generalGetString(MR.strings.favorite_chat),
-                tint = MaterialTheme.colors.secondary,
-                modifier = Modifier
-                  .size(20.sp.toDp())
-                  .offset(x = 2.5.sp.toDp())
-              )
             }
             Box(
               Modifier.offset(y = 28.sp.toDp()),
@@ -535,7 +538,9 @@ fun ChatPreviewView(
 
 @Composable
 private fun SmallContentPreview(borderColor: Color = MaterialTheme.colors.onSurface.copy(alpha = 0.12f), content: @Composable BoxScope.() -> Unit) {
-  Box(Modifier.padding(top = 2.sp.toDp(), end = 8.sp.toDp()).size(36.sp.toDp()).border(0.5.dp, borderColor, RoundedCornerShape(22)).clip(RoundedCornerShape(22))) {
+  val roundness = remember { appPreferences.chatItemRoundness.state }.value.coerceIn(0f, 1f)
+  val shape = RoundedCornerShape(12.dp * roundness)
+  Box(Modifier.padding(top = 2.sp.toDp(), end = 8.sp.toDp()).size(36.sp.toDp()).border(0.5.dp, borderColor, shape).clip(shape)) {
     content()
   }
 }

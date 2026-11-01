@@ -27,39 +27,44 @@ fun ContactConnectionView(contactConnection: PendingContactConnection) {
     }
     Column(
       modifier = Modifier
-        .padding(start = 8.dp / fontSizeSqrtMultiplier, end = 8.sp.toDp())
+        .padding(start = 8.dp)
         .weight(1F)
     ) {
-      Text(
-        contactConnection.displayName,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        style = MaterialTheme.typography.h3,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colors.secondary
-      )
-      Text(
-        contactConnection.description,
-        Modifier.heightIn(min = 46.sp.toDp()).padding(top = 3.sp.toDp()),
-        maxLines = 2,
-        style = TextStyle(
-          fontFamily = Inter,
-          fontSize = 15.sp,
-          color = if (isInDarkTheme()) MessagePreviewDark else MessagePreviewLight,
-          lineHeight = 21.sp
+      Row {
+        Text(
+          contactConnection.displayName,
+          Modifier.weight(1f),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          style = MaterialTheme.typography.h3,
+          fontWeight = FontWeight.Bold,
+          color = MaterialTheme.colors.secondary
         )
-      )
-    }
-    Box(
-      contentAlignment = Alignment.TopEnd
-    ) {
-      val ts = getTimestampText(contactConnection.updatedAt)
-      ChatListTimestampView(ts)
-      Box(
-        Modifier.padding(top = 50.sp.toDp()),
-        contentAlignment = Alignment.Center
-      ) {
-        IncognitoIcon(contactConnection.incognito)
+        Spacer(Modifier.width(8.sp.toDp()))
+        val ts = getTimestampText(contactConnection.updatedAt)
+        ChatListTimestampView(ts)
+      }
+      Row(Modifier.heightIn(min = 46.sp.toDp())) {
+        Text(
+          contactConnection.description,
+          Modifier.padding(top = 3.sp.toDp()).weight(1f),
+          maxLines = 2,
+          style = TextStyle(
+            fontFamily = Inter,
+            fontSize = 15.sp,
+            color = if (isInDarkTheme()) MessagePreviewDark else MessagePreviewLight,
+            lineHeight = 21.sp
+          )
+        )
+        Spacer(Modifier.width(8.sp.toDp()))
+        Box(Modifier.widthIn(min = 34.sp.toDp()), contentAlignment = Alignment.TopEnd) {
+          Box(
+            Modifier.offset(y = 28.sp.toDp()),
+            contentAlignment = Alignment.Center
+          ) {
+            IncognitoIcon(contactConnection.incognito)
+          }
+        }
       }
     }
   }
