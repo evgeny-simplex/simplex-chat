@@ -47,7 +47,7 @@ fun ComposeContextMemberContactActionsView(
   }
 
   Box(
-    Modifier.height(60.dp),
+    Modifier.heightIn(min = 60.dp).height(IntrinsicSize.Min),
     contentAlignment = Alignment.Center
   ) {
     Column(
@@ -61,7 +61,7 @@ fun ComposeContextMemberContactActionsView(
         Row(
           Modifier
             .fillMaxSize()
-            .padding(horizontal = DEFAULT_PADDING_HALF),
+            .padding(horizontal = DEFAULT_PADDING_HALF, vertical = 8.dp),
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
         ) {
