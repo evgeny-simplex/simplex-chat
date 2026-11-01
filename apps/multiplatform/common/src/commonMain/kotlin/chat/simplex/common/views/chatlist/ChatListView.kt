@@ -1,6 +1,7 @@
 package chat.simplex.common.views.chatlist
 
 import LocalCardScreen
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -41,6 +42,7 @@ import chat.simplex.common.views.helpers.*
 import chat.simplex.common.platform.*
 import chat.simplex.common.views.call.Call
 import chat.simplex.common.views.chat.item.*
+import chat.simplex.common.views.chat.PreviewLocale
 import chat.simplex.common.views.chat.topPaddingToContent
 import chat.simplex.common.views.badges.*
 import chat.simplex.common.views.newchat.*
@@ -1677,3 +1679,34 @@ private fun presetCanBeCollapsed(tag: PresetTagKind): Boolean = when (tag) {
 fun scrollToBottom(scope: CoroutineScope, listState: LazyListState) {
   scope.launch { try { listState.animateScrollToItem(0) } catch (e: Exception) { Log.e(TAG, e.stackTraceToString()) } }
 }
+
+@Composable
+private fun NoChatsInListPreview(tag: String) {
+  PreviewLocale(tag) {
+    remember { chatModel.activeChatTagFilter.value = ActiveFilter.UserTag(ChatTag(chatTagId = 1, chatTagText = "Work", chatTagEmoji = null)) }
+    DisposableEffect(Unit) {
+      onDispose { chatModel.activeChatTagFilter.value = null }
+    }
+    SimpleXTheme {
+      Box(Modifier.fillMaxWidth().height(120.dp).padding(horizontal = DEFAULT_PADDING), contentAlignment = Alignment.Center) {
+        NoChatsView(searchText = remember { mutableStateOf(TextFieldValue("")) })
+      }
+    }
+  }
+}
+
+@Preview
+@Composable
+fun PreviewNoChatsInList() = NoChatsInListPreview("en")
+
+@Preview
+@Composable
+fun PreviewNoChatsInListDe() = NoChatsInListPreview("de")
+
+@Preview
+@Composable
+fun PreviewNoChatsInListFr() = NoChatsInListPreview("fr")
+
+@Preview
+@Composable
+fun PreviewNoChatsInListJa() = NoChatsInListPreview("ja")

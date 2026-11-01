@@ -124,6 +124,10 @@ private val previewScenes = listOf(
   SnapshotScene("UserAddressView.PreviewUserAddressLayoutAddressCreated") { PreviewUserAddressLayoutAddressCreated() },
   SnapshotScene("AdvancedNetworkSettings.PreviewAdvancedNetworkSettingsLayout") { PreviewAdvancedNetworkSettingsLayout() },
   SnapshotScene("NetworkAndServers.PreviewNetworkAndServersLayout") { PreviewNetworkAndServersLayout() },
+  SnapshotScene("ChatListView.PreviewNoChatsInList") { PreviewNoChatsInList() },
+  SnapshotScene("ChatListView.PreviewNoChatsInListDe") { PreviewNoChatsInListDe() },
+  SnapshotScene("ChatListView.PreviewNoChatsInListFr") { PreviewNoChatsInListFr() },
+  SnapshotScene("ChatListView.PreviewNoChatsInListJa") { PreviewNoChatsInListJa() },
 )
 
 private val previewsCallingCore = listOf(

@@ -4056,6 +4056,16 @@ fun PreviewChatInfoToolbarTitleLoading() {
   }
 }
 
+@Composable
+fun PreviewLocale(tag: String, content: @Composable () -> Unit) {
+  val defaultLocale = remember { java.util.Locale.getDefault() }
+  remember { java.util.Locale.setDefault(java.util.Locale.forLanguageTag(tag)) }
+  DisposableEffect(Unit) {
+    onDispose { java.util.Locale.setDefault(defaultLocale) }
+  }
+  content()
+}
+
 enum class ContentFilter(
   val contentTag: MsgContentTag,
   val label: StringResource,
