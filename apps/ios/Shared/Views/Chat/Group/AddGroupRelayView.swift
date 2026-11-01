@@ -15,6 +15,7 @@ struct AddGroupRelayView: View {
     var onRelayAdded: () -> Void
     @EnvironmentObject var theme: AppTheme
     @Environment(\.dismiss) var dismiss
+    @StateObject private var ss = SaveableSettings()
     @State private var availableRelays: [(relayId: Int64, relay: UserChatRelay, operatorName: String?)] = []
     @State private var selectedRelayIds: Set<Int64> = []
     @State private var isLoading = true
@@ -32,6 +33,16 @@ struct AddGroupRelayView: View {
                     Section {
                         Text("No available relays")
                             .foregroundColor(theme.colors.secondary)
+                        NavigationLink {
+                            NetworkAndServers()
+                                .navigationTitle("Network & servers")
+                                .modifier(ThemedBackground(grouped: true))
+                                .environmentObject(ss)
+                        } label: {
+                            settingsRow("externaldrive.connected.to.line.below", color: .accentColor) {
+                                Text("Configure relays").foregroundColor(.accentColor)
+                            }
+                        }
                     }
                 } else {
                     Section {
@@ -41,6 +52,7 @@ struct AddGroupRelayView: View {
                     }
                 }
             }
+            .task { await loadAvailableRelays() }
             .modifier(ThemedBackground(grouped: true))
             .navigationTitle("Add relays")
             .navigationBarTitleDisplayMode(.inline)
@@ -54,7 +66,6 @@ struct AddGroupRelayView: View {
                 }
             }
         }
-        .task { await loadAvailableRelays() }
     }
 
     private func relayCheckRow(_ relayId: Int64, _ relay: UserChatRelay, operatorName: String?) -> some View {
@@ -108,6 +119,10 @@ struct AddGroupRelayView: View {
             logger.error("loadAvailableRelays error: \(responseError(error))")
             await MainActor.run {
                 isLoading = false
+                showAlert(
+                    NSLocalizedString("Error loading servers", comment: "alert title"),
+                    message: responseError(error)
+                )
             }
         }
     }

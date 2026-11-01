@@ -19,6 +19,7 @@ import chat.simplex.common.ui.theme.*
 import chat.simplex.common.views.helpers.*
 import chat.simplex.common.views.newchat.chatRelayDisplayName
 import chat.simplex.common.views.usersettings.SettingsActionItem
+import chat.simplex.common.views.usersettings.networkAndServers.NetworkAndServersView
 import chat.simplex.res.*
 import dev.icerock.moko.resources.compose.painterResource
 import kotlinx.coroutines.launch
@@ -47,7 +48,7 @@ fun AddGroupRelayView(
 
   LaunchedEffect(Unit) {
     try {
-      val servers = ChatController.getUserServers(rhId)
+      val servers = ChatController.getUserServers(rhId, errorAlertTitle = generalGetString(MR.strings.error))
       if (servers != null) {
         val relays = mutableListOf<AvailableRelay>()
         for (op in servers) {
@@ -87,6 +88,9 @@ fun AddGroupRelayView(
           isAdding = false
         }
       }
+    },
+    configureRelays = {
+      ModalManager.end.showCustomModal { close -> NetworkAndServersView(close) }
     }
   )
 }
@@ -98,7 +102,8 @@ private fun AddGroupRelayLayout(
   isLoading: Boolean,
   isAdding: Boolean,
   onToggleRelay: (Long) -> Unit,
-  onAddRelays: () -> Unit
+  onAddRelays: () -> Unit,
+  configureRelays: () -> Unit
 ) {
   ColumnWithScrollBar {
     AppBarTitle(generalGetString(MR.strings.add_relays_title))
@@ -115,6 +120,13 @@ private fun AddGroupRelayLayout(
             color = MaterialTheme.colors.secondary
           )
         }
+        SettingsActionItem(
+          painterResource(MR.images.ic_wifi_tethering),
+          generalGetString(MR.strings.configure_relays),
+          click = configureRelays,
+          textColor = MaterialTheme.colors.primary,
+          iconColor = MaterialTheme.colors.primary
+        )
       }
     } else {
       SectionView {

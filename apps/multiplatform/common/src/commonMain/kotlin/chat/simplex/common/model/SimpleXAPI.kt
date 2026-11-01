@@ -1442,11 +1442,15 @@ object ChatController {
     return null
   }
 
-  suspend fun getUserServers(rh: Long?): List<UserOperatorServers>? {
+  suspend fun getUserServers(rh: Long?, errorAlertTitle: String? = null): List<UserOperatorServers>? {
     val userId = currentUserId("getUserServers")
     val r = sendCmd(rh, CC.ApiGetUserServers(userId))
     if (r is API.Result && r.res is CR.UserServers) return r.res.userServers
-    Log.e(TAG, "getUserServers bad response: ${r.responseType} ${r.details}")
+    if (errorAlertTitle != null) {
+      apiErrorAlert("getUserServers", errorAlertTitle, r)
+    } else {
+      Log.e(TAG, "getUserServers bad response: ${r.responseType} ${r.details}")
+    }
     return null
   }
 
