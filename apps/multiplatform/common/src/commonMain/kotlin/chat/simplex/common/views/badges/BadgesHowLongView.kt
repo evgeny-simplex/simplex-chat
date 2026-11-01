@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -126,14 +127,8 @@ fun BadgesHowLongView(level: BadgeLevel, modalManager: ModalManager, unwindToDep
     Spacer(Modifier.weight(1f).heightIn(min = 8.dp))
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-      if (BadgeStore.pricesFailed || retrying) {
-        Text(
-          stringResource(MR.strings.badges_prices_not_loaded),
-          Modifier.padding(bottom = DEFAULT_PADDING),
-          style = MaterialTheme.typography.body2,
-          color = MaterialTheme.colors.secondary,
-          textAlign = TextAlign.Center
-        )
+      val pricesFailed = BadgeStore.pricesFailed || retrying
+      if (pricesFailed) {
         RetryButton(enabled = !retrying) {
           retrying = true
           scope.launch {
@@ -144,7 +139,7 @@ fun BadgesHowLongView(level: BadgeLevel, modalManager: ModalManager, unwindToDep
       } else {
         ContinueButton(level, selectedPeriod, modalManager, unwindToDepth) { chosenPeriod = it }
       }
-      BadgeBillingFooter(selectedPeriod)
+      BadgeBillingFooter(selectedPeriod, pricesFailed)
     }
   }
 }
@@ -152,15 +147,24 @@ fun BadgesHowLongView(level: BadgeLevel, modalManager: ModalManager, unwindToDep
 // Replicates TextButtonBelowOnboardingButton spacing (7.5dp outer + 5dp inner) without a
 // TextButton so the footer has no hover/click affordance.
 @Composable
-fun BadgeBillingFooter(period: BadgePeriod) {
-  Box(Modifier.padding(top = 7.5.dp, bottom = 7.5.dp).padding(horizontal = 16.dp, vertical = 8.dp)) {
+fun BadgeBillingFooter(period: BadgePeriod, pricesFailed: Boolean = false) {
+  Box(Modifier.padding(top = 7.5.dp, bottom = 7.5.dp).padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
     Text(
       stringResource(billingFooter(period)).format(billingDate(period)),
-      Modifier.padding(vertical = 5.dp),
+      if (pricesFailed) Modifier.padding(vertical = 5.dp).alpha(0f).clearAndSetSemantics {} else Modifier.padding(vertical = 5.dp),
       style = MaterialTheme.typography.body2,
       color = MaterialTheme.colors.secondary,
       textAlign = TextAlign.Center
     )
+    if (pricesFailed) {
+      Text(
+        stringResource(MR.strings.badges_prices_not_loaded),
+        Modifier.padding(vertical = 5.dp),
+        style = MaterialTheme.typography.body2,
+        color = MaterialTheme.colors.secondary,
+        textAlign = TextAlign.Center
+      )
+    }
   }
 }
 
