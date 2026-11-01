@@ -64,10 +64,12 @@ fun ChatListNavLinkView(chat: Chat, nextChatSelected: State<Boolean>) {
   when (chat.chatInfo) {
     is ChatInfo.Direct -> {
       val defaultClickAction = { if (chatModel.chatId.value != chat.id) scope.launch { directChatAction(chat.remoteHostId, chat.chatInfo.contact, chatModel) } }
+      val callInvitation = chatModel.callInvitations[chat.id]?.takeIf { it.remoteHostId == chat.remoteHostId }
+      val callInProgress = chatModel.activeCall.value?.let { it.contact.id == chat.id && it.remoteHostId == chat.remoteHostId } == true
       ChatListNavLinkLayout(
         chatLinkPreview = {
           tryOrShowError("${chat.id}ChatListNavLink", error = { ErrorChatListItem() }) {
-            ChatPreviewView(chat, showChatPreviews, chatModel.draft.value, chatModel.draftChatId.value, chatModel.currentUser.value?.profile?.displayName, disabled, linkMode, inProgress = false, progressByTimeout = false, defaultClickAction)
+            ChatPreviewView(chat, showChatPreviews, chatModel.draft.value, chatModel.draftChatId.value, chatModel.currentUser.value?.profile?.displayName, disabled, linkMode, inProgress = false, progressByTimeout = false, defaultClickAction, callInvitation, callInProgress)
           }
         },
         click = defaultClickAction,
@@ -181,7 +183,7 @@ fun ChatListNavLinkView(chat: Chat, nextChatSelected: State<Boolean>) {
 
 @Composable
 fun ErrorChatListItem() {
-  Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)) {
+  Box(Modifier.fillMaxWidth().heightIn(min = 72.dp * fontSizeSqrtMultiplier).padding(start = 72.dp * fontSizeSqrtMultiplier + 8.dp)) {
     Text(stringResource(MR.strings.error_showing_content), color = MaterialTheme.colors.error, fontStyle = FontStyle.Italic)
   }
 }
@@ -607,25 +609,22 @@ fun ContactConnectionMenuItems(rhId: Long?, chatInfo: ChatInfo.ContactConnection
 
 @Composable
 private fun InvalidDataView() {
-  Row {
-    ProfileImage(72.dp, null, MR.images.ic_account_circle_filled, MaterialTheme.colors.secondary)
-    Column(
-      modifier = Modifier
-        .padding(horizontal = 8.dp)
-        .weight(1F)
-    ) {
+  ChatRowLayout(
+    avatar = { ProfileImage(72.dp * fontSizeSqrtMultiplier, null, MR.images.ic_account_circle_filled, MaterialTheme.colors.secondary) },
+    title = {
       Text(
         stringResource(MR.strings.invalid_data),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         style = MaterialTheme.typography.h3,
         fontWeight = FontWeight.Bold,
-        color = Color.Red
+        color = MaterialTheme.colors.error
       )
-      val height = with(LocalDensity.current) { 46.sp.toDp() }
-      Spacer(Modifier.height(height))
-    }
-  }
+    },
+    timestamp = null,
+    unread = {},
+    status = {}
+  ) {}
 }
 
 @Composable

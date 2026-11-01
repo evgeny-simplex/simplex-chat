@@ -106,6 +106,7 @@ private val previewScenes = listOf(
   SnapshotScene("ChatListPreviews.ChatListDeleted") { ChatListDeleted() },
   SnapshotScene("ChatListPreviews.ChatListLong") { ChatListLong() },
   SnapshotScene("ChatListPreviews.ChatListDrafts") { ChatListDrafts() },
+  SnapshotScene("ChatListPreviews.ChatListRail") { ChatListRail() },
   SnapshotScene("DatabaseEncryptionView.PreviewDatabaseEncryptionLayout") { PreviewDatabaseEncryptionLayout() },
   SnapshotScene("DatabaseErrorView.PreviewChatInfoLayout") { chat.simplex.common.views.database.PreviewChatInfoLayout() },
   SnapshotScene("DatabaseView.PreviewDatabaseLayout") { PreviewDatabaseLayout() },

@@ -9,6 +9,10 @@ import androidx.compose.runtime.remember
 import chat.simplex.common.model.*
 import chat.simplex.common.platform.chatModel
 import chat.simplex.common.ui.theme.SimpleXTheme
+import chat.simplex.common.views.call.CallCapabilities
+import chat.simplex.common.views.call.CallMediaType
+import chat.simplex.common.views.call.CallType
+import chat.simplex.common.views.call.RcvCallInvitation
 import chat.simplex.common.views.chat.ComposeMessage
 import chat.simplex.common.views.chat.ComposePreview
 import chat.simplex.common.views.chat.ComposeState
@@ -71,6 +75,10 @@ fun ChatListLong() = ChatListScene { it.long() }
 @Preview
 @Composable
 fun ChatListDrafts() = ChatListScene { it.drafts() }
+
+@Preview
+@Composable
+fun ChatListRail() = ChatListScene { it.rail() }
 
 @Composable
 private fun ChatListScene(rows: @Composable (ChatListFixtures) -> Unit) {
@@ -234,7 +242,9 @@ private class ChatListFixtures {
     disabled: Boolean = false,
     progressByTimeout: Boolean = false,
     selected: Boolean = false,
-    nextSelected: Boolean = false
+    nextSelected: Boolean = false,
+    callInvitation: RcvCallInvitation? = null,
+    callInProgress: Boolean = false
   ) {
     val chat = Chat(remoteHostId = null, chatInfo = chatInfo, chatItems = items, chatStats = stats)
     ChatListNavLinkLayout(
@@ -244,7 +254,8 @@ private class ChatListFixtures {
           is ChatInfo.ContactConnection -> ContactConnectionView(chatInfo.contactConnection)
           else -> ChatPreviewView(
             chat, showChatPreviews, draft, if (draft != null) chat.id else null, null, disabled, SimplexLinkMode.DESCRIPTION,
-            inProgress = false, progressByTimeout = progressByTimeout, defaultClickAction = {}
+            inProgress = false, progressByTimeout = progressByTimeout, defaultClickAction = {},
+            callInvitation = callInvitation, callInProgress = callInProgress
           )
         }
       },
@@ -478,6 +489,35 @@ private class ChatListFixtures {
       ChatInfo.Direct(contact("dan")),
       listOf(item(CIDirection.DirectRcv(), "Any photos from the trip?")),
       draft = ComposeState(message = ComposeMessage("Look at this"), preview = ComposePreview.MediaPreview(listOf(landscape), listOf()), useLinkPreviews = false)
+    )
+  }
+
+  @Composable
+  fun rail() {
+    val team = group("team", "My Team")
+    val moderators = group("moderators")
+    val caller = contact("alice", image = photo)
+    val invitation = RcvCallInvitation(
+      remoteHostId = null,
+      user = User.sampleData,
+      contact = caller,
+      callType = CallType(CallMediaType.Audio, CallCapabilities(encryption = true)),
+      callUUID = "call",
+      callTs = previewDate
+    )
+    ChatRow(ChatInfo.Direct(caller), listOf(item(CIDirection.DirectRcv(), "Are you free now?")), callInvitation = invitation)
+    ChatRow(ChatInfo.Direct(contact("bob")), listOf(item(CIDirection.DirectSnd(), "Let me call you")), callInProgress = true)
+    ChatRow(
+      ChatInfo.Group(team, null),
+      listOf(item(CIDirection.GroupSnd(), "See you there", status = CIStatus.CISSndError(SndError.Auth()))),
+      Chat.ChatStats(unreadCount = 2, unreadMentions = 1)
+    )
+    ChatRow(ChatInfo.Group(moderators, null), listOf(mentionItem(moderators, bob, " please check the reports")), Chat.ChatStats(unreadCount = 1, unreadMentions = 1, reportsCount = 2))
+    ChatRow(ChatInfo.Group(group("night owls", incognito = true), null), listOf(item(CIDirection.GroupRcv(alice), "Spam links in every message")), Chat.ChatStats(reportsCount = 1))
+    ChatRow(
+      ChatInfo.Direct(contact("dan")),
+      listOf(item(CIDirection.DirectSnd(), "I will call you later", status = CIStatus.SndWarning(SndError.Quota()))),
+      draft = ComposeState(message = ComposeMessage("Sorry, running late"), useLinkPreviews = false)
     )
   }
 }
