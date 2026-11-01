@@ -20,7 +20,7 @@ struct ContextMemberContactActionsView: View {
     var body: some View {
         VStack {
             if groupDirectInv.memberRemoved {
-                Label("Member is deleted - can't accept request", systemImage: "info.circle")
+                Label("Member is no longer in the group – can't accept request", systemImage: "info.circle")
                     .foregroundColor(theme.colors.secondary)
                     .font(.subheadline)
                     .padding(.horizontal)

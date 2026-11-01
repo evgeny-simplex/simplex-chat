@@ -854,7 +854,7 @@
   <string name="the_sender_will_not_be_notified">The sender will NOT be notified.</string>
 
   <!-- ComposeContextMemberContactActionsView.kt -->
-  <string name="member_is_deleted_cant_accept_request">Member is deleted - can\'t accept request</string>
+  <string name="member_is_deleted_cant_accept_request">Member is no longer in the group – can\'t accept request</string>
 
   <!-- Clear Chat - ChatListNavLinkView.kt -->
   <string name="clear_chat_question">Clear chat?</string>
