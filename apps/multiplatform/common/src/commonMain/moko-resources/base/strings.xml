@@ -3205,7 +3205,7 @@
   <string name="badges_choose_your_badge_lede">Larger files that stay available longer.</string>
   <string name="badges_how_long_title">How long?</string>
   <string name="badges_support_simplex_title">Support SimpleX</string>
-  <string name="badges_support_simplex_body">Get a badge to send larger files (2-5GB) that stay available longer (7-21 days), and to show it on your profile.</string>
+  <string name="badges_support_simplex_body">Get a badge to send larger files (2–5 GB) that stay available longer (7–21 days), and to show it on your profile.</string>
   <string name="badges_why_simplex_is_built">Why SimpleX is built</string>
   <string name="badges_redeem_code_button">Redeem badge code</string>
   <string name="badges_continue">Continue</string>

@@ -30,7 +30,7 @@ struct BadgesSupportSimplexView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Get a badge to send larger files (2-5GB) that stay available longer (7-21 days), and to show it on your profile.")
+                Text("Get a badge to send larger files (2–5 GB) that stay available longer (7–21 days), and to show it on your profile.")
                     .font(.body)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
