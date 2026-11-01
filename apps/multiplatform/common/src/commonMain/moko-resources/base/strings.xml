@@ -503,7 +503,7 @@
   <string name="for_anyone_to_reach_you">For anyone to reach you</string>
   <string name="loading_chats">Loading chats…</string>
   <string name="no_filtered_chats">No filtered chats</string>
-  <string name="no_chats_in_list">No chats in list %s.</string>
+  <string name="no_chats_in_list">No chats in list %s</string>
   <string name="no_unread_chats">No unread chats</string>
   <string name="no_chats">No chats</string>
   <string name="no_chats_found">No chats found</string>
