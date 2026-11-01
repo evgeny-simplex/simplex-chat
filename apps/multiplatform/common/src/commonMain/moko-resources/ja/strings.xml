@@ -2070,7 +2070,7 @@
     <string name="create_your_public_address">公開アドレスを作成</string>
     <string name="your_public_address">あなたの公開アドレス</string>
     <string name="for_anyone_to_reach_you">誰でもあなたに連絡できるように</string>
-    <string name="no_chats_in_list">リスト %s にチャットがありません。</string>
+    <string name="no_chats_in_list">リスト %s にチャットがありません</string>
     <string name="no_unread_chats">未読のチャットはありません</string>
     <string name="no_chats">チャットがありません</string>
     <string name="no_chats_found">チャットが見つかりません</string>

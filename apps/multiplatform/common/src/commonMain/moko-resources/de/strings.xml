@@ -2239,7 +2239,7 @@
     <string name="list_menu">Liste</string>
     <string name="no_chats">Keine Chats</string>
     <string name="no_chats_found">Keine Chats gefunden</string>
-    <string name="no_chats_in_list">Keine Chats in der Liste %s.</string>
+    <string name="no_chats_in_list">Keine Chats in der Liste %s</string>
     <string name="no_unread_chats">Keine ungelesenen Chats</string>
     <string name="create_list">Liste erstellen</string>
     <string name="delete_chat_list_menu_action">Löschen</string>

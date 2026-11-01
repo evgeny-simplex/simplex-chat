@@ -311,7 +311,7 @@ struct CreateFirstProfile: View {
         let name = displayName.trimmingCharacters(in: .whitespaces)
         let validName = mkValidName(name)
         return ZStack(alignment: .trailing) {
-            TextField("Enter profile name...", text: $displayName)
+            TextField("Enter profile name…", text: $displayName)
                 .focused($focusDisplayName)
                 .padding(.horizontal)
                 .padding(.trailing, name != validName ? 20 : 0)

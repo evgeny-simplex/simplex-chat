@@ -37,12 +37,13 @@ struct ChatInfoToolbar: View {
                         .symbolRenderingMode(.palette)
                         .foregroundStyle(.white, .red)
                 } else if chat.supportUnreadCount > 0 {
-                    Image(systemName: "flag.circle.fill")
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
                         .resizable()
                         .scaledToFit()
+                        .frame(width: 8, height: 8)
+                        .foregroundColor(.white)
                         .frame(width: 14, height: 14)
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, theme.colors.primary)
+                        .background(Circle().fill(theme.colors.primary))
                 }
             }
             .padding(.trailing, 4)

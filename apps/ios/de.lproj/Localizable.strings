@@ -4996,6 +4996,9 @@ alert button */
 "Privacy for your customers." = "Schutz der Privatsphäre Ihrer Kunden.";
 
 /* No comment provided by engineer. */
+"Privacy policy and conditions of use" = "Datenschutz- und Nutzungsbedingungen";
+
+/* No comment provided by engineer. */
 "Privacy policy and conditions of use." = "Datenschutz- und Nutzungsbedingungen.";
 
 /* No comment provided by engineer. */
@@ -7427,6 +7430,9 @@ alert title */
 
 /* No comment provided by engineer. */
 "When you share an incognito profile with somebody, this profile will be used for the groups they invite you to." = "Wenn Sie ein Inkognito-Profil mit Jemandem teilen, wird dieses Profil auch für die Gruppen verwendet, für die Sie von diesem Kontakt eingeladen werden.";
+
+/* No comment provided by engineer. */
+"Why SimpleX is built" = "Warum SimpleX entwickelt wurde";
 
 /* No comment provided by engineer. */
 "Why SimpleX is built." = "Warum SimpleX entwickelt wurde.";

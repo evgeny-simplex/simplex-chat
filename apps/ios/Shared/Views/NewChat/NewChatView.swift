@@ -663,7 +663,7 @@ private struct ConnectView: View {
                         }
                     }
                 } label: {
-                    Text("Tap to paste link").foregroundColor(theme.colors.primary)
+                    Text("Paste link").foregroundColor(theme.colors.primary)
                 }
                 .disabled(!pasteboardHasStrings)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -711,11 +711,11 @@ private struct ConnectView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: .infinity)
-            Text("Paste the link you received").foregroundColor(theme.colors.secondary)
+            Text("Link you received").foregroundColor(theme.colors.secondary)
         }
         .padding(.bottom, 4)
         #else
-        Text("Paste the link you received").foregroundColor(theme.colors.secondary)
+        Text("Link you received").foregroundColor(theme.colors.secondary)
         #endif
     }
 

@@ -2157,7 +2157,7 @@
     <string name="error_saving_database">Erreur d\'enregistrement de la base de données</string>
     <string name="report_compose_reason_header_illegal">Signaler un contenu : seuls les modérateurs du groupe le verront.</string>
     <string name="onboarding_choose_server_operators">Opérateurs de serveur</string>
-    <string name="no_chats_in_list">Aucune conversation dans la liste %s.</string>
+    <string name="no_chats_in_list">Aucune conversation dans la liste %s</string>
     <string name="error_server_operator_changed">L\'opérateur du serveur a changé.</string>
     <string name="privacy_chat_list_open_web_link_question">Ouvrir le lien web ?</string>
     <string name="report_compose_reason_header_community">Signaler une infraction : seuls les modérateurs du groupe le verront.</string>

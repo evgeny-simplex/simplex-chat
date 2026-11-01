@@ -609,7 +609,7 @@
   <string name="image_decoding_exception_title">Decoding error</string>
   <string name="image_decoding_exception_desc">The image cannot be decoded. Please, try a different image or contact developers.</string>
   <string name="video_decoding_exception_desc">The video cannot be decoded. Please, try a different video or contact developers.</string>
-  <string name="files_and_media_prohibited">Files and media prohibited!</string>
+  <string name="files_and_media_prohibited">Files and media not allowed</string>
   <string name="only_owners_can_enable_files_and_media">Only group owners can enable files and media.</string>
   <string name="compose_send_direct_message_to_connect">Send direct message to connect</string>
   <string name="compose_forward_messages_n">Forwarding %1$s messages</string>
@@ -768,7 +768,7 @@
   <string name="icon_descr_record_voice_message">Record voice message</string>
   <string name="allow_voice_messages_question">Allow voice messages?</string>
   <string name="you_need_to_allow_to_send_voice">You need to allow your contact to send voice messages to be able to send them.</string>
-  <string name="voice_messages_prohibited">Voice messages prohibited!</string>
+  <string name="voice_messages_prohibited">Voice messages not allowed</string>
   <string name="ask_your_contact_to_enable_voice">Please ask your contact to enable sending voice messages.</string>
   <string name="only_group_owners_can_enable_voice">Only group owners can enable voice messages.</string>
   <string name="send_live_message">Send live message</string>
@@ -996,6 +996,7 @@
   <string name="paste_the_link_you_received">Paste the link you received</string>
   <string name="the_text_you_pasted_is_not_a_link">The text you pasted is not a SimpleX link.</string>
   <string name="tap_to_paste_link">Tap to paste link</string>
+  <string name="link_you_received">Link you received</string>
   <string name="loading_profile">Loading profile…</string>
 
   <string name="invalid_qr_code">Invalid QR code</string>
@@ -2094,7 +2095,7 @@
   <string name="cant_call_contact_deleted_alert_text">Contact is deleted.</string>
   <string name="allow_calls_question">Allow calls?</string>
   <string name="you_need_to_allow_calls">You need to allow your contact to call to be able to call them.</string>
-  <string name="calls_prohibited_alert_title">Calls prohibited!</string>
+  <string name="calls_prohibited_alert_title">Calls not allowed</string>
   <string name="calls_prohibited_ask_to_enable_calls_alert_text">Please ask your contact to enable calls.</string>
   <string name="cant_call_member_alert_title">Can\'t call group member</string>
   <string name="cant_call_member_send_message_alert_text">Send message to enable calls.</string>

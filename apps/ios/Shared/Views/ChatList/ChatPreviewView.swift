@@ -493,7 +493,11 @@ struct ChatPreviewView: View {
             } else if chat.chatStats.reportsCount > 0 {
                 flagIcon(size: size * 0.8, color: .red)
             } else if chat.supportUnreadCount > 0 {
-                flagIcon(size: size * 0.8, color: theme.colors.primary)
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size * 0.8, height: size * 0.8)
+                    .foregroundColor(theme.colors.primary)
             } else if chat.chatInfo.groupInfo?.membership.memberPending ?? false {
                 flagIcon(size: size * 0.8, color: theme.colors.secondary)
             } else {

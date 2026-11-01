@@ -646,7 +646,7 @@ private fun ConnectView(rhId: Long?, showQRCodeScanner: MutableState<Boolean>, p
     )
   }
 
-  SectionView(stringResource(MR.strings.paste_the_link_you_received), headerBottomPadding = 5.dp) {
+  SectionView(stringResource(MR.strings.link_you_received), headerBottomPadding = 5.dp) {
     PasteLinkView(rhId, pastedLink, showQRCodeScanner, close)
   }
 
@@ -692,7 +692,7 @@ private fun PasteLinkView(rhId: Long?, pastedLink: MutableState<String>, showQRC
       }
     }) {
       Box(Modifier.weight(1f)) {
-        Text(stringResource(MR.strings.tap_to_paste_link), color = MaterialTheme.colors.primary)
+        Text(stringResource(MR.strings.paste_link), color = MaterialTheme.colors.primary)
       }
       if (connectProgressManager.showConnectProgress != null) {
         CIFileViewScope.progressIndicator(sizeMultiplier = 0.6f)
