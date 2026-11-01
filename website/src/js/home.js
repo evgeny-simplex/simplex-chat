@@ -443,6 +443,9 @@
     frame.addEventListener("load", () => {
       try {
         const current = new URL(frame.contentWindow.location.href)
+        frame.contentWindow.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") closeOverlay()
+        })
         document.title = frame.contentDocument.title || pageTitle
         sheet.setAttribute("aria-label", document.title)
         if (current.pathname !== new URL(overlay.url).pathname) {
