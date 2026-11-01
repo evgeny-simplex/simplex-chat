@@ -1,5 +1,6 @@
 package chat.simplex.app
 
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -19,42 +20,55 @@ import java.net.URI
 import java.util.Base64
 import javax.imageio.ImageIO
 
+@Preview
 @Composable
 fun ChatListContacts() = ChatListScene { it.contacts() }
 
+@Preview
 @Composable
 fun ChatListConnecting() = ChatListScene { it.connecting() }
 
+@Preview
 @Composable
 fun ChatListPending() = ChatListScene { it.pending() }
 
+@Preview
 @Composable
 fun ChatListGroups() = ChatListScene { it.groups() }
 
+@Preview
 @Composable
 fun ChatListGroupStates() = ChatListScene { it.groupStates() }
 
+@Preview
 @Composable
 fun ChatListFlags() = ChatListScene { it.flags() }
 
+@Preview
 @Composable
 fun ChatListUnread() = ChatListScene { it.unread() }
 
+@Preview
 @Composable
 fun ChatListMarks() = ChatListScene { it.marks() }
 
+@Preview
 @Composable
 fun ChatListMedia() = ChatListScene { it.media() }
 
+@Preview
 @Composable
 fun ChatListText() = ChatListScene { it.text() }
 
+@Preview
 @Composable
 fun ChatListDeleted() = ChatListScene { it.deleted() }
 
+@Preview
 @Composable
 fun ChatListLong() = ChatListScene { it.long() }
 
+@Preview
 @Composable
 fun ChatListDrafts() = ChatListScene { it.drafts() }
 

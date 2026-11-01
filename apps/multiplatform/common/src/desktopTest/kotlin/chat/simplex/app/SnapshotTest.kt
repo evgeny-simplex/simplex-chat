@@ -232,7 +232,7 @@ private fun renderSnapshot(content: @Composable () -> Unit): Image {
 }
 
 private fun previewsInSources(): List<String> =
-  listOf("src/commonMain/kotlin", "src/desktopMain/kotlin")
+  listOf("src/commonMain/kotlin", "src/desktopMain/kotlin", "src/desktopTest/kotlin")
     .flatMap { dir -> File(dir).walk().filter { it.extension == "kt" } }
     .flatMap { file -> previewFunction.findAll(withoutComments(file.readText())).map { "${file.nameWithoutExtension}.${it.groupValues[1]}" } }
     .sorted()
