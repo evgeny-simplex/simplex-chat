@@ -81,3 +81,24 @@ struct SwipeLabel: View {
         }
     }
 }
+
+struct SwipeLabel_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            swipeButton("Accept incognito", "theatermasks.fill", .indigo)
+            swipeButton("Archive reports", "archivebox", .orange)
+            swipeButton("Favorite", "star.fill", .green)
+            swipeButton("Delete", "trash.fill", .red)
+        }
+        .padding()
+        .scaleEffect(x: 1, y: -1)
+    }
+
+    private static func swipeButton(_ text: String, _ icon: String, _ color: Color) -> some View {
+        SwipeLabel(text, systemImage: icon, inverted: true)
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 12)
+            .background(color)
+    }
+}
