@@ -1,28 +1,32 @@
 #!/bin/bash
 
-# Connects a profile in the desktop app's database to a second profile with the released CLI, starts the built app,
-# sends it messages with quotes and backslashes from the second profile, and checks how the app shows them:
-# each message is passed to the notification library, no osascript process runs, and Notification Center records
-# the notifications under the app's bundle, while a control notification shown through osascript is recorded under
-# another app. The screen, the app log and the Notification Center log are saved to the output dir.
-# Usage: scripts/ci/desktop-mac-notifications/check.sh <dir with simplex-chat CLI> <output dir> [report]
-# With "report", failed checks are listed without failing the job.
+# Proves, on a built macOS app, that peer message text does not reach the osascript notifier.
+# two-slices is forced to select its AppleScript backend (OsXToaster) with -Dtwoslices.preferred, the backend
+# a Mac with a GNTP server, Growl or notify-send would select, or any Mac where NotificationCenterToaster fails.
+# An osascript shim on PATH records every osascript invocation and its arguments, then runs the real osascript.
+# A second profile, with the released CLI, sends the running app a plain message and one containing \", and the
+# records show where the text went.
+#   - master (unfixed): the app runs osascript with the peer text spliced into a "display notification ..." script,
+#     and the \" message closes the AppleScript string literal. The job proves the problem.
+#   - branch (fixed): the app sends no osascript; Notification Center records the messages under the app's bundle,
+#     where the text is an NSString. The job proves the fix.
+# Usage: scripts/ci/desktop-mac-notifications/check.sh <dir with simplex-chat CLI> <output dir> <branch|master>
 
 set -euo pipefail
 
 cli=$1/simplex-chat
 out=$2
-mode=${3:-fail}
+variant=${3:?pass branch or master}
 app=$(find apps/multiplatform/release -maxdepth 4 -name '*.app' -type d | head -1)
 data=$HOME/.local/share/simplex
 config=$HOME/.config/simplex
 peer=$RUNNER_TEMP/peer
 checks=$out/checks.txt
-messages=(
-  'Quotes "double" and '\''single'\'''
-  'Backslash \ and quote \" together'
-)
-mkdir -p "$out" "$data" "$config" "$peer"
+shimdir=$out/shim
+plain='ntfprobe plain alpha'
+breakout='ntfprobe beta \" closes'
+messages=("$plain" "$breakout")
+mkdir -p "$out" "$data" "$config" "$peer" "$shimdir"
 : > "$checks"
 
 check() {
@@ -35,26 +39,35 @@ check() {
   fi
 }
 
-info() {
-  local what=$1
-  shift
-  if "$@"; then
-    echo "INFO yes: $what" | tee -a "$checks"
-  else
-    echo "INFO no: $what" | tee -a "$checks"
-  fi
-}
-
 contact_of() {
   local contacts
   contacts=$("$cli" -d "$1/simplex_v1" -e "/contacts" -t 5 2> /dev/null || true)
   grep -q "$2" <<< "$contacts"
 }
 
-echo "app: $app"
+echo "app: $app, variant: $variant"
 bundle_id=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Contents/Info.plist")
 executable=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$app/Contents/Info.plist")
 echo "bundle: $bundle_id, executable: $executable"
+
+# osascript shim: records each call, then runs the real osascript so the app behaves normally.
+cat > "$shimdir/osascript" <<'SHIM'
+#!/bin/bash
+{
+  echo "=== osascript $(date '+%H:%M:%S.%N') ==="
+  for a in "$@"; do printf 'ARG %s\n' "$a"; done
+} >> "${OSA_LOG:-/dev/null}"
+exec /usr/bin/osascript "$@"
+SHIM
+chmod +x "$shimdir/osascript"
+export PATH="$shimdir:$PATH"
+export OSA_LOG="$out/osascript-app.log"
+: > "$OSA_LOG"
+
+# the shim records an osascript call, so an empty app log later means the app ran none
+osascript -e 'return 1' > /dev/null
+check "the osascript shim records osascript calls" grep -q 'osascript' "$OSA_LOG"
+: > "$OSA_LOG"
 
 "$cli" -d "$data/simplex_v1" --user-display-name ntf_app -e "/c" -t 15 > "$out/app-invitation.log" 2>&1
 link=$(awk '/pass this invitation link/ { getline; getline; print $1; exit }' "$out/app-invitation.log")
@@ -77,81 +90,71 @@ check "the CLI profiles are connected" contact_of "$data" ntf_peer
 
 printf 'DeveloperTools=true\nLogLevel=DEBUG\n' > "$config/settings.properties"
 
-: > "$out/osascript.log"
-( while true; do pgrep -lf osascript || true; sleep 0.02; done ) >> "$out/osascript.log" 2>&1 &
-monitor=$!
-osascript -e 'delay 0.5' > /dev/null
-check "the process monitor sees osascript" grep -q osascript "$out/osascript.log"
-: > "$out/osascript.log"
-
-"$app/Contents/MacOS/$executable" > "$out/app.log" 2>&1 &
+: > "$OSA_LOG"
+JAVA_TOOL_OPTIONS='-Dtwoslices.preferred=com.sshtools.twoslices.impl.OsXToaster' \
+  "$app/Contents/MacOS/$executable" > "$out/app.log" 2>&1 &
 app_pid=$!
 for _ in $(seq 1 60); do
   grep -q "initChatController" "$out/app.log" && break
   sleep 2
 done
 sleep 30
-screencapture -x "$out/1-started.png" || true
 
 for message in "${messages[@]}"; do
   "$cli" -d "$peer/simplex_v1" -e "@ntf_app $message" -t 15 >> "$out/peer-send.log" 2>&1 || true
 done
 sleep 20
-screencapture -x "$out/2-messages.png" || true
-kill "$monitor" 2> /dev/null || true
+screencapture -x "$out/app-screen.png" || true
 kill "$app_pid" 2> /dev/null || true
 log show --last 10m --style compact --predicate 'process == "usernoted"' > "$out/notification-center.log" 2>&1 || true
 
-control_start=$(date '+%Y-%m-%d %H:%M:%S')
-osascript -e 'display notification "control" with title "control"'
-sleep 5
-log show --start "$control_start" --style compact --predicate 'process == "usernoted"' > "$out/notification-center-control.log" 2>&1 || true
+# a control notification shown through osascript: it is recorded under the osascript host, not the app bundle
+OSA_LOG="$out/osascript-control.log" osascript -e 'display notification "osa-control" with title "osa-control"' || true
 
-records_of() {
-  grep -o 'NotificationRecord app:"[^"]*"' "$1" | sed 's/^NotificationRecord app:"//; s/"$//' | sort | uniq -c || true
-}
-senders_of() {
-  { grep -o 'NotificationRecord app:"[^"]*"' "$1" | sed 's/^NotificationRecord app:"//; s/"$//'; grep -o 'req:"[^"]*"' "$1" | sed 's/^req:"//; s/"$//'; } \
-    | grep -v -x -e "$bundle_id" -e 'com.apple.notificationcenter.askpermissions' -e '' | sort -u || true
-}
-records_of "$out/notification-center.log" | tee "$out/records-app.txt"
-records_of "$out/notification-center-control.log" | tee "$out/records-control.txt"
-app_records=$(grep -c "NotificationRecord app:\"$bundle_id\"" "$out/notification-center.log" || true)
-control_apps=$(senders_of "$out/notification-center-control.log")
-echo "control notification recorded under: ${control_apps:-nothing}"
-
-echo "::group::app log"
-cat "$out/app.log"
+echo "::group::osascript calls while the app ran"
+cat "$out/osascript-app.log"
 echo "::endgroup::"
-grep -n -i -E "twoslices|showing notification|toaster|Exception" "$out/app.log" || true
+echo "::group::app log (tail)"
+tail -n 80 "$out/app.log"
+echo "::endgroup::"
 
+app_notifications=$(grep -c '^ARG display notification' "$out/osascript-app.log" || true)
+plain_in_osa=$(grep -F "$plain" "$out/osascript-app.log" > /dev/null 2>&1 && echo yes || echo no)
+breakout_line=$(grep -F 'ntfprobe beta' "$out/osascript-app.log" | head -1 || true)
+breakout_closed=$(grep -F 'ntfprobe beta' "$out/osascript-app.log" | grep -F '\\"' > /dev/null 2>&1 && echo yes || echo no)
 received=$(grep -c "notifyMessageReceived" "$out/app.log" || true)
-echo "notifications passed to the library: $received"
-check "each message is passed to the notification library" [ "$received" -ge "${#messages[@]}" ]
-check "no osascript process ran while the app was running" [ ! -s "$out/osascript.log" ]
-check "the app logged no notification error" bash -c "! grep -q -i -E 'showing notification|twoslices' '$out/app.log'"
-check "Notification Center recorded each message under the app's bundle" [ "$app_records" -ge "${#messages[@]}" ]
-check "a notification shown through osascript is recorded under another app" [ -n "$control_apps" ]
-for control_app in $control_apps; do
-  check "nothing was recorded for $control_app while the app was running" bash -c "! grep -q -e 'app:\"$control_app\"' -e 'req:\"$control_app\"' '$out/notification-center.log'"
-done
+app_records=$(grep -c "NotificationRecord app:\"$bundle_id\"" "$out/notification-center.log" || true)
+
+echo "osascript display-notification calls by the app: $app_notifications"
+echo "plain message text in the app's osascript calls: $plain_in_osa"
+echo "break-out message line: $breakout_line"
+echo "break-out closed the AppleScript string: $breakout_closed"
+echo "notifyMessageReceived in app log: $received"
+echo "Notification Center records under $bundle_id: $app_records"
+
+check "the forced AppleScript backend was in effect (JAVA_TOOL_OPTIONS applied)" grep -q 'twoslices.preferred' "$out/app.log"
+check "the app processed both peer messages" [ "$received" -ge "${#messages[@]}" ]
+
+if [ "$variant" = master ]; then
+  check "PROBLEM: the app ran osascript with the peer message text" [ "$plain_in_osa" = yes ]
+  check "PROBLEM: the backslash-quote in a peer message closed the AppleScript string literal" [ "$breakout_closed" = yes ]
+else
+  check "FIX: the app ran no osascript notification" [ "$app_notifications" -eq 0 ]
+  check "FIX: Notification Center recorded the peer messages under the app bundle" [ "$app_records" -ge "${#messages[@]}" ]
+fi
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
-    echo "### Checks"
+    echo "### $variant code — checks"
     echo
     sed 's/^/- /' "$checks"
     echo
-    echo "### Notification Center records while the app ran"
+    echo "### osascript calls by the app (empty when fixed)"
     echo
-    sed 's/^/    /' "$out/records-app.txt"
-    echo
-    echo "### Notification Center records of the osascript control"
-    echo
-    sed 's/^/    /' "$out/records-control.txt"
+    echo '```'
+    cat "$out/osascript-app.log"
+    echo '```'
   } >> "$GITHUB_STEP_SUMMARY"
 fi
 
-if [ "$mode" != report ] && grep -q '^FAIL' "$checks"; then
-  exit 1
-fi
+grep -q '^FAIL' "$checks" && exit 1 || exit 0

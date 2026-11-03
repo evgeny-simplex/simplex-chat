@@ -64,7 +64,7 @@ jobs:
           find release -maxdepth 4 -name '*.app'
 
       - name: Check notifications
-        run: scripts/ci/desktop-mac-notifications/check.sh "$RUNNER_TEMP/release" "$RUNNER_TEMP/out" ${{ matrix.code == 'master' && 'report' || '' }}
+        run: scripts/ci/desktop-mac-notifications/check.sh "$RUNNER_TEMP/release" "$RUNNER_TEMP/out" ${{ matrix.code }}
 
       - name: Upload results
         if: ${{ !cancelled() }}
