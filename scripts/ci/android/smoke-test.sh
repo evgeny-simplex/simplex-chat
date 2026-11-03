@@ -351,8 +351,7 @@ demo enter
 demo clock -e hhmm 0941
 demo notifications -e visible false
 demo battery -e level 100 -e plugged false
-demo network -e wifi show -e level 4
-demo network -e mobile show -e datatype none -e level 4
+demo network -e wifi show -e level 4 -e fully true
 "$ui" click-text "Setup notifications"
 "$ui" wait "Private notifications" 10
 sleep 2
