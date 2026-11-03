@@ -337,6 +337,23 @@ fi
 
 "$ui" wait "Continue" 60
 "$ui" shot your-network
+demo() {
+  adb shell am broadcast -a com.android.systemui.demo -e command "$@" > /dev/null
+}
+adb shell settings put global sysui_demo_allowed 1
+demo enter
+demo clock -e hhmm 0941
+demo notifications -e visible false
+demo battery -e level 100 -e plugged false
+demo network -e wifi show -e level 4
+demo network -e mobile show -e datatype none -e level 4
+"$ui" click-text "Setup notifications"
+"$ui" wait "Private notifications" 10
+sleep 2
+"$ui" shot notifications-mode
+"$ui" click-text OK
+"$ui" wait "Continue" 10
+demo exit
 "$ui" click-text "Continue"
 
 allow_notifications_and_accept || fail "no chat list 120 s after Your network"
