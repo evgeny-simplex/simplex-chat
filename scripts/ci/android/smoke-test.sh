@@ -340,6 +340,12 @@ fi
 demo() {
   adb shell am broadcast -a com.android.systemui.demo -e command "$@" > /dev/null
 }
+adb shell cmd overlay list | grep -i emulation || true
+for overlay in com.android.internal.emulation.pixel_7 com.android.systemui.emulation.pixel_7; do
+  adb shell cmd overlay enable "$overlay" || echo "overlay $overlay could not be enabled"
+done
+sleep 5
+"$ui" wait "Continue" 30
 adb shell settings put global sysui_demo_allowed 1
 demo enter
 demo clock -e hhmm 0941
@@ -354,6 +360,11 @@ sleep 2
 "$ui" click-text OK
 "$ui" wait "Continue" 10
 demo exit
+for overlay in com.android.internal.emulation.pixel_7 com.android.systemui.emulation.pixel_7; do
+  adb shell cmd overlay disable "$overlay" || true
+done
+sleep 5
+"$ui" wait "Continue" 30
 "$ui" click-text "Continue"
 
 allow_notifications_and_accept || fail "no chat list 120 s after Your network"
