@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Proves, on a built macOS app, that peer message text does not reach the osascript notifier.
+# Proves, on a built macOS app, where peer message text goes when notifications are shown.
 # two-slices is forced to select its AppleScript backend (OsXToaster) with -Dtwoslices.preferred, the backend
 # a Mac with a GNTP server, Growl or notify-send would select, or any Mac where NotificationCenterToaster fails.
 # An osascript shim on PATH records every osascript invocation and its arguments, then runs the real osascript.
-# A second profile, with the released CLI, sends the running app a plain message and one containing \", and the
-# records show where the text went.
-#   - master (unfixed): the app runs osascript with the peer text spliced into a "display notification ..." script,
-#     and the \" message closes the AppleScript string literal. The job proves the problem.
+# A second profile, with the released CLI, sends the running app a plain message and one containing a quote.
+#   - master (unfixed): the app runs osascript with the peer text spliced into a "display notification ..." script;
+#     the notification does not go through Notification Center. The job proves the problem: peer text reaches the
+#     AppleScript interpreter, escaped only by OsXToaster replacing " with \".
 #   - branch (fixed): the app sends no osascript; Notification Center records the messages under the app's bundle,
 #     where the text is an NSString. The job proves the fix.
 # Usage: scripts/ci/desktop-mac-notifications/check.sh <dir with simplex-chat CLI> <output dir> <branch|master>
@@ -136,8 +136,9 @@ check "the forced AppleScript backend was in effect (JAVA_TOOL_OPTIONS applied)"
 check "the app processed both peer messages" [ "$received" -ge "${#messages[@]}" ]
 
 if [ "$variant" = master ]; then
-  check "PROBLEM: the app ran osascript with the peer message text" [ "$plain_in_osa" = yes ]
-  check "PROBLEM: the backslash-quote in a peer message closed the AppleScript string literal" [ "$breakout_closed" = yes ]
+  check "PROBLEM: the app ran osascript with the peer message text spliced into the AppleScript" [ "$plain_in_osa" = yes ]
+  check "PROBLEM: the notification did not go through Notification Center" [ "$app_records" -eq 0 ]
+  echo "INFO: OsXToaster escapes only \" to \\\" (OsXToaster.java:80-82); the osascript call above shows the peer text in the 'display notification' script the app ran"
 else
   check "FIX: the app ran no osascript notification" [ "$app_notifications" -eq 0 ]
   check "FIX: Notification Center recorded the peer messages under the app bundle" [ "$app_records" -ge "${#messages[@]}" ]
