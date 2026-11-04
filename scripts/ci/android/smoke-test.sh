@@ -311,8 +311,12 @@ send_image() {
 send_text() {
   "$ui" click-text "Message" 10
   "$ui" type "$1"
+  if [ -n "${2:-}" ]; then
+    "$ui" key ENTER ENTER
+    "$ui" type "$2"
+  fi
   "$ui" click-text "Send Message" 10
-  "$ui" wait "$1" 10
+  "$ui" wait "${2:-$1}" 10
 }
 
 flat_layout_check() {
@@ -327,6 +331,7 @@ flat_layout_check() {
   "$ui" shot flat-images
   send_text "First message in the flat layout"
   send_text "ok"
+  send_text "First paragraph *italic*" "After one empty line" || echo "could not send the paragraphs"
   "$ui" shot flat-messages
 }
 

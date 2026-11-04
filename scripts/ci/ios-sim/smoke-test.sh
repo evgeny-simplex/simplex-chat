@@ -159,6 +159,10 @@ send_text() {
   read -r x y w h < <(sed -E 's/.* at (-?[0-9]+),(-?[0-9]+) size ([0-9]+)x([0-9]+).*/\1 \2 \3 \4/' <<< "$line")
   "$ui" tap-xy 200 $((y + h / 2))
   "$ui" type "$1"
+  if [ -n "${2:-}" ]; then
+    "$ui" key return 2
+    "$ui" type "$2"
+  fi
   tap_element Button "[^\"]*arrow[^\"]*" || return 1
   sleep 2
 }
@@ -243,6 +247,7 @@ if [ "$cases" = images ]; then
   "$ui" shot flat-images
   send_text "First message in the flat layout" || echo "could not send the first text"
   send_text "ok" || echo "could not send the second text"
+  send_text "First paragraph *italic*" "After one empty line" || echo "could not send the paragraphs"
   "$ui" shot flat-messages
   echo "smoke test passed: images"
 fi
