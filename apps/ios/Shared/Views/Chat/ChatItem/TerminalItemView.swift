@@ -168,7 +168,11 @@ func terminalTextTopGap(_ item: ChatItem) -> CGFloat {
 }
 
 private func startsWithEmptyLine(_ item: ChatItem) -> Bool {
-    item.content.text.first?.isNewline == true && (item.markdownBlocks != nil || !item.isReport)
+    if let fts = item.formattedText, let blocks = item.markdownBlocks {
+        leadingEmptyLines(fts, blocks) > 0
+    } else {
+        item.content.text.first?.isNewline == true && !item.isReport
+    }
 }
 
 private func terminalMediaCard(_ item: ChatItem) -> Bool {
@@ -407,7 +411,7 @@ struct TerminalChatItemRow<Content: View>: View {
 
     private func senderNameAndRole(_ sender: ChatItemSender) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
-            NameWithBadge(sender.name.font(.body.weight(.semibold)).foregroundColor(sender.own ? theme.colors.primary : messageTextColor(theme)), sender.badge)
+            NameWithBadge(sender.name.font(.body.weight(.semibold)).foregroundColor(sender.own ? theme.colors.primary : theme.colors.secondary), sender.badge)
                 .lineLimit(1)
             if let role = sender.role {
                 Text(role)
