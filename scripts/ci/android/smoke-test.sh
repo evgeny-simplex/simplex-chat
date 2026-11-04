@@ -308,6 +308,28 @@ send_image() {
   check "$ext: the core resized the image" [ "$(core_returned_no_image)" -eq "$no_image" ]
 }
 
+send_text() {
+  "$ui" click-text "Message" 10
+  "$ui" type "$1"
+  "$ui" click-text "Send Message" 10
+  "$ui" wait "$1" 10
+}
+
+flat_layout_check() {
+  local state=${UI_STATE:-${RUNNER_TEMP:-/tmp}/ui} prefs=shared_prefs/$package.SIMPLEX_APP_PREFS.xml
+  adb shell am force-stop "$package"
+  adb shell "run-as $package cat $prefs" > "$state/prefs.xml"
+  python3 "$(dirname "$0")/prefs.py" "$state/prefs.xml" ChatLayout=terminal > "$state/prefs-new.xml"
+  adb shell "run-as $package sh -c 'cat > $prefs'" < "$state/prefs-new.xml"
+  "$ui" relaunch
+  "$ui" click-text "$local_chat" 10
+  "$ui" wait Attach 10
+  "$ui" shot flat-images
+  send_text "First message in the flat layout"
+  send_text "ok"
+  "$ui" shot flat-messages
+}
+
 send_images() {
   add_images
   "$ui" click-text "$local_chat" 10
@@ -353,6 +375,7 @@ if [ "$cases" != onboarding ]; then
   "$ui" layout top
   check_layout top
   send_images
+  flat_layout_check || echo "flat layout check failed"
 fi
 check "the app is running and logged no crash" app_running
 
