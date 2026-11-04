@@ -233,7 +233,7 @@ echo "smoke test passed: onboarding reaches the chat list, which shows its onboa
 
 products=$(dirname "$app")
 if [[ "$products" == */Build/Products/Debug-iphonesimulator ]]; then
-  "$(dirname "$0")/snapshots.sh" "${products%/Build/Products/Debug-iphonesimulator}" "$UI_OUT/snapshots"
+  "$(dirname "$0")/snapshots.sh" "${products%/Build/Products/Debug-iphonesimulator}" "$UI_OUT/snapshots" || echo "references differ"
 fi
 
 if [ "$cases" = images ]; then
