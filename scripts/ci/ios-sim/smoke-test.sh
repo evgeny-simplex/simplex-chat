@@ -208,6 +208,54 @@ expect_chat_list top
 "$ui" layout reachable
 echo "smoke test passed: onboarding reaches the chat list, which shows its onboarding pages and toolbar with the one-hand UI and with the top bar"
 
+scroll_down() {
+  for _ in $(seq "$1"); do
+    "$ui" swipe 200 750 200 200
+  done
+}
+
+open_user_picker() {
+  local x y
+  read -r x y < <("$ui" tree | grep -F 'Image "Account"' | grep -F 'size 32x32' | sed -E 's/.* at (-?[0-9]+),(-?[0-9]+) .*/\1 \2/')
+  [ -n "$x" ] || return 1
+  "$ui" tap-xy $((x + 16)) $((y + 16))
+}
+
+crowdfunding_check() {
+  open_user_picker || return 1
+  "$ui" tap Settings 10 || return 1
+  "$ui" wait "Your settings" 15 || return 1
+  scroll_down 3
+  "$ui" shot settings-bottom
+  "$ui" tap "Crowdfunding on Wefunder" 10 || return 1
+  "$ui" wait "Learn more and invest on Wefunder" 15 || return 1
+  "$ui" shot crowdfunding-from-settings-top
+  "$ui" find "The first and the only messaging network" || return 1
+  scroll_down 6
+  "$ui" wait "or ask SimpleX team" 10 || return 1
+  "$ui" shot crowdfunding-from-settings-bottom
+  "$ui" relaunch
+  open_user_picker || return 1
+  "$ui" tap Settings 10 || return 1
+  "$ui" wait "Your settings" 15 || return 1
+  "$ui" tap "Help & support" 10 || return 1
+  "$ui" tap "What's new" 10 || return 1
+  "$ui" wait "Own a part of SimpleX Chat" 15 || return 1
+  "$ui" shot whats-new-card
+  "$ui" tap "Crowdfunding on Wefunder. Learn more" 10 || tap_element StaticText "Crowdfunding on Wefunder[^\"]*" || return 1
+  "$ui" wait "Learn more and invest on Wefunder" 15 || return 1
+  "$ui" shot crowdfunding-from-card-top
+  if "$ui" find "The first and the only messaging network"; then
+    echo "the page from the card shows its first image"
+    return 1
+  fi
+  scroll_down 6
+  "$ui" wait "or ask SimpleX team" 10 || return 1
+  "$ui" shot crowdfunding-from-card-bottom
+}
+crowdfunding_check || echo "crowdfunding check failed"
+"$ui" relaunch
+
 products=$(dirname "$app")
 if [[ "$products" == */Build/Products/Debug-iphonesimulator ]]; then
   "$(dirname "$0")/snapshots.sh" "${products%/Build/Products/Debug-iphonesimulator}" "$UI_OUT/snapshots"
