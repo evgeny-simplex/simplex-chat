@@ -214,12 +214,6 @@ scroll_down() {
   done
 }
 
-scroll_up() {
-  for _ in $(seq "$1"); do
-    "$ui" swipe 200 200 200 750
-  done
-}
-
 open_user_picker() {
   local x y
   read -r x y < <("$ui" tree | grep -F 'Image "Account"' | grep -F 'size 32x32' | sed -E 's/.* at (-?[0-9]+),(-?[0-9]+) .*/\1 \2/')
@@ -239,8 +233,10 @@ crowdfunding_check() {
   scroll_down 6
   "$ui" wait "or ask SimpleX team" 10 || return 1
   "$ui" shot crowdfunding-from-settings-bottom
-  tap_element Button "(Your settings|Back)" || return 1
-  scroll_up 4
+  "$ui" relaunch
+  open_user_picker || return 1
+  "$ui" tap Settings 10 || return 1
+  "$ui" wait "Your settings" 15 || return 1
   "$ui" tap "Help & support" 10 || return 1
   "$ui" tap "What's new" 10 || return 1
   "$ui" wait "You can now invest in SimpleX Chat" 15 || return 1
