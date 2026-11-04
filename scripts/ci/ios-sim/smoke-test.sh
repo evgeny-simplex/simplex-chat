@@ -154,10 +154,10 @@ set_flat_layout() {
 
 send_text() {
   local line x y w h
-  line=$("$ui" tree | grep -E '^(TextView|TextField|TextArea) ' | tail -n 1)
+  line=$("$ui" tree | grep -F 'Button "Attachements"' | tail -n 1)
   [ -n "$line" ] || return 1
   read -r x y w h < <(sed -E 's/.* at (-?[0-9]+),(-?[0-9]+) size ([0-9]+)x([0-9]+).*/\1 \2 \3 \4/' <<< "$line")
-  "$ui" tap-xy $((x + w / 2)) $((y + h / 2))
+  "$ui" tap-xy 200 $((y + h / 2))
   "$ui" type "$1"
   tap_element Button "[^\"]*arrow[^\"]*" || return 1
   sleep 2
