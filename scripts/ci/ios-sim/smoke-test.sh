@@ -233,8 +233,8 @@ if [[ "$products" == */Build/Products/Debug-iphonesimulator ]]; then
 fi
 
 if [ "$cases" = images ]; then
-  set_flat_layout
   "$ui" tap "Don’t Allow" 10 || true
+  set_flat_layout
   disable_file_encryption
   xcrun simctl addmedia "$SIM_UDID" "$fixtures/test.jpg" "$fixtures/logo-large-rgba.png"
   create_group
