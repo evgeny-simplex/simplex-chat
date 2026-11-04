@@ -144,6 +144,25 @@ create_group() {
   "$ui" shot group-created
 }
 
+set_flat_layout() {
+  local prefs
+  prefs=$(xcrun simctl get_app_container "$SIM_UDID" "$bundle_id" data)/Library/Preferences/$bundle_id
+  xcrun simctl terminate "$SIM_UDID" "$bundle_id" || true
+  xcrun simctl spawn "$SIM_UDID" defaults write "$prefs" chatLayout -string terminal
+  "$ui" relaunch
+}
+
+send_text() {
+  local line x y w h
+  line=$("$ui" tree | grep -E '^(TextView|TextField|TextArea) ' | tail -n 1)
+  [ -n "$line" ] || return 1
+  read -r x y w h < <(sed -E 's/.* at (-?[0-9]+),(-?[0-9]+) size ([0-9]+)x([0-9]+).*/\1 \2 \3 \4/' <<< "$line")
+  "$ui" tap-xy $((x + w / 2)) $((y + h / 2))
+  "$ui" type "$1"
+  tap_element Button "[^\"]*arrow[^\"]*" || return 1
+  sleep 2
+}
+
 app_resized_images() {
   grep -cE "resizeImageTo(Str|Data)Size final" "$UI_OUT/app.log" || true
 }
@@ -214,11 +233,16 @@ if [[ "$products" == */Build/Products/Debug-iphonesimulator ]]; then
 fi
 
 if [ "$cases" = images ]; then
+  set_flat_layout
   "$ui" tap "Don’t Allow" 10 || true
   disable_file_encryption
   xcrun simctl addmedia "$SIM_UDID" "$fixtures/test.jpg" "$fixtures/logo-large-rgba.png"
   create_group
   send_image jpg "$test_card_x" 1280x720
   send_image png "$logo_x" 1630x466
+  "$ui" shot flat-images
+  send_text "First message in the flat layout" || echo "could not send the first text"
+  send_text "ok" || echo "could not send the second text"
+  "$ui" shot flat-messages
   echo "smoke test passed: images"
 fi
