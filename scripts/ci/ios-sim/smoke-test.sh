@@ -220,29 +220,36 @@ scroll_up() {
   done
 }
 
+open_user_picker() {
+  local x y
+  read -r x y < <("$ui" tree | grep -F 'Image "Account"' | grep -F 'size 32x32' | sed -E 's/.* at (-?[0-9]+),(-?[0-9]+) .*/\1 \2/')
+  [ -n "$x" ] || return 1
+  "$ui" tap-xy $((x + 16)) $((y + 16))
+}
+
 crowdfunding_check() {
-  tap_element Image "Account" || return 1
-  "$ui" tap Settings 10
-  "$ui" wait "Your settings" 15
+  open_user_picker || return 1
+  "$ui" tap Settings 10 || return 1
+  "$ui" wait "Your settings" 15 || return 1
   scroll_down 3
   "$ui" shot settings-bottom
-  "$ui" tap "Crowdfunding on Wefunder" 10
-  "$ui" wait "Learn more and invest on Wefunder" 15
+  "$ui" tap "Crowdfunding on Wefunder" 10 || return 1
+  "$ui" wait "Learn more and invest on Wefunder" 15 || return 1
   "$ui" shot crowdfunding-from-settings-top
   scroll_down 6
-  "$ui" wait "or ask SimpleX team" 10
+  "$ui" wait "or ask SimpleX team" 10 || return 1
   "$ui" shot crowdfunding-from-settings-bottom
   tap_element Button "(Your settings|Back)" || return 1
   scroll_up 4
-  "$ui" tap "Help & support" 10
-  "$ui" tap "What's new" 10
-  "$ui" wait "You can now invest in SimpleX Chat" 15
+  "$ui" tap "Help & support" 10 || return 1
+  "$ui" tap "What's new" 10 || return 1
+  "$ui" wait "You can now invest in SimpleX Chat" 15 || return 1
   "$ui" shot whats-new-card
   "$ui" tap "Crowdfunding on Wefunder. Learn more" 10 || tap_element StaticText "Crowdfunding on Wefunder[^\"]*" || return 1
-  "$ui" wait "Learn more and invest on Wefunder" 15
+  "$ui" wait "Learn more and invest on Wefunder" 15 || return 1
   "$ui" shot crowdfunding-from-card-top
   scroll_down 6
-  "$ui" wait "or ask SimpleX team" 10
+  "$ui" wait "or ask SimpleX team" 10 || return 1
   "$ui" shot crowdfunding-from-card-bottom
 }
 crowdfunding_check || echo "crowdfunding check failed"
