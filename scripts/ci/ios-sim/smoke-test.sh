@@ -208,6 +208,46 @@ expect_chat_list top
 "$ui" layout reachable
 echo "smoke test passed: onboarding reaches the chat list, which shows its onboarding pages and toolbar with the one-hand UI and with the top bar"
 
+scroll_down() {
+  for _ in $(seq "$1"); do
+    "$ui" swipe 200 750 200 200
+  done
+}
+
+scroll_up() {
+  for _ in $(seq "$1"); do
+    "$ui" swipe 200 200 200 750
+  done
+}
+
+crowdfunding_check() {
+  tap_element Image "Account" || return 1
+  "$ui" tap Settings 10
+  "$ui" wait "Your settings" 15
+  scroll_down 3
+  "$ui" shot settings-bottom
+  "$ui" tap "Crowdfunding on Wefunder" 10
+  "$ui" wait "Learn more and invest on Wefunder" 15
+  "$ui" shot crowdfunding-from-settings-top
+  scroll_down 6
+  "$ui" wait "or ask SimpleX team" 10
+  "$ui" shot crowdfunding-from-settings-bottom
+  tap_element Button "(Your settings|Back)" || return 1
+  scroll_up 4
+  "$ui" tap "Help & support" 10
+  "$ui" tap "What's new" 10
+  "$ui" wait "You can now invest in SimpleX Chat" 15
+  "$ui" shot whats-new-card
+  "$ui" tap "Crowdfunding on Wefunder. Learn more" 10 || tap_element StaticText "Crowdfunding on Wefunder[^\"]*" || return 1
+  "$ui" wait "Learn more and invest on Wefunder" 15
+  "$ui" shot crowdfunding-from-card-top
+  scroll_down 6
+  "$ui" wait "or ask SimpleX team" 10
+  "$ui" shot crowdfunding-from-card-bottom
+}
+crowdfunding_check || echo "crowdfunding check failed"
+"$ui" relaunch
+
 products=$(dirname "$app")
 if [[ "$products" == */Build/Products/Debug-iphonesimulator ]]; then
   "$(dirname "$0")/snapshots.sh" "${products%/Build/Products/Debug-iphonesimulator}" "$UI_OUT/snapshots"

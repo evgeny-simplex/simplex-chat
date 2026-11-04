@@ -343,6 +343,32 @@ allow_notifications_and_accept || fail "no chat list 120 s after Your network"
 "$ui" shot chat-list
 echo "onboarding reached the chat list $((SECONDS - started)) s after the start"
 
+crowdfunding_check() {
+  open_settings
+  "$ui" scroll 540 1800 down 4
+  "$ui" shot settings-bottom
+  "$ui" click-text "Crowdfunding on Wefunder" 10
+  "$ui" wait "Learn more and invest on Wefunder" 15
+  "$ui" shot crowdfunding-from-settings-top
+  "$ui" scroll 540 1800 down 8
+  "$ui" wait "or ask SimpleX team" 10
+  "$ui" shot crowdfunding-from-settings-bottom
+  "$ui" key BACK
+  "$ui" scroll 540 600 up 6
+  "$ui" click-text "Help & support" 10
+  "$ui" click-text "What's new" 10
+  "$ui" wait "You can now invest in SimpleX Chat" 15
+  "$ui" shot whats-new-card
+  "$ui" click-text "Crowdfunding on Wefunder. Learn more" 10
+  "$ui" wait "Learn more and invest on Wefunder" 15
+  "$ui" shot crowdfunding-from-card-top
+  "$ui" scroll 540 1800 down 8
+  "$ui" wait "or ask SimpleX team" 10
+  "$ui" shot crowdfunding-from-card-bottom
+}
+crowdfunding_check || echo "crowdfunding check failed"
+"$ui" relaunch
+
 if [ "$cases" != onboarding ]; then
   if [ "$cases" = backend ]; then
     : "${NAMES_SERVER:?NAMES_SERVER must be the test SMP server address}"
