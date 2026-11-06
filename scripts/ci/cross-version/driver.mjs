@@ -112,7 +112,7 @@ const omitted = /^(user|connectionEntity_?|contact|groupInfo|member|connection)$
 const detail = (kind, resp, data) =>
   kind.startsWith('rcv')
     ? (data.match(/"itemText":"([^"]*)"/)?.[1] ?? '')
-    : JSON.stringify(resp.chatError ?? resp.errorMessage ?? resp, (k, v) => (omitted.test(k) ? undefined : v)).slice(0, 300)
+    : JSON.stringify(resp.chatError ?? resp.errorMessage ?? resp.ratchetSyncProgress?.ratchetSyncStatus ?? resp, (k, v) => (omitted.test(k) ? undefined : v)).slice(0, 300)
 
 const conns = `FROM connections c LEFT JOIN contacts ct ON ct.contact_id = c.contact_id
   LEFT JOIN group_members m ON m.group_member_id = c.group_member_id
@@ -171,7 +171,7 @@ async function runCase(c, slot) {
   const group = Boolean(c.host)
   const apps = {}
   const ports = { p: 0, r: 1, h: 2 }
-  const start = (name, v) => App.start(ctx, name, v, 6000 + 4 * slot + ports[name])
+  const start = (name, v) => App.start(ctx, name, v, 15000 + 4 * slot + ports[name])
   const states = () => ({ p: state(apps.p, 'r', group), r: state(apps.r, 'p', group) })
   const res = { id: c.id, creator: c.creator, host: c.host, stages: [] }
   try {
