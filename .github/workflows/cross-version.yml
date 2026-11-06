@@ -1,12 +1,18 @@
 name: cross-version
 
 on:
+  push:
+    branches:
+      - ep/cross-version-test
+    paths:
+      - .github/workflows/cross-version.yml
+      - scripts/ci/cross-version/**
   workflow_dispatch:
     inputs:
       build_run:
-        description: ID of the build.yml run that uploaded simplex-chat-cli, the CLI with the fix
+        description: ID of the build.yml run that uploaded simplex-chat-cli, the CLI with the fix; empty uses the branch's latest
         type: string
-        required: true
+        default: ""
       cases:
         description: Case IDs separated by spaces; empty runs all cases
         type: string
@@ -30,12 +36,21 @@ jobs:
         with:
           node-version: 22
 
+      - name: Find the build of the CLI with the fix
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ inputs.build_run }}
+        run: |
+          query="[.artifacts[] | select(.workflow_run.head_branch == \"$GITHUB_REF_NAME\")][0].workflow_run.id"
+          echo "run=${BUILD_RUN:-$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=simplex-chat-cli" --jq "$query")}" | tee -a "$GITHUB_OUTPUT"
+
       - name: Download the CLI with the fix
         uses: actions/download-artifact@v8
         with:
           name: simplex-chat-cli
           path: ${{ runner.temp }}/bin/F
-          run-id: ${{ inputs.build_run }}
+          run-id: ${{ steps.build.outputs.run }}
           github-token: ${{ github.token }}
 
       - name: Download released CLIs and router
