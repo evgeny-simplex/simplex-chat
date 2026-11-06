@@ -467,6 +467,22 @@ jobs:
           done
           strip /out/simplex-chat
 
+      - name: Copy CLI from container for the cross-version test
+        if: matrix.should_run == true
+        shell: bash
+        run: |
+          mkdir -p cross-version
+          docker cp builder:/out/simplex-chat cross-version/simplex-chat
+
+      - name: Upload CLI for the cross-version test
+        if: matrix.should_run == true
+        uses: actions/upload-artifact@v7
+        with:
+          name: simplex-chat-cli
+          path: cross-version/simplex-chat
+          retention-days: 14
+          if-no-files-found: error
+
       # Also for pull requests that change the chat core, for the package tests.
       - name: Build library
         id: build-lib
