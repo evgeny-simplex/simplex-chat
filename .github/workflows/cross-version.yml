@@ -1,0 +1,93 @@
+name: cross-version
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: ID of the build.yml run that uploaded simplex-chat-cli, the CLI with the fix
+        type: string
+        required: true
+      cases:
+        description: Case IDs separated by spaces; empty runs all cases
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  matrix:
+    name: CLIs of different versions exchange messages
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Download the CLI with the fix
+        uses: actions/download-artifact@v8
+        with:
+          name: simplex-chat-cli
+          path: ${{ runner.temp }}/bin/F
+          run-id: ${{ inputs.build_run }}
+          github-token: ${{ github.token }}
+
+      - name: Download released CLIs and router
+        run: |
+          bin=$RUNNER_TEMP/bin
+          releases=https://github.com/simplex-chat/simplex-chat/releases/download
+          for v in 5.5.0 5.6.1 5.7.0 7.0.4 7.1.0; do
+            case $v in
+              5.*) arch=x86-64 ;;
+              *) arch=x86_64 ;;
+            esac
+            mkdir -p "$bin/$v"
+            curl -fsSL -o "$bin/$v/simplex-chat" "$releases/v$v/simplex-chat-ubuntu-22_04-$arch"
+          done
+          mkdir -p "$bin/router"
+          curl -fsSL -o "$bin/router/smp-server" https://github.com/simplex-chat/simplexmq/releases/download/v7.0.1/smp-server-ubuntu-22_04-x86-64
+          chmod +x "$bin"/*/*
+          for v in 5.5.0 5.6.1 5.7.0 7.0.4 7.1.0 F; do
+            echo "$v: $("$bin/$v/simplex-chat" --version | head -n 1)"
+          done
+          sqlite3 --version || { sudo apt-get update; sudo apt-get install -y sqlite3; }
+
+      - name: Start router
+        env:
+          SMP_SERVER_CFG_PATH: ${{ runner.temp }}/router/etc
+          SMP_SERVER_LOG_PATH: ${{ runner.temp }}/router/var
+        run: |
+          mkdir -p "$RUNNER_TEMP/work"
+          "$RUNNER_TEMP/bin/router/smp-server" init -y --ip 127.0.0.1 --no-password --disable-web
+          ini=$SMP_SERVER_CFG_PATH/smp-server.ini
+          sed -i 's/^port = 5223,443$/port = 5223/' "$ini"
+          grep -qx 'port = 5223' "$ini"
+          nohup "$RUNNER_TEMP/bin/router/smp-server" start < /dev/null > "$RUNNER_TEMP/work/router.log" 2>&1 &
+          for i in $(seq 60); do
+            if (exec 3<> /dev/tcp/127.0.0.1/5223) 2> /dev/null; then
+              echo "ROUTER=smp://$(cat "$SMP_SERVER_CFG_PATH/fingerprint")@127.0.0.1:5223" | tee -a "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/work/router.log"
+          exit 1
+
+      - name: Run cases
+        env:
+          CASES: ${{ inputs.cases }}
+        run: node scripts/ci/cross-version/driver.mjs "$RUNNER_TEMP/bin" "$RUNNER_TEMP/work" "$ROUTER" $CASES
+
+      - name: Upload logs and databases
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cross-version-logs
+          path: ${{ runner.temp }}/work
+          retention-days: 14
