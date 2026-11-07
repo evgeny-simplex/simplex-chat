@@ -36,14 +36,14 @@ Sections 3–11 remain the design. This section describes what is implemented, c
 | Source set | Path | Compiled into | `@Test` |
 |---|---|---|---|
 | Shared harness and tests | `common/src/uiTestShared/kotlin/chat/simplex/app/ui/{harness,main,chat,groups,settings}` | `desktopTest` (`common/build.gradle.kts`, `kotlin.srcDir`) and `:android` `androidTest` (`android/build.gradle.kts`, `sourceSets["androidTest"].java.srcDir`) | 402 |
-| Desktop-only tests | `common/src/desktopTest/kotlin/chat/simplex/app/ui/desktop` | `desktopTest` | 58 |
+| Desktop-only tests | `common/src/desktopTest/kotlin/chat/simplex/app/ui/desktop` | `desktopTest` | 61 |
 | Desktop harness and its tests | `common/src/desktopTest/kotlin/chat/simplex/app/ui/harness` | `desktopTest` | 3 |
 | Android harness and Android-only tests | `android/src/androidTest/java/chat/simplex/app/ui/{harness,back,android}`, `ui/SmokeTest.kt` | `androidTest` | 46 |
-| **Desktop run** | | | **461** (402 shared + 59 desktop-only) |
+| **Desktop run** | | | **464** (402 shared + 62 desktop-only) |
 | **Android run** | | | **448** (402 shared + 46 Android-only) |
 
 - Shared (402): 82 test classes in the packages `main` (chat list, connecting, profiles, address), `chat`, `groups` and `settings`. Per-class counts are in the code (`grep -c '@Test'`).
-- Desktop-only, package `chat.simplex.app.ui.desktop` (58): 22 classes. Their names end in `DesktopTest`, except `OnboardingTest`, so none repeats a shared class name.
+- Desktop-only, package `chat.simplex.app.ui.desktop` (61): 23 classes. Their names end in `DesktopTest`, except `OnboardingTest`, so none repeats a shared class name.
 - Desktop harness (3): `HarnessResetTest` 2, `HarnessBootTest` 1.
 - Android-only (46): `back/BackKeyTest` 13 (helpers in `back/BackKeyHelpers.kt`), `SmokeTest` 1, and 11 classes in `android/` whose names end in `AndroidTest` (32 tests: share into the app, app links, system notifications and notification modes, keystore, keyboard, "Use from desktop", onboarding, settings, appearance).
 - `@Ignore`d with a reason: 4 shared tests (15.4 item 55, and three rows the in-process harness cannot reach, plan 11.3).
