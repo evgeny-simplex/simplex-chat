@@ -157,9 +157,9 @@ class GroupMemberPermissionsUnitTest {
   }
 
   @Test
-  fun channelOwnerCanOnlyAssignObserverOrMember() {
+  fun channelOwnerCanOnlyAssignObserverMemberOrModerator() {
     val g = group(GroupMemberRole.Owner, useRelays = true)
-    assertEquals(listOf(GroupMemberRole.Observer, GroupMemberRole.Member), member(GroupMemberRole.Observer).canChangeRoleTo(g))
+    assertEquals(listOf(GroupMemberRole.Observer, GroupMemberRole.Member, GroupMemberRole.Moderator), member(GroupMemberRole.Observer).canChangeRoleTo(g))
   }
 
   @Test
