@@ -90,7 +90,7 @@ class SettingsAndroidTest : UiTest() {
     const val MARKET_URI = "market://details?id=chat.simplex.app"
     const val SHUTDOWN_DESC = "Notifications will stop working until you re-launch the app"
     val ROOT_ITEMS = listOf(
-      "Your settings", "Appearance", "Your privacy", "Help & support", "Chat data", "Migrate to another device", "Supporter perks",
+      "Your settings", "Appearance", "Your privacy", "Help & support", "Chat data", "Migrate to another device", "Support SimpleX",
       "Network & servers", "Notifications", "Audio & video calls", "Shutdown", "Crowdfunding on Wefunder"
     )
     val ADVANCED_ORDER = listOf("Network & servers", "Notifications", "Audio & video calls", "Shutdown")
