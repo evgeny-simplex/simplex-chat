@@ -1,7 +1,7 @@
 # Android UI test automation on a host without KVM
 
 **Date:** 2026-10-12. The instrumented harness (layer (a), 3.1) is built: the 402 shared tests and 46 Android-only tests run on Android. What is built is described in the desktop plan, section 0.5 (`plans/ui-tests/2026-10-10-desktop-ui-test-dsl-plan.md`), and run findings are in §8 and in that plan's §15.4. Sections 0–7 below are the 2026-10-12 investigation, with notes where the build differs.
-Tool: `apps/multiplatform/scripts/waydroid/` (`wd.sh` and its `README.md`; state in `WD_HOME`). It was run on a Qubes AppVM; the paths for other Linux hosts are implemented but were not run. The `evidence/…` files cited below were kept outside the repo.
+Tool: `apps/multiplatform/scripts/waydroid/` (`wd.sh` and its `README.md`; state in `WD_HOME`). It was run on a Qubes AppVM; the paths for other Linux hosts are implemented but were not run. The `evidence/…` files cited below were kept outside the repo. The tool was removed from the repo on 2026-11-07: the Android tests run on the CI emulator, and `uitest-android.sh` requires `UITEST_SERIAL` (desktop plan 0.5.9).
 
 ## 0. Summary
 
@@ -190,21 +190,20 @@ layer (5.1). The host-driven layer (5.2) can share the DSL's surface but not its
   - **As built:** `scripts/uitest-android.sh <app.apk> <androidTest.apk> [am instrument -e …]`, with APKs from
     `./gradlew :android:assembleFossDebug :android:assembleFossDebugAndroidTest` (as in `ui-tests.yml`). It needs one earlier
     `scripts/uitest.sh` or `scripts/uitest.sh --prepare-only` run (CLI, `uitest-servers`, `env.properties`) and 4500 MB free.
-  - Environment: `UITEST_SERIAL` (any adb device; skips Waydroid), `WD_INSTANCE` (default 1; 2 selects the optional
-    second instance), `WD_OWNER` (default `uitest-$USER`), `UITEST_APP_ID` (default `chat.simplex.app.debug`; set it to
-    the application id of the APK under test), `ADB`, `JAVA_HOME`, `UITEST_STALL_S`.
-  - It claims and boots Waydroid in the background, starts the bridge with `java -cp`, installs the APKs (the app APK
+  - Environment: `UITEST_SERIAL` (required: the adb serial of the device or emulator), `UITEST_APP_ID` (default
+    `chat.simplex.app.debug`; set it to the application id of the APK under test), `ADB`, `JAVA_HOME`, `UITEST_STALL_S`.
+  - It starts the bridge with `java -cp`, installs the APKs (the app APK
     only when changed), sets the `adb reverse` ports, and per pass runs `pm clear`, grants permissions and
     `am instrument -w -r`; after a process crash, or after it force-stops a process whose output stalled for
     `UITEST_STALL_S` (420 s), it resumes with `-e notClass` (at most 4 passes).
   - Results are not JUnit XML: `build/uitest-android/run-<timestamp>/results.txt` (`<class>#<test> <code>`: 0 pass,
     −2 fail, −3/−4 skipped, `crashed`), plus `instrument*.txt`, `logcat.txt`, `timings.txt`, `failures/`, `bridge.log`.
     The exit status is non-zero on any failure or crash. Details: plan 0.5.9.
-  - It does **not** run `wd.sh net isolate` (open item, §6 item 3.c).
+  - It does **not** cut the device off the internet (open item, §6 item 3.c).
   - Considered and not used: `./gradlew :android:connectedFossDebugAndroidTest` (the app has `google`/`foss` flavors,
     foss the default, `android/build.gradle.kts:40-50`).
 - **Throughput limits.**
-  - Runs are serial within a Waydroid instance: no parallel JVMs as on desktop (§10.2). The runner uses instance 1 unless `WD_INSTANCE=2` selects the optional second instance.
+  - Runs are serial within a device: no parallel JVMs as on desktop (§10.2).
   - In-process reset avoids the 45 s first-database cost per test.
   - The core runs under arm translation. Full runs of the shared and Android-only tests complete on Waydroid (plan 15.4.1h), with the allocator stall of plan 15.4 item 52 handled by the runner; most of the 1,094 carried-over catalogue rows of 01–04 are not written as tests.
 

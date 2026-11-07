@@ -123,7 +123,7 @@ state does not test persistence.
 | Soft keyboard after typing | none | stays open, covers the bottom of the chat, and the first Back only hides it | `hideKeyboard()` before tapping something near the bottom or pressing Back (`backToChatList()` does it) |
 | Context menu | right click | long press | `rightClick(key)` |
 | Pending-connection info | stays in the center pane, no close control | closable | `closePendingConnectionInfo()` |
-| Camera / QR scanner | none | Waydroid has no camera | `assumeCamera()` (skips, never passes) |
+| Camera / QR scanner | none | the CI emulator has no camera | `assumeCamera()` (skips, never passes) |
 | A received file that was tapped before it arrived | the save dialog opens | an Open / Save menu opens | on Android tap `described("Save")` inside `saveFileAs` |
 
 Use `appPlatform.isDesktop/isAndroid` in a shared test only for one of these real UI differences, and say which in
@@ -213,7 +213,7 @@ Prerequisites:
 - Unprivileged user namespaces: the desktop tests run in their own user, PID and network namespaces. On Ubuntu 24.04:
   `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`.
 - `setpriv` (util-linux) and `ip` (iproute2).
-- Free memory: 3000 MB for the desktop suite, 4500 MB for the Android suite (the bridge and Waydroid).
+- Free memory: 3000 MB for the desktop suite, 4500 MB for the Android suite besides the emulator.
 - The desktop native library, which needs libsimplex: `./gradlew :desktop:cmakeBuildAndCopy`.
 
 Desktop, from `apps/multiplatform`:
@@ -228,14 +228,14 @@ scripts/uitest.sh --tests '*ChatListMenuTest'   # one class
 runs a test through `desktopTest`, which excludes `chat/simplex/app/ui/**`. Run single tests with `--tests` through
 the script.
 
-Android also needs an arm64-capable device or emulator, or Waydroid with libndk or libhoudini (`scripts/waydroid`),
-and the Android core library installed (the repository's `scripts/ci/android/install-core.sh`, as CI does). From
-`apps/multiplatform`:
+Android also needs an arm64-capable device or emulator, given by its adb serial in `UITEST_SERIAL` (`adb devices`
+lists them), and the Android core library installed (the repository's `scripts/ci/android/install-core.sh`, as CI
+does). From `apps/multiplatform`:
 
 ```sh
 ./gradlew -Pandroid.injected.build.abi=arm64-v8a :android:assembleFossDebug :android:assembleFossDebugAndroidTest
 scripts/uitest.sh --prepare-only
-UITEST_APP_ID=chat.simplex.app scripts/uitest-android.sh \
+UITEST_SERIAL=<adb serial> UITEST_APP_ID=chat.simplex.app scripts/uitest-android.sh \
   android/build/intermediates/apk/foss/debug/android-foss-arm64-v8a-debug.apk \
   "$(find android/build -name '*androidTest*.apk' | head -n 1)"
 ```

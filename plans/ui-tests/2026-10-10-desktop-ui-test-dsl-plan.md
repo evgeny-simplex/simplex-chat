@@ -226,16 +226,13 @@ The rules for test authors are in `apps/multiplatform/common/src/uiTestShared/RE
 **Android: `scripts/uitest-android.sh <app.apk> <androidTest.apk> [am instrument -e …]`.**
 - Requires a previous `scripts/uitest.sh` or `scripts/uitest.sh --prepare-only` run (for `env.properties`, the CLI and `uitest-servers`) and 4500 MB `MemAvailable`.
 - Environment:
-  - `UITEST_SERIAL`: any adb device; Waydroid is then not used;
-  - `WD_INSTANCE` (default 1; 2 selects the optional second Waydroid instance), `WD_OWNER` (default `uitest-$USER`), `WD_SH` (default `scripts/waydroid/wd.sh`, see its `README.md`);
+  - `UITEST_SERIAL` (required): the adb serial of the device or emulator;
   - `UITEST_APP_ID` (default `chat.simplex.app.debug`, the id with `application_id.suffix=.debug` in `local.properties`; CI builds without the suffix and sets `chat.simplex.app`);
-  - `ADB`, `JAVA_HOME` (defaults: the adb `wd.sh adb-path` prints, so the runner and `wd.sh` share one adb binary; `java` from `JAVA_HOME` or `PATH`);
+  - `ADB`, `JAVA_HOME` (defaults: `adb` from `PATH`; `java` from `JAVA_HOME` or `PATH`);
   - `UITEST_STALL_S` (default 420).
 - Setup:
   - rebuilds the bridge classpath only when one of its 9 sources is newer;
-  - claims the Waydroid instance and starts it in the background if needed;
   - starts the bridge (`setsid java -cp … UiBridge 7777`) and kills it by its PID on exit;
-  - on Waydroid, sets the display to the CI emulator's size in dp (reset on exit);
   - installs the app APK unless its sha256 and `lastUpdateTime` match the stamp, and always the test APK;
   - `adb reverse` for the seven ports of 0.5.6.
 - Each pass: `pm clear`, heads-up notifications off (15.4 item 51), grants POST_NOTIFICATIONS, CAMERA and RECORD_AUDIO, then `am instrument -w -r`. When the output does not change for `UITEST_STALL_S`, it force-stops the app. After any abnormal end ("Process crashed", an ANR, a force-stop) it resumes with `-e notClass <finished tests>` (at most 4 passes).
@@ -243,9 +240,9 @@ The rules for test authors are in `apps/multiplatform/common/src/uiTestShared/RE
   - `results.txt`, one line per test, `<class>#<test> <code>`: 0 pass, −2 fail, −3/−4 skipped, or `crashed`;
   - `instrument-<n>.txt`, `instrument.txt`, `logcat.txt` (`logcat -G 16M`), `timings.txt`, `failures/`, `bridge.log`.
 - The exit status is non-zero on any −2 or `crashed`, when it gives up after 4 passes, or when there are no results.
-- It does **not** run `wd.sh net isolate` (open item). The container keeps internet access during a run, and isolation rests on the local server configuration and on onboarding opening no connection.
+- It does **not** cut the device off the internet (open item). The device keeps internet access during a run, and isolation rests on the local server configuration and on onboarding opening no connection.
 
-APKs (from `apps/multiplatform`, as `.github/workflows/ui-tests.yml` builds them): `./gradlew :android:assembleFossDebug :android:assembleFossDebugAndroidTest`. The app APK is `android/build/intermediates/apk/foss/debug/<apk>`, the test APK the `*androidTest*.apk` under `android/build`. The APKs carry arm native libraries only, so the device must run arm code: an arm device, an emulator image with ARM translation (as in CI, `scripts/ci/android/emulator.sh`), or Waydroid with arm translation.
+APKs (from `apps/multiplatform`, as `.github/workflows/ui-tests.yml` builds them): `./gradlew :android:assembleFossDebug :android:assembleFossDebugAndroidTest`. The app APK is `android/build/intermediates/apk/foss/debug/<apk>`, the test APK the `*androidTest*.apk` under `android/build`. The APKs carry arm native libraries only, so the device must run arm code: an arm device or an emulator image with ARM translation (as in CI, `scripts/ci/android/emulator.sh`).
 
 **CI:** `.github/workflows/ui-tests.yml` (manual `workflow_dispatch`) builds the core, the CLI and `uitest-servers` and the APKs once, then runs the desktop tests and the Android tests (GitHub emulator) in shards; `scripts/ci/ui-tests/README.md` describes it.
 
@@ -262,7 +259,6 @@ scripts/uitest.sh -PuiForks=1 -PuiForkEvery=1       # serial, one JVM per class
 scripts/uitest.sh --prepare-only                    # CLI, test servers and env.properties only, before the first Android run
 UITEST_SERIAL=<serial> UITEST_APP_ID=chat.simplex.app scripts/uitest-android.sh <app.apk> <test.apk>   # an adb device or emulator
 UITEST_SERIAL=<serial> UITEST_APP_ID=chat.simplex.app scripts/uitest-android.sh <app.apk> <test.apk> -e class chat.simplex.app.ui.main.ChatListRowsTest
-scripts/uitest-android.sh <app.apk> <test.apk>      # on Waydroid instance 1 (WD_INSTANCE=2 for the optional second instance)
 ```
 
 `./gradlew :common:desktopUiTest` on its own, and an IDE run of a UI test, do not run the tests (15.4.2).
@@ -282,7 +278,7 @@ scripts/uitest-android.sh <app.apk> <test.apk>      # on Waydroid instance 1 (WD
 | 9.1–9.3 | `GuiUser`, `ChatRow` and the typed row classes; `uiTest(realTimes)`, `app(name, onboarded, fixture)`, `connect(gui, peer)`, `relay`, `mobileHost`, `servers`, `allowUncaught`, `screenshot`, `shouldHave`; the one-`app()`-per-test rule; `…CompatStableTest` subclasses |
 | 10.1 | `CatalogueTraceabilityTest`, stub generation, the catalogue in the repo; a traceability rule for the desktop-only (`chat.simplex.app.ui.desktop`) and Android-only (`chat.simplex.app.ui`, `.back`, `.android`) packages |
 | 11 | the local HTTP stub, committed media fixtures, multicast tests, SQL fixtures (the SOCKS stub and server control are built, 0.5.6) |
-| Android | the 10-run exit check; `wd.sh net isolate` in the runner; `testTagsAsResourceId` and `ui-test-manifest` (not needed by the instrumented layer); the debug network-security-config (approved, 13) |
+| Android | the 10-run exit check; cutting the device off the internet in the runner; `testTagsAsResourceId` and `ui-test-manifest` (not needed by the instrumented layer); the debug network-security-config (approved, 13) |
 
 ## Terms
 
@@ -949,7 +945,7 @@ This replaces the `smp-mini` approach: the `smp-server` executable doesn't build
 
 ### 8.3 Network isolation
 
-(As built: as below for desktop (0.5.9); peers have no `--mute` yet, so the D-Bus point stands. The Android runner does not apply `wd.sh net isolate`, open item, 0.5.9.)
+(As built: as below for desktop (0.5.9); peers have no `--mute` yet, so the D-Bus point stands. The Android runner does not cut the device off the internet, open item, 0.5.9.)
 
 The Gradle run executes in an unprivileged user, network and pid namespace with only loopback (runner script, 7.1.1). Everything it starts (test JVMs, CLI peers, relays, `uitest-servers`) inherits it. Checked on this host: loopback works, `localhost` resolves from `/etc/hosts`, public DNS and every public address fail with "Network is unreachable".
 
@@ -1390,7 +1386,7 @@ Each entry gives the symptom, the cause (how it was confirmed), and the fix or m
     - Confirming a contact link plan opens the prepared chat full screen on Android, covering the chat list; `contactMenuForNotReadyContactOnlyDelete` calls `backToChatList()` before opening the row menu (no-op on desktop, where the list stays visible).
     - The "Paste link / Scan" banner opens the QR scanner; Waydroid has no camera, so CameraX fails and the app crashes when the scanner is disposed (15.5 item 4). `connectBannerCardOpensPasteLink` calls `assumeCamera()` (skipped on devices without a camera; no-op on desktop).
 41. **`chatCloseStore` failures were ignored.** It returns an error text ("" on success); the resets deleted the database files whatever it returned. One desktop run (b21) had `apiNewGroup` fail with "SQLite3 returned ErrorIO … disk I/O error" right after a reset (first time in about 20 runs; the disk was not full). Both harnesses now fail the reset when `chatCloseStore` returns an error, so a recurrence names its cause. The I/O error itself is not explained yet (open item).
-42. **The Waydroid tool is in the repo and portable** (2026-10-15). `apps/multiplatform/scripts/waydroid/` holds `wd.sh`, `provision2.sh` (the optional instance 2), `watchdog2.sh`, `weston.ini`, `fetch-images.sh` and a README; `uitest-android.sh` uses it by default (`WD_SH` overrides) and takes its adb from `wd.sh adb-path`, so both use one adb binary (before, the runner used `$ANDROID_HOME`'s adb 37.0.0 and `wd.sh` `~/Android/Sdk`'s 36.0.2). Machine paths became `WD_HOME`/`WD2_HOME`/`$HOME`/SDK variables. On Qubes it behaves as before (offline debs, `$WD_HOME/var` bind mount, Qubes nft chains). Elsewhere it installs with apt (repo.waydro.id) or dnf, uses `/var/lib/waydroid` directly, lets `waydroid init` download images, trusts the bridge in firewalld, and isolates with an nft table of its own (`inet wd_uitest`). Weston flags follow the version (12+: `--backend=headless --renderer=pixman`; checked against weston 11, 12 and 14 sources). Verified on Qubes: instance 2 up/status/shot/nodes/rootsh, `net isolate/open` with the Qubes chain and, on a scratch copy with the Qubes check off, with the own table; the full Android suite ran through it. The apt/dnf install, image download and firewalld paths were not run (no non-Qubes host was available).
+42. **The Waydroid tool is in the repo and portable** (2026-10-15). `apps/multiplatform/scripts/waydroid/` holds `wd.sh`, `provision2.sh` (the optional instance 2), `watchdog2.sh`, `weston.ini`, `fetch-images.sh` and a README; `uitest-android.sh` uses it by default (`WD_SH` overrides) and takes its adb from `wd.sh adb-path`, so both use one adb binary (before, the runner used `$ANDROID_HOME`'s adb 37.0.0 and `wd.sh` `~/Android/Sdk`'s 36.0.2). Machine paths became `WD_HOME`/`WD2_HOME`/`$HOME`/SDK variables. On Qubes it behaves as before (offline debs, `$WD_HOME/var` bind mount, Qubes nft chains). Elsewhere it installs with apt (repo.waydro.id) or dnf, uses `/var/lib/waydroid` directly, lets `waydroid init` download images, trusts the bridge in firewalld, and isolates with an nft table of its own (`inet wd_uitest`). Weston flags follow the version (12+: `--backend=headless --renderer=pixman`; checked against weston 11, 12 and 14 sources). Verified on Qubes: instance 2 up/status/shot/nodes/rootsh, `net isolate/open` with the Qubes chain and, on a scratch copy with the Qubes check off, with the own table; the full Android suite ran through it. The apt/dnf install, image download and firewalld paths were not run (no non-Qubes host was available). Removed from the repo on 2026-11-07: the Android tests run on the CI emulator, and `uitest-android.sh` requires `UITEST_SERIAL` (0.5.9); the `wd.sh` commands in the items of this section are history.
 43. **Test review and the stricter harness (2026-10-19).** Five reviewers graded all 157 tests (the outcome is in this item): 103 keep, 29 strengthen, 19 merge, 6 drop; the harness hid failures (Android crash handler recovery, second Enter, quiesce, deadline extensions, discarded peer output, message allowlist). The test-writing guide (`apps/multiplatform/common/src/uiTestShared/README.md`) codifies the rules; the harness now fails on crashes, peer errors and stuck work, has no input retries, and marks known app bugs with `@KnownAppIssue` (0.5.8). Steps 2–3 applied the verdicts: about 25 tests merged or dropped, the rest strengthened (outcomes checked, opposite states proven first, negative controls, both branches of conditional UI); new keys only on elements tests act on: the link-preview thumbnail (`Ui.ChatList.Row(id).part("link")`) and the database-error passphrase field and Open button (`Ui.DbError`).
 44. **Restart re-read settings after the core started.** Reloading `settings.properties` after `initChatControllerOnStart` raced with the app's start-up and opened the database with the wrong key ("Wrong database passphrase") in three tests. The reload now runs between stopping and initialising the core.
 45. **Restart stopped the core before pending app work finished.** `restart()` disposes the scene, and a disposed onboarding passphrase screen starts chat in the background (15.5 item 3); stopping the core first made that job fail with "Controller is not initialized" and left `ctrlInitInProgress` set, which failed every later test of the JVM. `restartCore` now drains first, and a reset clears a leftover `ctrlInitInProgress`.

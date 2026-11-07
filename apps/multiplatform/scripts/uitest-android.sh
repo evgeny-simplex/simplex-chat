@@ -2,36 +2,28 @@
 # Usage: scripts/uitest-android.sh <app.apk> <androidTest.apk> [am instrument -e args...]
 # Needs scripts/uitest.sh to have run once, or `scripts/uitest.sh --prepare-only` (it builds the CLI and test servers and writes build/uitest/env.properties).
 # Env:
-#   UITEST_SERIAL  adb serial of the device or emulator to use; when unset, a Waydroid instance is claimed with scripts/waydroid/wd.sh
-#                  (refused when CI=true: on CI the emulator's serial must be given)
-#   WD_SH          another wd.sh to use (default scripts/waydroid/wd.sh; see scripts/waydroid/README.md)
-#   WD_INSTANCE    Waydroid instance (default 1; 2 runs beside an interactive instance 1 and needs scripts/waydroid/provision2.sh),
-#                  WD_OWNER claim owner (default uitest-$USER)
+#   UITEST_SERIAL  adb serial of the device or emulator to use (required; `adb devices` lists them)
 #   UITEST_APP_ID  application id of the app APK (default chat.simplex.app.debug)
 #   UITEST_BRIDGE_PORT  host port of the peer bridge (default 7777), reversed to the device, passed to the tests as
 #                  `-e bridgePort <port>` and written to build/uitest/env.properties as bridgePort=<port>
 #   UITEST_STALL_S seconds without instrumentation output before the app is force-stopped (default 420)
-#   ADB, JAVA_HOME tool locations (default: the adb wd.sh uses, `wd.sh adb-path`; java from JAVA_HOME or PATH)
-# For the run, a Waydroid instance has no internet (`wd.sh net isolate`, reopened afterwards if it was open), the device's
-# time zone is UTC (restored afterwards) and the app's locale is en-US.
+#   ADB, JAVA_HOME tool locations (default: adb from PATH; java from JAVA_HOME or PATH)
+# For the run, the device's time zone is UTC (restored afterwards) and the app's locale is en-US.
 # Results in build/uitest-android/run-*: results.txt has "<class>#<test> <code>" per test (0 pass, -2 fail, -3/-4 skipped,
 # crashed: running when the app process died, flaky: crashed, then passed when re-run once at the end); known-issues.txt
 # the KNOWN_ISSUE lines of the tests; GAVE_UP or ABNORMAL when the run stopped early.
 set -eu
 mp="$(dirname "$(readlink -f "$0")")/.."
 app_apk=$1; test_apk=$2; shift 2
-if [ -z "${UITEST_SERIAL:-}" ] && [ "${CI:-}" = true ]; then
-  echo "uitest-android: UITEST_SERIAL is empty on CI; not setting up Waydroid on the runner" >&2
+if [ -z "${UITEST_SERIAL:-}" ]; then
+  echo "uitest-android: set UITEST_SERIAL to the adb serial of the device or emulator (\`adb devices\` lists them)" >&2
   exit 1
 fi
 bport="${UITEST_BRIDGE_PORT:-7777}"
 case "$bport" in ''|*[!0-9]*) echo "uitest-android: UITEST_BRIDGE_PORT must be a port number, not '$bport'" >&2; exit 1 ;; esac
-wd="${WD_SH:-$mp/scripts/waydroid/wd.sh}"
-ADB="${ADB:-$("$wd" adb-path)}"
-# fd 9 holds the runner lock: daemons started from here (adb server, the bridge, Waydroid's) must not inherit it
+ADB="${ADB:-$(command -v adb)}" || { echo "uitest-android: adb is not on PATH; set ADB to its path" >&2; exit 1; }
+# fd 9 holds the runner lock: daemons started from here (adb server, the bridge) must not inherit it
 adb() { "$ADB" "$@" 9>&-; }
-wds() { "$wd" "$@" 9>&-; }
-export WD_INSTANCE="${WD_INSTANCE:-1}" WD_OWNER="${WD_OWNER:-uitest-$(id -un)}"
 pkg="${UITEST_APP_ID:-chat.simplex.app.debug}"
 runner=$pkg.test/androidx.test.runner.AndroidJUnitRunner
 runs="$mp/build/uitest-android"
@@ -46,7 +38,7 @@ step() { echo "uitest-android: [$(( $(date +%s) - t0 )) s] $*"; }
 
 bridge_log="$out/bridge.log"
 avail_mb=$(awk '/^MemAvailable:/ {print int($2 / 1024)}' /proc/meminfo)
-[ "$avail_mb" -ge 4500 ] || { echo "uitest-android: only $avail_mb MB available, need 4500 (bridge + Waydroid); free memory first" >&2; exit 1; }
+[ "$avail_mb" -ge 4500 ] || { echo "uitest-android: only $avail_mb MB available, need 4500 besides the device; free memory first" >&2; exit 1; }
 java="${JAVA_HOME:+$JAVA_HOME/bin/}java"
 props="$mp/build/uitest/env.properties"
 [ -s "$props" ] || { echo "uitest-android: run scripts/uitest.sh (or scripts/uitest.sh --prepare-only) once first; it builds the CLI and test servers and writes build/uitest/env.properties" >&2; exit 1; }
@@ -55,15 +47,10 @@ echo "bridgePort=$bport" >> "$props"
 cp_file="$mp/build/uitest/bridge.classpath"
 h="$mp/common/src/desktopTest/kotlin/chat/simplex/app/ui/harness"
 bridge_srcs="$h/UiBridge.kt $h/CliPeer.kt $h/VtScreen.kt $h/TestServers.kt $h/Socks5Stub.kt $h/UiEnv.kt $h/UiJvm.kt $mp/common/src/uiTestShared/kotlin/chat/simplex/app/ui/harness/ServersConfig.kt $mp/common/src/uiTestShared/kotlin/chat/simplex/app/ui/harness/PeerLines.kt"
-wd_pid=
 cleanup() {
   [ -z "${bridge_pid:-}" ] || kill -TERM "$bridge_pid" 2>/dev/null || true
-  [ -z "$wd_pid" ] || wait "$wd_pid" 2>/dev/null || true
-  [ -z "${display_set:-}" ] || { adb -s "$serial" shell wm size reset; adb -s "$serial" shell wm density reset; } >/dev/null 2>&1 || true
   [ -z "${tz_restore:-}" ] || adb -s "$serial" shell cmd alarm set-timezone "$tz_restore" >/dev/null 2>&1 || true
   [ -z "${auto_tz_restore:-}" ] || adb -s "$serial" shell settings put global auto_time_zone "$auto_tz_restore" >/dev/null 2>&1 || true
-  [ -z "${net_reopen:-}" ] || wds net open >/dev/null 2>&1 || true
-  [ -n "${UITEST_SERIAL:-}" ] || wds release >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -72,13 +59,6 @@ if [ ! -s "$cp_file" ] || [ -n "$(find $bridge_srcs -newer "$cp_file" 2>/dev/nul
   step "compiling the bridge"
   (cd "$mp" && ./gradlew -g "$mp/.gradle/uitest-home" --no-daemon -q -Pkotlin.compiler.execution.strategy=in-process :common:uitestBridgeClasspath) > "$out/bridge-build.log" 2>&1 9>&- \
     || { echo "uitest-android: bridge build failed; see $out/bridge-build.log" >&2; exit 1; }
-fi
-if [ -z "${UITEST_SERIAL:-}" ]; then
-  wds claim "$WD_OWNER"
-  if ! wds status | grep -q "Session:.*RUNNING"; then
-    wds up > "$out/waydroid-up.log" 2>&1 &
-    wd_pid=$!
-  fi
 fi
 setsid "$java" -Djava.awt.headless=true -Dsimplex.uitest.env="$props" -cp "$(cat "$cp_file")" chat.simplex.app.ui.harness.UiBridge "$bport" > "$bridge_log" 2>&1 9>&- &
 bridge_pid=$!
@@ -91,23 +71,8 @@ done
 base=$(sed -n 's/^uitest-bridge: .*port base \([0-9]*\),.*/\1/p' "$bridge_log")
 step "bridge up on port $bport, server port base $base"
 
-if [ -n "$wd_pid" ]; then
-  wait "$wd_pid" || { echo "uitest-android: wd.sh up failed; see $out/waydroid-up.log" >&2; wd_pid=; exit 1; }
-  wd_pid=
-fi
-serial="${UITEST_SERIAL:-$(wds serial)}"
+serial=$UITEST_SERIAL
 step "device $serial ready"
-if [ -z "${UITEST_SERIAL:-}" ]; then
-  net_was=$(wds net status) || net_was=
-  wds net isolate || { echo "uitest-android: wd.sh net isolate failed; the tests must not reach the internet" >&2; exit 1; }
-  [ "$net_was" != open ] || net_reopen=1
-  ci_width=1080 ci_height=2400 ci_density=420
-  height=$(adb -s "$serial" shell wm size | tr -d '\r' | sed -n 's/^Physical size: [0-9]*x//p')
-  display_set=1
-  adb -s "$serial" shell wm size "$((height * ci_width / ci_height))x$height"
-  adb -s "$serial" shell wm density "$((height * ci_density / ci_height))"
-  step "display set to the CI emulator's size in dp"
-fi
 echo "uitest-android: note: pm clear removes the app's data on $serial"
 app_sum=$(sha256sum "$app_apk" | cut -c1-16)
 stamp="$runs/installed-app-$(printf %s "$serial" | tr -c "A-Za-z0-9" _)"
@@ -115,7 +80,7 @@ installed_ver=$(adb -s "$serial" shell dumpsys package "$pkg" 2>/dev/null | tr -
 if [ -n "$installed_ver" ] && [ "$(cat "$stamp" 2>/dev/null)" = "$app_sum $installed_ver" ]; then
   echo "uitest-android: app APK unchanged on $serial, skipping its install"
 else
-  if [ -n "${UITEST_SERIAL:-}" ]; then adb -s "$serial" install -r -t -g "$app_apk" >/dev/null; else wds install "$app_apk"; fi
+  adb -s "$serial" install -r -t -g "$app_apk" >/dev/null
   installed_ver=$(adb -s "$serial" shell dumpsys package "$pkg" | tr -d '\r' | sed -n 's/^ *lastUpdateTime=//p' | head -1)
   echo "$app_sum $installed_ver" > "$stamp"
 fi
@@ -145,7 +110,7 @@ prepare_app() {
 # Runs `am instrument` into $1. If its output does not change for UITEST_STALL_S seconds (default 420, longer than the
 # in-process 300 s watchdog), the app process is force-stopped so the pass ends as "Process crashed" and the run resumes:
 # under arm64 translation the native allocator can deadlock (scudo::HybridMutex::lockSlow in several threads), which
-# blocks every thread of the process, the in-process watchdog included (scripts/waydroid/README.md).
+# blocks every thread of the process, the in-process watchdog included (plans/ui-tests/2026-10-10-desktop-ui-test-dsl-plan.md, 15.4 item 52).
 instrument() {
   file=$1; shift
   adb -s "$serial" shell am instrument -w -r -e bridgePort "$bport" "$@" "$runner" > "$file" 2>&1 &
