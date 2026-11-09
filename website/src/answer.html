@@ -1,0 +1,51 @@
+---
+pagination:
+  data: answers.pages
+  size: 1
+  alias: node
+permalink: "/answers/{{ node.id }}/"
+---
+{% from "answers/macros.njk" import picture, choice %}
+{% set title = node.answer.title ~ " | SimpleX Chat" if node.answer.title else "SimpleX Chat" %}
+{% set description = node.answer.text %}
+{% set image = node.picture.src %}
+{% set tall = node.picture.h > node.picture.w * 0.8 %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+{% include "answers/head.html" %}
+    <script>{% include "utm.js" %}</script>
+    <script type="module">
+        import { init } from '/js/page.js'
+        {% include "events.js" %}
+        init(pageEvents)
+    </script>
+</head>
+
+<body>
+{% include "answers/header.html" %}
+
+<main class="page">
+    <section class="step">
+        <div class="col">
+            <article class="answer{% if tall %} split{% endif %}">
+                <div class="words">
+                    {% if node.answer.title %}<h1>{{ node.answer.title }}</h1>{% endif %}
+                    {% for paragraph in node.answer.text.split(r/\n\s*\n/) %}
+                    <p>{{ paragraph }}</p>
+                    {% endfor %}
+                </div>
+                <figure class="art{% if tall %} tall{% endif %}">{{ picture(node.picture) }}</figure>
+            </article>
+            <div class="choices" role="group" aria-label="Choices">
+                {% for option in node.options %}
+                {{ choice(option) }}
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+</main>
+</body>
+
+</html>

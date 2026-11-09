@@ -36,6 +36,14 @@ function readLinksPage() {
   }
 }
 
+const siteAnswers = require('./site_answers')
+const answersFilePath = path.resolve(__dirname, 'answers.json')
+const answersUrl = "/"
+
+function readAnswers() {
+  return { url: answersUrl, ...siteAnswers(JSON.parse(fs.readFileSync(answersFilePath, 'utf8'))) }
+}
+
 const permalinks = new Map()
 
 function filePermalink(file) {
@@ -197,6 +205,10 @@ module.exports = function (ty) {
 
   ty.addGlobalData("linksPage", readLinksPage)
   ty.addWatchTarget(linksFilePath)
+
+  ty.addGlobalData("answers", readAnswers)
+  ty.addWatchTarget(answersFilePath)
+  if (answersUrl === "/") ty.ignores.add("src/index.html")
 
   ty.addShortcode("cfg", (name) => globalConfig[name])
 

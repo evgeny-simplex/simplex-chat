@@ -1,0 +1,80 @@
+---
+title: "SimpleX Chat: private and secure messenger without any user IDs (not even random)"
+description: "SimpleX Chat - a private and encrypted messenger without any user IDs (not even random ones)! Make a private connection via link / QR code to send messages and make calls."
+image: /img/share_simplex.jpg
+permalink: "{{ answers.url }}"
+---
+{% from "answers/macros.njk" import picture, choice %}
+{% set home = answers.home %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+{% include "answers/head.html" %}
+    <script>
+        function applyUtm() {
+            {% include "utm.js" %}
+        }
+        applyUtm();
+        document.addEventListener('click', applyUtm, true);
+    </script>
+    <script type="module">
+        import { init, track } from '/js/page.js'
+        {% include "events.js" %}
+        init(pageEvents)
+        document.addEventListener('answer:open', function (e) { track('Answer', { props: { id: e.detail.id } }) })
+    </script>
+</head>
+
+<body>
+{% include "answers/header.html" %}
+
+<main id="steps">
+    <section class="step hero">
+        <div class="backdrop">{{ picture(home.answer.image) }}</div>
+        <div class="hero-body">
+            <div class="col">
+                <h1>{{ home.answer.title }}</h1>
+                {% for paragraph in home.answer.text.split(r/\n\s*\n/) %}
+                <p class="lead">{{ paragraph }}</p>
+                {% endfor %}
+            </div>
+            <div class="col row">
+                <div class="choices" role="group" aria-label="Choices">
+                    {% for option in home.options %}
+                    {{ choice(option) }}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<section class="panel" id="path-panel" aria-label="Your path" data-markdown-skip hidden>
+    <ol id="path-list"></ol>
+    <p class="note">This page remembers your path in this browser only.</p>
+    <button class="reset" id="reset" type="button">Start over</button>
+</section>
+
+<section class="panel" id="share-panel" aria-label="Share this page" data-markdown-skip hidden>
+    <div class="share-body">
+        <strong id="share-status" role="status">Link copied</strong>
+        <p>This link opens the page with your choices.</p>
+        <input id="share-link" type="text" readonly aria-label="Link to this page">
+    </div>
+</section>
+
+<nav class="dock" id="dock" aria-label="Your path" data-markdown-skip hidden>
+    <button class="round" id="back" type="button" aria-label="Back to the previous answer">
+        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4 6.5 10l6 6"/></svg>
+    </button>
+    <button class="where" id="where" type="button" aria-expanded="false" aria-controls="path-panel">
+        <span id="where-label"></span><span class="count" id="where-count"></span>
+    </button>
+    <button class="share" id="share" type="button" aria-expanded="false" aria-controls="share-panel">Share</button>
+</nav>
+
+<script src="/js/answers.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,16 @@
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{{ title }}</title>
+    <meta name="description" content="{{ description }}"/>
+    <meta http-equiv="onion-location" content="{% cfg 'onionLocation' %}{{ page.url }}" />
+    <meta property="og:url" content="{% cfg 'siteLocation' %}{{ page.url }}" />
+    <meta property="og:type" content="website"/>
+    <meta property="og:title" content="{{ title }}"/>
+    <meta property="og:description" content="{{ description }}"/>
+    <meta property="og:image" content="{% cfg 'siteLocation' %}{{ image }}"/>
+    <meta name="twitter:card" content="summary"/>
+    <link rel="icon" type="image/png" sizes="96x96" href="/img/favicon.ico"/>
+    {% include "markdown-alternate.html" %}
+    <link rel="preload" href="/fonts/Inter/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/Inter-Tight/inter-tight-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/answers.css">
