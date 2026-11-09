@@ -590,6 +590,8 @@ backslashEscapes = describe "backslash escapes" do
     "a\\_b_" <==> "a" <> markdown Escape "\\" <> "_b_"
     "\\\\" <==> markdown Escape "\\" <> "\\"
     "\\`a`" <==> markdown Escape "\\" <> "`a`"
+  it "an escaped backtick and the backticks after it are text" do
+    "\\``a`" <==> markdown Escape "\\" <> "``a`"
   it "a backslash before other characters is text" do
     "\\a" <==> "\\a"
     "\\ a" <==> "\\ a"

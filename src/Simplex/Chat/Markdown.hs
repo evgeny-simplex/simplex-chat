@@ -407,7 +407,8 @@ markdownP = joinMarkdown <$> A.many' fragmentP
     escapeP :: Parser Markdown
     escapeP = do
       c <- A.char '\\' *> A.satisfy (\x -> isAscii x && (isPunctuation x || isSymbol x))
-      pure $ markdown Escape "\\" <> unmarked (T.singleton c)
+      ticks <- if c == '`' then A.takeWhile (== '`') else pure ""
+      pure $ markdown Escape "\\" <> unmarked (c `T.cons` ticks)
     secretP :: Parser Markdown
     secretP = secret <$?> ((,,) <$> A.takeWhile (== '#') <*> A.takeTill (== '#') <*> A.takeWhile1 (== '#'))
     secret :: (Text, Text, Text) -> Either String Markdown
