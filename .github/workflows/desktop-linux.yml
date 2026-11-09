@@ -28,7 +28,7 @@ env:
 jobs:
   flags-cabal:
     name: GHC flag order in the cabal build
-    if: contains(inputs.jobs, 'flags')
+    if: contains(inputs.jobs, 'flags') || contains(inputs.jobs, 'cabal')
     runs-on: ubuntu-24.04
     timeout-minutes: 300
     steps:
