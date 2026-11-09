@@ -10,6 +10,7 @@ base=$1
 mkdir -p "$2"
 out="$(cd "$2" && pwd)"
 derived="$RUNNER_TEMP/DerivedData-size"
+git fetch --depth=1 origin "$base"
 
 art="$RUNNER_TEMP/art/ios/Assets.xcassets"
 mkdir -p "$art"
