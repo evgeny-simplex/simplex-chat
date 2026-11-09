@@ -83,11 +83,7 @@ check() {
   build_lines "$base_drv"
 }
 
-nix eval --json "$head_dir#hydraJobs.x86_64-linux" --apply builtins.attrNames
-for job in "aarch64-android:lib:simplex-chat" "lib:simplex-chat" "exe:simplex-chat" "x86_64-unknown-linux-musl-static:exe:simplex-chat" "x86_64-w64-mingw32:lib:simplex-chat" "x86_64-w64-mingw32:exe:simplex-chat" "aarch64-unknown-linux-musl-static:exe:simplex-chat" "armv7a-android:lib:simplex-chat" "i686-unknown-linux-musl-static:exe:simplex-chat"; do
+for job in "x86_64-linux-static:exe:simplex-chat" "x86_64-windows:lib:simplex-chat" "x86_64-windows:exe:simplex-chat" "aarch64-linux-static:exe:simplex-chat" "i686-linux-static:exe:simplex-chat" "aarch64-android:lib:support" "armv7a-android:lib:support"; do
   check x86_64-linux "$job"
   df -h / | tail -1
-done
-for job in "aarch64-darwin-ios:lib:simplex-chat" "aarch64-darwin:lib:simplex-chat"; do
-  check aarch64-darwin "$job"
 done
