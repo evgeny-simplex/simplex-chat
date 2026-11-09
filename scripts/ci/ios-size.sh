@@ -30,6 +30,7 @@ for f in assets/multiplatform/resources/MR/images/*@3x.*; do
   printf '{"images":[{"filename":"%s@2x.%s","idiom":"universal","scale":"2x"},{"filename":"%s@3x.%s","idiom":"universal","scale":"3x"}],"info":{"author":"xcode","version":1}}\n' "$name" "$ext" "$name" "$ext" > "$dir/Contents.json"
 done
 ls "$art"
+cp -R "$art"/*.imageset apps/ios/Shared/SimpleXAssets.xcassets/
 
 cat > apps/ios/Local.xcconfig <<EOF
 SIMPLEX_ASSETS_DIR = $RUNNER_TEMP/art
@@ -37,12 +38,30 @@ SWIFT_ACTIVE_COMPILATION_CONDITIONS = \$(inherited) SIMPLEX_ASSETS
 EOF
 cat apps/ios/Local.xcconfig
 
+pbxproj=apps/ios/SimpleX.xcodeproj/project.pbxproj
+api_types=apps/ios/Shared/Model/AppAPITypes.swift
+
+indirect_results() {
+  sed -i '' -E 's/^enum (ChatResponse[012]|ChatEvent): Decodable, ChatAPIResult \{$/indirect enum \1: Decodable, ChatAPIResult {/' "$api_types"
+  [ "$(grep -c '^indirect enum' "$api_types")" -eq 4 ]
+}
+
 archive() {
   local variant=$1
   local commit=$2
-  git checkout "$commit" -- apps/ios/SimpleX.xcodeproj/project.pbxproj
+  local api=$3
+  local se_assets=$4
+  git checkout "$commit" -- "$pbxproj"
+  git checkout "$base" -- "$api_types"
+  if [ "$se_assets" = no ]; then
+    sed -i '' '/E5C0BBE92F82B45500EA7527/d' "$pbxproj"
+  fi
+  if [ "$api" = indirect ]; then
+    indirect_results
+  fi
   scripts/ios/update-pbxproj.sh
-  grep -n 'SWIFT_OPTIMIZATION_LEVEL\|SimpleXAssets.xcassets in Resources' apps/ios/SimpleX.xcodeproj/project.pbxproj
+  grep -n 'SWIFT_OPTIMIZATION_LEVEL\|SimpleXAssets.xcassets in Resources' "$pbxproj"
+  grep -n 'enum ChatResponse[012]\|enum ChatEvent' "$api_types"
   local start=$SECONDS
   xcodebuild archive -quiet \
     -project apps/ios/SimpleX.xcodeproj \
@@ -81,6 +100,7 @@ archive() {
   rm -rf "$out/$variant.xcarchive"
 }
 
-archive base "$base"
-archive changed HEAD
+archive base "$base" direct yes
+archive lean "$base" indirect no
+archive full HEAD indirect no
 ls -l "$out"
