@@ -35,6 +35,21 @@ git -C "$RUNNER_TEMP/base" checkout --quiet "$base"
 head_dir=$PWD
 base_dir=$RUNNER_TEMP/base
 
+if [ "${2:-}" = android-size ]; then
+  for variant in base head; do
+    if [ "$variant" = base ]; then dir=$base_dir; else dir=$head_dir; fi
+    started=$SECONDS
+    nix build --out-link "$RUNNER_TEMP/result-$variant" "$dir#hydraJobs.x86_64-linux.\"aarch64-android:lib:simplex-chat\"" || exit 1
+    echo "$variant built in $(((SECONDS - started) / 60)) min"
+    mkdir -p "$RUNNER_TEMP/$variant"
+    unzip -o -q "$RUNNER_TEMP/result-$variant"/pkg-*.zip -d "$RUNNER_TEMP/$variant"
+    ls -l "$RUNNER_TEMP/$variant"
+    size -A "$RUNNER_TEMP/$variant/libsimplex.so" | grep -E '^\.text|^\.rodata|^\.data|^Total'
+    echo "$variant libsimplex.so gzip -9: $(gzip -9 -c "$RUNNER_TEMP/$variant/libsimplex.so" | wc -c)"
+  done
+  exit 0
+fi
+
 drv_path() {
   timeout 45m nix eval --raw "$1#hydraJobs.$2.\"$3\".drvPath" 2> "$tmp/eval.log" || { tail -5 "$tmp/eval.log" >&2; return 1; }
 }

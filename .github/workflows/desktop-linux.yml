@@ -12,6 +12,9 @@ on:
       release:
         type: boolean
         default: false
+      jobs:
+        type: string
+        default: verify bench android-size
 
 permissions:
   contents: read
@@ -25,6 +28,7 @@ env:
 jobs:
   verify:
     name: optimisation levels of the Nix derivations
+    if: contains(inputs.jobs, 'verify')
     runs-on: ubuntu-24.04
     timeout-minutes: 300
     steps:
@@ -36,8 +40,23 @@ jobs:
       - name: Verify
         run: scripts/ci/mobile-o1/verify.sh "$BASE"
 
+  android-size:
+    name: Android core size at -O2 and -O1
+    if: contains(inputs.jobs, 'android-size')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Build and measure
+        run: scripts/ci/mobile-o1/verify.sh "$BASE" android-size
+
   bench:
     name: core speed at -O2 and -O1
+    if: contains(inputs.jobs, 'bench')
     runs-on: ubuntu-24.04
     timeout-minutes: 330
     steps:
