@@ -170,6 +170,12 @@ keepPrefsJSON v ps = setField @"_json" ps . NoJSON $ case v of
   Object o | v /= toJSON ps -> Just o
   _ -> Nothing
 
+maxJSONDepth :: Int
+maxJSONDepth = 32
+
+maxJSONExponent :: Int
+maxJSONExponent = 18
+
 decodePrefs :: (Value -> JT.Parser p) -> Text -> Maybe p
 decodePrefs prefsP t = JT.parseMaybe prefsP =<< decodeStrictText t
 
@@ -428,6 +434,9 @@ data ChatBotCommand
         commands :: [ChatBotCommand]
       }
   deriving (Eq, Show)
+
+maxMenuDepth :: Int
+maxMenuDepth = 8
 
 setGroupPreference :: forall f. GroupFeatureNoRoleI f => SGroupFeature f -> GroupFeatureEnabled -> Maybe GroupPreferences -> GroupPreferences
 setGroupPreference f enable prefs_ = setGroupPreference_ f pref prefs
