@@ -54,6 +54,29 @@ jobs:
       - name: Build and measure
         run: scripts/ci/mobile-o1/verify.sh "$BASE" android-size
 
+  images:
+    name: image resizing speed at -O2, -O1 and -O1 with the image module at -O2
+    if: contains(inputs.jobs, 'images')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Haskell
+        uses: simplex-chat/setup-haskell-action@v2
+        with:
+          ghc-version: ${{ env.GHC_VER }}
+          cabal-version: ${{ env.CABAL_VER }}
+
+      - name: Install libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libffi-dev libgmp-dev libnuma-dev libssl-dev zlib1g-dev
+
+      - name: Benchmark
+        run: scripts/ci/mobile-o1/bench-image.sh "$RUNNER_TEMP/bench"
+
   bench:
     name: core speed at -O2 and -O1
     if: contains(inputs.jobs, 'bench')
