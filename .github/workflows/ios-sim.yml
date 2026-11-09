@@ -102,7 +102,7 @@ jobs:
     timeout-minutes: 360
     env:
       START_BACKEND: ${{ needs.plan.outputs.run-backend }}
-      BUILD_CORE: ${{ needs.plan.outputs.core-run == '' }}
+      BUILD_CORE: false
       BUILD_BACKEND: ${{ needs.plan.outputs.run-backend == 'true' && needs.plan.outputs.backend-run == '' }}
     steps:
       - name: Checkout code
@@ -150,9 +150,9 @@ jobs:
         if: env.BUILD_CORE != 'true'
         uses: actions/download-artifact@v8
         with:
-          name: ${{ needs.plan.outputs.core }}
+          name: ios-sim-core-14e9142e4c21dd8ac7ca379ed904eb514b1ddef1e80ebac09135fb77ea4da2cb
           path: ~/Downloads
-          run-id: ${{ needs.plan.outputs.core-run }}
+          run-id: 42446222461
           github-token: ${{ github.token }}
 
       - name: Prepare libraries
@@ -188,12 +188,26 @@ jobs:
         timeout-minutes: 30
         run: scripts/ci/ios-sim/backend.sh start ~/Downloads/${{ env.BACKEND_PKG }} "$RUNNER_TEMP/backend"
 
-      - name: Build app
+      - name: Measure size
+        timeout-minutes: 180
+        run: scripts/ci/ios-size.sh ee7eb5987f9a9ac276a22539a292c2eb0696080b "$RUNNER_TEMP/size"
+
+      - name: Upload size
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-size
+          path: ${{ runner.temp }}/size
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Build release app for the simulator
         run: |
+          rm apps/ios/Local.xcconfig
           xcodebuild build -quiet \
             -project apps/ios/SimpleX.xcodeproj \
             -scheme "SimpleX (iOS)" \
-            -configuration Debug \
+            -configuration Release \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -onlyUsePackageVersionsFromResolvedFile \
@@ -205,24 +219,11 @@ jobs:
             DEVELOPMENT_TEAM= \
             PROVISIONING_PROFILE_SPECIFIER=
 
-      # a tarball keeps the app's file modes, which an artifact drops
-      - name: Pack app
-        run: tar -czf "$RUNNER_TEMP/SimpleX.app.tar.gz" -C "$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator" SimpleX.app
-
-      - name: Upload app
-        uses: actions/upload-artifact@v7
-        with:
-          name: ios-sim-app
-          path: ${{ runner.temp }}/SimpleX.app.tar.gz
-          compression-level: 0
-          retention-days: 14
-          if-no-files-found: error
-
       - name: Install AXe
         run: scripts/ci/ios-sim/install-axe.sh
 
       - name: Run smoke test
-        run: scripts/ci/ios-sim/smoke-test.sh "$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/SimpleX.app" "$RUNNER_TEMP/smoke-test" images
+        run: scripts/ci/ios-sim/smoke-test.sh "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphonesimulator/SimpleX.app" "$RUNNER_TEMP/smoke-test" images
 
       - name: Stop test backend
         if: ${{ !cancelled() && env.START_BACKEND == 'true' }}
