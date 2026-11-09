@@ -132,7 +132,7 @@
         ghcOptions = [ "-staticlib" "-threaded" "-DIOS" ];
         postInstall = iosPostInstall bundleName;
       }; in
-      let mobileOptimisation = { config, ... }: let setupBuildFlags = config.setupBuildFlags ++ [ "--ghc-option=-O1" ]; in {
+      let mobileOptimisation = { config, ... }: let setupBuildFlags = config.setupBuildFlags ++ [ "--ghc-option=-O1" "-v2" ]; in {
         packages.simplex-chat.components.library.setupBuildFlags = setupBuildFlags;
         packages.simplexmq.components.library.setupBuildFlags = setupBuildFlags;
       }; in

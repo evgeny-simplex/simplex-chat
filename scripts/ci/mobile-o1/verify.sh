@@ -29,6 +29,9 @@ sh "$tmp/install" --no-daemon
 # shellcheck disable=SC1091
 . "$HOME/.nix-profile/etc/profile.d/nix.sh"
 nix --version
+if [ "${2:-}" = install-only ]; then
+  exit 0
+fi
 
 git clone --quiet "$PWD" "$RUNNER_TEMP/base"
 git -C "$RUNNER_TEMP/base" checkout --quiet "$base"

@@ -26,6 +26,43 @@ env:
   BASE: ee7eb5987f9a9ac276a22539a292c2eb0696080b
 
 jobs:
+  flags-cabal:
+    name: GHC flag order in the cabal build
+    if: contains(inputs.jobs, 'flags')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Haskell
+        uses: simplex-chat/setup-haskell-action@v2
+        with:
+          ghc-version: ${{ env.GHC_VER }}
+          cabal-version: ${{ env.CABAL_VER }}
+
+      - name: Install libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libffi-dev libgmp-dev libnuma-dev libssl-dev zlib1g-dev
+
+      - name: Flags
+        run: scripts/ci/mobile-o1/flags.sh cabal
+
+  flags-nix:
+    name: GHC flag order in the Nix Android build
+    if: contains(inputs.jobs, 'flags')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Flags
+        run: scripts/ci/mobile-o1/flags.sh nix
+
   verify:
     name: optimisation levels of the Nix derivations
     if: contains(inputs.jobs, 'verify')
