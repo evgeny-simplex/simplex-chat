@@ -20,9 +20,11 @@ EOF
   cat cabal.project.local
   cabal update
   cabal build -v2 --builddir=dist-flags lib:simplex-chat > "$log" 2>&1 || { tail -50 "$log"; exit 1; }
-  grep -E 'Building|Installing|simplexmq' "$log" | head -20
-  find ~/.cache/cabal/logs ~/.cabal/logs -name 'simplexmq-*.log' 2> /dev/null | tee "$RUNNER_TEMP/simplexmq-logs"
-  xargs cat < "$RUNNER_TEMP/simplexmq-logs" >> "$log"
+  grep -E '^(Building|Configuring|Installing)' "$log" > "$RUNNER_TEMP/steps" || true
+  grep simplex "$RUNNER_TEMP/steps" || true
+  find ~/.cache/cabal/logs ~/.cabal/logs -name 'simplexmq-*.log' > "$RUNNER_TEMP/simplexmq-logs" 2> /dev/null || true
+  cat "$RUNNER_TEMP/simplexmq-logs"
+  xargs -r cat < "$RUNNER_TEMP/simplexmq-logs" >> "$log"
 else
   scripts/ci/mobile-o1/verify.sh ee7eb5987f9a9ac276a22539a292c2eb0696080b install-only
   # shellcheck disable=SC1091
