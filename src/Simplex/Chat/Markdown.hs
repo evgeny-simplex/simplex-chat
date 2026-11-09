@@ -991,7 +991,8 @@ markdownText (FormattedText f_ t) = case f_ of
     where
       around c = c `T.cons` t `T.snoc` c
       codeSpan =
-        let ticks = T.replicate (1 + maximum (0 : map T.length (filter (T.isPrefixOf "`") $ T.group t))) "`"
+        let runs = map T.length $ filter (T.isPrefixOf "`") $ T.group t
+            ticks = T.replicate (until (`notElem` runs) (+ 1) 1) "`"
             pad = T.isPrefixOf "`" t || T.isSuffixOf "`" t || (T.isPrefixOf " " t && T.isSuffixOf " " t && not (T.all (== ' ') t))
             sp = if pad then " " else ""
          in ticks <> sp <> t <> sp <> ticks
