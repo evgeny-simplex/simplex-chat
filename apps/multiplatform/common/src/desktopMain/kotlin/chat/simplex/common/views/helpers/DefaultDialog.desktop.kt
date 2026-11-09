@@ -144,6 +144,8 @@ fun FrameWindowScope.FileDialogChooserMultiple(
   }
 }
 
+internal fun installLiteralFileNames(fc: JFileChooser) {}
+
 // Replace the Save button's action with a literal-filename handler. This bypasses JFileChooser's
 // glob-on-save behaviour, which mis-handles '[' as a glob char on Unix (breaking filenames like
 // '[1].pdf') and is not a feature of any native OS save dialog — macOS NSSavePanel and native
