@@ -572,6 +572,10 @@ inlineMarkdownGFM = describe "inline markdown of GFM" do
     "`a``b`" ==> markdown Snippet "a``b"
     "```a``b```" <== markdown Snippet "a``b"
     markdownText (fmt Snippet "`a") `shouldBe` "`` `a ``"
+  it "code spans open with at most 3 backticks" do
+    "````a````" <==> "````a````"
+    "*a ```*``` b*" <==> bold "a ```*``` b"
+    "*a ````*```` b*" <==> bold "a ````" <> "```` b*"
   it "autolinks" do
     "<https://simplex.chat>" <==> web "https://simplex.chat" "https://simplex.chat" "<https://simplex.chat>"
     "mail <chat@simplex.chat>" <==> "mail " <> web "chat@simplex.chat" "mailto:chat@simplex.chat" "<chat@simplex.chat>"

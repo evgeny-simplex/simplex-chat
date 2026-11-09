@@ -295,6 +295,9 @@ maxListDepth = 7
 maxMarkupTokens :: Int
 maxMarkupTokens = 2000
 
+maxCodeSpanTicks :: Int
+maxCodeSpanTicks = 3
+
 parseMarkdownList :: Text -> MarkdownList
 parseMarkdownList = markdownToList . parseMarkdown
 
@@ -391,12 +394,12 @@ markdownP = joinMarkdown <$> A.many' fragmentP
     codeTextP = do
       ticks <- A.takeWhile1 (== '`')
       let pieceP = A.takeWhile1 (\x -> x /= '`' && x /= '\n') <|> (A.takeWhile1 (== '`') >>= \r -> r <$ guard (r /= ticks))
-      ((\s -> ticks <> s <> ticks) . T.concat <$> A.many' pieceP <* A.string ticks) <|> pure ticks
+      (guard (T.length ticks <= maxCodeSpanTicks) *> ((\s -> ticks <> s <> ticks) . T.concat <$> A.many' pieceP <* A.string ticks)) <|> pure ticks
     codeSpanP :: Parser Markdown
     codeSpanP = do
       ticks <- A.takeWhile1 (== '`')
       let pieceP = A.takeWhile1 (/= '`') <|> (A.takeWhile1 (== '`') >>= \r -> r <$ guard (r /= ticks))
-      (markdown Snippet . stripSpaces . T.concat <$> A.many' pieceP <* A.string ticks) <|> pure (unmarked ticks)
+      (guard (T.length ticks <= maxCodeSpanTicks) *> (markdown Snippet . stripSpaces . T.concat <$> A.many' pieceP <* A.string ticks)) <|> pure (unmarked ticks)
       where
         stripSpaces s
           | T.isPrefixOf " " s && T.isSuffixOf " " s && T.any (/= ' ') s = T.drop 1 $ T.dropEnd 1 s
