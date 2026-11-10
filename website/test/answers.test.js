@@ -7,7 +7,8 @@ const graph = require('../answers.json');
 
 const site = siteAnswers(graph);
 const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
-const links = (node) => node.options.concat(graph.always);
+const choices = (node) => node.options.filter((option) => option.to);
+const actions = (node) => node.options.filter((option) => option.action);
 const texts = graph.nodes.flatMap((node) => [node.answer.title, node.answer.text, ...node.options.map((option) => option.label)]);
 const sourceOf = (sitePath) => sitePath.startsWith('/blog/') ? path.join(__dirname, '../..', sitePath) : path.join(__dirname, '../src', sitePath);
 
@@ -18,14 +19,23 @@ test('answer ids are unique', () => {
 
 test('every option leads to an answer page', () => {
   const pages = new Set(site.pages.map((page) => page.id));
-  const missing = graph.nodes.flatMap((node) => links(node).filter(({ to }) => to && !pages.has(to)).map(({ to }) => `${node.id} -> ${to}`));
+  const missing = graph.nodes.flatMap((node) => choices(node).filter(({ to }) => !pages.has(to)).map(({ to }) => `${node.id} -> ${to}`));
   assert.deepStrictEqual(missing, []);
 });
 
 test('every answer is reachable from the home answer', () => {
   const reached = new Set([graph.start]);
-  for (const id of reached) links(nodes.get(id)).forEach(({ to }) => nodes.has(to) && reached.add(to));
+  for (const id of reached) choices(nodes.get(id)).forEach(({ to }) => nodes.has(to) && reached.add(to));
   assert.deepStrictEqual(graph.nodes.map((node) => node.id).filter((id) => !reached.has(id)), []);
+});
+
+test('the home offers at most 4 choices and every other answer at most 3', () => {
+  assert.deepStrictEqual(graph.nodes.filter((node) => choices(node).length > (node.id === graph.start ? 4 : 3)).map((node) => node.id), []);
+});
+
+test('every answer but the home ends with one action and nothing else', () => {
+  const wrong = graph.nodes.filter((node) => node.id !== graph.start).filter((node) => actions(node).length !== 1 || node.options[node.options.length - 1] !== actions(node)[0] || node.options.some((option) => !option.to && !option.action));
+  assert.deepStrictEqual(wrong.map((node) => node.id), []);
 });
 
 test('every answer has a picture after inheritance', () => {

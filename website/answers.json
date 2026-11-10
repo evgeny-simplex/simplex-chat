@@ -1,11 +1,5 @@
 {
   "start": "home",
-  "always": [
-    {
-      "label": "Get the app",
-      "to": "get-start"
-    }
-  ],
   "nodes": [
     {
       "id": "home",
@@ -30,29 +24,44 @@
           "to": "families-start"
         },
         {
-          "label": "Join or run a community",
+          "label": "Run a channel or community",
           "to": "publishers-start"
         },
         {
           "label": "Talk to my customers",
           "to": "business-start"
+        }
+      ]
+    },
+    {
+      "id": "invest-start",
+      "answer": {
+        "title": "Infrastructure for all communications",
+        "text": "SimpleX is the only messaging network without user identifiers. It has 600,000+ monthly users, 20x more than at our 2023 round, and 200+ people have invested on Wefunder so far. We plan to earn from businesses and big channels, while private messaging stays free. What would you like to know first?",
+        "image": {
+          "src": "/img/crowdfunding/no-user-ids.webp",
+          "w": 1200,
+          "h": 1257,
+          "alt": "People connected through the network without user identifiers"
+        }
+      },
+      "options": [
+        {
+          "label": "How fast is it growing?",
+          "to": "invest-growth"
         },
         {
-          "label": "Pay and get paid with crypto",
-          "to": "crypto-start"
+          "label": "How will it make money?",
+          "to": "invest-money"
         },
         {
-          "label": "Build something on SimpleX",
-          "to": "engineers-start"
+          "label": "What do I get if I invest?",
+          "to": "invest-perks"
         },
         {
-          "label": "Keep my private life safe",
-          "to": "privacy-start"
-        },
-        {
-          "label": "Invest before December 10 to reserve your public name",
-          "to": "invest-perks",
-          "notice": true
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
@@ -79,205 +88,13 @@
           "to": "families-parents"
         },
         {
-          "label": "Set up my child's phone",
-          "to": "families-child"
+          "label": "Is it safer than WhatsApp?",
+          "to": "privacy-compare"
         },
         {
-          "label": "Move our WhatsApp group",
-          "to": "families-move"
-        },
-        {
-          "label": "Call and share photos",
-          "to": "families-together"
-        },
-        {
-          "label": "Keep strangers and scammers away",
-          "to": "families-strangers"
-        },
-        {
-          "label": "Keep our chats if a phone is lost",
-          "to": "backup-start"
-        }
-      ]
-    },
-    {
-      "id": "families-bring",
-      "answer": {
-        "title": "Bring everyone at once",
-        "text": "Today you create a group, name it Family and send its link through any app you already use. Each person installs SimpleX, opens the link and joins while your phone is online. You can let each person in yourself, and you can delete the link when everyone has joined."
-      },
-      "options": [
-        {
-          "label": "See what we can do together",
-          "to": "families-together"
-        },
-        {
-          "label": "Run a school or parents' group",
-          "to": "publishers-community"
-        },
-        {
-          "label": "Read the group guide",
-          "url": "https://simplex.chat/docs/guide/secret-groups.html"
-        }
-      ]
-    },
-    {
-      "id": "families-parents",
-      "answer": {
-        "title": "Get my parents on it",
-        "text": "Your parents need one link from you, and then they can write to you and call you. Nobody else can reach them unless a link is shared with that person, so their chat list holds only the people they know. The app works in more than 25 languages, and the text can be made larger."
-      },
-      "options": [
-        {
-          "label": "Send them an invitation",
-          "to": "get-connect"
-        },
-        {
-          "label": "Make it easy for them to use",
-          "to": "families-easy"
-        },
-        {
-          "label": "Keep scammers away from them",
-          "to": "families-strangers"
-        },
-        {
-          "label": "Call them",
-          "to": "families-calls"
-        },
-        {
-          "label": "Apps don't connect where they live",
-          "to": "privacy-blocked"
-        }
-      ]
-    },
-    {
-      "id": "families-easy",
-      "answer": {
-        "title": "Make it easy for them to use",
-        "text": "You can make the text larger, give each person a name your parents recognise and put the family in a list of its own. You can do all of this for them when you install the app on their phone."
-      },
-      "options": [
-        {
-          "label": "Use it on a tablet",
-          "to": "devices-start"
-        },
-        {
-          "label": "Read the settings guide",
-          "url": "https://simplex.chat/docs/guide/app-settings.html"
-        }
-      ]
-    },
-    {
-      "id": "families-strangers",
-      "answer": {
-        "title": "Keep strangers and scammers away",
-        "text": "SimpleX uses no phone numbers and holds no directory of people, so a stranger has nothing to look up. Someone can reach you only through a link you gave them or a group you are both in, and a request through your address waits until you accept it."
-      },
-      "options": [
-        {
-          "label": "Check it is really them",
-          "to": "privacy-verify"
-        },
-        {
-          "label": "See how abuse is handled",
-          "to": "moderation-how"
-        },
-        {
-          "label": "Learn how the privacy works",
-          "to": "privacy-how"
-        }
-      ]
-    },
-    {
-      "id": "families-child",
-      "answer": {
-        "title": "Set up my child's phone",
-        "text": "A child needs no phone number on SimpleX, so an old phone on home Wi-Fi is enough, and nobody can look your child up. Your child can still share a link with anyone. The conditions of use set the minimum age at 13, and your country may set it higher."
-      },
-      "options": [
-        {
-          "label": "Read why encryption protects children",
-          "url": "https://simplex.chat/blog/20240601-protecting-children-safety-requires-e2e-encryption.html"
-        }
-      ]
-    },
-    {
-      "id": "families-move",
-      "answer": {
-        "title": "Move our WhatsApp group",
-        "text": "A family can move at its own pace. You post the link to your new Family group in your WhatsApp group, and people join when they are ready while the old group keeps working. Old messages stay in WhatsApp for now."
-      },
-      "options": [
-        {
-          "label": "Create the Family group",
-          "to": "families-bring"
-        },
-        {
-          "label": "Move something else",
-          "to": "move-start"
-        }
-      ]
-    },
-    {
-      "id": "families-together",
-      "answer": {
-        "title": "Call and share photos",
-        "text": "You can write, send voice messages of up to five minutes, send photos, videos and files of up to 1 GB, and call each other by audio or video. Groups have replies, mentions and reactions, and you choose how each chat notifies you."
-      },
-      "options": [
-        {
-          "label": "Call the family",
-          "to": "families-calls"
-        },
-        {
-          "label": "Share and keep photos",
-          "to": "families-photos"
-        },
-        {
-          "label": "See what it can and cannot do",
-          "to": "get-features"
-        },
-        {
-          "label": "Find out what it costs",
-          "to": "money-free"
-        }
-      ]
-    },
-    {
-      "id": "families-calls",
-      "answer": {
-        "title": "Call them",
-        "text": "You can call any contact by audio or video, and the call is end-to-end encrypted. A call connects two people, and by default it goes through a relay server, so the other person does not see your IP address."
-      },
-      "options": [
-        {
-          "label": "Fix a call that fails",
-          "to": "get-broken"
-        },
-        {
-          "label": "Read the calls guide",
-          "url": "https://simplex.chat/docs/guide/audio-video-calls.html"
-        }
-      ]
-    },
-    {
-      "id": "families-photos",
-      "answer": {
-        "title": "Share and keep photos",
-        "text": "You can send up to ten photos at a time. They are reduced in size so that they arrive quickly, and you can send a photo as a file to keep its full quality. Files wait on the servers for 48 hours, or for 7 or 21 days with a supporter or legend badge."
-      },
-      "options": [
-        {
-          "label": "Keep files longer with a badge",
-          "url": "https://simplex.chat/badges/"
-        },
-        {
-          "label": "Keep our chats if a phone is lost",
-          "to": "backup-start"
-        },
-        {
-          "label": "Read how to send files",
-          "url": "https://simplex.chat/docs/guide/send-messages.html"
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
         }
       ]
     },
@@ -296,439 +113,21 @@
       },
       "options": [
         {
-          "label": "Find channels and groups",
-          "to": "publishers-find"
-        },
-        {
           "label": "Start a channel today",
           "to": "publishers-create"
         },
         {
-          "label": "Move my Telegram channel",
+          "label": "Keep my Telegram channel safe",
           "to": "publishers-telegram"
-        },
-        {
-          "label": "Add it to my Substack or YouTube",
-          "to": "publishers-companion"
         },
         {
           "label": "Run a community by my rules",
           "to": "publishers-community"
         },
         {
-          "label": "Earn from my readers",
-          "to": "publishers-earn"
-        },
-        {
-          "label": "Get a name for my channel",
-          "to": "names-start"
-        }
-      ]
-    },
-    {
-      "id": "publishers-find",
-      "answer": {
-        "title": "Find channels and groups",
-        "text": "SimpleX Directory lists more than 500 reviewed groups and channels, and each one opens from a link. A channel shows its recent posts before you join, and other subscribers cannot see that you read it."
-      },
-      "options": [
-        {
-          "label": "Browse the directory",
-          "url": "https://simplex.chat/directory/"
-        },
-        {
-          "label": "Read a real channel",
-          "url": "https://simplex.chat/news/"
-        },
-        {
-          "label": "Join the SimpleX users group",
-          "url": "https://smp4.simplex.im/g#hr4lvFeBmndWMKTwqiodPz3VBo_6UmdGWocXd1SupsM"
-        },
-        {
-          "label": "See how readers stay private",
-          "to": "publishers-reader"
-        }
-      ]
-    },
-    {
-      "id": "publishers-reader",
-      "answer": {
-        "title": "See how readers stay private",
-        "text": "A reader opens your link, sees your recent posts and taps Join. New posts then arrive like messages, and the reader can react to them. Other subscribers cannot see who is reading, and the servers cannot connect one channel a person reads to another."
-      },
-      "options": [
-        {
-          "label": "Read how channels work",
-          "url": "https://simplex.chat/docs/protocol/channels-overview.html"
-        },
-        {
-          "label": "Understand why readers are private",
-          "to": "privacy-how"
-        },
-        {
-          "label": "Bring my family too",
-          "to": "families-start"
-        }
-      ]
-    },
-    {
-      "id": "publishers-create",
-      "answer": {
-        "title": "Start a channel today",
-        "text": "Open the app, choose Create public channel, add a name and a picture, and share the link. Chat relays forward your posts from the first day, and you can add contributors who post with you."
-      },
-      "options": [
-        {
-          "label": "Choose a group or a channel",
-          "to": "publishers-kind"
-        },
-        {
-          "label": "Put my channel on my website",
-          "to": "publishers-web"
-        },
-        {
-          "label": "Get my channel listed",
-          "to": "publishers-listed"
-        },
-        {
-          "label": "Work with my team",
-          "to": "publishers-team"
-        },
-        {
-          "label": "Find out who can shut me down",
-          "to": "publishers-ownership"
-        }
-      ]
-    },
-    {
-      "id": "publishers-kind",
-      "answer": {
-        "title": "Choose a group or a channel",
-        "text": "In a channel you and your contributors post, and readers follow and react. Relays forward each post, so a channel can grow to any size, and its posts are public. In a group every member can write and messages are end-to-end encrypted, and because members connect to each other it strains as it grows."
-      },
-      "options": [
-        {
-          "label": "Start a channel today",
-          "to": "publishers-create"
-        },
-        {
-          "label": "Run a community by my rules",
-          "to": "publishers-community"
-        },
-        {
-          "label": "Read why channels are public",
-          "url": "https://simplex.chat/blog/20260430-simplex-channels-v6-5-consortium-crowdfunding-freedom-of-speech.html"
-        }
-      ]
-    },
-    {
-      "id": "publishers-telegram",
-      "answer": {
-        "title": "Move my Telegram channel",
-        "text": "Keep your Telegram channel and open a SimpleX channel beside it. You share the link with your readers, and those who join remain with you if Telegram blocks the channel. Today you post to both by hand."
-      },
-      "options": [
-        {
-          "label": "See what my readers get",
-          "to": "publishers-reader"
-        },
-        {
-          "label": "Compare it with Telegram",
-          "to": "publishers-compare"
-        },
-        {
-          "label": "Start my channel now",
-          "to": "publishers-create"
-        },
-        {
-          "label": "Move my bot too",
-          "to": "engineers-move"
-        },
-        {
-          "label": "Talk to the team about moving",
-          "url": "https://simplex.chat/connect-team/"
-        }
-      ]
-    },
-    {
-      "id": "publishers-companion",
-      "answer": {
-        "title": "Add it to my Substack or YouTube",
-        "text": "Your platform keeps working as it does now, and a SimpleX channel gives you a second line to the same people. You add the link to your posts and videos, and readers who join get every new post as a message, whatever an algorithm or a ban does to the other platform."
-      },
-      "options": [
-        {
-          "label": "Put my channel on my website",
-          "to": "publishers-web"
-        },
-        {
-          "label": "Get a name people remember",
-          "to": "names-start"
-        },
-        {
-          "label": "Start my channel now",
-          "to": "publishers-create"
-        }
-      ]
-    },
-    {
-      "id": "publishers-web",
-      "answer": {
-        "title": "Put my channel on my website",
-        "text": "Your channel can appear on your own website. The app gives you a short piece of code, you paste it into your page, and visitors see your recent posts and a Join button before they install anything."
-      },
-      "options": [
-        {
-          "label": "See a real channel page",
-          "url": "https://simplex.chat/news/"
-        },
-        {
-          "label": "Follow the setup guide",
-          "url": "https://simplex.chat/docs/guide/channel-webpage.html"
-        }
-      ]
-    },
-    {
-      "id": "publishers-listed",
-      "answer": {
-        "title": "Get my channel listed",
-        "text": "People find you through your link, your name, your web page and SimpleX Directory. You submit your group or channel by sharing its link with the directory bot, and it is usually approved within 24 hours. The directory lists spaces that follow its rules, and anybody can run a directory with other rules."
-      },
-      "options": [
-        {
-          "label": "Appeal a decision",
-          "to": "moderation-remove"
-        },
-        {
-          "label": "Connect to the directory bot",
-          "url": "https://smp4.simplex.im/a#lXUjJW5vHYQzoLYgmi8GbxkGP41_kjefFvBrdwg-0Ok"
-        },
-        {
-          "label": "Read how to submit my group or channel",
-          "url": "https://simplex.chat/docs/directory.html"
-        }
-      ]
-    },
-    {
-      "id": "publishers-team",
-      "answer": {
-        "title": "Work with my team",
-        "text": "You can give people roles in your channel. Contributors post with you, moderators delete posts and block subscribers, and you can sign every message so that readers can verify it."
-      },
-      "options": [
-        {
-          "label": "Keep spam and abuse out",
-          "to": "publishers-moderate"
-        },
-        {
-          "label": "Keep my channel if I lose my phone",
-          "to": "publishers-ownership"
-        }
-      ]
-    },
-    {
-      "id": "publishers-community",
-      "answer": {
-        "title": "Run a school or parents' group",
-        "text": "You set the rules of your group, from who joins and who posts to what remains. Members can talk to admins privately and report problems, and the largest listed group has more than 9,000 members."
-      },
-      "options": [
-        {
-          "label": "Keep spam and abuse out",
-          "to": "publishers-moderate"
-        },
-        {
-          "label": "Grow past thousands of members",
-          "to": "publishers-scale"
-        },
-        {
-          "label": "Compare it with Discord",
-          "to": "publishers-compare"
-        },
-        {
-          "label": "See how abuse is handled",
-          "to": "moderation-how"
-        },
-        {
-          "label": "Report something harmful",
-          "to": "moderation-report"
-        },
-        {
-          "label": "Add a bot to my group",
-          "to": "engineers-first-bot"
-        }
-      ]
-    },
-    {
-      "id": "publishers-moderate",
-      "answer": {
-        "title": "Keep spam and abuse out",
-        "text": "You can delete any message, block a member for everyone, remove people with their messages, review each newcomer and make trusted members moderators. Members report problems to your moderators privately, and groups listed in SimpleX Directory can add a captcha and word filters."
-      },
-      "options": [
-        {
-          "label": "Stop an attack now",
-          "to": "moderation-attack"
-        },
-        {
-          "label": "Share the work with moderators",
-          "to": "publishers-team"
-        },
-        {
-          "label": "Read the guide to groups",
-          "url": "https://simplex.chat/docs/guide/secret-groups.html"
-        }
-      ]
-    },
-    {
-      "id": "moderation-attack",
-      "answer": {
-        "title": "Stop an attack now",
-        "text": "Turn on member review, so that newcomers wait for you. Set new members on your link to observer, so that they can read and cannot post. Block the members who are flooding, and remove them with their messages."
-      },
-      "options": [
-        {
-          "label": "Read how to protect a group",
-          "url": "https://simplex.chat/blog/20250729-simplex-chat-v6-4-1-welcome-contacts-protect-groups-app-security.html"
-        }
-      ]
-    },
-    {
-      "id": "publishers-scale",
-      "answer": {
-        "title": "Grow past thousands of members",
-        "text": "Channels are built for any number of subscribers, because relays forward each post and subscribers never connect to each other. The largest listed channel has 750 subscribers today. Groups run peer-to-peer, and the largest listed group has more than 9,000 members."
-      },
-      "options": [
-        {
-          "label": "See what a big channel pays",
-          "to": "money-prices"
-        },
-        {
-          "label": "Run my own relay",
-          "url": "https://simplex.chat/docs/chat-relay.html"
-        }
-      ]
-    },
-    {
-      "id": "publishers-earn",
-      "answer": {
-        "title": "Earn from my readers",
-        "text": "SimpleX shows your readers no ads, and you keep what they pay you. Today you can post your own payment link in your channel."
-      },
-      "options": [
-        {
-          "label": "Pay and get paid in crypto",
-          "to": "crypto-start"
-        },
-        {
-          "label": "Sell to my readers as a business",
-          "to": "business-start"
-        }
-      ]
-    },
-    {
-      "id": "publishers-ownership",
-      "answer": {
-        "title": "Find out who can shut me down",
-        "text": "Your channel's keys are on your devices, so no operator can take it from you. Chat relays forward your posts. If a relay stops forwarding them, you add another relay or run your own, and your link, your name and your subscribers remain the same."
-      },
-      "options": [
-        {
-          "label": "Get a name that stays mine",
-          "to": "names-start"
-        },
-        {
-          "label": "See who keeps it independent",
-          "to": "trust-owner"
-        },
-        {
-          "label": "Run my own relay",
-          "url": "https://simplex.chat/docs/chat-relay.html"
-        }
-      ]
-    },
-    {
-      "id": "publishers-compare",
-      "answer": {
-        "title": "Compare it with Telegram",
-        "text": "You keep your audience, your rules and your readers' privacy. Telegram and Discord are ahead today on scheduling, pins, statistics, comments, voice rooms and paid subscriptions."
-      },
-      "options": [
-        {
-          "label": "Move my Telegram channel",
-          "to": "publishers-telegram"
-        },
-        {
-          "label": "Tell the team what I need",
-          "url": "https://simplex.chat/connect-team/"
-        }
-      ]
-    },
-    {
-      "id": "moderation-how",
-      "answer": {
-        "title": "See how abuse is handled",
-        "text": "Private chats stay private, from us too. Most child abuse material online is shared in places anyone can open, so anyone can report it and we can reach it as anyone can. We check each complaint, then block the link and its files on our servers, without scanning chats and without identifying anyone."
-      },
-      "options": [
-        {
-          "label": "Report something harmful",
-          "to": "moderation-report"
-        },
-        {
-          "label": "See what can and can't be removed",
-          "to": "moderation-remove"
-        },
-        {
-          "label": "See requests for data",
-          "url": "https://simplex.chat/transparency/"
-        },
-        {
-          "label": "Read how moderation works",
-          "url": "https://simplex.chat/blog/20250114-simplex-network-large-groups-privacy-preserving-content-moderation.html"
-        },
-        {
-          "label": "Read our answer to Wired",
-          "url": "https://simplex.chat/blog/20241016-wired-attack-on-privacy.html"
-        }
-      ]
-    },
-    {
-      "id": "moderation-report",
-      "answer": {
-        "title": "Report something harmful",
-        "text": "In a group, press and hold a message and choose Report, and only moderators see it. For illegal content in a public group, send its link to the SimpleX team in the app or to chat@simplex.chat. We check it and answer."
-      },
-      "options": [
-        {
-          "label": "See what can and can't be removed",
-          "to": "moderation-remove"
-        },
-        {
-          "label": "Send it to the team",
-          "url": "https://simplex.chat/connect-team/"
-        }
-      ]
-    },
-    {
-      "id": "moderation-remove",
-      "answer": {
-        "title": "Appeal a decision",
-        "text": "We can block a public link or a file on the servers we run, and remove a group from our directory. We can't read private messages, see who talks to whom or reach servers run by others. If you think we got it wrong, write to the team with the link, and a person reads it."
-      },
-      "options": [
-        {
-          "label": "Appeal to the team",
-          "url": "https://simplex.chat/connect-team/"
-        },
-        {
-          "label": "Read the conditions of use",
-          "url": "https://simplex.chat/privacy/"
-        },
-        {
-          "label": "Read the directory rules",
-          "url": "https://simplex.chat/docs/directory.html"
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
         }
       ]
     },
@@ -759,1399 +158,9 @@
           "to": "business-team"
         },
         {
-          "label": "Work with my team here",
-          "to": "business-together"
-        },
-        {
-          "label": "Get a name customers can find",
-          "to": "names-start"
-        },
-        {
-          "label": "See what it costs",
-          "to": "money-prices"
-        }
-      ]
-    },
-    {
-      "id": "business-today",
-      "answer": {
-        "title": "Start today",
-        "text": "You can start now. Make a profile for your business in the app, turn on Business address and write a welcome message. Share the link or the QR code, and each customer gets a separate chat with you. For now your customers need the SimpleX app."
-      },
-      "options": [
-        {
-          "label": "Bring my customers over",
-          "to": "business-move"
-        },
-        {
-          "label": "Send updates to my customers",
-          "to": "business-updates"
-        },
-        {
-          "label": "Stop depending on a platform",
-          "to": "business-own"
-        },
-        {
-          "label": "Read the business guide",
-          "url": "https://simplex.chat/docs/business.html"
-        },
-        {
-          "label": "Try it with the SimpleX team",
-          "url": "https://simplex.chat/connect-team/"
-        }
-      ]
-    },
-    {
-      "id": "business-move",
-      "answer": {
-        "title": "Bring my customers over",
-        "text": "You can keep WhatsApp or Telegram while customers move at their own pace. Put your link in your profile, your messages and your receipts. Each customer who opens it gets a private chat with you, and you pay nothing per message there."
-      },
-      "options": [
-        {
-          "label": "Move my channel too",
-          "to": "publishers-telegram"
-        },
-        {
-          "label": "business.customer",
-          "to": "business-customer"
-        }
-      ]
-    },
-    {
-      "id": "business-updates",
-      "answer": {
-        "title": "Send updates to my customers",
-        "text": "A customer who connected to you stays connected, so you can write to them later in the same chat. A bot can do this today, one chat at a time, and it can send what your own systems produce, such as an order update."
-      },
-      "options": [
-        {
-          "label": "Publish a channel instead",
-          "to": "publishers-create"
-        },
-        {
-          "label": "Build it with the bot library",
-          "to": "engineers-first-bot"
-        }
-      ]
-    },
-    {
-      "id": "business-customer",
-      "answer": {
-        "title": "",
-        "text": "Your customer sees your name, logo and welcome before sending anything, and the first message goes with the request to connect. They choose the name you see."
-      },
-      "options": [
-        {
-          "label": "Reach a customer who has left",
-          "to": "business-updates"
-        },
-        {
-          "label": "Try it with the SimpleX team",
-          "url": "https://simplex.chat/connect-team/"
-        }
-      ]
-    },
-    {
-      "id": "business-trust",
-      "answer": {
-        "title": "",
-        "text": "Messages are end-to-end encrypted between your customer and you, and servers hold no profiles or contact lists. You read what your customer writes and you keep it, so it is yours to protect. If you use an AI provider, it reads what the bot sends it."
-      },
-      "options": [
-        {
-          "label": "See what servers can see",
-          "to": "privacy-who"
-        },
-        {
-          "label": "Read the privacy policy",
-          "url": "https://simplex.chat/privacy/"
-        }
-      ]
-    },
-    {
-      "id": "business-ai",
-      "answer": {
-        "title": "Let AI answer first",
-        "text": "A bot can answer first and bring in a person when the customer asks. SimpleX's own line works this way. The customer chooses the AI, the AI answers from a file the team wrote, and the first reply from the team ends it. You run the bot yourself, so you pay your AI provider and nobody else for each answer."
-      },
-      "options": [
-        {
-          "label": "Hand over to my team",
-          "to": "business-team"
-        },
-        {
-          "label": "Build my own bot",
-          "to": "engineers-first-bot"
-        },
-        {
-          "label": "Read how the support bot works",
-          "url": "https://github.com/simplex-chat/simplex-chat/tree/master/apps/simplex-support-bot"
-        },
-        {
-          "label": "business.trust",
-          "to": "business-trust"
-        }
-      ]
-    },
-    {
-      "id": "business-team",
-      "answer": {
-        "title": "Answer as a team",
-        "text": "On your own, you answer in the app. With a team, your line runs on your own server, each new chat appears as a card in your team's group, and anyone on the team can join it with one tap. The customer sees who is answering. Today a developer sets this up."
-      },
-      "options": [
-        {
-          "label": "Run the bot on my server",
-          "url": "https://github.com/simplex-chat/simplex-chat/tree/master/apps/simplex-support-bot"
-        },
-        {
-          "label": "Read what happens if I lose the server",
-          "url": "https://simplex.chat/docs/business.html#limitations"
-        }
-      ]
-    },
-    {
-      "id": "business-together",
-      "answer": {
-        "title": "Work with my team here",
-        "text": "Your team can talk in a private group today, with files of up to 1 GB, voice messages and calls between two people."
-      },
-      "options": [
-        {
-          "label": "Bring the whole team at once",
-          "to": "families-bring"
-        },
-        {
-          "label": "Use our own servers",
-          "to": "privacy-servers"
-        }
-      ]
-    },
-    {
-      "id": "business-own",
-      "answer": {
-        "title": "Stop depending on a platform",
-        "text": "On other channels a platform holds your number or account, sets the price of each message and can restrict you. On SimpleX your line is a set of keys on your device, and your address sits on servers you choose, your own among them. If you move your address, the customers you already talk to stay connected."
-      },
-      "options": [
-        {
-          "label": "Bring my customers over",
-          "to": "business-move"
-        },
-        {
-          "label": "Run my own servers",
-          "to": "engineers-servers"
-        },
-        {
-          "label": "Read what happens if I lose my phone",
-          "url": "https://simplex.chat/docs/business.html#limitations"
-        }
-      ]
-    },
-    {
-      "id": "crypto-start",
-      "answer": {
-        "title": "Pay and get paid in a private chat",
-        "text": "You can reach a seller, a friend or a service on SimpleX without a phone number or an account, and pay them from the wallet you already use. The address they give you stays inside the end-to-end encrypted conversation."
-      },
-      "options": [
-        {
-          "label": "Pay someone in a chat",
-          "to": "crypto-pay"
-        },
-        {
-          "label": "Get paid for what I sell",
-          "to": "crypto-sell"
-        },
-        {
-          "label": "Keep payments apart from chats",
-          "to": "crypto-linked"
-        },
-        {
-          "label": "Support a channel I read",
-          "to": "publishers-earn"
-        },
-        {
-          "label": "Buy a name or a badge with crypto",
-          "to": "crypto-buy"
-        },
-        {
-          "label": "Check whether SimpleX has a coin",
-          "to": "crypto-token"
-        }
-      ]
-    },
-    {
-      "id": "crypto-pay",
-      "answer": {
-        "title": "Pay someone in a chat",
-        "text": "Today you ask for an address in the chat, copy it and pay from your wallet. The address stays inside the end-to-end encrypted conversation, so servers cannot read it."
-      },
-      "options": [
-        {
-          "label": "Keep this payment apart from others",
-          "to": "crypto-linked"
-        }
-      ]
-    },
-    {
-      "id": "crypto-sell",
-      "answer": {
-        "title": "Get paid for what I sell",
-        "text": "Independent sellers and exchange services already publish a SimpleX address, because a customer can write to them without an account. A business address gives each customer a separate chat with you, and a bot can answer first. Until requests arrive, the payment itself happens in the customer's wallet."
-      },
-      "options": [
-        {
-          "label": "Give my shop a name",
-          "to": "names-start"
-        },
-        {
-          "label": "Talk to my customers",
-          "to": "business-start"
-        }
-      ]
-    },
-    {
-      "id": "crypto-linked",
-      "answer": {
-        "title": "Keep payments apart from chats",
-        "text": "The network has no user identifiers, so no account ties your payments to your chats. A public chain still records what each address did, so use a new address for each payment, which Monero does for you. The store keeps the record of what you buy for tax, and it cannot see your chats. A name's record is public."
-      },
-      "options": [
-        {
-          "label": "See what servers can see",
-          "to": "privacy-who"
-        },
-        {
-          "label": "Protect my IP address",
-          "to": "privacy-ip"
-        }
-      ]
-    },
-    {
-      "id": "crypto-buy",
-      "answer": {
-        "title": "Buy a name or a badge with crypto",
-        "text": "You can buy a supporter badge with Bitcoin, Monero or a card and redeem the code in the app, with no account. SimpleX names will go on sale at simplex.domains, and you can pay for them with Monero or Bitcoin."
-      },
-      "options": [
-        {
-          "label": "Buy a badge",
-          "url": "https://simplex.chat/badges/"
-        },
-        {
-          "label": "Get a name",
-          "to": "names-start"
-        }
-      ]
-    },
-    {
-      "id": "crypto-token",
-      "answer": {
-        "title": "Check whether SimpleX has a coin",
-        "text": "SimpleX has no coin of its own, and you pay for names and badges with coins that already exist. Community Credits are the way communities will pay for servers. They are not a tradable token, there will be no pre-sale or emission, and they can be redeemed only with listed network operators."
-      },
-      "options": [
-        {
-          "label": "See who pays for SimpleX",
-          "to": "money-free"
-        },
-        {
-          "label": "Read about Community Credits",
-          "url": "https://simplex.chat/credits/"
-        },
-        {
-          "label": "See why names use a blockchain",
-          "url": "https://simplex.chat/docs/protocol/names-overview.html"
-        }
-      ]
-    },
-    {
-      "id": "engineers-start",
-      "answer": {
-        "title": "Build what people reach in a chat",
-        "text": "Build something people reach in a chat. A bot on SimpleX needs no account, token or review, and it runs on your laptop with no open port. It holds its own keys, so no platform can suspend it.",
-        "image": {
-          "src": "/img/crowdfunding/ai.png",
-          "w": 1080,
-          "h": 1017,
-          "alt": "A bot answering in a chat"
-        }
-      },
-      "options": [
-        {
-          "label": "Make my first bot",
-          "to": "engineers-first-bot"
-        },
-        {
-          "label": "Move a bot I already run",
-          "to": "engineers-move"
-        },
-        {
-          "label": "Send alerts to my phone",
-          "to": "engineers-alerts"
-        },
-        {
-          "label": "Put chat in my own app or site",
-          "to": "engineers-embed"
-        },
-        {
-          "label": "Get paid for what I build",
-          "to": "engineers-paid"
-        },
-        {
-          "label": "Run a server or a relay",
-          "to": "engineers-servers"
-        },
-        {
-          "label": "Connect my AI",
-          "to": "ai-start"
-        }
-      ]
-    },
-    {
-      "id": "engineers-first-bot",
-      "answer": {
-        "title": "Add a bot to my group",
-        "text": "Install a package, write ten lines and open the address your bot prints. Anyone with that address can talk to it, with no sign-up on either side. If your bot goes offline, messages wait on the server for up to 21 days."
-      },
-      "options": [
-        {
-          "label": "Use another language",
-          "to": "engineers-any-language"
-        },
-        {
-          "label": "Give it buttons and menus",
-          "to": "engineers-interface"
-        },
-        {
-          "label": "Run it on a server",
-          "to": "engineers-run"
-        },
-        {
-          "label": "Help people find it",
-          "to": "engineers-found"
-        },
-        {
-          "label": "Can I build a product on this?",
-          "to": "engineers-licence"
-        },
-        {
-          "label": "Read the Node.js library",
-          "url": "https://github.com/simplex-chat/simplex-chat/tree/stable/packages/simplex-chat-nodejs"
-        },
-        {
-          "label": "Read the guide for agents",
-          "url": "https://simplex.chat/llms/agents.md"
-        }
-      ]
-    },
-    {
-      "id": "engineers-any-language",
-      "answer": {
-        "title": "Use another language",
-        "text": "Any language works today. Run the terminal client as a local server, and your program exchanges JSON with it over a WebSocket. Node.js and Python have libraries, Rust has a community library, and the commands and events are documented."
-      },
-      "options": [
-        {
-          "label": "Read the commands",
-          "url": "https://github.com/simplex-chat/simplex-chat/blob/stable/bots/api/COMMANDS.md"
-        }
-      ]
-    },
-    {
-      "id": "engineers-interface",
-      "answer": {
-        "title": "Give it buttons and menus",
-        "text": "A bot has a command menu today, commands a person taps in a message, messages it can update, streamed text and Markdown. The calculator bot shows how far this goes, with a working keypad in one message."
-      },
-      "options": [
-        {
-          "label": "See the calculator's code",
-          "url": "https://github.com/simplex-chat/simplex-chat/tree/master/apps/simplex-calculator-bot"
-        }
-      ]
-    },
-    {
-      "id": "engineers-move",
-      "answer": {
-        "title": "Move my bot too",
-        "text": "Your bot keeps its logic. You change the calls that send and receive, your users connect through a new address, and your bot then needs no company's token. In January 2026 WhatsApp barred general-purpose AI chatbots from its Business API in most countries."
-      },
-      "options": [
-        {
-          "label": "I also run a Telegram channel",
-          "to": "publishers-telegram"
-        },
-        {
-          "label": "My bot takes payments",
-          "to": "engineers-paid"
-        }
-      ]
-    },
-    {
-      "id": "engineers-alerts",
-      "answer": {
-        "title": "Send alerts to my phone",
-        "text": "Get a message on your phone from a script, a server or a sensor, with no phone number. The terminal client sends one from a single command today, and six independent projects use SimpleX this way."
-      },
-      "options": [
-        {
-          "label": "Make a bot that answers back",
-          "to": "engineers-first-bot"
-        },
-        {
-          "label": "Read the terminal guide",
-          "url": "https://simplex.chat/docs/cli.html"
-        }
-      ]
-    },
-    {
-      "id": "engineers-found",
-      "answer": {
-        "title": "Help people find it",
-        "text": "People reach your bot through its link, a QR code or your website, and a public name gives it an address they can remember and check. Your site can publish that address for people and software to find."
-      },
-      "options": [
-        {
-          "label": "Get a public name",
-          "to": "names-start"
-        },
-        {
-          "label": "Get paid for what I build",
-          "to": "engineers-paid"
-        },
-        {
-          "label": "Publish my address on my site",
-          "url": "https://simplex.chat/docs/protocol/web-discovery.html"
-        }
-      ]
-    },
-    {
-      "id": "engineers-paid",
-      "answer": {
-        "title": "Get paid for what I build",
-        "text": "You keep your customers and choose how to charge. A bot can send a payment link or an invoice as a message today, and nothing stands between you and the buyer. The app has no payment step yet."
-      },
-      "options": [
-        {
-          "label": "Take crypto",
-          "to": "crypto-sell"
-        },
-        {
-          "label": "I sell to businesses",
-          "to": "business-start"
-        }
-      ]
-    },
-    {
-      "id": "engineers-run",
-      "answer": {
-        "title": "Run it on a server",
-        "text": "A bot is a program with its own database. Run it on a laptop or a small server. It makes outgoing connections only, so it needs no domain or certificate, and for volume you can use PostgreSQL on Linux."
-      },
-      "options": [
-        {
-          "label": "See what my bot learns",
-          "to": "engineers-sees"
-        },
-        {
-          "label": "Read the Node.js library",
-          "url": "https://github.com/simplex-chat/simplex-chat/tree/stable/packages/simplex-chat-nodejs"
-        }
-      ]
-    },
-    {
-      "id": "engineers-sees",
-      "answer": {
-        "title": "See what my bot learns",
-        "text": "Your bot sees the messages sent to it and the profile a person chose to share, which can be random. You hold no phone numbers or emails, so you have none to lose. In a group, a bot reads the group."
-      },
-      "options": [
-        {
-          "label": "Learn how privacy works here",
-          "to": "privacy-how"
-        }
-      ]
-    },
-    {
-      "id": "engineers-embed",
-      "answer": {
-        "title": "Put chat in my own app or site",
-        "text": "Put SimpleX in your own product. The Node.js and Python libraries include the whole core, so a server, a desktop app, a wallet or a payment service can use them today to message its users."
-      },
-      "options": [
-        {
-          "label": "Can I build a product on this?",
-          "to": "engineers-licence"
-        },
-        {
-          "label": "Read the bot API",
-          "url": "https://github.com/simplex-chat/simplex-chat/blob/master/bots/README.md"
-        }
-      ]
-    },
-    {
-      "id": "engineers-licence",
-      "answer": {
-        "title": "Can I build a product on this?",
-        "text": "The network is open, and nobody has to approve what you build. The software is AGPL-3.0. The protocol is licensed to a non-profit foundation permanently, so it stays available whoever owns the company."
-      },
-      "options": [
-        {
-          "label": "See who keeps it independent",
-          "to": "trust-owner"
-        },
-        {
-          "label": "Read the licence",
-          "url": "https://github.com/simplex-chat/simplex-chat/blob/stable/LICENSE"
-        }
-      ]
-    },
-    {
-      "id": "engineers-servers",
-      "answer": {
-        "title": "Run my own servers",
-        "text": "Anyone can run SimpleX servers, and about 1,000 are run by volunteers at their own cost. You can run a messaging server, a file server or a chat relay for channels. We plan that big channels pay for delivery, and that operators earn up to 65% of what they pay."
-      },
-      "options": [
-        {
-          "label": "Run a messaging server",
-          "url": "https://simplex.chat/docs/server.html"
-        },
-        {
-          "label": "Run a file server",
-          "url": "https://simplex.chat/docs/xftp-server.html"
-        },
-        {
-          "label": "Run a chat relay",
-          "url": "https://simplex.chat/docs/chat-relay.html"
-        },
-        {
-          "label": "Help someone connect",
-          "to": "privacy-help"
-        },
-        {
-          "label": "Ask how the share will work",
-          "url": "https://simplex.chat/connect-team/"
-        }
-      ]
-    },
-    {
-      "id": "ai-start",
-      "answer": {
-        "title": "Connect my AI",
-        "text": "An AI on SimpleX is a contact in your chats. It sees what you send it and nothing else in the app, and SimpleX asks you for no phone number or email. What do you want it to do for you?"
-      },
-      "options": [
-        {
-          "label": "Control my agent from my phone",
-          "to": "ai-remote"
-        },
-        {
-          "label": "See who reads what I ask",
-          "to": "ai-reads"
-        },
-        {
-          "label": "Let it use bots and services",
-          "to": "ai-tools"
-        },
-        {
-          "label": "Approve what it does",
-          "to": "ai-approve"
-        },
-        {
-          "label": "Add a bot to my group",
-          "to": "engineers-first-bot"
-        }
-      ]
-    },
-    {
-      "id": "ai-remote",
-      "answer": {
-        "title": "Control my agent from my phone",
-        "text": "Connect Claude Code on your computer to the SimpleX app by scanning a code. You write prompts in a chat on your phone, and it asks there before it connects, sends or leaves. You need no bot token, and no port open to the internet."
-      },
-      "options": [
-        {
-          "label": "Approve what it does",
-          "to": "ai-approve"
-        },
-        {
-          "label": "Let it use bots and services",
-          "to": "ai-tools"
-        },
-        {
-          "label": "Set it up now",
-          "url": "https://github.com/simplex-chat/simplex-chat/tree/master/packages/simplex-chat-mcp"
-        },
-        {
-          "label": "Use OpenClaw",
-          "url": "https://github.com/dangoldbj/openclaw-simplex"
-        }
-      ]
-    },
-    {
-      "id": "ai-approve",
-      "answer": {
-        "title": "Approve what it does",
-        "text": "Your agent posts a card in a private chat that says what it wants to do and to whom. One tap approves or rejects it. You can approve all its messages to one chat, and take that back at any time."
-      },
-      "options": [
-        {
-          "label": "Set it up now",
-          "url": "https://github.com/simplex-chat/simplex-chat/tree/master/packages/simplex-chat-mcp"
-        }
-      ]
-    },
-    {
-      "id": "ai-tools",
-      "answer": {
-        "title": "Let it use bots and services",
-        "text": "Your agent can connect to any bot and use the commands it offers, and one bot can serve people and software. We have drafted how services declare their tools, so SimpleX may become a network where agents find and call services with nobody in the middle."
-      },
-      "options": [
-        {
-          "label": "Offer a service",
-          "to": "engineers-found"
-        },
-        {
-          "label": "Read the draft",
-          "url": "https://github.com/simplex-chat/simplex-chat/blob/master/docs/protocol/agent-protocols.md"
-        }
-      ]
-    },
-    {
-      "id": "ai-reads",
-      "answer": {
-        "title": "See who reads what I ask",
-        "text": "It depends on where the AI runs. On your phone or your own machine, nobody else reads anything. With Claude Code, Anthropic reads what the session sends it, as it does without SimpleX. The operator of a hosted assistant reads each request and cannot tell who you are unless you say so. SimpleX servers deliver encrypted messages and read none of this."
-      },
-      "options": [
-        {
-          "label": "See what servers can see",
-          "to": "privacy-who"
-        }
-      ]
-    },
-    {
-      "id": "privacy-start",
-      "answer": {
-        "title": "Safety for your private life",
-        "text": "Your chats hold your family life, your health, your money and your work, and on SimpleX they stay between you and the people you choose. Nobody can reach you without a link from you, and no company holds a list of the people you talk to. What would you like to protect first?",
-        "image": {
-          "src": "/img/new/unique-section-1.png",
-          "w": 941,
-          "h": 718,
-          "alt": "What a server can and cannot see of a message",
-          "dark": "/img/new/unique-section-1-dark.png"
-        }
-      },
-      "options": [
-        {
-          "label": "Keep scammers and strangers away",
-          "to": "families-strangers"
-        },
-        {
-          "label": "Keep my money and accounts safe",
-          "to": "privacy-ip"
-        },
-        {
-          "label": "Keep my data out of leaks, ads and AI",
-          "to": "privacy-data"
-        },
-        {
-          "label": "Protect my chats if I lose my phone",
-          "to": "privacy-device"
-        },
-        {
-          "label": "See how it is safer than WhatsApp",
-          "to": "privacy-compare"
-        },
-        {
-          "label": "Talk in confidence at work",
-          "to": "journalists-start"
-        },
-        {
-          "label": "Why does this matter to me?",
-          "to": "privacy-why"
-        }
-      ]
-    },
-    {
-      "id": "privacy-why",
-      "answer": {
-        "title": "Why does this matter to me?",
-        "text": "Everyone locks the front door and keeps a bank PIN private, and nobody finds that strange. The people you talk to say just as much about you, because they include your doctor, your bank, your lawyer and your children's school. Companies use such lists to set your prices, and the lists get stolen, as AT&T reported in 2024 about the call and text records of nearly all its customers. SimpleX keeps no such list, so nobody can sell it or steal it."
-      },
-      "options": [
-        {
-          "label": "Keep my data out of leaks, ads and AI",
-          "to": "privacy-data"
-        },
-        {
-          "label": "See how it is safer than WhatsApp",
-          "to": "privacy-compare"
-        },
-        {
-          "label": "See who can see my messages",
-          "to": "privacy-who"
-        },
-        {
-          "label": "Bring my family and friends",
-          "to": "families-start"
-        },
-        {
-          "label": "Read why we build it",
-          "url": "https://simplex.chat/why/"
-        }
-      ]
-    },
-    {
-      "id": "privacy-data",
-      "answer": {
-        "title": "Keep my data out of leaks, ads and AI",
-        "text": "Your messages, your contacts and your profile are stored on your phone. Servers pass on encrypted messages and delete them once they are delivered, so a leak from a server would show no chat history and no address book. We can't read your chats, so we can't target you with ads or train an AI on them, and we have no user data to sell."
-      },
-      "options": [
-        {
-          "label": "See who can see my messages",
-          "to": "privacy-who"
-        },
-        {
-          "label": "See how it is safer than WhatsApp",
-          "to": "privacy-compare"
-        },
-        {
-          "label": "Back up my chats",
-          "to": "backup-start"
-        },
-        {
-          "label": "Find out how it is paid for",
-          "to": "money-free"
-        },
-        {
-          "label": "Read the privacy policy",
-          "url": "https://simplex.chat/privacy/"
-        }
-      ]
-    },
-    {
-      "id": "privacy-who",
-      "answer": {
-        "title": "See what servers can see",
-        "text": "Only the people in a conversation can read it. Messages are end-to-end encrypted and padded to one size, so a server can neither read them nor measure them. A server sees the random addresses of the queues it hosts and the times of messages. With private routing, on by default, the server your contact chose does not see your IP address. Your internet provider sees which servers you connect to."
-      },
-      "options": [
-        {
-          "label": "Find out how it works",
-          "to": "privacy-how"
-        },
-        {
-          "label": "Choose who runs my servers",
-          "to": "privacy-servers"
-        },
-        {
-          "label": "Check it is really them",
-          "to": "privacy-verify"
-        },
-        {
-          "label": "Keep my group private",
-          "to": "privacy-groups"
-        },
-        {
-          "label": "Keep today's messages safe in future",
-          "to": "privacy-quantum"
-        },
-        {
-          "label": "See what SimpleX cannot protect",
-          "to": "privacy-limits"
-        },
-        {
-          "label": "Read the threat model",
-          "url": "https://github.com/simplex-chat/simplexmq/blob/stable/protocol/security.md"
-        }
-      ]
-    },
-    {
-      "id": "privacy-how",
-      "answer": {
-        "title": "Learn how the privacy works",
-        "text": "Most apps give you one number or username for all your conversations, so all of them are tied to you. SimpleX gives each conversation its own random addresses, one for each direction and usually on different servers, and your contacts and groups are stored only on your device. To connect, people share a link or a QR code that also holds the encryption keys, so servers cannot replace them."
-      },
-      "options": [
-        {
-          "label": "Read how SimpleX works",
-          "url": "https://simplex.chat/docs/simplex.html"
-        },
-        {
-          "label": "Read the protocol overview",
-          "url": "https://github.com/simplex-chat/simplexmq/blob/master/protocol/overview-tjr.md"
-        },
-        {
-          "label": "Read why we build it",
-          "url": "https://simplex.chat/why/"
-        },
-        {
-          "label": "Watch the film",
-          "url": "https://www.youtube.com/watch?v=k-GhLNZm8G0"
-        },
-        {
-          "label": "Read why who you talk to matters",
-          "url": "https://simplex.chat/blog/20240416-dangers-of-metadata-in-messengers.html"
-        },
-        {
-          "label": "Read the hard choices we made",
-          "url": "https://simplex.chat/blog/20240516-simplex-redefining-privacy-hard-choices.html"
-        },
-        {
-          "label": "Read the glossary",
-          "url": "https://simplex.chat/docs/glossary.html"
-        }
-      ]
-    },
-    {
-      "id": "privacy-limits",
-      "answer": {
-        "title": "See what SimpleX cannot protect",
-        "text": "A contact can keep what you send, and malware on your phone can read what the app shows. Someone who can watch the traffic of both people can confirm that they communicate. The servers that deliver your messages see your IP address unless you use a VPN or Tor."
-      },
-      "options": [
-        {
-          "label": "Protect my phone",
-          "to": "privacy-device"
-        },
-        {
-          "label": "Compare it with WhatsApp or Signal",
-          "to": "privacy-compare"
-        },
-        {
-          "label": "Use a VPN or Tor",
-          "url": "https://simplex.chat/docs/guide/privacy-security.html#using-tor"
-        }
-      ]
-    },
-    {
-      "id": "privacy-verify",
-      "answer": {
-        "title": "Check it is really them",
-        "text": "Anyone can copy a name and a picture, so a profile can't tell you who is writing. The keys are part of the link you share, so servers cannot replace them. To check that nobody replaced the link on the way, compare your security code in person or in a call, and the app then marks the contact as verified."
-      },
-      "options": [
-        {
-          "label": "See how to compare codes",
-          "url": "https://simplex.chat/docs/guide/privacy-security.html#security-code-verification"
-        }
-      ]
-    },
-    {
-      "id": "privacy-quantum",
-      "answer": {
-        "title": "Keep today's messages safe in future",
-        "text": "A future quantum computer could read messages recorded today, so direct chats are protected against that by default. Groups use the same encryption without that extra step for now."
-      },
-      "options": [
-        {
-          "label": "Read how it was added",
-          "url": "https://simplex.chat/blog/20240314-simplex-chat-v5-6-quantum-resistance-signal-double-ratchet-algorithm.html"
-        },
-        {
-          "label": "Read the specification",
-          "url": "https://github.com/simplex-chat/simplexmq/blob/stable/protocol/pqdr.md"
-        }
-      ]
-    },
-    {
-      "id": "privacy-groups",
-      "answer": {
-        "title": "Keep my group private",
-        "text": "A group's members and profile are stored on members' devices, and each message is end-to-end encrypted for each member. Members are introduced through the person who invited them, so to be sure of a connection you compare security codes. Public channels work differently, because posts are public and relays protect who reads them."
-      },
-      "options": [
-        {
-          "label": "Check who I am talking to",
-          "to": "privacy-verify"
-        },
-        {
-          "label": "Bring my family into a group",
-          "to": "families-bring"
-        },
-        {
-          "label": "Run a community",
-          "to": "publishers-community"
-        }
-      ]
-    },
-    {
-      "id": "privacy-blocked",
-      "answer": {
-        "title": "Apps don't connect where they live",
-        "text": "Some countries and networks stop messaging apps from connecting, and this can separate families and friends across borders. The app still connects through a VPN, a SOCKS proxy or Tor, and your messages stay end-to-end encrypted on the way. It does not depend on the simplex.chat website, so it keeps working when the site can't be reached."
-      },
-      "options": [
-        {
-          "label": "Connect now",
-          "to": "privacy-access"
-        },
-        {
-          "label": "Help someone connect",
-          "to": "privacy-help"
-        },
-        {
-          "label": "Bring my family",
-          "to": "families-start"
-        },
-        {
-          "label": "Reach readers in another country",
-          "to": "journalists-exile"
-        },
-        {
-          "label": "Install without a store",
-          "url": "https://simplex.chat/downloads/"
-        }
-      ]
-    },
-    {
-      "id": "privacy-access",
-      "answer": {
-        "title": "Connect now",
-        "text": "If a friend or an organisation gives you a proxy, open Network & servers, turn on the SOCKS proxy and enter the address. For a proxy that is not Tor, turn off random credentials. With Tor, start Orbot first. If someone runs a server your network can reach, you can add it and change the receiving address of each conversation."
-      },
-      "options": [
-        {
-          "label": "Protect my IP address",
-          "to": "privacy-ip"
-        },
-        {
-          "label": "Use a server of my own",
-          "to": "privacy-servers"
-        },
-        {
-          "label": "See the settings step by step",
-          "url": "https://simplex.chat/docs/guide/app-settings.html#network-and-servers"
-        }
-      ]
-    },
-    {
-      "id": "privacy-help",
-      "answer": {
-        "title": "Help someone connect",
-        "text": "If you are somewhere SimpleX works, you can help a person who cannot connect by running a small server on port 443 and giving them its address. The server sees their IP address and the times of their traffic, and it cannot read their messages. Give the address only to people you know."
-      },
-      "options": [
-        {
-          "label": "Run a server",
-          "to": "engineers-servers"
-        },
-        {
-          "label": "Translate these pages",
-          "to": "marketing-translate"
-        },
-        {
-          "label": "Send them the app",
-          "url": "https://simplex.chat/downloads/"
-        }
-      ]
-    },
-    {
-      "id": "privacy-ip",
-      "answer": {
-        "title": "Protect my IP address",
-        "text": "Your IP address shows roughly where you are, and your bank, your payment apps and your crypto exchange record it each time you log in. If a messenger or a contact also sees it, a leak can connect your chats to your accounts and your home. By default SimpleX sends messages through a forwarding server and calls through a relay, so the people you talk to and their servers never see your IP address, and preset servers keep no log of it."
-      },
-      "options": [
-        {
-          "label": "Keep my payments apart from my chats",
-          "to": "crypto-linked"
-        },
-        {
-          "label": "See who can see my messages",
-          "to": "privacy-who"
-        },
-        {
-          "label": "Choose who runs my servers",
-          "to": "privacy-servers"
-        },
-        {
-          "label": "See what SimpleX cannot protect",
-          "to": "privacy-limits"
-        },
-        {
-          "label": "Read how private routing works",
-          "url": "https://simplex.chat/blog/20240604-simplex-chat-v5.8-private-message-routing-chat-themes.html"
-        }
-      ]
-    },
-    {
-      "id": "privacy-servers",
-      "answer": {
-        "title": "Use our own servers",
-        "text": "Anyone can run servers. SimpleX Chat and Flux are preset, and when both are enabled the app uses servers of both in each conversation, so neither learns who talks to whom. You can turn either off, add others or use your own, and a conversation can move to another server."
-      },
-      "options": [
-        {
-          "label": "Run my own server",
-          "to": "engineers-servers"
-        },
-        {
-          "label": "Read why two operators matter",
-          "url": "https://simplex.chat/blog/20241125-servers-operated-by-flux-true-privacy-and-decentralization-for-all-users.html"
-        },
-        {
-          "label": "See what operators commit to",
-          "url": "https://simplex.chat/privacy/"
-        }
-      ]
-    },
-    {
-      "id": "privacy-device",
-      "answer": {
-        "title": "Protect my chats if I lose my phone",
-        "text": "Your chats are kept in an encrypted database on your phone, and a passcode on the app keeps them closed to whoever finds it. Messages can disappear when both sides agree, a profile can sit behind its own password, and a second passcode can erase everything. We can't wipe a lost phone for you, because you have no account, so set the lock before you need it."
-      },
-      "options": [
-        {
-          "label": "Back up my chats",
-          "to": "backup-start"
-        },
-        {
-          "label": "See what the app cannot protect",
-          "to": "privacy-limits"
-        },
-        {
-          "label": "Read the settings guide",
-          "url": "https://simplex.chat/docs/guide/privacy-security.html"
-        },
-        {
-          "label": "Read about chat profiles",
-          "url": "https://simplex.chat/docs/guide/chat-profiles.html"
-        }
-      ]
-    },
-    {
-      "id": "privacy-notify",
-      "answer": {
-        "title": "Fix notifications and battery",
-        "text": "On Android the app keeps its own background connection, so Google is not involved, and you can switch to a check every 10 minutes. On iPhone, notifications pass through Apple and the SimpleX Chat push server, and neither sees the content or the sender. On both, you choose how much a notification shows on the lock screen."
-      },
-      "options": [
-        {
-          "label": "Fix something that does not work",
-          "to": "get-broken"
-        },
-        {
-          "label": "Use several devices",
-          "to": "devices-start"
-        },
-        {
-          "label": "See what a push server learns",
-          "url": "https://github.com/simplex-chat/simplexmq/blob/stable/protocol/push-notifications.md"
-        }
-      ]
-    },
-    {
-      "id": "privacy-check",
-      "answer": {
-        "title": "Check the claims for myself",
-        "text": "The apps and servers are open source. Trail of Bits reviewed the implementation in 2022 and the cryptographic design in 2024, and a third audit was completed in 2026 and will be published. You can rebuild the servers, the Linux apps and Android from source, though not the iOS app. We publish every request for user data that we receive."
-      },
-      "options": [
-        {
-          "label": "See requests for data",
-          "url": "https://simplex.chat/transparency/"
-        },
-        {
-          "label": "Check something I heard",
-          "to": "marketing-check"
-        },
-        {
-          "label": "See who is behind SimpleX",
-          "to": "trust-owner"
-        },
-        {
-          "label": "Read the 2024 design review",
-          "url": "https://simplex.chat/blog/20241014-simplex-network-v6-1-security-review-better-calls-user-experience.html"
-        },
-        {
-          "label": "Rebuild it myself",
-          "url": "https://simplex.chat/reproduce/"
-        },
-        {
-          "label": "See the source code",
-          "url": "https://github.com/simplex-chat/simplex-chat"
-        },
-        {
-          "label": "Report a vulnerability",
-          "url": "https://simplex.chat/security/"
-        }
-      ]
-    },
-    {
-      "id": "privacy-compare",
-      "answer": {
-        "title": "See how it is safer than WhatsApp",
-        "text": "WhatsApp and Signal encrypt your messages, and Telegram does this only in secret chats that you start yourself. All three register you with a phone number, so your safety rests on a company's promise about what that account reveals, and a breach or a change of owner can end a promise. SimpleX registers nobody, so the protection is part of how the network is built. These apps are ahead today on linked devices, backups and group calls."
-      },
-      "options": [
-        {
-          "label": "See who can see my messages",
-          "to": "privacy-who"
-        },
-        {
-          "label": "See what it can and cannot do",
-          "to": "get-features"
-        },
-        {
-          "label": "Move from another messenger",
-          "to": "move-start"
-        },
-        {
-          "label": "Check the claims for myself",
-          "to": "privacy-check"
-        },
-        {
-          "label": "Back up my chats",
-          "to": "backup-start"
-        },
-        {
-          "label": "Use several devices",
-          "to": "devices-start"
-        },
-        {
-          "label": "See the present table",
-          "url": "https://simplex.chat/messaging/#messengers-comparison"
-        }
-      ]
-    },
-    {
-      "id": "journalists-start",
-      "answer": {
-        "title": "Talk in confidence at work",
-        "text": "Some work depends on confidence, such as a doctor with a patient, a lawyer with a client, a union with a member or a journalist with a source. On SimpleX people reach you through a link, without a phone number, an email or an account, and each person has a separate conversation."
-      },
-      "options": [
-        {
-          "label": "Protect my clients or patients",
-          "to": "journalists-others"
-        },
-        {
-          "label": "Let sources reach me",
-          "to": "journalists-tipline"
-        },
-        {
-          "label": "Report wrongdoing to a journalist",
-          "to": "journalists-source"
-        },
-        {
-          "label": "Reach readers in another country",
-          "to": "journalists-exile"
-        },
-        {
-          "label": "Compare it with SecureDrop",
-          "to": "journalists-compare"
-        },
-        {
-          "label": "I am writing about SimpleX",
-          "to": "journalists-press"
-        }
-      ]
-    },
-    {
-      "id": "journalists-source",
-      "answer": {
-        "title": "Report wrongdoing to a journalist",
-        "text": "If you have seen wrongdoing at work, you can tell a journalist in confidence, without a phone number or an email. Install SimpleX on a device your employer does not manage, use a network they do not run, and scan the QR code on the newsroom's own tip page. Choose a random profile when you connect, and add your first message to the request. Someone who watches the traffic of both you and the newsroom can confirm that you communicate."
-      },
-      "options": [
-        {
-          "label": "Send a document",
-          "to": "journalists-documents"
-        },
-        {
-          "label": "Protect my phone",
-          "to": "privacy-device"
-        },
-        {
-          "label": "Protect my IP address",
-          "to": "privacy-ip"
-        },
-        {
-          "label": "Find a newsroom in the directory",
-          "url": "https://simplex.chat/directory/"
-        },
-        {
-          "label": "Read how to share with the press",
-          "url": "https://freedom.press/digisec/blog/sharing-sensitive-leaks-press/"
-        }
-      ]
-    },
-    {
-      "id": "journalists-documents",
-      "answer": {
-        "title": "Send a document",
-        "text": "In the app you can send a file of up to 1 GB, end-to-end encrypted, and preset file servers keep it for 48 hours. The apps remove metadata from static images, and the iOS app also from videos. A document sent as a file keeps its metadata, so check it first or send a screenshot."
-      },
-      "options": [
-        {
-          "label": "Send a file from a browser",
-          "url": "https://simplex.chat/file/"
-        },
-        {
-          "label": "Use Tor",
-          "url": "https://simplex.chat/docs/guide/privacy-security.html#using-tor"
-        }
-      ]
-    },
-    {
-      "id": "journalists-tipline",
-      "answer": {
-        "title": "Let sources reach me",
-        "text": "You can open a tip line today. Create a separate chat profile, make a SimpleX address and put it on your tip page as a link and a QR code. When you meet someone, show a one-time link as a QR code, which works for one person. You can delete the address at any time and keep the people who already reached you."
-      },
-      "options": [
-        {
-          "label": "Tell sources how to write safely",
-          "to": "journalists-source"
-        },
-        {
-          "label": "Answer tips as a team",
-          "to": "business-team"
-        },
-        {
-          "label": "Read how connections work",
-          "url": "https://simplex.chat/docs/guide/making-connections.html"
-        }
-      ]
-    },
-    {
-      "id": "journalists-exile",
-      "answer": {
-        "title": "Reach readers in another country",
-        "text": "If your site can't be reached where your readers live, a SimpleX channel reaches them without a phone number or an account, and readers do not see each other. A reader with something to tell you writes to your tip address in a separate end-to-end encrypted chat. Where SimpleX itself can't connect, readers use a proxy."
-      },
-      "options": [
-        {
-          "label": "Start a channel",
-          "to": "publishers-create"
-        },
-        {
-          "label": "Move my Telegram channel",
-          "to": "publishers-telegram"
-        },
-        {
-          "label": "Open a tip line beside it",
-          "to": "journalists-tipline"
-        },
-        {
-          "label": "Help readers connect",
-          "to": "privacy-help"
-        }
-      ]
-    },
-    {
-      "id": "journalists-others",
-      "answer": {
-        "title": "Protect my clients or patients",
-        "text": "Lawyers, doctors, advisers, unions and helplines all depend on people speaking freely. You publish one address and each client gets a separate conversation, with no phone number or account on either side. With a business address, colleagues can join a client's conversation."
-      },
-      "options": [
-        {
-          "label": "Open a line for my clients",
-          "to": "journalists-tipline"
-        },
-        {
-          "label": "Talk to customers as a business",
-          "to": "business-start"
-        }
-      ]
-    },
-    {
-      "id": "journalists-compare",
-      "answer": {
-        "title": "Compare it with SecureDrop",
-        "text": "SecureDrop needs Tor Browser from a source and its own servers at a newsroom, while Signal is familiar and registers each person with a phone number. Hush Line and GlobaLeaks take a first message in a browser. SimpleX needs the app on the source's device, but it uses no phone number or account on either side and it keeps a two-way conversation."
-      },
-      "options": [
-        {
-          "label": "Add SimpleX beside what I use",
-          "to": "journalists-tipline"
-        },
-        {
-          "label": "Check what servers can see",
-          "to": "privacy-who"
-        }
-      ]
-    },
-    {
-      "id": "journalists-press",
-      "answer": {
-        "title": "I am writing about SimpleX",
-        "text": "Key facts and the timeline give each number with its date and source, and the transparency reports show every request for user data. Ask us anything before you publish."
-      },
-      "options": [
-        {
-          "label": "Check something I heard",
-          "to": "marketing-check"
-        },
-        {
-          "label": "Read the key facts",
-          "url": "https://simplex.chat/llms/facts.md"
-        },
-        {
-          "label": "See what others wrote",
-          "url": "https://simplex.chat/links/"
-        },
-        {
-          "label": "Read the blog",
-          "url": "https://simplex.chat/blog/"
-        },
-        {
-          "label": "Ask the team",
-          "url": "https://simplex.chat/connect-team/"
-        }
-      ]
-    },
-    {
-      "id": "invest-start",
-      "answer": {
-        "title": "Infrastructure for all communications",
-        "text": "SimpleX is the only messaging network without user identifiers. It has 600,000+ monthly users, 20x more than at our 2023 round, and 200+ people have invested on Wefunder so far. We plan to earn from businesses and big channels, while private messaging stays free. What would you like to know first?",
-        "image": {
-          "src": "/img/crowdfunding/no-user-ids.webp",
-          "w": 1200,
-          "h": 1257,
-          "alt": "People connected through the network without user identifiers"
-        }
-      },
-      "options": [
-        {
-          "label": "How fast is it growing?",
-          "to": "invest-growth"
-        },
-        {
-          "label": "How will it make money?",
-          "to": "invest-money"
-        },
-        {
-          "label": "How big can this get?",
-          "to": "invest-big"
-        },
-        {
-          "label": "Why can't others copy it?",
-          "to": "invest-moat"
-        },
-        {
-          "label": "Who is behind it?",
-          "to": "invest-team"
-        },
-        {
-          "label": "What could go wrong?",
-          "to": "invest-risk"
-        },
-        {
-          "label": "What do I get if I invest?",
-          "to": "invest-perks"
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
         }
       ]
     },
@@ -2163,125 +172,21 @@
       },
       "options": [
         {
-          "label": "How do you count users?",
-          "to": "invest-count"
-        },
-        {
           "label": "Do people stay?",
           "to": "invest-engage"
-        },
-        {
-          "label": "Who are they?",
-          "to": "invest-users"
-        },
-        {
-          "label": "What is driving it?",
-          "to": "invest-drivers"
-        },
-        {
-          "label": "What happens next?",
-          "to": "invest-next"
-        },
-        {
-          "label": "How will it make money?",
-          "to": "invest-money"
-        }
-      ]
-    },
-    {
-      "id": "invest-count",
-      "answer": {
-        "title": "How do you count users?",
-        "text": "We can't count people, because the network has no user identifiers. So 600,000 is our estimate, made from app store reports and the traffic through our servers. Those servers deliver over 20 million messages a day."
-      },
-      "options": [
-        {
-          "label": "Do people stay?",
-          "to": "invest-engage"
-        },
-        {
-          "label": "See how the network works",
-          "to": "privacy-how"
-        }
-      ]
-    },
-    {
-      "id": "invest-engage",
-      "answer": {
-        "title": "Do people stay?",
-        "text": "About one monthly user in five opens SimpleX every day, up from 17% to 21% in the six months to April, and about one in four in the US and Germany. Public groups in our directory hold over 160,000 memberships. Not everyone stays: a wave that came from Telegram in 2024 fell by about a quarter within a month."
-      },
-      "options": [
-        {
-          "label": "Who are they?",
-          "to": "invest-users"
-        },
-        {
-          "label": "What is driving it?",
-          "to": "invest-drivers"
-        }
-      ]
-    },
-    {
-      "id": "invest-users",
-      "answer": {
-        "title": "Who are they?",
-        "text": "By our estimate, the largest groups are people who put their safety and privacy first, people in countries that restrict other apps, and families. Creators run thousands of public groups and channels, over 50 businesses support customers here, developers gave the project over 19,000 GitHub stars, and volunteers run about 1,000 servers. Each group makes the network more useful to the others."
-      },
-      "options": [
-        {
-          "label": "See how a family uses it",
-          "to": "families-start"
-        },
-        {
-          "label": "See what developers build",
-          "to": "engineers-start"
-        },
-        {
-          "label": "See how creators use it",
-          "to": "publishers-start"
-        },
-        {
-          "label": "What is driving it?",
-          "to": "invest-drivers"
-        }
-      ]
-    },
-    {
-      "id": "invest-drivers",
-      "answer": {
-        "title": "What is driving it?",
-        "text": "People bring the people they talk to, and independent reviewers recommend SimpleX. Growth jumps when people lose an app they relied on, through a ban or a change of rules. Groups and channels can bring whole audiences at once, and they can't yet be found from inside the app, so that lever is still ahead of us."
-      },
-      "options": [
-        {
-          "label": "What happens next?",
-          "to": "invest-next"
         },
         {
           "label": "Why now?",
           "to": "invest-why-now"
-        }
-      ]
-    },
-    {
-      "id": "invest-next",
-      "answer": {
-        "title": "What happens next?",
-        "text": "The name sale is our first real test of revenue. We plan to add search for groups and channels in the app this year, then business chat for websites and paid servers for big channels, and widgets inside chats in 2027. Our goals for the next two years are to launch revenue, reach 1–2 million monthly users and cover our costs."
-      },
-      "options": [
-        {
-          "label": "What do names earn?",
-          "to": "invest-names"
         },
         {
-          "label": "How could I make a return?",
-          "to": "invest-return"
+          "label": "How will it make money?",
+          "to": "invest-money"
         },
         {
-          "label": "Reserve a name by investing",
-          "to": "invest-perks"
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
@@ -2297,222 +202,263 @@
           "to": "invest-names"
         },
         {
-          "label": "What do businesses pay for?",
-          "to": "invest-business"
-        },
-        {
-          "label": "What do big channels pay for?",
-          "to": "invest-servers"
-        },
-        {
-          "label": "What can users buy?",
-          "to": "invest-badges"
-        },
-        {
-          "label": "Can this earn as much as ads?",
-          "to": "invest-arpu"
-        },
-        {
-          "label": "Why would the company earn?",
-          "to": "invest-capture"
-        },
-        {
-          "label": "When does it start?",
-          "to": "invest-next"
-        }
-      ]
-    },
-    {
-      "id": "invest-names",
-      "answer": {
-        "title": "What do names earn?",
-        "text": "A public name lets people find a channel or a business without a long link, and only the owner's key controls it. Names will go on sale at about $50 a year. At that price, 10,000 names would cover our operating cost of about $360,000 a year. In 2022 Telegram sold over $50 million of usernames in about four weeks, with far more users than we have."
-      },
-      "options": [
-        {
-          "label": "Who would buy 10,000 names?",
-          "to": "invest-names-who"
-        },
-        {
-          "label": "Reserve a name by investing",
-          "to": "invest-perks"
-        },
-        {
-          "label": "Check whether a name is free",
-          "url": "https://simplex.domains/"
-        },
-        {
-          "label": "Read about public names",
-          "url": "https://simplex.chat/blog/20260722-simplex-public-names.html"
-        }
-      ]
-    },
-    {
-      "id": "invest-names-who",
-      "answer": {
-        "title": "Who would buy 10,000 names?",
-        "text": "First the owners of groups and channels: over 500 are listed in our directory, and thousands more exist. Then the businesses that already talk to customers here, brands that want to protect their own name, and people who name a bot or an agent. The public sale will show how many of them buy."
-      },
-      "options": [
-        {
-          "label": "What do businesses pay for?",
-          "to": "invest-business"
-        },
-        {
-          "label": "Reserve a name by investing",
-          "to": "invest-perks"
-        }
-      ]
-    },
-    {
-      "id": "invest-business",
-      "answer": {
-        "title": "What do businesses pay for?",
-        "text": "A business gets a private line to each customer without holding phone numbers or accounts, so it has no contact list to lose. We are building chat for any website, in one line of code, with nothing for a visitor to install. We expect $20–100 a month per business. Over 50 businesses already support customers here, and they would be the first customers."
-      },
-      "options": [
-        {
-          "label": "Who are these businesses?",
-          "to": "invest-businesses"
-        },
-        {
-          "label": "Why pay when chat widgets are free?",
-          "to": "invest-why-pay"
-        },
-        {
-          "label": "See what a business gets",
-          "to": "business-start"
-        }
-      ]
-    },
-    {
-      "id": "invest-businesses",
-      "answer": {
-        "title": "Who are these businesses?",
-        "text": "Most are crypto services, shops, and hosting and VPN providers, and they came without any sales effort. None pays us yet, because we have nothing to sell them beyond a name. They show that businesses want a line to customers that no platform controls, and whether they will pay for more is what we have to prove."
-      },
-      "options": [
-        {
-          "label": "Why pay when chat widgets are free?",
-          "to": "invest-why-pay"
-        },
-        {
-          "label": "What do names earn?",
-          "to": "invest-names"
-        }
-      ]
-    },
-    {
-      "id": "invest-why-pay",
-      "answer": {
-        "title": "Why pay when chat widgets are free?",
-        "text": "We won't win on chat features, because good free tools exist. We can win where a conversation depends on confidence, such as ethics lines, HR and legal advice. There, the product is that no provider holds a list of who asked, and a provider with accounts can only promise that."
-      },
-      "options": [
-        {
           "label": "Why can't others copy it?",
           "to": "invest-moat"
         },
         {
-          "label": "What do big channels pay for?",
-          "to": "invest-servers"
-        }
-      ]
-    },
-    {
-      "id": "invest-servers",
-      "answer": {
-        "title": "What do big channels pay for?",
-        "text": "A channel can reach any number of readers, because relays forward each post. Big channels that grow past the free tier would pay for delivery, at an expected $20–50 a month. Operators would earn up to 65% of that, several times their cost, and we would keep the rest."
-      },
-      "options": [
-        {
-          "label": "What do names earn?",
-          "to": "invest-names"
+          "label": "Who is behind it?",
+          "to": "invest-team"
         },
         {
-          "label": "Can this earn as much as ads?",
-          "to": "invest-arpu"
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
     {
-      "id": "invest-badges",
+      "id": "invest-perks",
       "answer": {
-        "title": "What can users buy?",
-        "text": "Supporter badges have been on sale since September, from $7 a month, by card, Bitcoin or Monero. A badge sends larger files that stay available longer, and it cannot identify who bought it. Users have also donated over $650,000 for an app they can use for free, including a large gift from Vitalik Buterin."
+        "title": "What do I get if I invest?",
+        "text": "Every investor receives a supporter badge, from one month at $100 to a year as a legend at $10,000. From $500 you also receive a public SimpleX name: 8 or more letters from $500, 7 from $1,000 and 6 from $5,000. It is registered for 5 years while early bird terms apply, and for 3 years after that. Invest before December 10 to reserve yours ahead of the public sale."
       },
       "options": [
         {
-          "label": "See the badges",
-          "url": "https://simplex.chat/badges/"
+          "label": "How do I invest?",
+          "to": "invest-how"
+        },
+        {
+          "label": "What can a name do for me?",
+          "to": "invest-name-use"
+        },
+        {
+          "label": "What do I reveal by investing?",
+          "to": "invest-reveal"
+        },
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "families-bring",
+      "answer": {
+        "title": "Bring everyone at once",
+        "text": "Today you create a group, name it Family and send its link through any app you already use. Each person installs SimpleX, opens the link and joins while your phone is online. You can let each person in yourself, and you can delete the link when everyone has joined."
+      },
+      "options": [
+        {
+          "label": "Move our WhatsApp group",
+          "to": "families-move"
+        },
+        {
+          "label": "What can we do together?",
+          "to": "families-together"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "families-parents",
+      "answer": {
+        "title": "Get my parents on it",
+        "text": "Your parents need one link from you, and then they can write to you and call you. Nobody else can reach them unless a link is shared with that person, so their chat list holds only the people they know. The app works in more than 25 languages, and the text can be made larger."
+      },
+      "options": [
+        {
+          "label": "Make it easy for them",
+          "to": "families-easy"
+        },
+        {
+          "label": "Keep scammers away from them",
+          "to": "families-strangers"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "privacy-compare",
+      "answer": {
+        "title": "See how it is safer than WhatsApp",
+        "text": "WhatsApp and Signal encrypt your messages, and Telegram does this only in secret chats that you start yourself. All three register you with a phone number, so your safety rests on a company's promise about what that account reveals, and a breach or a change of owner can end a promise. SimpleX registers nobody, so the protection is part of how the network is built. These apps are ahead today on linked devices, backups and group calls."
+      },
+      "options": [
+        {
+          "label": "Who can see my messages?",
+          "to": "privacy-who"
+        },
+        {
+          "label": "What does it cost?",
+          "to": "money-free"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "publishers-create",
+      "answer": {
+        "title": "Start a channel today",
+        "text": "Open the app, choose Create public channel, add a name and a picture, and share the link. Chat relays forward your posts from the first day, and you can add contributors who post with you."
+      },
+      "options": [
+        {
+          "label": "Put my channel on my website",
+          "to": "publishers-web"
+        },
+        {
+          "label": "Get a name for my channel",
+          "to": "names-start"
+        },
+        {
+          "label": "Can anyone shut me down?",
+          "to": "publishers-ownership"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "publishers-telegram",
+      "answer": {
+        "title": "Move my Telegram channel",
+        "text": "Keep your Telegram channel and open a SimpleX channel beside it. You share the link with your readers, and those who join remain with you if Telegram blocks the channel. Today you post to both by hand."
+      },
+      "options": [
+        {
+          "label": "What do my readers get?",
+          "to": "publishers-reader"
+        },
+        {
+          "label": "How does it compare with Telegram?",
+          "to": "publishers-compare"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "publishers-community",
+      "answer": {
+        "title": "Run a school or parents' group",
+        "text": "You set the rules of your group, from who joins and who posts to what remains. Members can talk to admins privately and report problems, and the largest listed group has more than 9,000 members."
+      },
+      "options": [
+        {
+          "label": "Keep spam and abuse out",
+          "to": "publishers-moderate"
+        },
+        {
+          "label": "Grow past thousands of members",
+          "to": "publishers-scale"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "business-today",
+      "answer": {
+        "title": "Start today",
+        "text": "You can start now. Make a profile for your business in the app, turn on Business address and write a welcome message. Share the link or the QR code, and each customer gets a separate chat with you. For now your customers need the SimpleX app."
+      },
+      "options": [
+        {
+          "label": "Bring my customers over",
+          "to": "business-move"
+        },
+        {
+          "label": "What does it cost?",
+          "to": "money-prices"
+        },
+        {
+          "label": "Get a name customers can find",
+          "to": "names-start"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "business-ai",
+      "answer": {
+        "title": "Let AI answer first",
+        "text": "A bot can answer first and bring in a person when the customer asks. SimpleX's own line works this way. The customer chooses the AI, the AI answers from a file the team wrote, and the first reply from the team ends it. You run the bot yourself, so you pay your AI provider and nobody else for each answer."
+      },
+      "options": [
+        {
+          "label": "Hand over to my team",
+          "to": "business-team"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "business-team",
+      "answer": {
+        "title": "Answer as a team",
+        "text": "On your own, you answer in the app. With a team, your line runs on your own server, each new chat appears as a card in your team's group, and anyone on the team can join it with one tap. The customer sees who is answering. Today a developer sets this up."
+      },
+      "options": [
+        {
+          "label": "Who can read these chats?",
+          "to": "business-trust"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "invest-engage",
+      "answer": {
+        "title": "Do people stay?",
+        "text": "About one monthly user in five opens SimpleX every day, up from 17% to 21% in the six months to April, and about one in four in the US and Germany. Public groups in our directory hold over 160,000 memberships. Not everyone stays: a wave that came from Telegram in 2024 fell by about a quarter within a month."
+      },
+      "options": [
+        {
+          "label": "How will it make money?",
+          "to": "invest-money"
         },
         {
           "label": "What do I get if I invest?",
           "to": "invest-perks"
         },
         {
-          "label": "Will users have to pay?",
-          "to": "money-free"
-        }
-      ]
-    },
-    {
-      "id": "invest-arpu",
-      "answer": {
-        "title": "Can this earn as much as ads?",
-        "text": "Ad networks earn from watching people. We think that weakens as AI agents do the looking, because an agent ignores ads and can pay small amounts within a budget its owner sets. A chat network can already earn more from services than from ads: in 2025 Tencent, the owner of WeChat, earned about $32B from payments, financial services and cloud, and about $20B from ads. We plan to earn a share of such payments, with nobody identified. This is our belief, and it is unproven."
-      },
-      "options": [
-        {
-          "label": "What does AI change?",
-          "to": "invest-ai"
-        },
-        {
-          "label": "Why would the company earn?",
-          "to": "invest-capture"
-        }
-      ]
-    },
-    {
-      "id": "invest-capture",
-      "answer": {
-        "title": "Why would the company earn?",
-        "text": "The code is open, so anyone can copy it, and we want others to build on the network. The company keeps what a fork can't take: the app and its store listings, the brand, the preset servers, and a share of what names and payments earn, protected by its veto in the SimpleX Network Consortium. The protocols are licensed to a non-profit foundation, so the network survives whoever owns the company."
-      },
-      "options": [
-        {
-          "label": "Why can't others copy it?",
-          "to": "invest-moat"
-        },
-        {
-          "label": "See who keeps it independent",
-          "to": "trust-owner"
-        }
-      ]
-    },
-    {
-      "id": "invest-big",
-      "answer": {
-        "title": "How big can this get?",
-        "text": "WhatsApp has over 3 billion monthly users and Telegram over 1 billion, so messaging is among the largest networks there are. We think the next one won't be built on identifiers, because AI makes phone numbers and usernames easy to abuse. SimpleX may become the network people and their AI agents use, and we are at the very start of that."
-      },
-      "options": [
-        {
-          "label": "Why now?",
-          "to": "invest-why-now"
-        },
-        {
-          "label": "What does AI change?",
-          "to": "invest-ai"
-        },
-        {
-          "label": "What is the long-term goal?",
-          "to": "invest-goal"
-        },
-        {
-          "label": "What happens next?",
-          "to": "invest-next"
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
@@ -2528,38 +474,35 @@
           "to": "invest-ai"
         },
         {
-          "label": "How fast is it growing?",
-          "to": "invest-growth"
-        }
-      ]
-    },
-    {
-      "id": "invest-ai",
-      "answer": {
-        "title": "What does AI change?",
-        "text": "Each new kind of computer has needed a new network: mainframes the Internet, PCs the web, phones the app stores. We believe AI models are the next kind of computer, and people already work with them in chat. You will want your agents to answer to you, with an identity no company can switch off. SimpleX may become that network, and our company plans to earn from it without owning it."
-      },
-      "options": [
-        {
           "label": "How will it make money?",
           "to": "invest-money"
         },
         {
-          "label": "Connect my AI today",
-          "to": "ai-start"
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
     {
-      "id": "invest-goal",
+      "id": "invest-names",
       "answer": {
-        "title": "What is the long-term goal?",
-        "text": "Telephony, email and the web each converged on one protocol. Messaging has not, because every app builds its own experience. We plan widgets inside chats in 2027, so that anyone can build that experience on one open network. SimpleX might become the network messaging converges on, owned by nobody."
+        "title": "What do names earn?",
+        "text": "A public name lets people find a channel or a business without a long link, and only the owner's key controls it. Names will go on sale at about $50 a year. At that price, 10,000 names would cover our operating cost of about $360,000 a year. In 2022 Telegram sold over $50 million of usernames in about four weeks, with far more users than we have."
       },
       "options": [
         {
-          "label": "Why would the company earn?",
-          "to": "invest-capture"
+          "label": "Why can't others copy it?",
+          "to": "invest-moat"
+        },
+        {
+          "label": "What do I get if I invest?",
+          "to": "invest-perks"
+        },
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
@@ -2571,71 +514,21 @@
       },
       "options": [
         {
-          "label": "What about Signal and WhatsApp?",
-          "to": "invest-vs-signal"
-        },
-        {
-          "label": "What about Session, Matrix and Nostr?",
-          "to": "invest-vs-others"
-        },
-        {
-          "label": "Can someone copy the code?",
-          "to": "invest-capture"
-        },
-        {
           "label": "Has anyone checked this?",
           "to": "invest-audits"
-        }
-      ]
-    },
-    {
-      "id": "invest-vs-signal",
-      "answer": {
-        "title": "What about Signal and WhatsApp?",
-        "text": "Signal and WhatsApp now offer usernames, so that other people don't see your number. Anyone who knows or guesses the username can still reach you, and the company still holds the account. That is the weakness of a phone number with a better promise. They see the problem, and their architecture doesn't let them solve it."
-      },
-      "options": [
-        {
-          "label": "Compare them in full",
-          "to": "privacy-compare"
         },
         {
-          "label": "Has anyone checked this?",
-          "to": "invest-audits"
-        }
-      ]
-    },
-    {
-      "id": "invest-vs-others",
-      "answer": {
-        "title": "What about Session, Matrix and Nostr?",
-        "text": "Session gives each person one permanent key, and Matrix and Nostr identify you by an account or a key, so an identifier still links your conversations. SimpleX gives you none, because every conversation has its own addresses. No other network also combines channels that scale with ownership that no operator can take away."
-      },
-      "options": [
-        {
-          "label": "See what servers can see",
-          "to": "privacy-who"
+          "label": "Who is behind it?",
+          "to": "invest-team"
         },
         {
-          "label": "Compare them in full",
-          "to": "privacy-compare"
-        }
-      ]
-    },
-    {
-      "id": "invest-audits",
-      "answer": {
-        "title": "Has anyone checked this?",
-        "text": "Trail of Bits audited SimpleX in 2022, 2024 and 2026, and the last report will be published soon. The code is open source, the servers and the Android and Linux apps can be rebuilt from it, and independent reviewers such as Privacy Guides recommend SimpleX. We publish every request for user data in our transparency reports."
-      },
-      "options": [
-        {
-          "label": "Check the claims for myself",
-          "to": "privacy-check"
+          "label": "What could go wrong?",
+          "to": "invest-risk"
         },
         {
-          "label": "See what SimpleX cannot protect",
-          "to": "privacy-limits"
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
@@ -2651,71 +544,370 @@
           "to": "invest-backers"
         },
         {
-          "label": "What do investors say?",
-          "to": "invest-voices"
-        },
-        {
           "label": "Hear from the founder",
           "to": "invest-webinar"
         },
         {
-          "label": "Who controls the network?",
-          "to": "trust-owner"
+          "label": "What do I get if I invest?",
+          "to": "invest-perks"
+        },
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
     {
-      "id": "invest-backers",
+      "id": "invest-how",
       "answer": {
-        "title": "Who has invested?",
-        "text": "Nick Rogers, former CPTO of Stream, leads this round. He first invested in 2022 and has invested again. Jack Dorsey led our 2023 round, with Asymmetric Capital Partners, and Vitalik Buterin donated to the project. Nearly 200 people have invested in this round, and three of our four advisors are among them."
+        "title": "How do I invest?",
+        "text": "You invest on Wefunder, a regulated funding portal, from $100. You create an account, confirm your identity, choose an amount and pay by card, bank transfer or wire. Wefunder adds a payment fee, and it shows the fee before you confirm. People outside the US can invest too, if the law of their country allows it."
       },
       "options": [
         {
-          "label": "Read why Nick Rogers invested",
-          "url": "https://simplex.chat/blog/20260908-nick-rogers-why-i-backed-simplex-chat.html"
+          "label": "What are the terms?",
+          "to": "invest-terms"
         },
         {
-          "label": "What do investors say?",
-          "to": "invest-voices"
+          "label": "What do I reveal by investing?",
+          "to": "invest-reveal"
+        },
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "invest-name-use",
+      "answer": {
+        "title": "What can a name do for me?",
+        "text": "A name opens your channel or your address, as #example or @example.simplex, in place of a long link. You can point it at your own address so that people find you by name, or keep it for a channel or a business you start later. You control it with your own key."
+      },
+      "options": [
+        {
+          "label": "How do I invest?",
+          "to": "invest-how"
+        },
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "invest-reveal",
+      "answer": {
+        "title": "What do I reveal by investing?",
+        "text": "Investing is the one place where a real name is needed. Wefunder must verify who you are and asks for a tax ID, and we receive investors' details for legal and tax records. None of this touches your SimpleX chats or your contacts, because the network has no user identifiers to link it to."
+      },
+      "options": [
+        {
+          "label": "How do I invest?",
+          "to": "invest-how"
+        },
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "families-move",
+      "answer": {
+        "title": "Move our WhatsApp group",
+        "text": "A family can move at its own pace. You post the link to your new Family group in your WhatsApp group, and people join when they are ready while the old group keeps working. Old messages stay in WhatsApp for now."
+      },
+      "options": [
+        {
+          "label": "What can we do together?",
+          "to": "families-together"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "families-together",
+      "answer": {
+        "title": "Call and share photos",
+        "text": "You can write, send voice messages of up to five minutes, send photos, videos and files of up to 1 GB, and call each other by audio or video. Groups have replies, mentions and reactions, and you choose how each chat notifies you."
+      },
+      "options": [
+        {
+          "label": "What does it cost?",
+          "to": "money-free"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "families-easy",
+      "answer": {
+        "title": "Make it easy for them to use",
+        "text": "You can make the text larger, give each person a name your parents recognise and put the family in a list of its own. You can do all of this for them when you install the app on their phone."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "families-strangers",
+      "answer": {
+        "title": "Keep strangers and scammers away",
+        "text": "SimpleX uses no phone numbers and holds no directory of people, so a stranger has nothing to look up. Someone can reach you only through a link you gave them or a group you are both in, and a request through your address waits until you accept it."
+      },
+      "options": [
+        {
+          "label": "Check it is really them",
+          "to": "privacy-verify"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "privacy-who",
+      "answer": {
+        "title": "See what servers can see",
+        "text": "Only the people in a conversation can read it. Messages are end-to-end encrypted and padded to one size, so a server can neither read them nor measure them. A server sees the random addresses of the queues it hosts and the times of messages. With private routing, on by default, the server your contact chose does not see your IP address. Your internet provider sees which servers you connect to."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "money-free",
+      "answer": {
+        "title": "Find out what it costs",
+        "text": "Private messaging stays free, and the app shows no ads. SimpleX Chat plans to earn from public names, business messaging and servers for big channels, and users have donated over $650,000 so far. If you want larger files and longer storage, you can buy a supporter badge."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "publishers-web",
+      "answer": {
+        "title": "Put my channel on my website",
+        "text": "Your channel can appear on your own website. The app gives you a short piece of code, you paste it into your page, and visitors see your recent posts and a Join button before they install anything."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "names-start",
+      "answer": {
+        "title": "Get a name for my channel",
+        "text": "A name lets people find you without a long link. #example opens your channel, and @example.simplex opens your business address. You control it with your own key, so no server can take it away, and if your link stops working you can point the name to a new one.",
+        "image": {
+          "src": "/blog/images/20260722-phone-name.webp",
+          "w": 562,
+          "h": 781,
+          "alt": "A public name on a SimpleX profile",
+          "dark": "/blog/images/20260722-phone-name-light.webp"
+        }
+      },
+      "options": [
+        {
+          "label": "Get one by investing",
+          "to": "invest-perks"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "publishers-ownership",
+      "answer": {
+        "title": "Find out who can shut me down",
+        "text": "Your channel's keys are on your devices, so no operator can take it from you. Chat relays forward your posts. If a relay stops forwarding them, you add another relay or run your own, and your link, your name and your subscribers remain the same."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "publishers-reader",
+      "answer": {
+        "title": "See how readers stay private",
+        "text": "A reader opens your link, sees your recent posts and taps Join. New posts then arrive like messages, and the reader can react to them. Other subscribers cannot see who is reading, and the servers cannot connect one channel a person reads to another."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "publishers-compare",
+      "answer": {
+        "title": "Compare it with Telegram",
+        "text": "You keep your audience, your rules and your readers' privacy. Telegram and Discord are ahead today on scheduling, pins, statistics, comments, voice rooms and paid subscriptions."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "publishers-moderate",
+      "answer": {
+        "title": "Keep spam and abuse out",
+        "text": "You can delete any message, block a member for everyone, remove people with their messages, review each newcomer and make trusted members moderators. Members report problems to your moderators privately, and groups listed in SimpleX Directory can add a captcha and word filters."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "publishers-scale",
+      "answer": {
+        "title": "Grow past thousands of members",
+        "text": "Channels are built for any number of subscribers, because relays forward each post and subscribers never connect to each other. The largest listed channel has 750 subscribers today. Groups run peer-to-peer, and the largest listed group has more than 9,000 members."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "business-move",
+      "answer": {
+        "title": "Bring my customers over",
+        "text": "You can keep WhatsApp or Telegram while customers move at their own pace. Put your link in your profile, your messages and your receipts. Each customer who opens it gets a private chat with you, and you pay nothing per message there."
+      },
+      "options": [
+        {
+          "label": "Why not stay on WhatsApp?",
+          "to": "business-own"
+        },
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "money-prices",
+      "answer": {
+        "title": "See what a big channel pays",
+        "text": "Private messaging, groups, channels, a business address and the support bot are free. A supporter badge costs $7 a month, and a public name is expected to cost about $50 a year. You pay your AI provider yourself, so our price does not grow with seats or answered chats."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "business-trust",
+      "answer": {
+        "title": "Who can read these chats?",
+        "text": "Messages are end-to-end encrypted between your customer and you, and servers hold no profiles or contact lists. You read what your customer writes and you keep it, so it is yours to protect. If you use an AI provider, it reads what the bot sends it."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "invest-ai",
+      "answer": {
+        "title": "What does AI change?",
+        "text": "Each new kind of computer has needed a new network: mainframes the Internet, PCs the web, phones the app stores. We believe AI models are the next kind of computer, and people already work with them in chat. You will want your agents to answer to you, with an identity no company can switch off. SimpleX may become that network, and our company plans to earn from it without owning it."
+      },
+      "options": [
+        {
+          "label": "How will it make money?",
+          "to": "invest-money"
         },
         {
           "label": "What do I get if I invest?",
           "to": "invest-perks"
+        },
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
     {
-      "id": "invest-voices",
+      "id": "invest-audits",
       "answer": {
-        "title": "What do investors say?",
-        "text": "Many of our investors use the app. One wrote: \"I use SimpleX, I've introduced my family to it, and I genuinely think you've built a better approach to private communication.\" Another: \"Investing in SimpleX Chat aligns with my values as a parent who prioritizes digital privacy.\" 65 of them say why on Wefunder."
+        "title": "Has anyone checked this?",
+        "text": "Trail of Bits audited SimpleX in 2022, 2024 and 2026, and the last report will be published soon. The code is open source, the servers and the Android and Linux apps can be rebuilt from it, and independent reviewers such as Privacy Guides recommend SimpleX. We publish every request for user data in our transparency reports."
       },
       "options": [
-        {
-          "label": "Read what investors say",
-          "url": "https://wefunder.com/simplex.chat?utm_source=site"
-        },
-        {
-          "label": "What do I get if I invest?",
-          "to": "invest-perks"
-        }
-      ]
-    },
-    {
-      "id": "invest-webinar",
-      "answer": {
-        "title": "Hear from the founder",
-        "text": "On November 19 at 18:00 UTC, Evgeny Poberezkin and Bruce McCarthy talk live about why AI is breaking trust, how SimpleX solves it and how it will make money. You can ask your questions there, or on Wefunder at any time."
-      },
-      "options": [
-        {
-          "label": "See the invitation on Wefunder",
-          "url": "https://wefunder.com/simplex.chat?utm_source=site"
-        },
         {
           "label": "What could go wrong?",
           "to": "invest-risk"
+        },
+        {
+          "label": "What do I get if I invest?",
+          "to": "invest-perks"
+        },
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
@@ -2727,62 +919,103 @@
       },
       "options": [
         {
-          "label": "How do you deal with abuse?",
-          "to": "invest-abuse"
-        },
-        {
-          "label": "What about the law?",
-          "to": "invest-law"
-        },
-        {
           "label": "How could I make a return?",
           "to": "invest-return"
         },
         {
-          "label": "Can I trust the user number?",
-          "to": "invest-count"
+          "label": "What do I get if I invest?",
+          "to": "invest-perks"
         },
         {
-          "label": "Is this a crypto project?",
-          "to": "crypto-token"
-        },
-        {
-          "label": "Will users have to pay?",
-          "to": "money-free"
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
     {
-      "id": "invest-abuse",
+      "id": "invest-backers",
       "answer": {
-        "title": "How do you deal with abuse?",
-        "text": "Nobody can contact you on SimpleX unless you give them a link, so it is a poor tool for scams and for reaching strangers. That is why families move here. Private chats stay private, also from us. Illegal content in public groups can be reported, and we remove such links and files from the servers we run, without scanning chats or identifying anyone."
+        "title": "Who has invested?",
+        "text": "Nick Rogers, former CPTO of Stream, leads this round. He first invested in 2022 and has invested again. Jack Dorsey led our 2023 round, with Asymmetric Capital Partners, and Vitalik Buterin donated to the project. Nearly 200 people have invested in this round, and three of our four advisors are among them."
       },
       "options": [
         {
-          "label": "See how abuse is handled",
-          "to": "moderation-how"
+          "label": "What could go wrong?",
+          "to": "invest-risk"
         },
         {
-          "label": "What about the law?",
-          "to": "invest-law"
+          "label": "What do I get if I invest?",
+          "to": "invest-perks"
+        },
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     },
     {
-      "id": "invest-law",
+      "id": "invest-webinar",
       "answer": {
-        "title": "What about the law?",
-        "text": "We took legal advice on what server operators are responsible for, and our Form C discloses it. We answer valid requests and publish every one in our transparency reports. Servers hold no profiles or contact lists, so there is little to give: in 2025 we received 12 requests and had no responsive information."
+        "title": "Hear from the founder",
+        "text": "On November 19 at 18:00 UTC, Evgeny Poberezkin and Bruce McCarthy talk live about why AI is breaking trust, how SimpleX solves it and how it will make money. You can ask your questions there, or on Wefunder at any time."
       },
       "options": [
         {
-          "label": "See requests for data",
-          "url": "https://simplex.chat/transparency/"
+          "label": "What could go wrong?",
+          "to": "invest-risk"
         },
         {
-          "label": "What if it can't connect somewhere?",
-          "to": "privacy-blocked"
+          "label": "What do I get if I invest?",
+          "to": "invest-perks"
+        },
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "invest-terms",
+      "answer": {
+        "title": "What are the terms?",
+        "text": "The terms of this round are on Wefunder: what you receive, the price and the dates. We keep them in that one place, because Wefunder is the regulated home of this round, and please read them before you invest. If anything is unclear, ask on the Wefunder page, and we answer there in public."
+      },
+      "options": [
+        {
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "privacy-verify",
+      "answer": {
+        "title": "Check it is really them",
+        "text": "Anyone can copy a name and a picture, so a profile can't tell you who is writing. The keys are part of the link you share, so servers cannot replace them. To check that nobody replaced the link on the way, compare your security code in person or in a call, and the app then marks the contact as verified."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
+        }
+      ]
+    },
+    {
+      "id": "business-own",
+      "answer": {
+        "title": "Stop depending on a platform",
+        "text": "On other channels a platform holds your number or account, sets the price of each message and can restrict you. On SimpleX your line is a set of keys on your device, and your address sits on servers you choose, your own among them. If you move your address, the customers you already talk to stay connected."
+      },
+      "options": [
+        {
+          "label": "Get the app",
+          "url": "/downloads/",
+          "action": true
         }
       ]
     },
@@ -2802,606 +1035,9 @@
           "to": "invest-perks"
         },
         {
-          "label": "What happens next?",
-          "to": "invest-next"
-        }
-      ]
-    },
-    {
-      "id": "invest-perks",
-      "answer": {
-        "title": "What do I get if I invest?",
-        "text": "Every investor receives a supporter badge, from one month at $100 to a year as a legend at $10,000. From $500 you also receive a public SimpleX name: 8 or more letters from $500, 7 from $1,000 and 6 from $5,000. It is registered for 5 years while early bird terms apply, and for 3 years after that. Invest before December 10 to reserve yours ahead of the public sale."
-      },
-      "options": [
-        {
-          "label": "Check whether my name is free",
-          "url": "https://simplex.domains/"
-        },
-        {
-          "label": "What can a name do for me?",
-          "to": "invest-name-use"
-        },
-        {
-          "label": "How do I invest?",
-          "to": "invest-how"
-        },
-        {
-          "label": "What are the terms?",
-          "to": "invest-terms"
-        },
-        {
-          "label": "Can I invest later?",
-          "to": "invest-later"
-        }
-      ]
-    },
-    {
-      "id": "invest-name-use",
-      "answer": {
-        "title": "What can a name do for me?",
-        "text": "A name opens your channel or your address, as #example or @example.simplex, in place of a long link. You can point it at your own address so that people find you by name, or keep it for a channel or a business you start later. You control it with your own key."
-      },
-      "options": [
-        {
-          "label": "Read about public names",
-          "url": "https://simplex.chat/blog/20260722-simplex-public-names.html"
-        },
-        {
-          "label": "How do I invest?",
-          "to": "invest-how"
-        }
-      ]
-    },
-    {
-      "id": "invest-how",
-      "answer": {
-        "title": "How do I invest?",
-        "text": "You invest on Wefunder, a regulated funding portal, from $100. You create an account, confirm your identity, choose an amount and pay by card, bank transfer or wire. Wefunder adds a payment fee, and it shows the fee before you confirm. People outside the US can invest too, if the law of their country allows it."
-      },
-      "options": [
-        {
-          "label": "Go to Wefunder",
-          "url": "https://wefunder.com/simplex.chat?utm_source=site"
-        },
-        {
-          "label": "What do I reveal by investing?",
-          "to": "invest-reveal"
-        },
-        {
-          "label": "What are the terms?",
-          "to": "invest-terms"
-        },
-        {
-          "label": "Can I invest later?",
-          "to": "invest-later"
-        }
-      ]
-    },
-    {
-      "id": "invest-reveal",
-      "answer": {
-        "title": "What do I reveal by investing?",
-        "text": "Investing is the one place where a real name is needed. Wefunder must verify who you are and asks for a tax ID, and we receive investors' details for legal and tax records. None of this touches your SimpleX chats or your contacts, because the network has no user identifiers to link it to."
-      },
-      "options": [
-        {
-          "label": "How do I invest?",
-          "to": "invest-how"
-        },
-        {
-          "label": "See what others can learn about me",
-          "to": "privacy-who"
-        }
-      ]
-    },
-    {
-      "id": "invest-terms",
-      "answer": {
-        "title": "What are the terms?",
-        "text": "The terms of this round are on Wefunder: what you receive, the price and the dates. We keep them in that one place, because Wefunder is the regulated home of this round, and please read them before you invest. If anything is unclear, ask on the Wefunder page, and we answer there in public."
-      },
-      "options": [
-        {
-          "label": "Read the terms on Wefunder",
-          "url": "https://wefunder.com/simplex.chat?utm_source=site"
-        },
-        {
-          "label": "How do I invest?",
-          "to": "invest-how"
-        }
-      ]
-    },
-    {
-      "id": "invest-later",
-      "answer": {
-        "title": "Can I invest later?",
-        "text": "We can't promise another round that is open to everyone. That depends on how revenue and users grow. The name perk has its own date: invest before December 10 to reserve your name ahead of the public sale."
-      },
-      "options": [
-        {
-          "label": "What do I get if I invest?",
-          "to": "invest-perks"
-        },
-        {
-          "label": "Help without money",
-          "to": "invest-help"
-        }
-      ]
-    },
-    {
-      "id": "invest-help",
-      "answer": {
-        "title": "Help without money",
-        "text": "Thank you for wanting to help. You can tell people about SimpleX, translate it, run a server or buy a supporter badge. What suits you?"
-      },
-      "options": [
-        {
-          "label": "Tell people about it",
-          "to": "marketing-tell"
-        },
-        {
-          "label": "Translate it into my language",
-          "to": "marketing-translate"
-        },
-        {
-          "label": "Check something I heard",
-          "to": "marketing-check"
-        },
-        {
-          "label": "Buy a supporter badge",
-          "url": "https://simplex.chat/badges/"
-        },
-        {
-          "label": "Donate",
-          "url": "https://simplex.chat/donate/"
-        },
-        {
-          "label": "Improve the code",
-          "url": "https://github.com/simplex-chat/simplex-chat/blob/stable/docs/CONTRIBUTING.md"
-        }
-      ]
-    },
-    {
-      "id": "marketing-tell",
-      "answer": {
-        "title": "Tell people about it",
-        "text": "Reviews by people in their own language reach further than anything we can publish. We answer your questions before you publish, and we add your review to our list. A QR code works on a wall or a slide, and a public name works in a podcast."
-      },
-      "options": [
-        {
-          "label": "Get the facts",
-          "to": "journalists-press"
-        },
-        {
-          "label": "Make a channel for my group",
-          "to": "publishers-create"
-        },
-        {
-          "label": "See what others wrote",
-          "url": "https://simplex.chat/links/"
-        },
-        {
-          "label": "Watch the guide films",
-          "url": "https://www.youtube.com/@simplex-chat"
-        }
-      ]
-    },
-    {
-      "id": "marketing-translate",
-      "answer": {
-        "title": "Translate these pages",
-        "text": "People who use SimpleX translate it in Weblate. Start with the Android app, and we can add you to the translators' group."
-      },
-      "options": [
-        {
-          "label": "Open Weblate",
-          "url": "https://hosted.weblate.org/projects/simplex-chat/"
-        },
-        {
-          "label": "Read the guide",
-          "url": "https://simplex.chat/docs/translations.html"
-        }
-      ]
-    },
-    {
-      "id": "marketing-check",
-      "answer": {
-        "title": "Check something I heard",
-        "text": "If you heard something about SimpleX and are not sure it is true, here is what we state, with sources, and what SimpleX cannot do."
-      },
-      "options": [
-        {
-          "label": "Find out if it is a crypto project",
-          "to": "crypto-token"
-        },
-        {
-          "label": "Find out who pays",
-          "to": "money-free"
-        },
-        {
-          "label": "See how abuse is handled",
-          "to": "moderation-how"
-        },
-        {
-          "label": "See what SimpleX cannot protect",
-          "to": "privacy-limits"
-        },
-        {
-          "label": "Read the common questions",
-          "url": "https://simplex.chat/llms/answers.md"
-        }
-      ]
-    },
-    {
-      "id": "get-start",
-      "answer": {
-        "title": "",
-        "text": "SimpleX Chat is free on iPhone, Android, Mac, Windows and Linux, and in a terminal. You need no phone number or email to start. Once it is installed, you connect to someone with a link or a QR code.",
-        "image": {
-          "src": "/img/downloads/desktop-light.webp",
-          "w": 1311,
-          "h": 880,
-          "alt": "The SimpleX Chat desktop app with a list of chats",
-          "dark": "/img/downloads/desktop-dark.webp"
-        }
-      },
-      "options": [
-        {
-          "label": "Get it on iPhone",
-          "url": "https://apps.apple.com/us/app/simplex-chat/id1605771084"
-        },
-        {
-          "label": "Get it on Android",
-          "url": "https://play.google.com/store/apps/details?id=chat.simplex.app"
-        },
-        {
-          "label": "See all downloads",
-          "url": "https://simplex.chat/downloads/"
-        },
-        {
-          "label": "Connect to someone",
-          "to": "get-connect"
-        },
-        {
-          "label": "Find out which version I need",
-          "to": "get-which"
-        },
-        {
-          "label": "Fix something that does not work",
-          "to": "get-broken"
-        },
-        {
-          "label": "Move from another messenger",
-          "to": "move-start"
-        }
-      ]
-    },
-    {
-      "id": "get-connect",
-      "answer": {
-        "title": "Send them an invitation",
-        "text": "Create a one-time link in the app and send it to one person, or show its QR code when you meet or on a video call. To be reachable by many people, create a SimpleX address, which you can delete at any time and keep your contacts."
-      },
-      "options": [
-        {
-          "label": "Bring everyone at once",
-          "to": "families-bring"
-        },
-        {
-          "label": "Check it is really them",
-          "to": "privacy-verify"
-        },
-        {
-          "label": "Read how connections work",
-          "url": "https://simplex.chat/docs/guide/making-connections.html"
-        },
-        {
-          "label": "Read about short links",
-          "url": "https://simplex.chat/blog/20250703-simplex-network-protocol-extension-for-securely-connecting-people.html"
-        }
-      ]
-    },
-    {
-      "id": "get-which",
-      "answer": {
-        "title": "Find out which version I need",
-        "text": "The iPhone app needs iOS 15 or newer, and the Android app needs Android 8 or newer. You can install on Android from Google Play, from F-Droid or as an APK, and desktop apps run on Mac, Windows and Linux. You can verify a release and rebuild it yourself."
-      },
-      "options": [
-        {
-          "label": "Use it on several devices",
-          "to": "devices-start"
-        },
-        {
-          "label": "Use F-Droid",
-          "url": "https://simplex.chat/fdroid/"
-        },
-        {
-          "label": "See all releases",
-          "url": "https://github.com/simplex-chat/simplex-chat/releases"
-        },
-        {
-          "label": "Verify a release",
-          "url": "https://simplex.chat/reproduce/"
-        }
-      ]
-    },
-    {
-      "id": "get-broken",
-      "answer": {
-        "title": "Fix a call that fails",
-        "text": "When a message is late, a call fails or an error appears, tell us what you see in the Ask SimpleX Team chat, and we help you fix it. The FAQ covers the common causes."
-      },
-      "options": [
-        {
-          "label": "Ask the team",
-          "to": "team-talk"
-        },
-        {
-          "label": "Fix notifications and battery",
-          "to": "privacy-notify"
-        },
-        {
-          "label": "Read the common questions",
-          "url": "https://simplex.chat/faq/"
-        },
-        {
-          "label": "Read the user guide",
-          "url": "https://simplex.chat/docs/guide/readme.html"
-        },
-        {
-          "label": "It does not connect where I am",
-          "to": "privacy-blocked"
-        }
-      ]
-    },
-    {
-      "id": "get-features",
-      "answer": {
-        "title": "See what it can and cannot do",
-        "text": "SimpleX has voice messages, calls between two people, disappearing messages, reactions, replies, mentions, groups, channels and file transfer. Group calls, stickers and shared location are not in the app today, and one profile works on one device at a time."
-      },
-      "options": [
-        {
-          "label": "Compare it with other messengers",
-          "to": "privacy-compare"
-        },
-        {
-          "label": "Tell the team what I need",
-          "url": "https://simplex.chat/connect-team/"
-        },
-        {
-          "label": "Read the user guide",
-          "url": "https://simplex.chat/docs/guide/readme.html"
-        }
-      ]
-    },
-    {
-      "id": "move-start",
-      "answer": {
-        "title": "Move something else",
-        "text": "You do not have to leave all at once. Your old app keeps working while people join you here through a link, and SimpleX has no phone numbers to match, so each person moves by opening that link. What are you moving?"
-      },
-      "options": [
-        {
-          "label": "My family group",
-          "to": "families-move"
-        },
-        {
-          "label": "My Telegram channel",
-          "to": "publishers-telegram"
-        },
-        {
-          "label": "My customers",
-          "to": "business-move"
-        },
-        {
-          "label": "A bot I run",
-          "to": "engineers-move"
-        },
-        {
-          "label": "My community",
-          "to": "publishers-community"
-        }
-      ]
-    },
-    {
-      "id": "backup-start",
-      "answer": {
-        "title": "Keep our chats if a phone is lost",
-        "text": "Your chats and contacts are kept on your phone and nowhere else. If you still have the old phone, you can move everything to a new one by scanning a code, and you can export a backup by hand at any time. Without a backup a lost phone takes its chats with it."
-      },
-      "options": [
-        {
-          "label": "Use it on a tablet or computer",
-          "to": "devices-start"
-        },
-        {
-          "label": "Move to a new phone",
-          "url": "https://simplex.chat/blog/20240323-simplex-network-privacy-non-profit-v5-6-quantum-resistant-e2e-encryption-simple-migration.html"
-        },
-        {
-          "label": "Read the data guide",
-          "url": "https://simplex.chat/docs/guide/managing-data.html"
-        },
-        {
-          "label": "Get a supporter badge",
-          "url": "https://simplex.chat/badges/"
-        }
-      ]
-    },
-    {
-      "id": "devices-start",
-      "answer": {
-        "title": "Use it on a tablet",
-        "text": "One profile works on one device at a time. The desktop app can use your phone's profiles while both are on the same network, and it can also hold profiles of its own. In a browser you can send a file and read a channel's web page."
-      },
-      "options": [
-        {
-          "label": "Move to a new phone",
-          "to": "backup-start"
-        },
-        {
-          "label": "Send a file from a browser",
-          "url": "https://simplex.chat/file/"
-        },
-        {
-          "label": "Read why this is hard",
-          "url": "https://simplex.chat/faq/#why-cant-i-use-the-same-profile-on-different-devices"
-        }
-      ]
-    },
-    {
-      "id": "names-start",
-      "answer": {
-        "title": "Get a name for my channel",
-        "text": "A name lets people find you without a long link. #example opens your channel, and @example.simplex opens your business address. You control it with your own key, so no server can take it away, and if your link stops working you can point the name to a new one.",
-        "image": {
-          "src": "/blog/images/20260722-phone-name.webp",
-          "w": 562,
-          "h": 781,
-          "alt": "A public name on a SimpleX profile",
-          "dark": "/blog/images/20260722-phone-name-light.webp"
-        }
-      },
-      "options": [
-        {
-          "label": "Check whether my name is free",
-          "url": "https://simplex.domains/"
-        },
-        {
-          "label": "Use a code I was given",
-          "to": "names-code"
-        },
-        {
-          "label": "See what it costs",
-          "to": "money-prices"
-        },
-        {
-          "label": "Pay for it with crypto",
-          "to": "crypto-buy"
-        },
-        {
-          "label": "Get one by investing",
-          "to": "invest-perks"
-        },
-        {
-          "label": "Read about public names",
-          "url": "https://simplex.chat/blog/20260722-simplex-public-names.html"
-        }
-      ]
-    },
-    {
-      "id": "names-code",
-      "answer": {
-        "title": "Use a code I was given",
-        "text": "A code is a prepaid badge or name. You redeem it in the app, and you need no account. Anyone can give you one."
-      },
-      "options": [
-        {
-          "label": "Buy a badge code",
-          "url": "https://simplex.chat/badges/"
-        }
-      ]
-    },
-    {
-      "id": "money-prices",
-      "answer": {
-        "title": "See what a big channel pays",
-        "text": "Private messaging, groups, channels, a business address and the support bot are free. A supporter badge costs $7 a month, and a public name is expected to cost about $50 a year. You pay your AI provider yourself, so our price does not grow with seats or answered chats."
-      },
-      "options": [
-        {
-          "label": "Get a name",
-          "to": "names-start"
-        },
-        {
-          "label": "Find out why messaging stays free",
-          "to": "money-free"
-        },
-        {
-          "label": "Ask a question",
-          "to": "team-talk"
-        },
-        {
-          "label": "Buy a badge",
-          "url": "https://simplex.chat/badges/"
-        }
-      ]
-    },
-    {
-      "id": "money-free",
-      "answer": {
-        "title": "Find out what it costs",
-        "text": "Private messaging stays free, and the app shows no ads. SimpleX Chat plans to earn from public names, business messaging and servers for big channels, and users have donated over $650,000 so far. If you want larger files and longer storage, you can buy a supporter badge."
-      },
-      "options": [
-        {
-          "label": "See what things cost",
-          "to": "money-prices"
-        },
-        {
-          "label": "Check whether SimpleX has a coin",
-          "to": "crypto-token"
-        },
-        {
-          "label": "See who keeps it independent",
-          "to": "trust-owner"
-        },
-        {
-          "label": "Invest in SimpleX",
-          "to": "invest-start"
-        },
-        {
-          "label": "Buy a supporter badge",
-          "url": "https://simplex.chat/badges/"
-        },
-        {
-          "label": "Read about supporter badges",
-          "url": "https://simplex.chat/blog/20260919-simplex-supporter-badges.html"
-        }
-      ]
-    },
-    {
-      "id": "team-talk",
-      "answer": {
-        "title": "Ask the team",
-        "text": "A bot answers first, and you can ask for the team at any time. The team replies within 24 hours, or 48 hours at weekends."
-      },
-      "options": [
-        {
-          "label": "Open the chat",
-          "url": "https://simplex.chat/connect-team/"
-        },
-        {
-          "label": "Read the common questions",
-          "url": "https://simplex.chat/faq/"
-        }
-      ]
-    },
-    {
-      "id": "trust-owner",
-      "answer": {
-        "title": "See who keeps it independent",
-        "text": "The protocols are licensed permanently to a non-profit foundation, so they stay available whoever owns the company. The foundation and SimpleX Chat are parties to the SimpleX Network Consortium, which other organizations can join, and anyone can run servers."
-      },
-      "options": [
-        {
-          "label": "See how it is paid for",
-          "to": "money-free"
-        },
-        {
-          "label": "Read about the Consortium",
-          "url": "https://simplexnetwork.org/consortium.html"
-        },
-        {
-          "label": "Read about the company",
-          "url": "https://simplex.chat/about/"
-        },
-        {
-          "label": "See requests for data",
-          "url": "https://simplex.chat/transparency/"
+          "label": "Invest on Wefunder",
+          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "action": true
         }
       ]
     }

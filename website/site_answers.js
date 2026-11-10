@@ -13,8 +13,8 @@ function branchPictures(graph) {
   const queue = [graph.start]
   while (queue.length > 0) {
     const id = queue.shift()
-    for (const { to, notice } of nodes.get(id).options.concat(graph.always)) {
-      if (nodes.has(to) && !notice && !pictures.has(to)) {
+    for (const { to } of nodes.get(id).options) {
+      if (nodes.has(to) && !pictures.has(to)) {
         pictures.set(to, nodes.get(to).answer.image || pictures.get(id))
         queue.push(to)
       }
@@ -30,7 +30,6 @@ function siteAnswers(graph) {
     graph: { start: graph.start, nodes },
     home: nodes.find((node) => node.id === graph.start),
     pages: nodes.filter((node) => node.id !== graph.start).map((node) => ({ ...node, picture: pictures.get(node.id) })),
-    always: graph.always,
   }
 }
 

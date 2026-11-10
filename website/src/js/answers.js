@@ -111,14 +111,16 @@
 
   function optionElement(option) {
     if (option.url) {
-      const link = make('a', 'opt', option.label)
+      const link = make('a', 'opt action', option.label)
       link.href = option.url
-      link.target = '_blank'
-      link.rel = 'noopener'
-      link.insertAdjacentHTML('beforeend', ICONS.out)
+      if (!option.url.startsWith('/')) {
+        link.target = '_blank'
+        link.rel = 'noopener'
+        link.insertAdjacentHTML('beforeend', ICONS.out)
+      }
       return link
     }
-    const chip = make('button', option.notice ? 'opt notice' : 'opt', option.label)
+    const chip = make('button', 'opt', option.label)
     chip.type = 'button'
     chip.dataset.to = option.to
     addChipIcons(chip)
@@ -138,11 +140,12 @@
     box.classList.toggle('closed', next !== undefined && openStep !== i)
   }
 
-  function choicesElement(node) {
+  function choicesElement(node, i) {
     const box = make('div', 'choices')
     box.setAttribute('role', 'group')
     box.setAttribute('aria-label', 'Choices')
-    box.append(...node.options.map(optionElement))
+    const shown = path.slice(0, i)
+    box.append(...node.options.filter((option) => !shown.includes(option.to)).map(optionElement))
     return box
   }
 
@@ -166,7 +169,7 @@
     const figure = make('figure', tall ? 'art tall' : 'art')
     figure.append(...themedImages(image))
     answer.append(words, figure)
-    inner.append(answer, choicesElement(node))
+    inner.append(answer, choicesElement(node, i))
     section.append(inner)
     return section
   }
