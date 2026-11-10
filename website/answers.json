@@ -5,7 +5,7 @@
       "id": "home",
       "answer": {
         "title": "The network where you own your identity",
-        "text": "On SimpleX nobody can contact you, or pretend to be somebody you know, unless you give them a link. You join without a phone number or an account. What would you like to do?",
+        "text": "SimpleX is the only messaging network without user identifiers. Nobody can contact you, or pretend to be somebody you know, unless you give them a link. You join without a phone number or an account. What would you like to do?",
         "image": {
           "src": "/img/design_3/cover-light.webp",
           "w": 3200,
@@ -16,7 +16,7 @@
       },
       "options": [
         {
-          "label": "Invest in SimpleX",
+          "label": "Invest in SimpleX Chat",
           "to": "invest-start"
         },
         {
@@ -102,7 +102,7 @@
       "id": "publishers-start",
       "answer": {
         "title": "An audience that stays yours",
-        "text": "Find what you want to read, or build an audience that stays yours. You hold the keys to your channel, so no platform can take it from you, and your readers stay private. What would you like to do?",
+        "text": "You hold the keys to your channel, so no platform can take it from you, and your readers stay private. What would you like to do?",
         "image": {
           "src": "/img/answers/channel-light.png",
           "w": 634,
@@ -168,7 +168,7 @@
       "id": "invest-growth",
       "answer": {
         "title": "How fast is it growing?",
-        "text": "We estimate that over 600,000 people use SimpleX every month, up 70% in six months and 20x since our 2023 round. Until August 2026 we paid for no marketing. People found it through more than 200 reviews, posts and videos in over 20 languages, and the app has been downloaded over 3 million times."
+        "text": "600,000+ people use SimpleX every month, up 70% in six months and 20x organically since our 2023 round. People found it through more than 200 reviews, posts and videos in over 20 languages, and the app has been downloaded over 3 million times."
       },
       "options": [
         {
@@ -194,7 +194,7 @@
       "id": "invest-money",
       "answer": {
         "title": "How will it make money?",
-        "text": "We have no user data to sell, so private messaging stays free and shows no ads. We plan to earn from those who want to be found or need more capacity: businesses and channels buy names, businesses pay for website chat, and big channels pay for servers. Supporter badges are on sale now. We have earned almost nothing so far, and this plan is unproven."
+        "text": "We have no user data to sell, so private messaging stays free and shows no ads. We plan to earn from those who want to be found or need more capacity: businesses and channels buy names, businesses pay for website chat, and big channels pay for servers. Supporter badges are on sale now."
       },
       "options": [
         {
@@ -246,7 +246,7 @@
       "id": "families-bring",
       "answer": {
         "title": "Bring everyone at once",
-        "text": "Today you create a group, name it Family and send its link through any app you already use. Each person installs SimpleX, opens the link and joins while your phone is online. You can let each person in yourself, and you can delete the link when everyone has joined."
+        "text": "You create a group, name it Family and send its link through any app you already use. Each person installs SimpleX, opens the link and joins when your phone is online. You can let each person in yourself, and you can delete the link when everyone has joined."
       },
       "options": [
         {
@@ -268,7 +268,7 @@
       "id": "families-parents",
       "answer": {
         "title": "Get my parents on it",
-        "text": "Your parents need one link from you, and then they can write to you and call you. Nobody else can reach them unless a link is shared with that person, so their chat list holds only the people they know. The app works in more than 25 languages, and the text can be made larger."
+        "text": "Your parents need one link from you, and then they can write to you and call you. Nobody else can reach them unless a link is shared with that person, so their chat list holds only the people they know. The app works in 26 languages on Android and 17 on iPhone, and the text can be made larger."
       },
       "options": [
         {
@@ -289,7 +289,7 @@
     {
       "id": "privacy-compare",
       "answer": {
-        "title": "See how it is safer than WhatsApp",
+        "title": "Is it safer than WhatsApp?",
         "text": "WhatsApp and Signal encrypt your messages, and Telegram does this only in secret chats that you start yourself. All three register you with a phone number, so your safety rests on a company's promise about what that account reveals, and a breach or a change of owner can end a promise. SimpleX registers nobody, so the protection is part of how the network is built. These apps are ahead today on linked devices, backups and group calls."
       },
       "options": [
@@ -337,8 +337,8 @@
     {
       "id": "publishers-telegram",
       "answer": {
-        "title": "Move my Telegram channel",
-        "text": "Keep your Telegram channel and open a SimpleX channel beside it. You share the link with your readers, and those who join remain with you if Telegram blocks the channel. Today you post to both by hand."
+        "title": "Keep my Telegram channel safe",
+        "text": "Keep your Telegram channel and open a SimpleX channel beside it. You share the link with your readers, and those who join remain with you if Telegram blocks the channel. You post to both by hand."
       },
       "options": [
         {
@@ -359,7 +359,7 @@
     {
       "id": "publishers-community",
       "answer": {
-        "title": "Run a school or parents' group",
+        "title": "Run a community by my rules",
         "text": "You set the rules of your group, from who joins and who posts to what remains. Members can talk to admins privately and report problems, and the largest listed group has more than 9,000 members."
       },
       "options": [
@@ -426,7 +426,7 @@
       "id": "business-team",
       "answer": {
         "title": "Answer as a team",
-        "text": "On your own, you answer in the app. With a team, your line runs on your own server, each new chat appears as a card in your team's group, and anyone on the team can join it with one tap. The customer sees who is answering. Today a developer sets this up."
+        "text": "On your own, you answer in the app and can add colleagues to any customer chat. With a larger team, your line runs on your own server, each new chat appears as a card in your team's group, and anyone on the team can join it with one tap. The customer sees who is answering. Today a developer sets this up."
       },
       "options": [
         {
@@ -444,7 +444,7 @@
       "id": "invest-engage",
       "answer": {
         "title": "Do people stay?",
-        "text": "About one monthly user in five opens SimpleX every day, up from 17% to 21% in the six months to April, and about one in four in the US and Germany. Public groups in our directory hold over 160,000 memberships. Not everyone stays: a wave that came from Telegram in 2024 fell by about a quarter within a month."
+        "text": "About one monthly user in five opens SimpleX every day, up from 17% to 21% in the six months to June, and about one in four in the US and Germany. Public groups in our directory hold over 160,000 memberships. Telegram channels tried to migrate in 2024/25, before SimpleX channels could scale."
       },
       "options": [
         {
@@ -466,7 +466,7 @@
       "id": "invest-why-now",
       "answer": {
         "title": "Why now?",
-        "text": "If an AI can copy your voice and your face and fake your phone number, a phone number proves nothing. On SimpleX nobody can contact you or pretend to be somebody you know unless you gave them a link. AI also makes surveillance of private life and deplatforming cheap, so more people may want a network that keeps no record of who they talk to."
+        "text": "If an AI can copy your voice and your face and fake your phone number, a phone number proves nothing. On SimpleX nobody can contact you or pretend to be somebody you know unless you give them a link. AI also makes surveillance of private life and deplatforming cheap, so more people want a network that keeps no record of who they talk to."
       },
       "options": [
         {
@@ -488,7 +488,7 @@
       "id": "invest-names",
       "answer": {
         "title": "What do names earn?",
-        "text": "A public name lets people find a channel or a business without a long link, and only the owner's key controls it. Names will go on sale at about $50 a year. At that price, 10,000 names would cover our operating cost of about $360,000 a year. In 2022 Telegram sold over $50 million of usernames in about four weeks, with far more users than we have."
+        "text": "A public name lets people find a channel or a business without a long link, and only the owner's key controls it. Names will go on sale at an expected average price of $50 a year. At that average, 10,000 names would cover our operating cost of about $360,000 a year. In 2022 Telegram sold over $50 million of usernames in about four weeks, with far more users than we have."
       },
       "options": [
         {
@@ -510,7 +510,7 @@
       "id": "invest-moat",
       "answer": {
         "title": "Why can't others copy it?",
-        "text": "Other networks are built on user identifiers, so they would have to rebuild from scratch to remove them, and the big ones earn from those identifiers. Their privacy is a promise that lasts until the company is compromised. Ours is in the architecture: we hold no list of who talks to whom, so there is nothing to hand over. A newcomer would need users, creators, businesses, developers and servers all at once."
+        "text": "Other networks are built on user identifiers, so they would have to rebuild from scratch to remove them, and the big ones earn from those identifiers. Their privacy is a promise that lasts until the company is compromised. Ours is in the architecture: we hold no list of who talks to whom, so there is nothing that can be breached or sold. A newcomer would need users, creators, businesses, developers and servers all at once, and SimpleX already has them."
       },
       "options": [
         {
@@ -620,7 +620,7 @@
       "id": "families-move",
       "answer": {
         "title": "Move our WhatsApp group",
-        "text": "A family can move at its own pace. You post the link to your new Family group in your WhatsApp group, and people join when they are ready while the old group keeps working. Old messages stay in WhatsApp for now."
+        "text": "A family can move at its own pace. You post the link to your new Family group in your WhatsApp group, and people join when they are ready while the old group keeps working. Old messages stay in WhatsApp."
       },
       "options": [
         {
@@ -637,8 +637,8 @@
     {
       "id": "families-together",
       "answer": {
-        "title": "Call and share photos",
-        "text": "You can write, send voice messages of up to five minutes, send photos, videos and files of up to 1 GB, and call each other by audio or video. Groups have replies, mentions and reactions, and you choose how each chat notifies you."
+        "title": "What can we do together?",
+        "text": "You can write, send voice messages of up to five minutes, send photos, videos and files of up to 1 GB, and call each other one to one by audio or video. Groups have replies, mentions and reactions, and you choose how each chat notifies you."
       },
       "options": [
         {
@@ -655,8 +655,8 @@
     {
       "id": "families-easy",
       "answer": {
-        "title": "Make it easy for them to use",
-        "text": "You can make the text larger, give each person a name your parents recognise and put the family in a list of its own. You can do all of this for them when you install the app on their phone."
+        "title": "Make it easy for them",
+        "text": "You can make the text larger, give each person a name your parents recognize and put the family in a list of its own. You can do all of this for them when you install the app on their phone."
       },
       "options": [
         {
@@ -669,7 +669,7 @@
     {
       "id": "families-strangers",
       "answer": {
-        "title": "Keep strangers and scammers away",
+        "title": "Keep scammers away from them",
         "text": "SimpleX uses no phone numbers and holds no directory of people, so a stranger has nothing to look up. Someone can reach you only through a link you gave them or a group you are both in, and a request through your address waits until you accept it."
       },
       "options": [
@@ -687,8 +687,8 @@
     {
       "id": "privacy-who",
       "answer": {
-        "title": "See what servers can see",
-        "text": "Only the people in a conversation can read it. Messages are end-to-end encrypted and padded to one size, so a server can neither read them nor measure them. A server sees the random addresses of the queues it hosts and the times of messages. With private routing, on by default, the server your contact chose does not see your IP address. Your internet provider sees which servers you connect to."
+        "title": "Who can see my messages?",
+        "text": "Only the people in a conversation can read it. Messages are end-to-end encrypted and padded to one size, so a server can neither read them nor measure them. A server sees random addresses and the times of messages. With private routing, on by default, the server your contact chose does not see your IP address. Your internet provider sees which servers you connect to."
       },
       "options": [
         {
@@ -701,7 +701,7 @@
     {
       "id": "money-free",
       "answer": {
-        "title": "Find out what it costs",
+        "title": "What does it cost?",
         "text": "Private messaging stays free, and the app shows no ads. SimpleX Chat plans to earn from public names, business messaging and servers for big channels, and users have donated over $650,000 so far. If you want larger files and longer storage, you can buy a supporter badge."
       },
       "options": [
@@ -729,8 +729,8 @@
     {
       "id": "names-start",
       "answer": {
-        "title": "Get a name for my channel",
-        "text": "A name lets people find you without a long link. #example opens your channel, and @example.simplex opens your business address. You control it with your own key, so no server can take it away, and if your link stops working you can point the name to a new one.",
+        "title": "Get a name for my channel or business",
+        "text": "A name lets people find you without a long link. #example opens your channel, and @example.simplex opens your business address. You control it with your own key, so no server can take it away, and if your link stops working you can point the name to a new one. Invest $500 or more before December 10 to reserve one ahead of the public sale.",
         "image": {
           "src": "/blog/images/20260722-phone-name.webp",
           "w": 562,
@@ -754,7 +754,7 @@
     {
       "id": "publishers-ownership",
       "answer": {
-        "title": "Find out who can shut me down",
+        "title": "Can anyone shut me down?",
         "text": "Your channel's keys are on your devices, so no operator can take it from you. Chat relays forward your posts. If a relay stops forwarding them, you add another relay or run your own, and your link, your name and your subscribers remain the same."
       },
       "options": [
@@ -768,8 +768,8 @@
     {
       "id": "publishers-reader",
       "answer": {
-        "title": "See how readers stay private",
-        "text": "A reader opens your link, sees your recent posts and taps Join. New posts then arrive like messages, and the reader can react to them. Other subscribers cannot see who is reading, and the servers cannot connect one channel a person reads to another."
+        "title": "What do my readers get?",
+        "text": "A reader opens your link and taps Join. Your recent posts and new ones then arrive like messages, and the reader can react to them. Other subscribers cannot see who is reading, and the servers cannot connect one channel a person reads to another."
       },
       "options": [
         {
@@ -782,7 +782,7 @@
     {
       "id": "publishers-compare",
       "answer": {
-        "title": "Compare it with Telegram",
+        "title": "How does it compare with Telegram?",
         "text": "You keep your audience, your rules and your readers' privacy. Telegram and Discord are ahead today on scheduling, pins, statistics, comments, voice rooms and paid subscriptions."
       },
       "options": [
@@ -797,7 +797,7 @@
       "id": "publishers-moderate",
       "answer": {
         "title": "Keep spam and abuse out",
-        "text": "You can delete any message, block a member for everyone, remove people with their messages, review each newcomer and make trusted members moderators. Members report problems to your moderators privately, and groups listed in SimpleX Directory can add a captcha and word filters."
+        "text": "You can delete any message, block a member for everyone, remove people with their messages, review each newcomer and make trusted members moderators. Members report problems to your moderators privately, and groups listed in SimpleX Directory can add a captcha and reject offensive member names."
       },
       "options": [
         {
@@ -811,7 +811,7 @@
       "id": "publishers-scale",
       "answer": {
         "title": "Grow past thousands of members",
-        "text": "Channels are built for any number of subscribers, because relays forward each post and subscribers never connect to each other. The largest listed channel has 750 subscribers today. Groups run peer-to-peer, and the largest listed group has more than 9,000 members."
+        "text": "Channels are built for any number of subscribers, because relays forward each post and subscribers never connect to each other. Groups run peer-to-peer, and the largest listed group has more than 9,000 members."
       },
       "options": [
         {
@@ -842,8 +842,8 @@
     {
       "id": "money-prices",
       "answer": {
-        "title": "See what a big channel pays",
-        "text": "Private messaging, groups, channels, a business address and the support bot are free. A supporter badge costs $7 a month, and a public name is expected to cost about $50 a year. You pay your AI provider yourself, so our price does not grow with seats or answered chats."
+        "title": "What does it cost?",
+        "text": "Private messaging, groups, channels, a business address and the support bot are free. A supporter badge costs $7 a month, and a public name is expected to cost $50 a year on average. You pay your AI provider yourself, and we charge nothing per seat or answered chat."
       },
       "options": [
         {
@@ -871,7 +871,7 @@
       "id": "invest-ai",
       "answer": {
         "title": "What does AI change?",
-        "text": "Each new kind of computer has needed a new network: mainframes the Internet, PCs the web, phones the app stores. We believe AI models are the next kind of computer, and people already work with them in chat. You will want your agents to answer to you, with an identity no company can switch off. SimpleX may become that network, and our company plans to earn from it without owning it."
+        "text": "Each new kind of computer has needed a new network: the internet for mainframes, the web for PCs, app stores for smartphones. AI models are the next kind of computer, and people already work with them in chat. Those who use AI agents need what SimpleX provides: an identity no platform controls and communication no one can observe. SimpleX may become that network, and our company plans to earn from it without owning it."
       },
       "options": [
         {
@@ -915,7 +915,7 @@
       "id": "invest-risk",
       "answer": {
         "title": "What could go wrong?",
-        "text": "This is an early company with almost no revenue, and you could lose all the money you invest. Our revenue plan is unproven, growth can slow, and you may not be able to sell for a long time. A private network also draws hard questions about abuse and the law, and we would rather answer them here. Please read the risks on Wefunder too."
+        "text": "This is an early company with almost no revenue, and you could lose all the money you invest. Growth can slow, and you may not be able to sell for a long time. Please read the risks on Wefunder too, and ask us your questions there."
       },
       "options": [
         {
@@ -937,7 +937,7 @@
       "id": "invest-backers",
       "answer": {
         "title": "Who has invested?",
-        "text": "Nick Rogers, former CPTO of Stream, leads this round. He first invested in 2022 and has invested again. Jack Dorsey led our 2023 round, with Asymmetric Capital Partners, and Vitalik Buterin donated to the project. Nearly 200 people have invested in this round, and three of our four advisors are among them."
+        "text": "Nick Rogers, former CPTO of Stream, leads this round. He first invested in 2022 and has invested again. Jack Dorsey led our 2023 round, with Asymmetric Capital Partners, and Vitalik Buterin donated to the project. Over 200 people have invested in this round, and three of our advisors are among them."
       },
       "options": [
         {
@@ -971,8 +971,8 @@
           "to": "invest-perks"
         },
         {
-          "label": "Invest on Wefunder",
-          "url": "https://wefunder.com/simplex.chat?utm_source=site",
+          "label": "Register for the webinar",
+          "url": "/livestream/",
           "action": true
         }
       ]
@@ -981,7 +981,7 @@
       "id": "invest-terms",
       "answer": {
         "title": "What are the terms?",
-        "text": "The terms of this round are on Wefunder: what you receive, the price and the dates. We keep them in that one place, because Wefunder is the regulated home of this round, and please read them before you invest. If anything is unclear, ask on the Wefunder page, and we answer there in public."
+        "text": "The terms of this round are on Wefunder: what you receive, the price and the dates. We keep them in that one place, because Wefunder is the regulated home of this round. Please read them before you invest. If anything is unclear, ask on the Wefunder page, and we answer there in public."
       },
       "options": [
         {
@@ -1008,8 +1008,8 @@
     {
       "id": "business-own",
       "answer": {
-        "title": "Stop depending on a platform",
-        "text": "On other channels a platform holds your number or account, sets the price of each message and can restrict you. On SimpleX your line is a set of keys on your device, and your address sits on servers you choose, your own among them. If you move your address, the customers you already talk to stay connected."
+        "title": "Why not stay on WhatsApp?",
+        "text": "On WhatsApp and similar apps, the platform holds your number or account, sets the price of each message and can restrict you. On SimpleX your line is a set of keys on your device, and your address sits on servers you choose, including your own if you run one. If you move your address, the customers you already talk to stay connected."
       },
       "options": [
         {
@@ -1023,7 +1023,7 @@
       "id": "invest-return",
       "answer": {
         "title": "How could I make a return?",
-        "text": "You may benefit if the company grows. From today's point of view, the most likely routes to a return are an IPO or a sale to other investors, and that may take many years. Our goals for the next two years are to launch revenue, reach 1–2 million monthly users, cover our costs and raise a next round. You may not be able to sell before then, or for longer."
+        "text": "You benefit if the company grows. From today's point of view, the most likely routes to a return are an IPO or a sale to other investors. Our goals for the next two years are to launch revenue, reach 1–2 million monthly users, cover our costs and raise the next round. You may not be able to sell before then, or for longer."
       },
       "options": [
         {
