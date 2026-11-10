@@ -41,6 +41,8 @@ on:
       - "website/src/js/simplex-lib.jsc"
       - "website/test/**"
       - "website/package.json"
+      - "website/answers.json"
+      - "website/site_answers.js"
       - "packages/simplex-chat-mcp/**"
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:

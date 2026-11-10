@@ -340,7 +340,7 @@
   async function shareLink() {
     if (!togglePanel(sharePanel, byId('share'))) return
     const token = tokenOf(path)
-    const base = location.href.split('#')[0]
+    const base = location.origin + location.pathname
     const link = token ? base + '#' + token : base
     const field = byId('share-link')
     const status = byId('share-status')
@@ -358,6 +358,7 @@
   function onStepsClick(event) {
     const chip = event.target.closest('[data-to]')
     if (!chip) return
+    if (chip.href && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return
     event.preventDefault()
     if (busy) return
     const i = stepOf(chip)
@@ -413,7 +414,6 @@
     const shared = token && token !== tokenOf(own)
     path = walkable(shared ? token.split('~') : own.slice(1))
     path.forEach((id) => seen.add(id))
-    return !shared
   }
 
   async function start() {
@@ -424,13 +424,13 @@
       return
     }
     nodes = new Map(graph.nodes.map((node) => [node.id, node]))
-    const returning = restore()
+    restore()
     choicesAt(0).querySelectorAll('[data-to]').forEach(addChipIcons)
     paintChoices(0)
     appendSteps(1, false)
     wireEvents()
     paintDock()
-    if (returning && path.length > 1) window.scrollTo(0, topOfStep(path.length - 1)())
+    if (path.length > 1) window.scrollTo(0, topOfStep(path.length - 1)())
   }
 
   start()

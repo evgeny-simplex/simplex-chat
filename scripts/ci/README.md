@@ -121,9 +121,11 @@ The reduced build runs one Linux job, build-linux (ubuntu-22.04 x86_64), for eve
   - website/src/js/simplex-lib.jsc
   - website/test/**
   - website/package.json
+  - website/answers.json
+  - website/site_answers.js
 - CI:
   - in build-linux: `scope-tests.sh website` (step "Test changed scopes");
-  - on master pushes: build and deploy of website/**, images/**, blog/**, docs/** and PRIVACY.md (web.yml).
+  - on pull requests, dispatches and master pushes: build of website/**, images/**, blog/**, docs/** and PRIVACY.md, and on master pushes also its deployment (web.yml).
 - Local:
   ```sh
   cd website

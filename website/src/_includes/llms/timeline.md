@@ -23,5 +23,5 @@ Key milestones, with links to the announcements. All posts: [SimpleX blog](https
 | August 2026 | [Equity crowdfunding launched on Wefunder](https://simplex.chat/blog/20260819-simplex-chat-crowdfunding.md) |
 | September 2026 | [Supporter badges](https://simplex.chat/blog/20260919-simplex-supporter-badges.md) |
 | 12 December 2026 | `.simplex` names sale starts ([simplex.domains](https://simplex.domains/)) |
-| June 2027 | Planned: Community Credits for sustainable communities and servers ([roadmap](https://simplex.chat/index.md)) |
-| December 2027 | Planned: tools to promote communities ([roadmap](https://simplex.chat/index.md)) |
+| June 2027 | Planned: Community Credits for sustainable communities and servers ([roadmap](https://simplex.chat/en/index.md)) |
+| December 2027 | Planned: tools to promote communities ([roadmap](https://simplex.chat/en/index.md)) |
