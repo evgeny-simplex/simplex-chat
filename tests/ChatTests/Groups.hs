@@ -108,8 +108,8 @@ chatGroupTests = do
     it "moderate own message (should process as deletion)" testGroupModerateOwn
     it "moderate multiple messages" testGroupModerateMultiple
     it "moderate message of another group member (full delete)" testGroupModerateFullDelete
-    xit "moderate message that arrives after the event of moderation" testGroupDelayedModeration
-    xit "moderate message that arrives after the event of moderation (full delete)" testGroupDelayedModerationFullDelete
+    it "moderate message that arrives after the event of moderation" testGroupDelayedModeration
+    it "moderate message that arrives after the event of moderation (full delete)" testGroupDelayedModerationFullDelete
     it "remove member with messages (full deletion is enabled)" testDeleteMemberWithMessages
     it "remove member with messages mark deleted" testDeleteMemberMarkMessagesDeleted
     it "remove member - delete messages of left/removed members" testDeleteMemberMessagesLeftRemoved
@@ -2037,14 +2037,7 @@ testGroupDelayedModeration ps = do
         [ alice <## "#team: cath joined the group",
           cath <## "#team: you joined the group"
         ]
-      threadDelay 1000000
-
-      -- imitate not implemented group forwarding
-      -- (real client wouldn't have forwarding code, but tests use "current code" with configured version,
-      -- and forwarding client doesn't check compatibility)
-      updateGroupForwardingVectors alice "bob" "cath" MRConnected
-
-      cath #> "#team hi" -- message is pending for bob
+      cath #> "#team hi"
       alice <# "#team cath> hi"
       alice ##> "\\\\ #team @cath hi"
       alice <## "message marked deleted by you"
@@ -2052,21 +2045,18 @@ testGroupDelayedModeration ps = do
     withTestChatCfg ps cfg "bob" $ \bob -> do
       bob <## "subscribed 2 connections on server localhost"
       bob <## "#team: alice added cath (Catherine) to the group (connecting...)"
+      bob <# "#team cath> [marked deleted by alice] hi"
       withTestChatCfg ps cfg "cath" $ \cath -> do
         cath <## "subscribed 3 connections on server localhost"
         cath <## "#team: member bob (Bob) is connected"
-        bob
-          <### [ "#team: new member cath is connected",
-                 EndsWith "#team cath> [marked deleted by alice] hi"
-               ]
+        bob <## "#team: new member cath is connected"
         alice #$> ("/_get chat #1 count=1", chat, [(0, "hi [marked deleted by you]")])
         cath #$> ("/_get chat #1 count=2", chat, [(1, "hi [marked deleted by alice]"), (0, "connected")])
         bob ##> "/_get chat #1 count=2"
         r <- chat <$> getTermLine bob
         r `shouldMatchList` [(0, "connected"), (0, "hi [marked deleted by alice]")]
   where
-    -- version before forwarding, so cath doesn't expect alice to forward messages (groupForwardVersion = 4)
-    cfg = testCfg {chatVRange = mkVersionRange (VersionChat 1) (VersionChat 3)}
+    cfg = testCfg {deliveryWorkerDelay = 3000000}
 
 testGroupDelayedModerationFullDelete :: HasCallStack => TestParams -> IO ()
 testGroupDelayedModerationFullDelete ps = do
@@ -2082,20 +2072,11 @@ testGroupDelayedModerationFullDelete ps = do
         [ alice <## "#team: cath joined the group",
           cath <## "#team: you joined the group"
         ]
-      threadDelay 1000000
-
-      -- imitate not implemented group forwarding
-      -- (real client wouldn't have forwarding code, but tests use "current code" with configured version,
-      -- and forwarding client doesn't check compatibility)
-      updateGroupForwardingVectors alice "bob" "cath" MRConnected
-
-      cath #> "#team hi" -- message is pending for bob
+      cath #> "#team hi"
       alice <# "#team cath> hi"
       alice ##> "\\\\ #team @cath hi"
       alice <## "message marked deleted by you"
       cath <# "#team cath> [marked deleted by alice] hi"
-      -- if full deletion was enabled at time of moderation, cath would delete pending message as well,
-      -- that's why we set it afterwards to test delayed moderation for bob
       alice ##> "/set delete #team on"
       alice <## "updated group preferences:"
       alice <## "Full deletion: on"
@@ -2108,21 +2089,18 @@ testGroupDelayedModerationFullDelete ps = do
       bob <## "alice updated group #team: (signed)"
       bob <## "updated group preferences:"
       bob <## "Full deletion: on"
+      bob <# "#team cath> moderated [deleted by alice] [>>]"
       withTestChatCfg ps cfg "cath" $ \cath -> do
         cath <## "subscribed 3 connections on server localhost"
         cath <## "#team: member bob (Bob) is connected"
-        bob
-          <### [ "#team: new member cath is connected",
-                 EndsWith "#team cath> moderated [deleted by alice]"
-               ]
+        bob <## "#team: new member cath is connected"
         alice #$> ("/_get chat #1 count=2", chat, [(0, "hi [marked deleted by you]"), (1, "Full deletion: on")])
         cath #$> ("/_get chat #1 count=3", chat, [(1, "hi [marked deleted by alice]"), (0, "Full deletion: on"), (0, "connected")])
         bob ##> "/_get chat #1 count=3"
         r <- chat <$> getTermLine bob
         r `shouldMatchList` [(0, "Full deletion: on"), (0, "connected"), (0, "moderated [deleted by alice]")]
   where
-    -- version before forwarding, so cath doesn't expect alice to forward messages (groupForwardVersion = 4)
-    cfg = testCfg {chatVRange = mkVersionRange (VersionChat 1) (VersionChat 3)}
+    cfg = testCfg {deliveryWorkerDelay = 3000000}
 
 testDeleteMemberWithMessages :: HasCallStack => TestParams -> IO ()
 testDeleteMemberWithMessages =
