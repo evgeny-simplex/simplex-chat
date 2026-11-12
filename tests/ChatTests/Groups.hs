@@ -125,7 +125,7 @@ chatGroupTests = do
     it "all old members group upgrades to current version" testGroupAllOldThenUpgrade
     it "member key is generated at the first read of a group created without one" testGroupMemberKeyGenerated
   describe "async group connections" $ do
-    xit "create and join group when clients go offline" testGroupAsync
+    it "create and join group when clients go offline" testGroupAsync
   describe "group links" $ do
     it "create group link, join via group link" testGroupLink
     it "join via group link with group profile near the size limit" testGroupLinkLargeGroupProfile

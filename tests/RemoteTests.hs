@@ -96,9 +96,9 @@ remoteTests = describe "Remote" $ do
       r `shouldSatisfy` \case
         Left (RPEInvalidBody _) -> True
         _ -> False
-  xdescribe "No compression" $ aroundWith (. ((False, False),)) runRemoteTests
-  xdescribe "Mobile offers compression" $ aroundWith (. ((True, False),)) runRemoteTests
-  xdescribe "Desktop offers compression" $ aroundWith (. ((False, True),)) runRemoteTests
+  describe "No compression" $ aroundWith (. ((False, False),)) runRemoteTests
+  describe "Mobile offers compression" $ aroundWith (. ((True, False),)) runRemoteTests
+  describe "Desktop offers compression" $ aroundWith (. ((False, True),)) runRemoteTests
   describe "With compression" $ aroundWith (. ((True, True),)) runRemoteTests
   where
     fileNames :: [FilePath]
@@ -112,7 +112,7 @@ runRemoteTests = do
     it "connects with new pairing (stops mobile)" $ remoteHandshakeTest False
     it "connects with new pairing (stops desktop)" $ remoteHandshakeTest True
     it "connects with stored pairing" remoteHandshakeStoredTest
-    xitMacCI "connects with multicast discovery" remoteHandshakeDiscoverTest
+    it "connects with multicast discovery" remoteHandshakeDiscoverTest
     it "refuses invalid client cert" remoteHandshakeRejectTest
     it "connects with stored server bindings" storedBindingsTest
   it "sends messages" remoteMessageTest

@@ -67,7 +67,7 @@ chatFileTests = do
     it "delete uploaded file" testXFTPDeleteUploadedFile
     it "delete uploaded file in group" testXFTPDeleteUploadedFileGroup
     it "with relative paths: send and receive file" testXFTPWithRelativePaths
-    xit' "continue receiving file after restart" testXFTPContinueRcv
+    it "continue receiving file after restart" testXFTPContinueRcv
     it "receive file marked to receive on chat start" testXFTPMarkToReceive
     it "error receiving file" testXFTPRcvError
     it "cancel receiving file, repeat receive" testXFTPCancelRcvRepeat
@@ -79,7 +79,7 @@ chatFileTests = do
     it "send and receive large standalone file" testXFTPStandaloneLarge
     it "send and receive large standalone file with extra information" testXFTPStandaloneLargeInfo
     it "send and receive large standalone file using relative paths" testXFTPStandaloneRelativePaths
-    xit "removes sent file from server" testXFTPStandaloneCancelSnd -- no error shown in tests
+    it "removes sent file from server" testXFTPStandaloneCancelSnd
     it "removes received temporary files" testXFTPStandaloneCancelRcv
   describe "send larger files with badges" $ do
     it "send and receive file with badge proof" testXFTPFileBadgeProof

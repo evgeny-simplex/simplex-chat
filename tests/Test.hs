@@ -49,6 +49,7 @@ import ChatTests.Names (chatNamesTests)
 import qualified Simplex.Messaging.TMap as TM
 import MobileTests
 import SchemaDump
+import System.Info (os)
 import WebRTCTests
 #endif
 
@@ -117,7 +118,7 @@ main = do
             describe "managed group" badgeGroupIntegrationTests
           describe "Remote session" remoteTests
 #if !defined(dbPostgres)
-          sequential $ xdescribe'' "Save query plans" saveQueryPlans
+          sequential $ (if os == "linux" then describe else xdescribe) "Save query plans" saveQueryPlans
 #endif
   where
 #if defined(dbPostgres)
