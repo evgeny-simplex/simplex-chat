@@ -870,10 +870,12 @@ receiveViaCompleteFD user fileId RcvFileDescr {fileDescrText, fileDescrComplete}
   where
     receive' :: ValidFileDescription 'FRecipient -> Bool -> CM ()
     receive' rd approved = do
-      aFileId <- withAgent $ \a -> xftpPrepareReceiveFile a (aUserId user) rd cfArgs approved
-      startReceivingFile user fileId
-      withStore' $ \db -> updateRcvFileAgentId db fileId (Just $ AgentRcvFileId aFileId)
-      withAgent (`xftpStartReceiveFile` aFileId)
+      connected <- withStore' $ \db -> setAcceptedRcvFileConnected db fileId
+      when connected $ do
+        aFileId <- withAgent $ \a -> xftpPrepareReceiveFile a (aUserId user) rd cfArgs approved
+        startReceivingFile user fileId
+        withStore' $ \db -> updateRcvFileAgentId db fileId (Just $ AgentRcvFileId aFileId)
+        withAgent (`xftpStartReceiveFile` aFileId)
     getUnknownSrvs :: [XFTPServer] -> CM [XFTPServer]
     getUnknownSrvs srvs = do
       knownSrvs <- L.map protoServer' <$> getKnownAgentServers SPXFTP user
