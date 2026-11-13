@@ -7613,6 +7613,12 @@ Query: SELECT DISTINCT msg_content_tag FROM chat_items WHERE user_id = ? AND  no
 Plan:
 SEARCH chat_items USING COVERING INDEX idx_chat_items_note_folder_msg_content_tag_created_at (user_id=? AND note_folder_id=? AND msg_content_tag>?)
 
+Query: SELECT EXISTS (SELECT 1 FROM chat_items WHERE user_id = ? AND contact_id = ? AND shared_msg_id = ?)
+Plan:
+SCAN CONSTANT ROW
+SCALAR SUBQUERY 1
+SEARCH chat_items USING COVERING INDEX idx_chat_items_direct_shared_msg_id (user_id=? AND contact_id=? AND shared_msg_id=?)
+
 Query: SELECT EXISTS (SELECT 1 FROM chat_items WHERE user_id = ? AND contact_id = ?)
 Plan:
 SCAN CONSTANT ROW
@@ -7630,6 +7636,12 @@ Plan:
 SCAN CONSTANT ROW
 SCALAR SUBQUERY 1
 SEARCH group_relays USING COVERING INDEX idx_group_relays_chat_relay_id (chat_relay_id=?)
+
+Query: SELECT EXISTS (SELECT 1 FROM msg_deliveries WHERE connection_id = ? AND agent_msg_id = ?)
+Plan:
+SCAN CONSTANT ROW
+SCALAR SUBQUERY 1
+SEARCH msg_deliveries USING COVERING INDEX idx_msg_deliveries_agent_msg_id (connection_id=? AND agent_msg_id=?)
 
 Query: SELECT accepted_at FROM operator_usage_conditions WHERE server_operator_id = ? AND conditions_commit = ?
 Plan:
@@ -7703,6 +7715,11 @@ SCAN contact_profiles
 Query: SELECT balance_checked FROM badge_ledger ORDER BY entry_id
 Plan:
 SCAN badge_ledger
+
+Query: SELECT c.agent_conn_id FROM connections c JOIN contacts ct ON ct.contact_id = c.contact_id WHERE ct.local_display_name = ?
+Plan:
+SCAN ct USING COVERING INDEX sqlite_autoindex_contacts_1
+SEARCH c USING INDEX idx_connections_contact_id (contact_id=?)
 
 Query: SELECT c.agent_conn_id FROM connections c JOIN group_members m ON m.group_member_id = c.group_member_id WHERE m.local_display_name = ?
 Plan:
@@ -8749,6 +8766,10 @@ Plan:
 SEARCH rcv_files USING INTEGER PRIMARY KEY (rowid=?)
 
 Query: UPDATE rcv_files SET file_status = ?, updated_at = ? WHERE file_id = ?
+Plan:
+SEARCH rcv_files USING INTEGER PRIMARY KEY (rowid=?)
+
+Query: UPDATE rcv_files SET file_status = ?, updated_at = ? WHERE file_id = ? AND file_status = ? RETURNING file_id
 Plan:
 SEARCH rcv_files USING INTEGER PRIMARY KEY (rowid=?)
 
