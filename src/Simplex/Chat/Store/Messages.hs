@@ -29,6 +29,7 @@ module Simplex.Chat.Store.Messages
     createSndMsgDelivery,
     createNewMessageAndRcvMsgDelivery,
     getLastRcvMsgInfo,
+    checkRcvMsgDeliveryExists,
     createNewRcvMessage,
     updateSndMsgDeliveryStatus,
     createPendingGroupMessage,
@@ -45,6 +46,7 @@ module Simplex.Chat.Store.Messages
     createNewChatItem_,
     getChatPreviews,
     checkContactHasItems,
+    checkDirectItemExists,
     getChatContentTypes,
     getDirectChat,
     getGroupChat,
@@ -304,6 +306,14 @@ getLastRcvMsgInfo db connId =
   where
     rcvMsgInfo (msgId, msgDeliveryId, msgDeliveryStatus, agentMsgId, agentMsgMeta) =
       RcvMsgInfo {msgId, msgDeliveryId, msgDeliveryStatus, agentMsgId, agentMsgMeta}
+
+checkRcvMsgDeliveryExists :: DB.Connection -> Int64 -> AgentMsgId -> IO Bool
+checkRcvMsgDeliveryExists db connId agentMsgId =
+  fromOnly . head
+    <$> DB.query
+      db
+      "SELECT EXISTS (SELECT 1 FROM msg_deliveries WHERE connection_id = ? AND agent_msg_id = ?)"
+      (connId, agentMsgId)
 
 createNewRcvMessage :: forall e. MsgEncodingI e => DB.Connection -> ConnOrGroupId -> NewRcvMessage e -> Maybe SharedMsgId -> Maybe GroupMemberId -> Maybe GroupMemberId -> ExceptT StoreError IO RcvMessage
 createNewRcvMessage db connOrGroupId NewRcvMessage {chatMsgEvent, verifiedMsg, brokerTs} sharedMsgId_ authorMember forwardedByMember =
@@ -1222,6 +1232,14 @@ checkContactHasItems db User {userId} Contact {contactId} =
       db
       "SELECT EXISTS (SELECT 1 FROM chat_items WHERE user_id = ? AND contact_id = ?)"
       (userId, contactId)
+
+checkDirectItemExists :: DB.Connection -> User -> Contact -> SharedMsgId -> IO Bool
+checkDirectItemExists db User {userId} Contact {contactId} sharedMsgId =
+  fromOnly . head
+    <$> DB.query
+      db
+      "SELECT EXISTS (SELECT 1 FROM chat_items WHERE user_id = ? AND contact_id = ? AND shared_msg_id = ?)"
+      (userId, contactId, sharedMsgId)
 
 getChatContentTypes :: DB.Connection -> User -> ChatRef -> ExceptT StoreError IO [MsgContentTag]
 getChatContentTypes db User {userId} (ChatRef cType chatId chatScope_) = case cType of
