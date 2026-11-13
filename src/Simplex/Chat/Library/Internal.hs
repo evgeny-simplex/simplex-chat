@@ -2919,7 +2919,7 @@ sendPendingGroupMessages user gInfo GroupMember {groupMemberId} conn = do
     void $ batchSendConnMessages gInfo user conn MsgFlags {notification = True} msgs'
     lift . void . withStoreBatch' $ \db -> L.map (\SndMessage {msgId} -> deletePendingGroupMessage db groupMemberId msgId) msgs'
 
-saveDirectRcvMSG :: forall e. MsgEncodingI e => Connection -> MsgMeta -> ChatMessage e -> CM (Connection, RcvMessage)
+saveDirectRcvMSG :: forall e. MsgEncodingI e => Connection -> MsgMeta -> ChatMessage e -> CM (Connection, RcvMessage, Bool)
 saveDirectRcvMSG conn@Connection {connId} agentMsgMeta chatMsg@ChatMessage {chatVRange, msgId = sharedMsgId_, chatMsgEvent} = do
   conn' <- case encoding @e of
     SJson -> updatePeerChatVRange conn chatVRange
@@ -2928,8 +2928,11 @@ saveDirectRcvMSG conn@Connection {connId} agentMsgMeta chatMsg@ChatMessage {chat
       brokerTs = metaBrokerTs agentMsgMeta
       newMsg = NewRcvMessage {chatMsgEvent, verifiedMsg = VMUnsigned chatMsg, brokerTs}
       rcvMsgDelivery = RcvMsgDelivery {connId, agentMsgId, agentMsgMeta}
-  msg <- withStore $ \db -> createNewMessageAndRcvMsgDelivery db (ConnectionId connId) newMsg sharedMsgId_ rcvMsgDelivery Nothing
-  pure (conn', msg)
+  (msg, repeated) <- withStore $ \db -> do
+    repeated <- liftIO $ maybe (pure False) (checkSharedMsgDeliveryExists db connId agentMsgId) sharedMsgId_
+    msg <- createNewMessageAndRcvMsgDelivery db (ConnectionId connId) newMsg sharedMsgId_ rcvMsgDelivery Nothing
+    pure (msg, repeated)
+  pure (conn', msg, repeated)
 
 saveGroupRcvMsg :: forall e. MsgEncodingI e => User -> GroupId -> GroupMember -> Connection -> MsgMeta -> VerifiedMsg e -> CM (GroupMember, Connection, RcvMessage)
 saveGroupRcvMsg user groupId authorMember conn@Connection {connId} agentMsgMeta verifiedMsg = do

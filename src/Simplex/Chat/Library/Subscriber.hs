@@ -561,13 +561,13 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
         MSG msgMeta _msgFlags msgBody -> do
           tags <- newTVarIO []
           withAckMessage "contact msg" agentConnId msgMeta True (Just tags) $ \eInfo -> do
-            let MsgMeta {pqEncryption} = msgMeta
-            repeated <- rcvMsgRepeated conn msgMeta
+            let MsgMeta {pqEncryption, integrity} = msgMeta
+            repeated <- if integrity /= MsgOk || any isLeft aChatMsgs then rcvMsgRepeated conn msgMeta else pure False
             (ct', conn') <- updateContactPQRcv user ct conn pqEncryption
             unless repeated $ checkIntegrityCreateItem (CDDirectRcv ct') msgMeta `catchAllErrors` \_ -> pure ()
             forM_ aChatMsgs $ \case
-              Right (APMsg _ (ParsedMsg _ _ chatMsg@ChatMessage {msgId = sharedMsgId_})) ->
-                unlessM (if repeated then maybe (pure False) itemSaved sharedMsgId_ else pure False) (processEvent ct' conn' repeated tags eInfo chatMsg) `catchAllErrors` \e -> eToView e
+              Right (APMsg _ (ParsedMsg _ _ chatMsg)) ->
+                processEvent ct' conn' tags eInfo chatMsg `catchAllErrors` \e -> eToView e
               Left e -> do
                 atomically $ modifyTVar' tags ("error" :)
                 logInfo $ "contact msg=error " <> eInfo <> " " <> tshow e
@@ -580,14 +580,14 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
             aChatMsgs = parseChatMessages msgBody
             itemSaved :: SharedMsgId -> CM Bool
             itemSaved sharedMsgId = withStore' $ \db -> checkDirectItemExists db user ct sharedMsgId
-            processEvent :: Contact -> Connection -> Bool -> TVar [Text] -> Text -> MsgEncodingI e => ChatMessage e -> CM ()
-            processEvent ct' conn' repeated tags eInfo chatMsg@ChatMessage {chatMsgEvent} = do
+            processEvent :: Contact -> Connection -> TVar [Text] -> Text -> MsgEncodingI e => ChatMessage e -> CM ()
+            processEvent ct' conn' tags eInfo chatMsg@ChatMessage {msgId = sharedMsgId_, chatMsgEvent} = do
               let tag = toCMEventTag chatMsgEvent
               atomically $ modifyTVar' tags (tshow tag :)
               logInfo $ "contact msg=" <> tshow tag <> " " <> eInfo
-              (conn'', msg@RcvMessage {chatMsgEvent = ACME _ event}) <- saveDirectRcvMSG conn' msgMeta chatMsg
+              (conn'', msg@RcvMessage {chatMsgEvent = ACME _ event}, repeated) <- saveDirectRcvMSG conn' msgMeta chatMsg
               let ct'' = ct' {activeConn = Just conn''} :: Contact
-              case event of
+              unlessM (if repeated then maybe (pure False) itemSaved sharedMsgId_ else pure False) $ case event of
                 XMsgNew mc -> newContentMessage ct'' mc msg msgMeta
                 XMsgFileDescr sharedMsgId fileDescr fileExpires fileBadge -> messageFileDescription ct'' sharedMsgId fileDescr fileExpires fileBadge
                 XMsgUpdate sharedMsgId mContent _ ttl live _msgScope _ -> messageUpdate ct'' sharedMsgId mContent msg msgMeta ttl live
