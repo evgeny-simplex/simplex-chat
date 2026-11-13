@@ -2928,8 +2928,11 @@ saveDirectRcvMSG conn@Connection {connId} agentMsgMeta chatMsg@ChatMessage {chat
       brokerTs = metaBrokerTs agentMsgMeta
       newMsg = NewRcvMessage {chatMsgEvent, verifiedMsg = VMUnsigned chatMsg, brokerTs}
       rcvMsgDelivery = RcvMsgDelivery {connId, agentMsgId, agentMsgMeta}
+  checkRepeat <- mayBeRepeated agentMsgMeta
   (msg, repeated) <- withStore $ \db -> do
-    repeated <- liftIO $ maybe (pure False) (checkSharedMsgDeliveryExists db connId agentMsgId) sharedMsgId_
+    repeated <- liftIO $ case sharedMsgId_ of
+      Just sharedMsgId | checkRepeat -> checkSharedMsgDeliveryExists db connId agentMsgId sharedMsgId
+      _ -> pure False
     msg <- createNewMessageAndRcvMsgDelivery db (ConnectionId connId) newMsg sharedMsgId_ rcvMsgDelivery Nothing
     pure (msg, repeated)
   pure (conn', msg, repeated)
@@ -2987,6 +2990,9 @@ saveGroupFwdRcvMsg user gInfo@GroupInfo {groupId} forwardingMember refAuthorMemb
 
 isMainApp :: CM Bool
 isMainApp = (SMSubscribe ==) <$> chatReadVar subscriptionMode
+
+mayBeRepeated :: MsgMeta -> CM Bool
+mayBeRepeated MsgMeta {redelivered} = if redelivered then pure True else not <$> isMainApp
 
 saveSndChatItem :: ChatTypeI c => User -> ChatDirection c 'MDSnd -> SndMessage -> CIContent 'MDSnd -> CM (ChatItem c 'MDSnd)
 saveSndChatItem user cd msg content = saveSndChatItem' user cd msg content Nothing Nothing Nothing Nothing False
