@@ -17,6 +17,7 @@ import ChatTests.Utils
 import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_, poll, wait)
 import Control.Monad (forM_, void, (>=>))
+import Control.Monad.Except (runExceptT)
 import Data.Aeson (ToJSON)
 import qualified Data.Aeson as J
 import qualified Data.ByteString.Char8 as B
@@ -29,18 +30,21 @@ import GHC.Conc (ThreadStatus (..), threadStatus)
 import Simplex.Chat.AppSettings (defaultAppSettings)
 import qualified Simplex.Chat.AppSettings as AS
 import Simplex.Chat.Call
-import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatEvent (CEvtCallInvitation, CEvtCallOffer, CEvtChatItemsDeleted, CEvtNewChatItems, CEvtReceivedGroupInvitation), PresetServers (..))
-import Simplex.Chat.Messages (AChatItem (..), CIMeta (CIMeta, itemText), ChatItem (ChatItem, meta), ChatItemId)
+import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatEvent (CEvtCallInvitation, CEvtCallOffer, CEvtChatItemsDeleted, CEvtReceivedGroupInvitation), PresetServers (..))
+import Simplex.Chat.Messages (ChatItemId)
 import Simplex.Chat.Options
 import Simplex.Chat.Protocol (ChatMessage (ChatMessage), ChatMsgEvent (XMsgNew), MsgContent (MCText), chatMsgToBody, mcSimple, supportedChatVRange)
 import Simplex.Chat.Types (ContactId, SharedMsgId (..), VersionRangeChat, authErrDisableCount, sameVerificationCode, verificationCode, pattern VersionChat)
+import Simplex.Messaging.Agent (sendMessages, vrValue)
 import Simplex.Messaging.Agent.Env.SQLite
 import Simplex.Messaging.Agent.RetryInterval
 import qualified Simplex.Messaging.Agent.Store.DB as DB
 import Simplex.Messaging.Client (NetworkTimeout (..))
 import Control.Concurrent.STM (atomically, readTVarIO)
 import qualified Simplex.Messaging.Crypto as C
+import Simplex.Messaging.Crypto.Ratchet (pattern PQEncOn)
 import Simplex.Messaging.Encoding.String (strEncode)
+import Simplex.Messaging.Protocol (MsgFlags (MsgFlags))
 import Simplex.Messaging.Server.Env.STM hiding (subscriptions)
 import Simplex.Messaging.Transport
 import Simplex.Messaging.Util (safeDecodeUtf8)
@@ -1452,7 +1456,7 @@ testExpireCallInvitation ps =
 
 testRepeatedMessage :: HasCallStack => TestParams -> IO ()
 testRepeatedMessage ps = do
-  (received, cfg) <- blockFirstEventCfg rcvHelloItem
+  (received, cfg) <- blockFirstEventCfg $ newItemText "hello"
   withNewTestChat ps "alice" aliceProfile $ \alice ->
     withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
       connectUsers alice bob
@@ -1500,13 +1504,15 @@ testRepeatedMessageFullDelete ps = do
 
 testRepeatedParseError :: HasCallStack => TestParams -> IO ()
 testRepeatedParseError ps = do
-  (received, cfg) <- blockFirstEventCfg rcvHelloItem
+  (received, cfg) <- blockFirstEventCfg $ newItemText "hello"
   withNewTestChat ps "alice" aliceProfile $ \alice ->
     withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
       connectUsers alice bob
       connId <- contactAgentConnId alice "bob"
       let hello = ChatMessage supportedChatVRange (Just $ SharedMsgId "repeated_msg_1") (XMsgNew $ mcSimple $ MCText "hello")
-      agentSendBody alice connId $ "[{\"invalid\":true}," <> chatMsgToBody hello <> "]"
+          body = "[{\"invalid\":true}," <> chatMsgToBody hello <> "]"
+          ChatController {smpAgent} = chatController alice
+      Right _ <- runExceptT $ sendMessages smpAgent [(connId, PQEncOn, MsgFlags False, vrValue body)]
       _ <- getTermLine bob
       readMVar received
       stopStartChat bob
@@ -1565,10 +1571,6 @@ testRepeatedCallOffer ps = do
       stopStartChat alice
       bob #> "@alice hi"
       alice <# "bob> hi"
-
-rcvHelloItem :: ChatEvent -> Bool
-rcvHelloItem (CEvtNewChatItems _ [AChatItem _ _ _ ChatItem {meta = CIMeta {itemText}}]) = itemText == "hello"
-rcvHelloItem _ = False
 
 contactAgentConnId :: TestCC -> T.Text -> IO B.ByteString
 contactAgentConnId cc name = do
