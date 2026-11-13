@@ -9,7 +9,7 @@ import {LockedError, Secrets, SessionFile, acquireLock, createDataFolder, dataRo
 import {Hub, StoredSession, hubTexts} from "./hub"
 import {ExitError, errorText, log, logError} from "./log"
 import {ToolCall, validName} from "./messages"
-import {SecretsProxy, proxyCa, startProxy} from "./proxy"
+import {SecretsProxy, Upstream, proxyCa, startProxy, upstreamProxies} from "./proxy"
 import {AttachLine, AttachRequest, CallRequest, OwnerState, PermissionRequest, ResetReply, SessionReply, SessionRequest, StatusReply, TitleReply, TitleRequest, TurnRequest, protocolVersion, unattendedStatus} from "./protocol"
 import {Handler, SocketError, isNotRunning, listen, requestJson, sendJson, startLines} from "./socket"
 import {ToolName} from "./tools"
@@ -54,6 +54,7 @@ export interface ServiceDeps {
   token: string
   version: string
   proxyPort?: number
+  upstream?: Upstream
   openHub(config: Config, stored: StoredSession[]): Promise<HubLike>
   onStopped(code: number): void
 }
@@ -100,7 +101,7 @@ export class Service {
     try {
       const service = new Service(deps)
       service.server = await listen(socketPath(deps.root), deps.token, service.routes())
-      if (deps.proxyPort !== undefined) service.proxy = await secretsProxy(deps.root, deps.proxyPort)
+      if (deps.proxyPort !== undefined) service.proxy = await secretsProxy(deps.root, deps.proxyPort, deps.upstream)
       service.hubReady = service.openHub(config)
       try {
         await service.hubReady
@@ -451,7 +452,8 @@ export async function runService(env: NodeJS.ProcessEnv = process.env, checks = 
   let service: Service
   try {
     createDataFolder(root)
-    service = await Service.start({...productionDeps(root), proxyPort: proxyPort(env)}, () => readConfig(env))
+    const port = proxyPort(env)
+    service = await Service.start({...productionDeps(root), proxyPort: port, upstream: upstreamProxies(env, port)}, () => readConfig(env))
   } catch (error) {
     const holder = error instanceof LockedError ? await lockHolder(root, checks) : undefined
     if (holder === "released") return runService(env, checks)
@@ -481,9 +483,9 @@ export function productionDeps(root: string): ServiceDeps {
   }
 }
 
-async function secretsProxy(root: string, port: number): Promise<{server: Server; proxy: SecretsProxy} | undefined> {
+async function secretsProxy(root: string, port: number, upstream: Upstream | undefined): Promise<{server: Server; proxy: SecretsProxy} | undefined> {
   try {
-    return await startProxy(port, {secrets: new Secrets(root), ca: proxyCa(root)})
+    return await startProxy(port, {secrets: new Secrets(root), ca: proxyCa(root), upstream})
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") throw error
     log(`Port ${port} is in use; secrets are not put into requests.`)

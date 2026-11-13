@@ -1,10 +1,10 @@
 import {KeyObject} from "crypto"
 import {existsSync, readFileSync} from "fs"
 import {IncomingHttpHeaders, IncomingMessage, OutgoingHttpHeaders, Server, ServerResponse, createServer, request as httpRequest} from "http"
-import {request as httpsRequest} from "https"
-import {Socket, connect} from "net"
+import {Agent as HttpsAgent, RequestOptions as HttpsRequestOptions, request as httpsRequest} from "https"
+import {BlockList, Socket, connect, isIP} from "net"
 import {join} from "path"
-import {Transform, TransformCallback, pipeline} from "stream"
+import {Duplex, Transform, TransformCallback, pipeline} from "stream"
 import {SecureContext, TLSSocket, createSecureContext, rootCertificates} from "tls"
 import {createBrotliDecompress, createGunzip, createInflate} from "zlib"
 import {Issued, caFromPem, createCa, hostCertificate, newKey} from "./certs"
@@ -21,13 +21,28 @@ const systemBundles = ["/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs
 const hopHeaders = new Set(["connection", "keep-alive", "proxy-authorization", "proxy-authenticate", "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade", "expect"])
 const textType = /^(text\/|application\/(json|x-www-form-urlencoded|xml|javascript|graphql)\b|[^;]*\+(json|xml)\b)/i
 const decoders = {gzip: createGunzip, "x-gzip": createGunzip, deflate: createInflate, br: createBrotliDecompress}
+const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1"])
 
 export interface ProxyOptions {
   secrets: Secrets
   ca: Issued
+  upstream?: Upstream
   gcp?: GcpTokens
   connectTo?: (host: string, port: number) => {host: string; port: number}
   upstreamCa?: string
+}
+
+export interface Upstream {
+  https?: UpstreamProxy
+  http?: UpstreamProxy
+  noProxy: string[]
+}
+
+export interface UpstreamProxy {
+  host: string
+  port: number
+  tls: boolean
+  authorization?: string
 }
 
 interface Target {
@@ -51,9 +66,10 @@ export class SecretsProxy {
   private readonly sockets = new Set<Socket>()
   private readonly issued = new Map<string, string>()
   private readonly gcp: GcpTokens
+  private readonly agent = new TargetAgent(target => this.open(target))
 
   constructor(private readonly options: ProxyOptions) {
-    this.gcp = options.gcp ?? new GcpTokens()
+    this.gcp = options.gcp ?? new GcpTokens((url, form) => this.postForm(url, form))
     this.inner = createServer((req, res) => {
       const target = this.targets.get(req.socket)
       if (target === undefined) res.destroy()
@@ -66,6 +82,7 @@ export class SecretsProxy {
   }
 
   close(): void {
+    this.agent.destroy()
     for (const socket of this.sockets) socket.destroy()
   }
 
@@ -93,25 +110,76 @@ export class SecretsProxy {
     if (url.protocol !== "http:") return plain(res, 400, "SimpleX proxy: HTTPS requests are sent with CONNECT.")
     const used = [url.pathname + url.search, ...Object.values(req.headers).flat()].some(text => text !== undefined && new RegExp(placeholderPattern.source).test(text))
     if (used) return this.refuse(res, url.hostname, "secrets are sent only over HTTPS.")
+    const host = bareHost(url.hostname)
     const port = Number(url.port || 80)
-    const upstream = httpRequest({host: url.hostname, port, method: req.method, path: url.pathname + url.search, headers: forwardedHeaders(req.headers)}, response => {
+    const via = this.proxyFor({host, port}, this.options.upstream?.http)
+    const headers = forwardedHeaders(req.headers)
+    const onResponse = (response: IncomingMessage): void => {
       res.writeHead(response.statusCode ?? 502, forwardedHeaders(response.headers))
       pipeline(response, res, () => undefined)
-    })
+    }
+    const upstream =
+      via === undefined
+        ? httpRequest({host, port, method: req.method, path: url.pathname + url.search, headers, agent: false}, onResponse)
+        : (via.tls ? httpsRequest : httpRequest)({host: via.host, port: via.port, method: req.method, path: url.href, headers: {...headers, ...proxyAuthorization(via)}, agent: false}, onResponse)
     upstream.on("error", () => plain(res, 502, `SimpleX proxy: ${url.hostname} can't be reached.`))
     pipeline(req, upstream, () => undefined)
   }
 
   private tunnel(client: Socket, head: Buffer, target: Target): void {
-    const upstream = connect(target.port, target.host, () => {
-      client.write("HTTP/1.1 200 Connection Established\r\n\r\n")
-      if (head.length > 0) upstream.write(head)
-      upstream.pipe(client)
-      client.pipe(upstream)
+    this.open(target).then(
+      upstream => {
+        upstream.on("error", () => client.destroy())
+        client.on("close", () => upstream.destroy())
+        if (client.destroyed) return void upstream.destroy()
+        client.write("HTTP/1.1 200 Connection Established\r\n\r\n")
+        if (head.length > 0) upstream.write(head)
+        upstream.pipe(client)
+        client.pipe(upstream)
+      },
+      () => client.end("HTTP/1.1 502 Bad Gateway\r\n\r\n"),
+    )
+  }
+
+  private async open(target: Target): Promise<Socket> {
+    const via = this.proxyFor(target, this.options.upstream?.https)
+    if (via !== undefined) return this.chained(via, target)
+    const {host, port} = this.options.connectTo?.(target.host, target.port) ?? target
+    const socket = this.track(connect(port, host))
+    await new Promise<void>((resolve, reject) => {
+      socket.once("connect", () => {
+        socket.off("error", reject)
+        resolve()
+      })
+      socket.once("error", reject)
     })
-    this.track(upstream)
-    upstream.on("error", () => (upstream.connecting ? client.end("HTTP/1.1 502 Bad Gateway\r\n\r\n") : client.destroy()))
-    client.on("close", () => upstream.destroy())
+    return socket
+  }
+
+  private chained(via: UpstreamProxy, {host, port}: Target): Promise<Socket> {
+    const authority = `${isIP(host) === 6 ? `[${host}]` : host}:${port}`
+    return new Promise((resolve, reject) => {
+      const request = (via.tls ? httpsRequest : httpRequest)({host: via.host, port: via.port, method: "CONNECT", path: authority, headers: {host: authority, ...proxyAuthorization(via)}, agent: false})
+      request.once("socket", socket => this.track(socket as Socket))
+      request.once("connect", (response: IncomingMessage, socket: Socket, head: Buffer) => {
+        if (response.statusCode !== 200) {
+          socket.destroy()
+          return reject(new Error(`the proxy ${via.host}:${via.port} answered ${response.statusCode}`))
+        }
+        if (head.length > 0) socket.unshift(head)
+        resolve(socket)
+      })
+      request.once("error", reject)
+      request.end()
+    })
+  }
+
+  private proxyFor(target: Target, via: UpstreamProxy | undefined): UpstreamProxy | undefined {
+    return via === undefined || bypassed(this.options.upstream?.noProxy ?? [], target.host, target.port) ? undefined : via
+  }
+
+  private targetOptions({host, port}: Target): HttpsRequestOptions {
+    return {agent: this.agent, host, port, servername: host, ...(this.options.upstreamCa === undefined ? {} : {ca: this.options.upstreamCa})}
   }
 
   private async forward(req: IncomingMessage, res: ServerResponse, target: Target): Promise<void> {
@@ -120,13 +188,24 @@ export class SecretsProxy {
     const streamed = Number(req.headers["content-length"] ?? 0) > maxBody
     const body = streamed ? Buffer.alloc(0) : await readBody(req)
     const outgoing = await this.withSecrets({target: req.url ?? "/", headers: {...req.headers}, body}, req.method ?? "GET", target, entries, streamed)
-    const {host, port} = this.options.connectTo?.(target.host, target.port) ?? target
     const headers: OutgoingHttpHeaders = forwardedHeaders(outgoing.headers)
     if (!streamed) headers["content-length"] = String(outgoing.body.length)
-    const upstream = httpsRequest({host, port, servername: target.host, method: req.method, path: outgoing.target, headers, ...(this.options.upstreamCa === undefined ? {} : {ca: this.options.upstreamCa})}, response => this.respond(response, res, target, entries))
+    const upstream = httpsRequest({...this.targetOptions(target), method: req.method, path: outgoing.target, headers}, response => this.respond(response, res, target, entries))
     upstream.on("error", () => plain(res, 502, `SimpleX proxy: ${target.host} can't be reached.`))
     if (streamed) pipeline(req, upstream, () => undefined)
     else upstream.end(outgoing.body)
+  }
+
+  private postForm(url: string, form: {[name: string]: string}): Promise<{status: number; body: unknown}> {
+    const {hostname, port, pathname, search} = new URL(url)
+    const body = new URLSearchParams(form).toString()
+    return new Promise((resolve, reject) => {
+      const request = httpsRequest({...this.targetOptions({host: bareHost(hostname), port: Number(port || 443)}), method: "POST", path: pathname + search, headers: {"content-type": "application/x-www-form-urlencoded", "content-length": Buffer.byteLength(body)}}, response => {
+        readBody(response).then(data => resolve({status: response.statusCode ?? 0, body: jsonOf(data)}), reject)
+      })
+      request.on("error", reject)
+      request.end(body)
+    })
   }
 
   private async withSecrets(request: Outgoing, method: string, target: Target, entries: SecretEntry[], streamed: boolean): Promise<Outgoing> {
@@ -236,9 +315,89 @@ export class SecretsProxy {
     plain(res, 502, `SimpleX proxy: the request to ${host} failed.`)
   }
 
-  private track(socket: Socket): void {
+  private track(socket: Socket): Socket {
     this.sockets.add(socket)
     socket.on("close", () => this.sockets.delete(socket))
+    return socket
+  }
+}
+
+class TargetAgent extends HttpsAgent {
+  constructor(private readonly open: (target: Target) => Promise<Socket>) {
+    super({keepAlive: true})
+  }
+
+  createConnection(options: HttpsRequestOptions, oncreate?: (error: Error | null, socket: Duplex) => void): undefined {
+    this.open({host: String(options.host), port: Number(options.port)}).then(
+      socket => oncreate?.(null, super.createConnection({...options, socket} as HttpsRequestOptions) as Duplex),
+      error => oncreate?.(error, undefined as unknown as Duplex),
+    )
+    return undefined
+  }
+}
+
+export function upstreamProxies(env: NodeJS.ProcessEnv, ownPort: number): Upstream {
+  const https = upstreamProxy(env.https_proxy || env.HTTPS_PROXY, ownPort)
+  const http = upstreamProxy(env.http_proxy || env.HTTP_PROXY, ownPort)
+  const noProxy = (env.no_proxy || env.NO_PROXY || "").split(/[\s,]+/).filter(entry => entry !== "")
+  return {...(https === undefined ? {} : {https}), ...(http === undefined ? {} : {http}), noProxy}
+}
+
+function upstreamProxy(text: string | undefined, ownPort: number): UpstreamProxy | undefined {
+  const given = text?.trim()
+  if (!given) return undefined
+  try {
+    const url = new URL(given.includes("://") ? given : `http://${given}`)
+    const tls = url.protocol === "https:"
+    const host = bareHost(url.hostname)
+    const port = Number(url.port || (tls ? 443 : 80))
+    if ((!tls && url.protocol !== "http:") || (loopbackHosts.has(host) && port === ownPort)) return undefined
+    const authorization = url.username === "" ? undefined : `Basic ${Buffer.from(`${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`).toString("base64")}`
+    return {host, port, tls, ...(authorization === undefined ? {} : {authorization})}
+  } catch {
+    return undefined
+  }
+}
+
+export function bypassed(noProxy: string[], host: string, port: number): boolean {
+  return noProxy.some(entry => {
+    if (entry === "*") return true
+    const match = /^\[(.+)\](?::(\d+))?$/.exec(entry) ?? /^([^:]+):(\d+)$/.exec(entry)
+    const name = (match?.[1] ?? entry).toLowerCase()
+    if (match?.[2] !== undefined && Number(match[2]) !== port) return false
+    if (name.includes("/")) return inSubnet(host, name)
+    const domain = name.replace(/^\*?\./, "")
+    return host === domain || host.endsWith(`.${domain}`)
+  })
+}
+
+function inSubnet(host: string, subnet: string): boolean {
+  const [address, bits] = subnet.split("/")
+  const family = isIP(address)
+  if (family === 0 || family !== isIP(host)) return false
+  const type = family === 6 ? "ipv6" : "ipv4"
+  try {
+    const list = new BlockList()
+    list.addSubnet(address, Number(bits), type)
+    return list.check(host, type)
+  } catch {
+    return false
+  }
+}
+
+function proxyAuthorization({authorization}: UpstreamProxy): {"proxy-authorization"?: string} {
+  return authorization === undefined ? {} : {"proxy-authorization": authorization}
+}
+
+function bareHost(hostname: string): string {
+  return hostname.replace(/^\[(.*)\]$/, "$1")
+}
+
+function jsonOf(data: Buffer): unknown {
+  try {
+    return JSON.parse(data.toString("utf8"))
+  } catch {
+    return undefined
   }
 }
 

@@ -450,7 +450,7 @@ The agent's shell commands get these variables:
 | `NODE_EXTRA_CA_CERTS` | `proxy-ca.pem` of the data folder, the proxy's certificate authority |
 | NAME of each secret | `simplex-secret-NAME` |
 
-With the Claude Code plugin, its SessionStart hook writes them to the file in `CLAUDE_ENV_FILE` when secrets exist and the service runs the proxy, with the port of the service's proxy. Claude Code applies that file to each Bash command of the session, a subagent's included. A FileChanged hook watches `secrets.json` and writes them again when a secret is set or removed. In opencode, the plugin of [opencode](#opencode) adds them for an agent of `serve`. An agent of `serve` in Claude Code gets no variables; the agent names the proxy and the certificates in its commands, such as `curl --proxy http://127.0.0.1:5226 --cacert DATA/proxy-ca-bundle.pem -H "Authorization: Bearer simplex-secret-GITHUB_TOKEN" https://api.github.com/user`, with the values of `proxy-env.json` in the agent's data folder.
+With the Claude Code plugin, its SessionStart hook writes them to the file in `CLAUDE_ENV_FILE` when secrets exist and the service runs the proxy, with the port of the service's proxy. Claude Code applies that file to each Bash command of the session, a subagent's included. A FileChanged hook watches `secrets.json` and writes them again when a secret is set or removed. Claude Code also runs it for a `secrets.json` in the session's folder, which writes the same variables again. In opencode, the plugin of [opencode](#opencode) adds them for an agent of `serve`. An agent of `serve` in Claude Code gets no variables; the agent names the proxy and the certificates in its commands, such as `curl --proxy http://127.0.0.1:5226 --cacert DATA/proxy-ca-bundle.pem -H "Authorization: Bearer simplex-secret-GITHUB_TOKEN" https://api.github.com/user`, with the values of `proxy-env.json` in the agent's data folder.
 
 `send` refuses the files of `_secrets/`, as the server's own files: `file: PATH is refused: private keys and the server's own files are not sent.`
 
@@ -460,6 +460,7 @@ The proxy of `serve` listens on its HTTP port, 5226 by default, beside the MCP s
 
 - A `CONNECT` to a host bound to no secret is a tunnel: the proxy reads nothing, and a placeholder in it is sent to that host as text, without the value.
 - A `CONNECT` to a bound host is answered with TLS and a certificate of the proxy's certificate authority for that host. The proxy reads the requests inside it and sends each one to the host over its own TLS connection, which checks the host's certificate against the system's roots. It offers HTTP/1.1 only.
+- The proxy connects to hosts through the HTTPS proxy of its own environment, `https_proxy` or `HTTPS_PROXY`, with `CONNECT`, and sends plain HTTP through `http_proxy` or `HTTP_PROXY`. The user and password in that proxy's URL are sent as `Proxy-Authorization: Basic`. The hosts in `no_proxy` or `NO_PROXY` are connected directly: `*` for all, a domain with its subdomains, `HOST:PORT`, or a subnet such as `10.0.0.0/8`. A proxy URL with `localhost`, `127.0.0.1` or `::1` and the proxy's own port is ignored. The plugin's service gets these variables from Claude Code's environment, as set before the plugin's variables, and `serve` from the environment it runs in.
 - A request body of up to 8 MiB is read for placeholders. A larger body with `Content-Length` is sent unchanged.
 - A request over plain HTTP is sent unchanged when it has no placeholder.
 - The certificate authority is made at the first start, as `proxy-ca.key`, readable only by the user, and `proxy-ca.pem`, with an ECDSA P-256 key, valid for 10 years. `proxy-ca-bundle.pem` is written at each start. Each host certificate is valid for 7 days and is made again after 6 days.
@@ -481,7 +482,7 @@ The proxy refuses a request with `403` and the text `SimpleX proxy: REASON`, and
 | `this AWS request can't be signed with secret AWS_SECRET_ACCESS_KEY: FORM.` | FORM: `streaming upload`, `presigned URL`, `SigV4A`, or `unrecognized signature` for a signature that the placeholder key does not match |
 | `secrets are sent only over HTTPS.` | a placeholder in a request over plain HTTP |
 
-Other answers: `400` with `SimpleX proxy: HTTPS requests are sent with CONNECT.` for a request with an `https:` URL, `502` with `SimpleX proxy: HOST can't be reached.` when the host can't be reached or its certificate fails the check, and `502` with `SimpleX proxy: the request to HOST failed.` for another error, which is logged.
+Other answers: `400` with `SimpleX proxy: HTTPS requests are sent with CONNECT.` for a request with an `https:` URL, `502` with `SimpleX proxy: HOST can't be reached.` when the host can't be reached, its certificate fails the check, or the proxy of the environment refuses the connection, and `502` with `SimpleX proxy: the request to HOST failed.` for another error, which is logged.
 
 These programs don't get the values through the proxy:
 

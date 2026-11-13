@@ -10,7 +10,7 @@ import {Secrets, acquireLock, createDataFolder, releaseLock, serverToken, writeH
 import {startHttp, stopHttp} from "./http"
 import {ExitError, log, logError, shellPath} from "./log"
 import {ChatItemsWatch} from "./messages"
-import {SecretsProxy, proxyCa} from "./proxy"
+import {SecretsProxy, proxyCa, upstreamProxies} from "./proxy"
 import {proxyFiles, proxyVariables} from "./secrets"
 import {AgentTools, instructions} from "./tools"
 import {version} from "./version"
@@ -89,7 +89,7 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
 async function startAgent(chat: api.ChatApi, options: ServeOptions, token: string): Promise<RunningServer> {
   const {name, data, port, approve, expireHours} = options
   const secrets = new Secrets(data)
-  const proxy = new SecretsProxy({secrets, ca: proxyCa(data)})
+  const proxy = new SecretsProxy({secrets, ca: proxyCa(data), upstream: upstreamProxies(process.env, port)})
   writePrivateFile(join(data, "proxy-env.json"), `${JSON.stringify(proxyVariables(proxyFiles(data, port), []))}\n`)
   const created = (await chat.apiGetActiveUser()) ?? (await chat.apiCreateActiveUser({displayName: options.displayName ?? name, fullName: "", peerType: T.ChatPeerType.Agent}))
   await prepareCore(chat, data)

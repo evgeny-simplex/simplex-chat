@@ -3,7 +3,7 @@ import {once} from "events"
 import {mkdtempSync, rmSync} from "fs"
 import {IncomingMessage, Server, createServer as createHttpServer, request as httpRequest} from "http"
 import {createServer as createHttpsServer, request as httpsRequest} from "https"
-import {AddressInfo, Socket, createServer as createTcpServer} from "net"
+import {AddressInfo, Socket, connect as connectTcp, createServer as createTcpServer} from "net"
 import {tmpdir} from "os"
 import {join} from "path"
 import {connect as tlsConnect, createSecureContext} from "tls"
@@ -11,7 +11,7 @@ import {gzipSync} from "zlib"
 import {Issued, createCa, hostCertificate, newKey} from "../../src/certs"
 import {SecretRecord, Secrets} from "../../src/files"
 import {GcpTokens} from "../../src/gcp"
-import {Scrubber, SecretsProxy, startProxy} from "../../src/proxy"
+import {Scrubber, SecretsProxy, bypassed, startProxy, upstreamProxies} from "../../src/proxy"
 import {signature} from "../../src/sigv4"
 
 const token = "ghp_RealToken+/=1234"
@@ -57,6 +57,9 @@ beforeAll(async () => {
       } else if (req.url === "/gzip") {
         res.writeHead(200, {"content-type": "text/plain", "content-encoding": "gzip"})
         res.end(gzipSync(`token ${token} end`))
+      } else if (req.url === "/token") {
+        res.writeHead(200, {"content-type": "application/json"})
+        res.end(JSON.stringify({access_token: "ya29.from-token-uri", expires_in: 3600}))
       } else if (req.url === "/split") {
         res.writeHead(200, {"content-type": "text/plain"})
         res.write(`start ${token.slice(0, 7)}`)
@@ -80,15 +83,18 @@ beforeEach(async () => {
   secrets = new Secrets(dir)
   secrets.set("GITHUB_TOKEN", token, record(["api.test.example"]))
   secrets.set("OTHER_TOKEN", "other-token-value", record(["other.example"]))
-  const upstreamPort = (upstream.address() as AddressInfo).port
   const gcp = new GcpTokens(async () => {
     gcpPosts++
     return {status: 200, body: {access_token: "ya29.minted-token", expires_in: 3600}}
   })
-  const started = await startProxy(0, {secrets, ca: proxyCa, gcp, connectTo: () => ({host: "127.0.0.1", port: upstreamPort}), upstreamCa: upstreamCa.cert.toString()})
+  const started = await startProxy(0, {secrets, ca: proxyCa, gcp, connectTo: toUpstream, upstreamCa: upstreamCa.cert.toString()})
   proxyServer = started.server
   proxy = started.proxy
 })
+
+function toUpstream(host: string, port: number): {host: string; port: number} {
+  return host.endsWith(".example") ? {host: "127.0.0.1", port: (upstream.address() as AddressInfo).port} : {host, port}
+}
 
 afterEach(async () => {
   proxy.close()
@@ -245,6 +251,98 @@ describe("secrets proxy, modes aws and gcp", () => {
     await through("storage.test.example", "/x", {headers: {authorization: "Bearer simplex-secret-GCP_KEY"}})
     expect(gcpPosts).toBe(1)
     expect(await through("storage.test.example", "/x?k=simplex-secret-GCP_KEY", {headers: {authorization: "Bearer simplex-secret-GCP_KEY"}})).toMatchObject({status: 403, body: "SimpleX proxy: secret GCP_KEY is used only to sign requests.\n"})
+  })
+})
+
+describe("secrets proxy behind the person's proxy", () => {
+  it("sends its connections through the proxy of its environment, with the credentials of its URL, and connects directly to the hosts of no_proxy", async () => {
+    const connects: {authority: string; authorization?: string}[] = []
+    const echo = createTcpServer(socket => socket.pipe(socket))
+    echo.listen(0, "127.0.0.1")
+    await once(echo, "listening")
+    const personal = createHttpServer((req, res) => res.end(`proxied ${req.url} ${req.headers["proxy-authorization"]}`))
+    personal.on("connect", (req: IncomingMessage, client: Socket, head: Buffer) => {
+      connects.push({authority: req.url ?? "", authorization: req.headers["proxy-authorization"]})
+      if (req.url === "refused.example.net:443" || req.url === "denied.example.net:443") return void client.end("HTTP/1.1 407 Proxy Authentication Required\r\n\r\n")
+      const server = connectTcp(((req.url === "echo.example.net:443" ? echo : upstream).address() as AddressInfo).port, "127.0.0.1", () => {
+        client.write("HTTP/1.1 200 Connection Established\r\n\r\n")
+        server.write(head)
+        server.pipe(client)
+        client.pipe(server)
+      })
+      client.on("close", () => server.destroy())
+    })
+    personal.listen(0, "127.0.0.1")
+    await once(personal, "listening")
+    const via = `http://agent:p%40ss@127.0.0.1:${(personal.address() as AddressInfo).port}`
+    const authorization = `Basic ${Buffer.from("agent:p@ss").toString("base64")}`
+    const {privateKey} = generateKeyPairSync("rsa", {modulusLength: 2048})
+    secrets.set("GCP_KEY", JSON.stringify({type: "service_account", client_email: "agent@p.iam.gserviceaccount.com", private_key: privateKey.export({type: "pkcs8", format: "pem"}), token_uri: "https://oauth2.test.example/token"}), record(["storage.test.example"], "gcp"))
+    secrets.set("INTERNAL_TOKEN", "internal-token-value", record(["svc.internal.example"]))
+    secrets.set("DENIED_TOKEN", "denied-token-value", record(["denied.example.net"]))
+    proxy.close()
+    proxyServer.closeAllConnections()
+    await new Promise(resolve => proxyServer.close(resolve))
+    const upstreams = upstreamProxies({https_proxy: via, HTTP_PROXY: via, NO_PROXY: "direct.example, .internal.example"}, 5225)
+    const started = await startProxy(0, {secrets, ca: proxyCa, upstream: upstreams, connectTo: toUpstream, upstreamCa: upstreamCa.cert.toString()})
+    proxyServer = started.server
+    proxy = started.proxy
+
+    expect((await through("api.test.example", "/echo", {headers: {authorization: "Bearer simplex-secret-GITHUB_TOKEN"}})).status).toBe(200)
+    expect((await through("api.test.example", "/x")).status).toBe(200)
+    const tunnel = httpRequest({host: "127.0.0.1", port: proxyPort(), method: "CONNECT", path: "echo.example.net:443"})
+    tunnel.end()
+    const [response, socket] = (await once(tunnel, "connect")) as [IncomingMessage, Socket]
+    expect(response.statusCode).toBe(200)
+    socket.write("tunneled bytes")
+    expect(String((await once(socket, "data"))[0])).toBe("tunneled bytes")
+    socket.destroy()
+    expect((await through("svc.internal.example", "/echo", {headers: {authorization: "Bearer simplex-secret-INTERNAL_TOKEN"}})).status).toBe(200)
+    expect((await through("storage.test.example", "/echo", {headers: {authorization: "Bearer simplex-secret-GCP_KEY"}})).status).toBe(200)
+    expect((await through("refused.example.net", "/")).status).toBe(502)
+    expect(await through("denied.example.net", "/x", {headers: {authorization: "Bearer simplex-secret-DENIED_TOKEN"}})).toMatchObject({status: 502, body: "SimpleX proxy: denied.example.net can't be reached.\n"})
+    const plainReply = await new Promise<string>(resolve => {
+      const req = httpRequest({host: "127.0.0.1", port: proxyPort(), path: "http://plain.example.net/x"}, res => {
+        const chunks: Buffer[] = []
+        res.on("data", chunk => chunks.push(chunk))
+        res.on("end", () => resolve(Buffer.concat(chunks).toString()))
+      })
+      req.end()
+    })
+
+    expect(connects.map(({authority}) => authority)).toEqual(["api.test.example:443", "echo.example.net:443", "oauth2.test.example:443", "storage.test.example:443", "refused.example.net:443", "denied.example.net:443"])
+    expect(new Set(connects.map(connect => connect.authorization))).toEqual(new Set([authorization]))
+    expect(received.map(({method, url, headers}) => [method, url, headers.authorization])).toEqual([
+      ["GET", "/echo", `Bearer ${token}`],
+      ["GET", "/x", undefined],
+      ["GET", "/echo", "Bearer internal-token-value"],
+      ["POST", "/token", undefined],
+      ["GET", "/echo", "Bearer ya29.from-token-uri"],
+    ])
+    expect(new URLSearchParams(received[3].body).get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:jwt-bearer")
+    expect(plainReply).toBe(`proxied http://plain.example.net/x ${authorization}`)
+    personal.closeAllConnections()
+    personal.close()
+    echo.close()
+  })
+
+  it("reads the proxy of its environment, in small letters first, without its own port and other schemes", () => {
+    expect(upstreamProxies({https_proxy: "http://u:p%40ss@proxy.corp.example:8080", HTTPS_PROXY: "http://other.example:1", HTTP_PROXY: "proxy.corp.example:3128", NO_PROXY: "a.example, .b.example"}, 5225)).toEqual({
+      https: {host: "proxy.corp.example", port: 8080, tls: false, authorization: `Basic ${Buffer.from("u:p@ss").toString("base64")}`},
+      http: {host: "proxy.corp.example", port: 3128, tls: false},
+      noProxy: ["a.example", ".b.example"],
+    })
+    expect(upstreamProxies({HTTPS_PROXY: "https://[::1]:8443"}, 5225)).toEqual({https: {host: "::1", port: 8443, tls: true}, noProxy: []})
+    expect(upstreamProxies({https_proxy: "", HTTPS_PROXY: "http://127.0.0.1:5225", http_proxy: "http://localhost:5225"}, 5225)).toEqual({noProxy: []})
+    expect(upstreamProxies({HTTPS_PROXY: "socks5://proxy.corp.example:1080"}, 5225)).toEqual({noProxy: []})
+  })
+
+  it("connects directly to the hosts of no_proxy: all with *, a domain with its subdomains, a host with a port, and a subnet", () => {
+    const noProxy = ["internal.example", ".corp.example", "*.wild.example", "api.example:8443", "10.0.0.0/8", "[fd00::1]:443"]
+    const direct = (host: string, port = 443): boolean => bypassed(noProxy, host, port)
+    expect([direct("internal.example"), direct("a.internal.example"), direct("corp.example"), direct("x.corp.example"), direct("a.wild.example"), direct("api.example", 8443), direct("10.1.2.3"), direct("fd00::1")]).toEqual(Array(8).fill(true))
+    expect([direct("notinternal.example"), direct("api.example"), direct("11.1.2.3"), direct("fd00::1", 8443)]).toEqual(Array(4).fill(false))
+    expect(bypassed(["*"], "any.example", 443)).toBe(true)
   })
 })
 

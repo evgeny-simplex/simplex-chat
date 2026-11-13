@@ -122,7 +122,7 @@ Start sequence, event dispatch and stop sequence of one agent.
 | `RunningServer` | [40](../src/serve.ts#L40) | token, `ChatApi`, user, `Actions`, `stop` |
 | `serve` | [48](../src/serve.ts#L48) | `startServer`, then SIGINT and SIGTERM handlers: the first signal stops, a second ends the stop wait |
 | `startServer` | [66](../src/serve.ts#L66) | data folder, lock, token, headers file, `ChatApi.init`, `startAgent`; cleanup on error |
-| `startAgent` | [89](../src/serve.ts#L89) | `Secrets` of the data folder, the `SecretsProxy` with the CA of the data folder, `proxy-env.json`, user, `prepareCore`, control group, wiring of `Actions`, `AgentTools`, `Control`, HTTP with the proxy, event handler, `stop`, which closes the proxy's sockets |
+| `startAgent` | [89](../src/serve.ts#L89) | `Secrets` of the data folder, the `SecretsProxy` with the CA of the data folder and the proxies of the process's environment, `proxy-env.json`, user, `prepareCore`, control group, wiring of `Actions`, `AgentTools`, `Control`, HTTP with the proxy, event handler, `stop`, which closes the proxy's sockets |
 | `registerHint` | [163](../src/serve.ts#L163) | the `register` command line printed after the owner setup |
 | `waitForCancelledCards` | [167](../src/serve.ts#L167) | the fixed wait at stop for cards edited or posted at the stop, used by the plugin's hub as well |
 | `controlGroup` | [183](../src/serve.ts#L183) | found, created or reset agent control chat |
@@ -352,10 +352,12 @@ An opencode plugin, shipped as TypeScript source in the package and run by openc
 
 | Symbol | Contents |
 |---|---|
-| <a id="proxy-secretsproxy"></a>`SecretsProxy` | the proxy over a `Secrets`, a certificate authority, `GcpTokens` and, for tests, the address and certificate of the hosts |
-| <a id="proxy-attach"></a>`SecretsProxy.attach`, `close` | `connect` handler of an HTTP server; the end of the proxy's sockets |
+| <a id="proxy-secretsproxy"></a>`SecretsProxy` | the proxy over a `Secrets`, a certificate authority, the proxies of its environment, `GcpTokens` and, for tests, the address and certificate of the hosts |
+| <a id="proxy-attach"></a>`SecretsProxy.attach`, `close` | `connect` handler of an HTTP server; the end of the proxy's sockets and of the kept connections |
 | <a id="proxy-connect"></a>`SecretsProxy.connect`, `tunnel` | `CONNECT`: a tunnel for a host bound to no secret, otherwise TLS with a host certificate, whose requests reach an inner HTTP server |
-| <a id="proxy-request"></a>`SecretsProxy.request` | a request with an `http://` target, sent unchanged without placeholders |
+| <a id="proxy-open"></a>`SecretsProxy.open`, `chained`, `proxyFor`, `targetOptions`, `postForm`, `TargetAgent` | a connection to a host: directly, or with `CONNECT` through the HTTPS proxy of the environment unless `no_proxy` names the host; the agent that keeps such TLS connections for the requests of bound hosts and the post to `token_uri` |
+| <a id="proxy-upstreamproxies"></a>`upstreamProxies`, `upstreamProxy`, `bypassed`, `inSubnet` | the HTTPS and HTTP proxies and the `no_proxy` entries of an environment, without a proxy at the proxy's own port; the match of a host against `no_proxy` |
+| <a id="proxy-request"></a>`SecretsProxy.request` | a request with an `http://` target, sent unchanged without placeholders, directly or through the HTTP proxy of the environment |
 | <a id="proxy-forward"></a>`SecretsProxy.forward`, `withSecrets`, `signedForAws` | the `Host` check, the body, the placeholders, the modes and the refusals of [API 4.9](api.md#49-secrets-proxy) |
 | <a id="proxy-respond"></a>`SecretsProxy.respond`, `forms`, `Scrubber` | the response with the values replaced, decoded when compressed; a stream transform that keeps the end of a chunk until the next one |
 | <a id="proxy-context"></a>`SecretsProxy.context` | a TLS context per host, made again after 6 days |
@@ -379,7 +381,7 @@ An opencode plugin, shipped as TypeScript source in the package and run by openc
 
 | Symbol | Contents |
 |---|---|
-| <a id="gcp-serviceaccountkey"></a>`serviceAccountKey`, `assertion`, `GcpTokens` | a service-account key; its RS256 JWT; access tokens kept per key until 5 minutes before they expire, one request at a time |
+| <a id="gcp-serviceaccountkey"></a>`serviceAccountKey`, `assertion`, `GcpTokens` | a service-account key; its RS256 JWT; access tokens kept per key until 5 minutes before they expire, one request at a time, posted with the proxy's `postForm` |
 
 ---
 
@@ -941,7 +943,7 @@ Data flow of a prompt from the session group:
 
 | Symbol | Line | Contents |
 |---|---|---|
-| `HubLike`, `SessionLike`, `ServiceDeps` | [27-59](../src/service.ts#L27-L59) | interfaces that the service uses, so that tests can replace the hub. `ServiceDeps.proxyPort` is the port of the secrets proxy; without it, as in tests, the service runs no proxy. |
+| `HubLike`, `SessionLike`, `ServiceDeps` | [27-59](../src/service.ts#L27-L59) | interfaces that the service uses, so that tests can replace the hub. `ServiceDeps.proxyPort` is the port of the secrets proxy; without it, as in tests, the service runs no proxy. `ServiceDeps.upstream` holds the proxies of the service's environment. |
 | `Entry` | [61](../src/service.ts#L61) | opening promise, session, open attachments, their writers, running calls, idle timer, the session server's parent process ID and the time it was last seen |
 | `Service.start` | [98](../src/service.ts#L98) | The lock is taken, and the stored sessions are read with their aliases and the next number. The listener starts before the hub opens, so that a starter that lost the lock race gets an answer to `/status` right after `running`. The secrets proxy starts on its port next, and is closed when the hub fails to open. After the hub opens, the stop timer starts, the titles held at the last stop are taken as new `/title` requests, and the hourly log trim starts. |
 | `closeProxy` | [service.ts](../src/service.ts) | the proxy's server closed, its connections and tunnels ended |
@@ -953,9 +955,9 @@ Data flow of a prompt from the session group:
 | `onAttach`, `onCall`, `hold` | [319-371](../src/service.ts#L319-L371) | attachment with the session's line writer; call stream; streams refused while stopping |
 | `entry`, `refuseWhenStopping`, `folder`, `openAgent` | [373-418](../src/service.ts#L373-L418) | the session registry. The status is 503 while the service stops, and 400 for an ID that is not a session ID. The status is 409 for an unknown session on the routes other than `/session` and `/title`. A new session is given a new number and name, and the aliases that already point to it. |
 | `scheduleIdle`, `scheduleStop` | [420-445](../src/service.ts#L420-L445) | idle close of a session, idle stop of the service. When the stop timer fires while a process in `proxied` runs, the timer starts again; the processes that ended are removed first. |
-| `runService` | [448](../src/service.ts#L448) | the process entry: ROOT, start with the proxy port of `SIMPLEX_MCP_PROXY_PORT`, ready line and signal handlers. For a held lock, the start runs again once the lock is released, and the ready line is `running` when its holder answers. |
+| `runService` | [448](../src/service.ts#L448) | the process entry: ROOT, start with the proxy port of `SIMPLEX_MCP_PROXY_PORT` and the proxies of `upstreamProxies`, ready line and signal handlers. For a held lock, the start runs again once the lock is released, and the ready line is `running` when its holder answers. |
 | `productionDeps` | [474](../src/service.ts#L474) | token, `Hub.open` |
-| `secretsProxy` | [service.ts](../src/service.ts) | `startProxy` with the `Secrets` and the certificate authority of ROOT; for `EADDRINUSE`, a log line and no proxy |
+| `secretsProxy` | [service.ts](../src/service.ts) | `startProxy` with the `Secrets` and the certificate authority of ROOT and the proxies of the environment; for `EADDRINUSE`, a log line and no proxy |
 | `processEvent` | [494](../src/service.ts#L494) | the next event of a PID on `titled` or `registered`, 10 s at most |
 | `lockHolder` | [506](../src/service.ts#L506) | up to 150 checks, 100 ms apart. The result is `released` when ROOT/service.lock is gone, and `answers` for any result of a socket request other than ENOENT and ECONNREFUSED. |
 | `sessionName` | [521](../src/service.ts#L521) | session title, else the project folder name, else `Claude Code` |

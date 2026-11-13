@@ -366,13 +366,16 @@ Components:
 flowchart LR
   AD[admin or owner] -->|/secret NAME HOSTS VALUE| CT[Control]
   CT --> ST[(ROOT/secrets and secrets.json)]
-  HK[SessionStart and FileChanged hooks] -->|variables| EF[CLAUDE_ENV_FILE]
+  HK[SessionStart and FileChanged hooks] -->|GET /status| SV[service: proxyPort while the proxy runs]
+  HK -->|variables with proxyPort| EF[CLAUDE_ENV_FILE]
   EF --> BC[Bash commands]
   BC -->|CONNECT| PX[proxy]
   ST --> PX
   CA[(proxy CA)] --> PX
-  PX -->|bound hosts, values put in| WS[web services]
-  PX -->|other hosts, tunnel| OT[other hosts]
+  PX -->|bound hosts, values put in; other hosts, tunnel| NP{"HTTPS proxy in the service's environment, host not in no_proxy?"}
+  NP -->|no| WS[web services and other hosts]
+  NP -->|yes: CONNECT with Proxy-Authorization| PP[the person's HTTPS proxy]
+  PP --> WS
   ST --> LS[list: names, hosts, placeholders]
 ```
 
@@ -552,10 +555,11 @@ D14 the hooks' port: SIMPLEX_MCP_PROXY_PORT      proxyPort of GET /status, writt
 
 Added: the unit tests run with `HOME` in a temporary folder, the `globalSetup` of the project `unit` in `jest.config.js`, and the hook tests pass their own `SIMPLEX_MCP_HOME`; a test of `files.test.ts` fails when the default data root is outside that folder. New spec text names functions and links files, without line numbers, for #8176.
 
+Added: the proxy connects to hosts through the HTTPS proxy of its own environment (`https_proxy`, then `HTTPS_PROXY`) with `CONNECT` and `Proxy-Authorization` from the URL's credentials, and sends plain HTTP through `http_proxy` or `HTTP_PROXY`. `no_proxy` or `NO_PROXY` hosts are connected directly. A proxy on `localhost`, `127.0.0.1` or `::1` at the proxy's own port is left out. The service's environment is Claude Code's, without the variables of `CLAUDE_ENV_FILE`. The post to `token_uri` uses the same connections in place of `fetch`. The proxy's requests use agents of their own, so `NODE_USE_ENV_PROXY` in the environment doesn't change them.
+
 Open:
 
-- O1. Tunnels connect directly, and the proxy's own HTTPS requests use the person's proxy only with `NODE_USE_ENV_PROXY=1` in the service's environment. Behind a person's own HTTPS proxy, commands that had used it lose their way out while secrets exist. A fix chains `CONNECT` to the proxy of the service's environment: about 40 lines and a test.
 - O2. An agent of `serve` in Claude Code gets no variables, as no hook of `serve` runs there; the agent names the proxy in its commands. A fix: `register` adds a SessionStart hook, or `list` returns the proxy's URL.
-- O3. The FileChanged matcher `secrets.json` also makes Claude Code watch `secrets.json` of the session's folder (`ne`, 295488859), and a change there writes the variables again.
+- O3. The FileChanged matcher `secrets.json` also makes Claude Code watch `secrets.json` of the session's folder (`ne`, 295488859), and a change there writes the variables again. A matcher can't name the data root's file: Claude Code matches an event by the file's name alone, and the data root depends on `SIMPLEX_MCP_HOME`, while `hooks.json` is fixed. Documented in REFERENCE and api 4.8; left as is.
 - O4. The docs of Q1: the limits of the plugin variant and the stronger setups.
 - O5. README.md "## Secrets" still has #8151's text: `--secrets-folder`, `/secret` without hosts, `$(cat …)`. The text the user approves replaces it before the branch ships.

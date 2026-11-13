@@ -38,7 +38,7 @@ export class GcpTokens {
   private readonly tokens = new Map<string, Promise<{token: string; renewAt: number}>>()
 
   constructor(
-    private readonly postForm: PostForm = fetchForm,
+    private readonly postForm: PostForm,
     private readonly now: () => number = Date.now,
   ) {}
 
@@ -63,11 +63,6 @@ export class GcpTokens {
     const seconds = typeof reply.expires_in === "number" ? reply.expires_in : lifetimeSeconds
     return {token: reply.access_token, renewAt: started + seconds * 1000 - renewBeforeMs}
   }
-}
-
-async function fetchForm(url: string, form: {[name: string]: string}): Promise<{status: number; body: unknown}> {
-  const response = await fetch(url, {method: "POST", headers: {"content-type": "application/x-www-form-urlencoded"}, body: new URLSearchParams(form).toString()})
-  return {status: response.status, body: await response.json().catch(() => undefined)}
 }
 
 function base64url(text: string): string {
