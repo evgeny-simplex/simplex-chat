@@ -2825,7 +2825,7 @@ testGroupAsync ps = do
       alice ##> "/g team"
       alice <## "group #team is created"
       alice <## "to add members use /a team <name> or /create link #team"
-      alice ##> "/a team bob"
+      alice ##> "/a team bob admin"
       concurrentlyN_
         [ alice <## "invitation to join the group #team sent to bob",
           do
@@ -2846,7 +2846,7 @@ testGroupAsync ps = do
       concurrentlyN_
         [ alice <## "invitation to join the group #team sent to cath",
           do
-            cath <## "#team: alice invites you to join the group as admin"
+            cath <## "#team: alice invites you to join the group as member"
             cath <## "use /j team to accept"
         ]
       cath ##> "/j team"
@@ -2877,7 +2877,7 @@ testGroupAsync ps = do
       concurrentlyN_
         [ bob <## "invitation to join the group #team sent to dan",
           do
-            dan <## "#team: bob invites you to join the group as admin"
+            dan <## "#team: bob invites you to join the group as member"
             dan <## "use /j team to accept"
         ]
       dan ##> "/j team"
@@ -2910,10 +2910,10 @@ testGroupAsync ps = do
       withTestChat ps "cath" $ \cath -> do
         withTestChat ps "dan" $ \dan -> do
           concurrentlyN_
-            [ alice <## "subscribed 6 connections server localhost",
-              bob <## "subscribed 6 connections server localhost",
-              cath <## "subscribed 6 connections server localhost",
-              dan <## "subscribed 6 connections server localhost"
+            [ alice <## "subscribed 6 connections on server localhost",
+              bob <## "subscribed 6 connections on server localhost",
+              cath <## "subscribed 6 connections on server localhost",
+              dan <## "subscribed 6 connections on server localhost"
             ]
           alice #> "#team hello"
           concurrentlyN_

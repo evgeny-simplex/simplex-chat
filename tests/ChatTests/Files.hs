@@ -1469,8 +1469,7 @@ testXFTPStandaloneCancelSnd = testChat2 aliceProfile aliceDesktopProfile $ \src 
     dst ##> ("/_download 1 " <> uri <> " " <> tmpFile dst "should.not.extist")
     dst <## "started standalone receiving file 1 (should.not.extist)"
     threadDelay 100000
-    logWarn "no error?"
-    dst <## "error receiving file 1 (should.not.extist)"
+    dst <## "error standalone receiving file 1 (should.not.extist)"
     dst <## "INTERNAL {internalErr = \"XFTP {xftpErr = AUTH}\"}"
 
 testXFTPStandaloneRelativePaths :: HasCallStack => TestParams -> IO ()
