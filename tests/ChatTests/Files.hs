@@ -9,10 +9,9 @@ import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Profiles (addTestBadge, futureDate, issueTestBadge, issueTestBadgeType, testBadgeKeys)
 import ChatTests.Utils
-import Control.Concurrent (MVar, newEmptyMVar, readMVar, threadDelay, tryPutMVar)
+import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Logger.Simple
-import Control.Monad (forever, when)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (runReaderT)
 import qualified Data.Aeson as J
@@ -23,7 +22,7 @@ import qualified Data.Text as T
 import Network.HTTP.Types.URI (urlEncode)
 import Data.Time.Clock (addUTCTime, getCurrentTime, nominalDay)
 import Simplex.Chat.Badges (BadgeProof, BadgeStatus (..), BadgeType (..), FileSizeLimits (..), ProofPresHeader (..), badgeProof, defaultFileSizeLimits)
-import Simplex.Chat.Controller (ChatCommand (APIGetChat), ChatConfig (..), ChatEvent (CEvtRcvFileDescrReady), ChatHooks (..), ChatPagination (CPLast), ChatResponse (CRApiChat, CRNewChatItems), defaultChatHooks)
+import Simplex.Chat.Controller (ChatCommand (APIGetChat), ChatConfig (..), ChatEvent (CEvtRcvFileDescrReady), ChatPagination (CPLast), ChatResponse (CRApiChat, CRNewChatItems))
 import Simplex.Chat.Core (sendChatCmdStr)
 import Simplex.Chat.Library.Commands (execChatCommand')
 import Simplex.Chat.Library.Internal (badgeProofStatus, roundedFDCount)
@@ -1202,7 +1201,7 @@ testXFTPMarkToReceive = do
 
 testXFTPMarkToReceiveDescrStopped :: HasCallStack => TestParams -> IO ()
 testXFTPMarkToReceiveDescrStopped ps = do
-  (descrSaved, cfg) <- blockFirstFileDescrCfg
+  (descrSaved, cfg) <- blockFirstEventCfg rcvFileDescrReady
   withXFTPServer ps $
     withNewTestChat ps "alice" aliceProfile $ \alice ->
       withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
@@ -1233,7 +1232,7 @@ testXFTPMarkToReceiveDescrStopped ps = do
 
 testXFTPAcceptDescrStopped :: HasCallStack => TestParams -> IO ()
 testXFTPAcceptDescrStopped ps = do
-  (descrSaved, cfg) <- blockFirstFileDescrCfg
+  (descrSaved, cfg) <- blockFirstEventCfg rcvFileDescrReady
   withXFTPServer ps $
     withNewTestChat ps "alice" aliceProfile $ \alice ->
       withNewTestChatCfgOpts ps cfg opts "bob" bobProfile $ \bob -> do
@@ -1263,16 +1262,9 @@ testXFTPAcceptDescrStopped ps = do
   where
     opts = (testOpts :: ChatOpts) {autoAcceptFileSize = 300000}
 
-blockFirstFileDescrCfg :: IO (MVar (), ChatConfig)
-blockFirstFileDescrCfg = do
-  descrSaved <- newEmptyMVar
-  let hook _ ev = case ev of
-        Right CEvtRcvFileDescrReady {} -> do
-          isFirst <- tryPutMVar descrSaved ()
-          when isFirst $ forever $ threadDelay 1000000
-          pure ev
-        _ -> pure ev
-  pure (descrSaved, testCfg {chatHooks = defaultChatHooks {eventHook = Just hook}})
+rcvFileDescrReady :: ChatEvent -> Bool
+rcvFileDescrReady CEvtRcvFileDescrReady {} = True
+rcvFileDescrReady _ = False
 
 testXFTPRcvError :: HasCallStack => TestParams -> IO ()
 testXFTPRcvError ps = do
