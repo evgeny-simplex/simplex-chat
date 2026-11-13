@@ -13733,11 +13733,6 @@ relayConnIdToMember cc name = do
     (Only connId : _) -> pure connId
     _ -> fail $ "no relay connection to member " <> T.unpack name
 
-agentSendBody :: TestCC -> ByteString -> ByteString -> IO ()
-agentSendBody cc connId body = do
-  let ChatController {smpAgent} = chatController cc
-  runExceptT (sendMessages smpAgent [(connId, PQEncOff, MsgFlags False, vrValue body)]) >>= either (fail . show) (const $ pure ())
-
 lastSndMsgFlags :: TestCC -> ByteString -> Int -> IO [T.Text]
 lastSndMsgFlags cc connId n = do
   rows <- withCCAgentTransaction cc $ \db ->

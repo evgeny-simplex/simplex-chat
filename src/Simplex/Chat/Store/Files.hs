@@ -848,7 +848,7 @@ setAcceptedRcvFileConnected db fileId = do
 createRcvFileChunk :: DB.Connection -> RcvFileTransfer -> Integer -> AgentMsgId -> IO RcvChunkStatus
 createRcvFileChunk db RcvFileTransfer {fileId, fileInvitation = FileInvitation {fileSize}, chunkSize} chunkNo msgId = do
   status <- getLastChunkNo
-  unless (status == RcvChunkError || status == RcvChunkDuplicate) $ do
+  unless (status == RcvChunkError) $ do
     currentTs <- getCurrentTime
     DB.execute
       db
