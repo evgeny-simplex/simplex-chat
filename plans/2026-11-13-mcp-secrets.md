@@ -547,6 +547,8 @@ D13 e2e: curl through the service's proxy        unit tests with local HTTPS ser
                                                  httpbin.org through the build
 ```
 
+Added: the unit tests run with `HOME` in a temporary folder, the `globalSetup` of the project `unit` in `jest.config.js`, and the hook tests pass their own `SIMPLEX_MCP_HOME`; a test of `files.test.ts` fails when the default data root is outside that folder. New spec text names functions and links files, without line numbers, for #8176.
+
 Open:
 
 - O1. Tunnels connect directly, and the proxy's own HTTPS requests use the person's proxy only with `NODE_USE_ENV_PROXY=1` in the service's environment. Behind a person's own HTTPS proxy, commands that had used it lose their way out while secrets exist. A fix chains `CONNECT` to the proxy of the service's environment: about 40 lines and a test.

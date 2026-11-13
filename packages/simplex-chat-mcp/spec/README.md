@@ -255,8 +255,8 @@ Claude Code uses these files of the plugin, described in [API 4.8](api.md#48-plu
 | Claude Code or opencode entry of `serve` | [`src/register.ts`](../src/register.ts#L39) | `register` | [39](../src/register.ts#L39) |
 | Data folder files | [`src/files.ts`](../src/files.ts#L115) | `createDataFolder`, `acquireLock` | [115](../src/files.ts#L115), [120](../src/files.ts#L120) |
 | Secrets | [`src/files.ts`](../src/files.ts#L175) | `Secrets` | [175](../src/files.ts#L175) |
-| Secrets proxy | [`src/proxy.ts`](../src/proxy.ts#L46) | `SecretsProxy`, `startProxy` | [46](../src/proxy.ts#L46), [279](../src/proxy.ts#L279) |
-| opencode plugin | [`opencode/simplex-secrets.ts`](../opencode/simplex-secrets.ts#L9) | default export | [9](../opencode/simplex-secrets.ts#L9) |
+| Secrets proxy | [`src/proxy.ts`](../src/proxy.ts) | `SecretsProxy`, `startProxy` | [proxy.ts](../src/proxy.ts) |
+| opencode plugin | [`opencode/simplex-secrets.ts`](../opencode/simplex-secrets.ts) | default export, `shellVariables` | [simplex-secrets.ts](../opencode/simplex-secrets.ts) |
 | Session server | [`src/session.ts`](../src/session.ts#L40) | `startSession` | [40](../src/session.ts#L40) |
 | Session to service link | [`src/session.ts`](../src/session.ts#L69) | `ServiceLink` | [69](../src/session.ts#L69) |
 | Service start by a client | [`src/client.ts`](../src/client.ts#L40) | `ServiceClient.ensureService` | [40](../src/client.ts#L40) |

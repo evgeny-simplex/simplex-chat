@@ -180,7 +180,7 @@ Tool definitions, call handlers, connect plans, perform steps, files.
 | `leaveChat` | [1080](../src/tools.ts#L1080) | perform step of `leave` and `/leave`; the chat's forwarded files deleted |
 | `download`, `fileServers`, `unknownServers` | [1090-1135](../src/tools.ts#L1090-L1135) | the `download` call before its action |
 | `startDownload`, `checkDownload`, `currentFile`, `settleFile`, `settleReceived`, `moveReceived` | [1153-1220](../src/tools.ts#L1153-L1220) | a download's steps |
-| `listChats` | [1289](../src/tools.ts#L1289) | the `list` result: chats, actions, and the name, hosts, mode and placeholder of each secret when secrets exist |
+| `listChats` | [tools.ts](../src/tools.ts) | the `list` result: chats, actions, and the name, hosts, mode and placeholder of each secret when secrets exist |
 | `agentChats`, `knownChat` | [1290-1309](../src/tools.ts#L1290-L1309) | the agent's chats; a checked chat reference |
 | `selfSender`, `toMessages` | [1374-1383](../src/tools.ts#L1374-L1383) | the agent's name and peer type in a chat, its incognito name in an incognito chat, or its profile name when the incognito name can't be read; the items of one chat as messages with that name, for the results of `connect`, `send` and `receive` |
 | `classifyPlan` | [1403](../src/tools.ts#L1403) | `apiConnectPlan` response to a join plan or a known chat |
@@ -287,25 +287,25 @@ Hooks are bound in [`serve.ts:98-104`](../src/serve.ts#L98-L104): `refusal`, `sa
 
 | Symbol | Line | Contents |
 |---|---|---|
-| `SecretMode`, `SecretRecord`, `SecretEntry`, `secretName` | [29-39](../src/files.ts#L29-L39) | `value`, `aws` or `gcp`; `{hosts, mode, setBy, setById, setAt}` of a secret; `{name, hosts, mode}`; `^[A-Z][A-Z0-9_]{0,63}$` |
+| `SecretMode`, `SecretRecord`, `SecretEntry`, `secretName` | [files.ts](../src/files.ts) | `value`, `aws` or `gcp`; `{hosts, mode, setBy, setById, setAt}` of a secret; `{name, hosts, mode}`; `^[A-Z][A-Z0-9_]{0,63}$` |
 | `createDataFolder` | [115](../src/files.ts#L115) | `mkdir -p` mode 0700; `chmod 0700` except on Windows |
 | `acquireLock`, `releaseLock` | [120-134](../src/files.ts#L120-L134) | `DATA/lock`, or the file of the given name, with the PID. The holder is named in the error by the `user` argument, `server` or `service`. |
 | `serverToken` | [136](../src/files.ts#L136) | `DATA/token`, or the file of the given name. An existing file is read, and is made private when the user owns it. A new token is 32 random bytes in base64url, and its file is created as the lock is. |
 | `saveHeldTitles`, `takeHeldTitles` | [221-235](../src/files.ts#L221-L235) | `ROOT/titles.json`, written at a service stop, and read and removed at the next start. An unparsable file is skipped with a log line. |
-| `writePrivateFile`, `isRunning` | [241-244](../src/files.ts#L241-L244), [296-303](../src/files.ts#L296-L303) | a file written with mode 0600, set again except on Windows; a process alive by signal 0, also when the signal is not permitted. Both are used by the proxy and the service too. |
+| `writePrivateFile`, `isRunning` | [files.ts](../src/files.ts) | a file written with mode 0600, set again except on Windows; a process alive by signal 0, also when the signal is not permitted. Both are used by the proxy and the service too. |
 | `createLock`, `createExclusive` | [250-272](../src/files.ts#L250-L272) | A private temporary file with the text is linked into place, so that the file appears once and complete. Where the file system refuses the link, the file is written exclusively. |
 | `takeOver` | [274](../src/files.ts#L274) | The lock of a stopped process is claimed first, so that only one starter takes it over. The claim is a link of the lock to `lock.PID.claim`, or an exclusive write of `lock.PID.claim` where links fail. When that PID is still in the lock, the lock is removed and created again. The claim is then removed. |
 | `writeHeadersFile` | [152](../src/files.ts#L152) | `DATA/headers.json` |
 | `writeServerFile`, `readServerFile` | [156-163](../src/files.ts#L156-L163) | `DATA/server.json` |
-| `secretsIndex`, `secretNames` | [165-173](../src/files.ts#L165-L173) | `DATA/secrets.json`; the names of its records that match `secretName`, sorted, read by the hooks without creating a folder |
-| `Secrets` | [175-219](../src/files.ts#L175-L219) | `DATA/_secrets/`, created with `mkdir -p` mode 0700: `names`, the file names that match `secretName`, sorted; `records`, read from `DATA/secrets.json`; `entries`, the names with a record, with its hosts and mode; `value`, a file's text; `set`, the value written to `NAME.part`, renamed to `NAME`, and its record; `remove`, for a name among `names` only |
+| `secretsIndex`, `secretNames` | [files.ts](../src/files.ts) | `DATA/secrets.json`; the names of its records that match `secretName`, sorted, read by the hooks without creating a folder |
+| `Secrets` | [files.ts](../src/files.ts) | `DATA/_secrets/`, created with `mkdir -p` mode 0700: `names`, the file names that match `secretName`, sorted; `records`, read from `DATA/secrets.json`; `entries`, the names with a record, with its hosts and mode; `value`, a file's text; `set`, the value written to `NAME.part`, renamed to `NAME`, and its record; `remove`, for a name among `names` only |
 
 ### [2.9 `register.ts`](../src/register.ts)
 
 | Symbol | Line | Contents |
 |---|---|---|
 | `register` | [39](../src/register.ts#L39) | `claude mcp remove`, then `claude mcp add-json`; for `--host opencode`, `registerOpencode` |
-| `registerOpencode` | [53](../src/register.ts#L53) | `opencode mcp add` with the header `Authorization=Bearer {file:DATA/token}`, run in the home folder; then `plugins/simplex-NAME.ts` of opencode's configuration folder, from `opencode/simplex-secrets.ts` with DATA in place of `__SIMPLEX_MCP_DATA__` |
+| `registerOpencode` | [register.ts](../src/register.ts) | `opencode mcp add` with the header `Authorization=Bearer {file:DATA/token}`, run in the home folder; then `plugins/simplex-NAME.ts` of opencode's configuration folder, from `opencode/simplex-secrets.ts` with DATA in place of `__SIMPLEX_MCP_DATA__` |
 | `registryEntry` | [65](../src/register.ts#L65) | `{type, url, headersHelper, timeout}` |
 | `manualEntryText` | [74](../src/register.ts#L74) | entry text when `claude` is missing |
 | `projectRoot` | [79](../src/register.ts#L79) | project key of `--scope local` |
@@ -332,44 +332,54 @@ An opencode plugin, shipped as TypeScript source in the package and run by openc
 
 | Symbol | Line | Contents |
 |---|---|---|
-| `data`, `secretName` | [6-7](../opencode/simplex-secrets.ts#L6-L7) | the agent's data folder; the name rule of `files.ts` |
-| default export | [9-16](../opencode/simplex-secrets.ts#L9-L16) | `{id: "simplex-secrets", server}`; `server` returns the hook `shell.env`, which adds `shellVariables(data)` to `output.env` before each shell command of opencode |
-| `shellVariables` | [18-24](../opencode/simplex-secrets.ts#L18-L24) | none without names in `DATA/secrets.json`; otherwise the variables of `DATA/proxy-env.json` and `NAME=simplex-secret-NAME` for each name |
+| `data`, `secretName` | [simplex-secrets.ts](../opencode/simplex-secrets.ts) | the agent's data folder; the name rule of `files.ts` |
+| default export | [simplex-secrets.ts](../opencode/simplex-secrets.ts) | `{id: "simplex-secrets", server}`; `server` returns the hook `shell.env`, which adds `shellVariables(data)` to `output.env` before each shell command of opencode |
+| `shellVariables` | [simplex-secrets.ts](../opencode/simplex-secrets.ts) | none without names in `DATA/secrets.json`; otherwise the variables of `DATA/proxy-env.json` and `NAME=simplex-secret-NAME` for each name |
 
 ### [2.12 `secrets.ts`](../src/secrets.ts)
 
-| Symbol | Line | Contents |
-|---|---|---|
-| `awsNames`, `placeholderPattern`, `minValueLength` | [5-7](../src/secrets.ts#L5-L7) | the names of mode `aws`; `simplex-secret-NAME`; 8 |
-| `hostPattern`, `reservedNames`, `reservedPrefixes` | [9-11](../src/secrets.ts#L9-L11) | a host name with a dot, an optional `*.` and an optional port; the reserved names and prefixes of [API 2.1](api.md#21-commands-and-replies) |
-| `placeholder`, `proxyFiles` | [20-26](../src/secrets.ts#L20-L26) | `simplex-secret-NAME`; the proxy's URL and the paths of its certificate files in a data folder |
-| `reservedName`, `secretMode`, `parseHosts` | [28-40](../src/secrets.ts#L28-L40) | the checks and the mode of `/secret` |
-| `boundTo`, `boundEntries` | [42-53](../src/secrets.ts#L42-L53) | a host and port bound by a secret's hosts |
-| `proxyVariables`, `shellExports` | [55-79](../src/secrets.ts#L55-L79) | the variables of the agent's commands; `export NAME='VALUE'` lines |
-| `valueForms` | [81-88](../src/secrets.ts#L81-L88) | a value, its `encodeURIComponent` form and its base64 and base64url forms after 0, 1 and 2 bytes, without the characters at the ends that hold bits of other bytes; each of 8 characters or more |
+| Symbol | Contents |
+|---|---|
+| <a id="secrets-awsnames"></a>`awsNames`, `placeholderPattern`, `minValueLength` | the names of mode `aws`; `simplex-secret-NAME`; 8 |
+| <a id="secrets-hostpattern"></a>`hostPattern`, `reservedNames`, `reservedPrefixes` | a host name with a dot, an optional `*.` and an optional port; the reserved names and prefixes of [API 2.1](api.md#21-commands-and-replies) |
+| <a id="secrets-placeholder"></a>`placeholder`, `proxyFiles` | `simplex-secret-NAME`; the proxy's URL and the paths of its certificate files in a data folder |
+| <a id="secrets-reservedname"></a>`reservedName`, `secretMode`, `parseHosts` | the checks and the mode of `/secret` |
+| <a id="secrets-boundto"></a>`boundTo`, `boundEntries` | a host and port bound by a secret's hosts |
+| <a id="secrets-proxyvariables"></a>`proxyVariables`, `shellExports` | the variables of the agent's commands; `export NAME='VALUE'` lines |
+| <a id="secrets-valueforms"></a>`valueForms` | a value, its `encodeURIComponent` form and its base64 and base64url forms after 0, 1 and 2 bytes, without the characters at the ends that hold bits of other bytes; each of 8 characters or more |
 
 ### [2.13 `proxy.ts`](../src/proxy.ts)
 
-| Symbol | Line | Contents |
-|---|---|---|
-| `SecretsProxy` | [46](../src/proxy.ts#L46) | the proxy over a `Secrets`, a certificate authority, `GcpTokens` and, for tests, the address and certificate of the hosts |
-| `attach`, `close` | [64-70](../src/proxy.ts#L64-L70) | `connect` handler of an HTTP server; the end of the proxy's sockets |
-| `connect`, `tunnel` | [72-84](../src/proxy.ts#L72-L84), [105-115](../src/proxy.ts#L105-L115) | `CONNECT`: a tunnel for a host bound to no secret, otherwise TLS with a host certificate, whose requests reach an inner HTTP server |
-| `request` | [86-103](../src/proxy.ts#L86-L103) | a request with an `http://` target, sent unchanged without placeholders |
-| `forward`, `withSecrets`, `signedForAws` | [117-189](../src/proxy.ts#L117-L189) | the `Host` check, the body, the placeholders, the modes and the refusals of [API 4.9](api.md#49-secrets-proxy) |
-| `respond`, `forms`, `Scrubber` | [191-217](../src/proxy.ts#L191-L217), [245-277](../src/proxy.ts#L245-L277) | the response with the values replaced, decoded when compressed; a stream transform that keeps the end of a chunk until the next one |
-| `context` | [219-226](../src/proxy.ts#L219-L226) | a TLS context per host, made again after 6 days |
-| `startProxy`, `isProxyRequest` | [279-294](../src/proxy.ts#L279-L294) | the proxy on its own HTTP server, as the plugin's service runs it; a target with `http://` or `https://` |
-| `proxyCa` | [296-314](../src/proxy.ts#L296-L314) | the certificate authority of a data folder, made when missing, and the bundle written |
+| Symbol | Contents |
+|---|---|
+| <a id="proxy-secretsproxy"></a>`SecretsProxy` | the proxy over a `Secrets`, a certificate authority, `GcpTokens` and, for tests, the address and certificate of the hosts |
+| <a id="proxy-attach"></a>`SecretsProxy.attach`, `close` | `connect` handler of an HTTP server; the end of the proxy's sockets |
+| <a id="proxy-connect"></a>`SecretsProxy.connect`, `tunnel` | `CONNECT`: a tunnel for a host bound to no secret, otherwise TLS with a host certificate, whose requests reach an inner HTTP server |
+| <a id="proxy-request"></a>`SecretsProxy.request` | a request with an `http://` target, sent unchanged without placeholders |
+| <a id="proxy-forward"></a>`SecretsProxy.forward`, `withSecrets`, `signedForAws` | the `Host` check, the body, the placeholders, the modes and the refusals of [API 4.9](api.md#49-secrets-proxy) |
+| <a id="proxy-respond"></a>`SecretsProxy.respond`, `forms`, `Scrubber` | the response with the values replaced, decoded when compressed; a stream transform that keeps the end of a chunk until the next one |
+| <a id="proxy-context"></a>`SecretsProxy.context` | a TLS context per host, made again after 6 days |
+| <a id="proxy-startproxy"></a>`startProxy`, `isProxyRequest` | the proxy on its own HTTP server, as the plugin's service runs it; a target with `http://` or `https://` |
+| <a id="proxy-proxyca"></a>`proxyCa` | the certificate authority of a data folder, made when missing, and the bundle written |
 
-### [2.14 `certs.ts`, `sigv4.ts`, `gcp.ts`](../src/certs.ts)
+### [2.14 `certs.ts`](../src/certs.ts)
 
-| Symbol | Line | Contents |
-|---|---|---|
-| `createCa`, `hostCertificate` | [certs.ts:24-49](../src/certs.ts#L24-L49) | X.509 certificates in DER, signed with ECDSA P-256 and SHA-256, by Node.js `crypto` without other packages |
-| `resign`, `signature`, `canonicalRequest` | [sigv4.ts:48-77](../src/sigv4.ts#L48-L77) | Signature Version 4: the client's signature checked with the placeholder key, the request signed with the real key |
-| `refusedForm` | [sigv4.ts:39-46](../src/sigv4.ts#L39-L46) | presigned URLs, SigV4A and streaming uploads |
-| `serviceAccountKey`, `assertion`, `GcpTokens` | [gcp.ts:19-66](../src/gcp.ts#L19-L66) | a service-account key; its RS256 JWT; access tokens kept per key until 5 minutes before they expire, one request at a time |
+| Symbol | Contents |
+|---|---|
+| <a id="certs-createca"></a>`createCa`, `hostCertificate` | X.509 certificates in DER, signed with ECDSA P-256 and SHA-256, by Node.js `crypto` without other packages |
+
+### [2.15 `sigv4.ts`](../src/sigv4.ts)
+
+| Symbol | Contents |
+|---|---|
+| <a id="sigv4-resign"></a>`resign`, `signature`, `canonicalRequest` | Signature Version 4: the client's signature checked with the placeholder key, the request signed with the real key |
+| <a id="sigv4-refusedform"></a>`refusedForm` | presigned URLs, SigV4A and streaming uploads |
+
+### [2.16 `gcp.ts`](../src/gcp.ts)
+
+| Symbol | Contents |
+|---|---|
+| <a id="gcp-serviceaccountkey"></a>`serviceAccountKey`, `assertion`, `GcpTokens` | a service-account key; its RS256 JWT; access tokens kept per key until 5 minutes before they expire, one request at a time |
 
 ---
 
@@ -390,8 +400,8 @@ An opencode plugin, shipped as TypeScript source in the package and run by openc
 | Count of file descriptions | `AgentTools.describedFiles` ([tools.ts:538-539](../src/tools.ts#L538-L539)) | `onFileDescription` | `fileServers` |
 | Members of the control chat | `Control.members` ([control.ts:94](../src/control.ts#L94)) | `refreshMembers` ([:568-570](../src/control.ts#L568-L570)) | approver checks |
 | Mode, expiry, owners list, stop wait | `ServeOptions` of the run. The mode is kept in `Actions.mode` and in each action as well ([actions.ts:42](../src/actions.ts#L42)). | CLI | all modules |
-| Proxy's TLS contexts, host key and sockets | `SecretsProxy.contexts`, `leafKey`, `targets`, `sockets` ([proxy.ts:47-51](../src/proxy.ts#L47-L51)) | `context`, `connect`, `tunnel` | `connect`, `close` |
-| Google access tokens | `SecretsProxy.issued`, the last token per secret, and `GcpTokens.tokens`, per key until 5 minutes before expiry ([proxy.ts:52](../src/proxy.ts#L52), [gcp.ts:38](../src/gcp.ts#L38)) | `withSecrets` | `forms`, the replacement in responses; `token` |
+| Proxy's TLS contexts, host key and sockets | `SecretsProxy.contexts`, `leafKey`, `targets`, `sockets` ([`SecretsProxy`](../src/proxy.ts)) | `context`, `connect`, `tunnel` | `connect`, `close` |
+| Google access tokens | `SecretsProxy.issued`, the last token per secret, and `GcpTokens.tokens`, per key until 5 minutes before expiry ([`SecretsProxy`](../src/proxy.ts), [`GcpTokens`](../src/gcp.ts)) | `withSecrets` | `forms`, the replacement in responses; `token` |
 
 ### 3.2 Chat database custom data
 
@@ -416,12 +426,12 @@ The profile, chats, items, members and file transfers are stored by the core in 
 | `DATA/files/group-N/`, `DATA/files/contact-N/` | downloaded files and files received without a download, named by file ID and extension | folder 0700 | the core at the download path ([tools.ts:1160-1161](../src/tools.ts#L1160-L1161)); moves ([:1660-1670](../src/tools.ts#L1660-L1670)) | `download` results, `/forward`, `/leave`, `/delete CHAT files` |
 | `DATA/forwarded/group-N/`, `DATA/forwarded/contact-N/` | files `/forward` downloaded, named as above, until a download moves them to `DATA/files/` | folder 0700 | the core at the forwarded path ([tools.ts:605-612](../src/tools.ts#L605-L612), [:1160-1161](../src/tools.ts#L1160-L1161)) | `/forward`; moved by `download` ([:595-603](../src/tools.ts#L595-L603)); deleted by `leave`, `/leave` and `/delete CHAT files` ([:1042-1060](../src/tools.ts#L1042-L1060), [:1082-1090](../src/tools.ts#L1082-L1090)) |
 | `DATA/files/sent/` | resized copies of sent images, and copies of the files `/forward` posts, one folder per copy | folder 0700; a resized copy 0600 | [tools.ts:1018-1035](../src/tools.ts#L1018-L1035), [:1062-1066](../src/tools.ts#L1062-L1066) | the core; deleted at `sndFileCompleteXFTP`, `sndFileError` and at start ([core.ts:41](../src/core.ts#L41), [tools.ts:696-698](../src/tools.ts#L696-L698), [:981](../src/tools.ts#L981)) |
-| `DATA/secrets.json` | `{NAME: {hosts, mode, setBy, setById, setAt}}`, the records of the secrets | 0600, set again at every write except on Windows | `/secret`, `/unsecret` ([files.ts:205-218](../src/files.ts#L205-L218)) | `/secrets`, `list`, the proxy, the opencode plugin |
-| `DATA/_secrets/` | the values | 0700 when the server creates it; the mode of an existing folder is kept | every start ([serve.ts:91](../src/serve.ts#L91), [files.ts:179-183](../src/files.ts#L179-L183)) | |
-| `DATA/_secrets/NAME` | the value of secret NAME, as sent, without a newline | 0600, set again at every write except on Windows | `/secret`, through `DATA/_secrets/NAME.part` ([files.ts:205-211](../src/files.ts#L205-L211)); deleted by `/unsecret` ([:212-218](../src/files.ts#L212-L218)) | the proxy |
-| `DATA/proxy-ca.key`, `DATA/proxy-ca.pem` | the key and certificate of the proxy's certificate authority | 0600, set again at every write except on Windows | the first start ([proxy.ts:296-309](../src/proxy.ts#L296-L309)) | the proxy; `proxy-ca.pem` by Node.js in the agent's commands |
-| `DATA/proxy-ca-bundle.pem` | the system's root certificates and `proxy-ca.pem` | 0600 | every start ([proxy.ts:300](../src/proxy.ts#L300)) | the agent's commands |
-| `DATA/proxy-env.json` | the variables of [API 4.9](api.md#49-secrets-proxy) without the secret names | 0600 | every start ([serve.ts:93](../src/serve.ts#L93)) | the opencode plugin |
+| `DATA/secrets.json` | `{NAME: {hosts, mode, setBy, setById, setAt}}`, the records of the secrets | 0600, set again at every write except on Windows | `/secret`, `/unsecret` ([`Secrets.set`, `remove`](../src/files.ts)) | `/secrets`, `list`, the proxy, the opencode plugin |
+| `DATA/_secrets/` | the values | 0700 when the server creates it; the mode of an existing folder is kept | every start ([`startAgent`](../src/serve.ts), [`Secrets`](../src/files.ts)) | |
+| `DATA/_secrets/NAME` | the value of secret NAME, as sent, without a newline | 0600, set again at every write except on Windows | `/secret`, through `DATA/_secrets/NAME.part` ([`Secrets.set`](../src/files.ts)); deleted by `/unsecret` ([`Secrets.remove`](../src/files.ts)) | the proxy |
+| `DATA/proxy-ca.key`, `DATA/proxy-ca.pem` | the key and certificate of the proxy's certificate authority | 0600, set again at every write except on Windows | the first start ([`proxyCa`, `newCa`](../src/proxy.ts)) | the proxy; `proxy-ca.pem` by Node.js in the agent's commands |
+| `DATA/proxy-ca-bundle.pem` | the system's root certificates and `proxy-ca.pem` | 0600 | every start ([`proxyCa`](../src/proxy.ts)) | the agent's commands |
+| `DATA/proxy-env.json` | the variables of [API 4.9](api.md#49-secrets-proxy) without the secret names | 0600 | every start ([`startAgent`](../src/serve.ts)) | the opencode plugin |
 
 The core library is downloaded once into `CACHE/core-7.1.3.0/sqlite`, and the Node.js add-on into `CACHE/nodejs-addon-cce06d8/`, each with a `Downloading ...` line on stderr. CACHE is `$XDG_CACHE_HOME/simplex-chat` or `~/.cache/simplex-chat`; on macOS `~/Library/Caches/simplex-chat`; on Windows `%LOCALAPPDATA%\simplex-chat` ([libs.ts:41-48](../../simplex-chat-nodejs/src/libs.ts#L41-L48), [:89](../../simplex-chat-nodejs/src/libs.ts#L89), [:109](../../simplex-chat-nodejs/src/libs.ts#L109), [:116](../../simplex-chat-nodejs/src/libs.ts#L116), [:129](../../simplex-chat-nodejs/src/libs.ts#L129)).
 
@@ -434,7 +444,7 @@ The core library is downloaded once into `CACHE/core-7.1.3.0/sqlite`, and the No
 1. Data folder, lock, token and headers file are prepared ([serve.ts:67-71](../src/serve.ts#L67-L71)).
 2. libsimplex for SQLite is loaded by `ChatApi.init`, and the databases are migrated with confirmation `yesUp` ([serve.ts:72](../src/serve.ts#L72), [api.ts:117-126](../../simplex-chat-nodejs/src/api.ts#L117-L126)).
 3. Three log lines: version and NAME, data folder, mode ([serve.ts:73-75](../src/serve.ts#L73-L75)).
-4. `Secrets` is created, and `DATA/_secrets/` with it when missing; the proxy is made with the certificate authority of the data folder, and `DATA/proxy-env.json` is written ([serve.ts:91-93](../src/serve.ts#L91-L93)). The active user is read, or created with display name `--display-name` or NAME, empty full name and peer type `agent` ([serve.ts:94](../src/serve.ts#L94)).
+4. `Secrets` is created, and `DATA/_secrets/` with it when missing; the proxy is made with the certificate authority of the data folder, and `DATA/proxy-env.json` is written ([`startAgent`](../src/serve.ts), [`proxyCa`](../src/proxy.ts)). The active user is read, or created with display name `--display-name` or NAME, empty full name and peer type `agent` ([`startAgent`](../src/serve.ts)).
 5. `prepareCore` reads the network config and sets it with `smpProxyMode` `always` and `smpProxyFallback` `allowProtected` ([serve.ts:92](../src/serve.ts#L92), [core.ts:38-39](../src/core.ts#L38-L39)).
 6. `prepareCore` sets `DATA/tmp` as the core's temp folder and deletes `DATA/files/sent` ([core.ts:40-41](../src/core.ts#L40-L41)).
 7. Events are buffered, and the chat is started ([serve.ts:93-94](../src/serve.ts#L93-L94)).
@@ -698,7 +708,7 @@ Node limits: `requestTimeout` 0, `timeout` 0, `headersTimeout` 60 s, `keepAliveT
 | terminal names and errors of actions | folded to one line | [actions.ts:209-210](../src/actions.ts#L209-L210), [:402-412](../src/actions.ts#L402-L412), [control.ts:90](../src/control.ts#L90) |
 | tool results | returned as data; schema descriptions and instructions mark `text`, `from`, `name`, file names, downloaded files, `description`, `welcome` and `commands` with their labels and params as data, not instructions; the instructions take a chat's messages as prompts only when the user said so in the session, and limit what the agent shares about its user | [tools.ts:195](../src/tools.ts#L195), [:199](../src/tools.ts#L199), [:204](../src/tools.ts#L204), [:236-237](../src/tools.ts#L236-L237), [:247-252](../src/tools.ts#L247-L252), [:415](../src/tools.ts#L415), [:457](../src/tools.ts#L457) |
 
-The server writes the tappable form `/'...'` only in the card's command line ([control.ts:735-750](../src/control.ts#L735-L750)), in `/'revoke CHAT'` of standing cards and replies ([:690](../src/control.ts#L690), [:303](../src/control.ts#L303)), in `/'delete CHAT files'` of the kept-files message ([:354](../src/control.ts#L354)), and in `/'unsecret NAME'` of the reply to `/secret`, with NAME of capital letters, digits and `_` only ([:441](../src/control.ts#L441)).
+The server writes the tappable form `/'...'` only in the card's command line ([control.ts:735-750](../src/control.ts#L735-L750)), in `/'revoke CHAT'` of standing cards and replies ([:690](../src/control.ts#L690), [:303](../src/control.ts#L303)), in `/'delete CHAT files'` of the kept-files message ([:354](../src/control.ts#L354)), and in `/'unsecret NAME'` of the reply to `/secret`, with NAME of capital letters, digits and `_` only ([`Control.setSecret`](../src/control.ts)).
 
 ### 6.4 Chat references
 
@@ -744,16 +754,16 @@ The server writes the tappable form `/'...'` only in the card's command line ([c
 
 | Rule | Code |
 |---|---|
-| a value is written only by an approver's `/secret`, to `DATA/_secrets/NAME`, mode 0600 | [control.ts:268](../src/control.ts#L268), [:432-442](../src/control.ts#L432-L442), [files.ts:205-211](../src/files.ts#L205-L211) |
-| a value is absent from the log, from the replies and from tool results: the log line and the replies name the secret, and `list` returns the names, hosts, modes and placeholders | [control.ts:439-441](../src/control.ts#L439-L441), [tools.ts:1304-1305](../src/tools.ts#L1304-L1305) |
-| a `/secret` message is deleted for all members before its command, in the main conversation and in member support chats, also in a plugin session group, whatever its sender and form, and in the Main group; with full deletion, its content is replaced in the agent's database and in the members' apps | [control.ts:230-244](../src/control.ts#L230-L244), [:22](../src/control.ts#L22), [hub.ts:177](../src/hub.ts#L177), [main-group.ts:87-93](../src/main-group.ts#L87-L93), [Commands.hs:4294-4297](../../../src/Simplex/Chat/Library/Commands.hs#L4294-L4297), [Messages.hs:2857-2874](../../../src/Simplex/Chat/Store/Messages.hs#L2857-L2874) |
-| the proxy puts a value only into a request inside the TLS of a `CONNECT` to a host that the secret binds, sent over TLS with the host's certificate checked against the system's roots; it refuses a placeholder of another secret or over plain HTTP, and a `Host` other than the `CONNECT` host | [proxy.ts:72-84](../src/proxy.ts#L72-L84), [:117-169](../src/proxy.ts#L117-L169), [secrets.ts:42-53](../src/secrets.ts#L42-L53) |
-| the proxy puts the placeholder in place of the value's forms in the responses of a bound host | [proxy.ts:191-217](../src/proxy.ts#L191-L217) |
-| the proxy's log lines name the host, the secret and the reason, without values, headers or bodies | [proxy.ts:228-237](../src/proxy.ts#L228-L237) |
-| a key of mode `aws` or `gcp` signs only: its placeholder is refused in another place | [proxy.ts:156-189](../src/proxy.ts#L156-L189) |
-| `send` refuses files under `DATA/_secrets/`, by its real path | [tools.ts:1023](../src/tools.ts#L1023) |
-| `/unsecret` deletes only a name among `names()`, so a name with `/` or `..` deletes nothing | [files.ts:212-214](../src/files.ts#L212-L214) |
-| the proxy and the HTTP port of `serve` listen only on 127.0.0.1 | [proxy.ts:285](../src/proxy.ts#L285), [http.ts:45](../src/http.ts#L45) |
+| a value is written only by an approver's `/secret`, to `DATA/_secrets/NAME`, mode 0600 | [`Control.ownerCommand`, `setSecret`](../src/control.ts), [`Secrets.set`](../src/files.ts) |
+| a value is absent from the log, from the replies and from tool results: the log line and the replies name the secret, and `list` returns the names, hosts, modes and placeholders | [`Control.setSecret`](../src/control.ts), [`AgentTools.listChats`](../src/tools.ts) |
+| a `/secret` message is deleted for all members before its command, in the main conversation and in member support chats, also in a plugin session group, whatever its sender and form, and in the Main group; with full deletion, its content is replaced in the agent's database and in the members' apps | [`Control.onMessage`, `fullDelete`](../src/control.ts), [`Session.onMessage`](../src/hub.ts), [`MainGroup.onMessage`](../src/main-group.ts), [Commands.hs:4294-4297](../../../src/Simplex/Chat/Library/Commands.hs#L4294-L4297), [Messages.hs:2857-2874](../../../src/Simplex/Chat/Store/Messages.hs#L2857-L2874) |
+| the proxy puts a value only into a request inside the TLS of a `CONNECT` to a host that the secret binds, sent over TLS with the host's certificate checked against the system's roots; it refuses a placeholder of another secret or over plain HTTP, and a `Host` other than the `CONNECT` host | [`SecretsProxy.connect`, `forward`, `withSecrets`](../src/proxy.ts), [`boundTo`, `boundEntries`](../src/secrets.ts) |
+| the proxy puts the placeholder in place of the value's forms in the responses of a bound host | [`SecretsProxy.respond`, `forms`](../src/proxy.ts) |
+| the proxy's log lines name the host, the secret and the reason, without values, headers or bodies | [`SecretsProxy.refuse`, `fail`](../src/proxy.ts) |
+| a key of mode `aws` or `gcp` signs only: its placeholder is refused in another place | [`SecretsProxy.withSecrets`, `signedForAws`](../src/proxy.ts) |
+| `send` refuses files under `DATA/_secrets/`, by its real path | [`AgentTools.isRefused`](../src/tools.ts) |
+| `/unsecret` deletes only a name among `names()`, so a name with `/` or `..` deletes nothing | [`Secrets.remove`](../src/files.ts) |
+| the proxy and the HTTP port of `serve` listen only on 127.0.0.1 | [`startProxy`](../src/proxy.ts), [`startHttp`](../src/http.ts) |
 
 Limits:
 
@@ -800,10 +810,10 @@ Limits:
 | agent NAME | 1 to 32 characters | [cli.ts:177](../src/cli.ts#L177) |
 | display name | 50 characters, `mkValidName` rules | [messages.ts:11-12](../src/messages.ts#L11-L12), [:341-363](../src/messages.ts#L341-L363) |
 | port | 1 to 65535, default 5226 | [cli.ts:84](../src/cli.ts#L84), [:116-118](../src/cli.ts#L116-L118) |
-| secret name | 1 to 64 characters: a capital letter, then capital letters, digits and `_`; not a reserved name | [files.ts:39](../src/files.ts#L39), [secrets.ts:10-11](../src/secrets.ts#L10-L11) |
-| secret hosts | host names with a dot, separated by commas, each with an optional `*.` and port | [secrets.ts:9](../src/secrets.ts#L9), [:37-40](../src/secrets.ts#L37-L40) |
-| secret value | 8 characters (code points) or more, one line, without control characters | [control.ts:434](../src/control.ts#L434), [:728-733](../src/control.ts#L728-L733) |
-| request body read by the proxy | 8 MiB; a larger body with `Content-Length` is sent unchanged, and a larger chunked body is refused | [proxy.ts:17](../src/proxy.ts#L17), [:120-121](../src/proxy.ts#L120-L121), [:346-355](../src/proxy.ts#L346-L355) |
+| secret name | 1 to 64 characters: a capital letter, then capital letters, digits and `_`; not a reserved name | [`secretName`](../src/files.ts), [`reservedNames`, `reservedPrefixes`](../src/secrets.ts) |
+| secret hosts | host names with a dot, separated by commas, each with an optional `*.` and port | [`hostPattern`, `parseHosts`](../src/secrets.ts) |
+| secret value | 8 characters (code points) or more, one line, without control characters | [`Control.setSecret`, `parseCommand`](../src/control.ts) |
+| request body read by the proxy | 8 MiB; a larger body with `Content-Length` is sent unchanged, and a larger chunked body is refused | [`maxBody`, `SecretsProxy.forward`, `readBody`](../src/proxy.ts) |
 
 ---
 
@@ -934,7 +944,7 @@ Data flow of a prompt from the session group:
 | `HubLike`, `SessionLike`, `ServiceDeps` | [27-59](../src/service.ts#L27-L59) | interfaces that the service uses, so that tests can replace the hub. `ServiceDeps.proxyPort` is the port of the secrets proxy; without it, as in tests, the service runs no proxy. |
 | `Entry` | [61](../src/service.ts#L61) | opening promise, session, open attachments, their writers, running calls, idle timer, the session server's parent process ID and the time it was last seen |
 | `Service.start` | [98](../src/service.ts#L98) | The lock is taken, and the stored sessions are read with their aliases and the next number. The listener starts before the hub opens, so that a starter that lost the lock race gets an answer to `/status` right after `running`. The secrets proxy starts on its port next, and is closed when the hub fails to open. After the hub opens, the stop timer starts, the titles held at the last stop are taken as new `/title` requests, and the hourly log trim starts. |
-| `closeProxy` | [144-148](../src/service.ts#L144-L148) | the proxy's server closed, its connections and tunnels ended |
+| `closeProxy` | [service.ts](../src/service.ts) | the proxy's server closed, its connections and tunnels ended |
 | `Service.routes`, `withHub`, `expiring` | [150-188](../src/service.ts#L150-L188) | the ten routes. Requests wait for the hub, and due actions expire first. |
 | `Service.shutdown` | [190](../src/service.ts#L190) | stop sequence; the held titles saved; the proxy closed |
 | `onSession`, `onTitle`, `markUnattended`, `refuseUnattended`, `applyTitle` | [215-277](../src/service.ts#L215-L277) | The options are checked. A title with `proxy` adds its process to `proxied`. For a title with `unattended`, the service removes the marks of 10 s ago and older, marks the title's process, and ends a server's wait for the title of that process. It opens no session for such a title. The service refuses a registration from a process marked in the last 10 s with 403, before and after its wait. At a registration, the service records the parent process ID, names the session by a held title of its ID, and signals the registration. The service holds a title of a new ID that comes from a process without a known session, or from a process whose title is held. The title is held until the server of that process registers, 10 s at most, and is applied only while the service runs. When a title is applied, the service opens or creates the session, sets its name, passes its model with the title's `at`, and records the process of the title. |
@@ -945,7 +955,7 @@ Data flow of a prompt from the session group:
 | `scheduleIdle`, `scheduleStop` | [420-445](../src/service.ts#L420-L445) | idle close of a session, idle stop of the service. When the stop timer fires while a process in `proxied` runs, the timer starts again; the processes that ended are removed first. |
 | `runService` | [448](../src/service.ts#L448) | the process entry: ROOT, start with the proxy port of `SIMPLEX_MCP_PROXY_PORT`, ready line and signal handlers. For a held lock, the start runs again once the lock is released, and the ready line is `running` when its holder answers. |
 | `productionDeps` | [474](../src/service.ts#L474) | token, `Hub.open` |
-| `secretsProxy` | [484-492](../src/service.ts#L484-L492) | `startProxy` with the `Secrets` and the certificate authority of ROOT; for `EADDRINUSE`, a log line and no proxy |
+| `secretsProxy` | [service.ts](../src/service.ts) | `startProxy` with the `Secrets` and the certificate authority of ROOT; for `EADDRINUSE`, a log line and no proxy |
 | `processEvent` | [494](../src/service.ts#L494) | the next event of a PID on `titled` or `registered`, 10 s at most |
 | `lockHolder` | [506](../src/service.ts#L506) | up to 150 checks, 100 ms apart. The result is `released` when ROOT/service.lock is gone, and `answers` for any result of a socket request other than ENOENT and ECONNREFUSED. |
 | `sessionName` | [521](../src/service.ts#L521) | session title, else the project folder name, else `Claude Code` |
@@ -1022,7 +1032,7 @@ Data flow of a prompt from the session group:
 | Symbol | Line | Contents |
 |---|---|---|
 | `sessionStart`, `startSession` | [hook.ts:95-121](../src/hook.ts#L95-L121) | The hook first writes the proxy's variables with `writeSecretVariables`, and adds `watchPaths` with `ROOT/secrets.json` to every output. `{}` for a run that is not interactive. When the run is not interactive only because of `CLAUDE_CODE_SESSION_ATTENDED`, or the variables were written, its process is marked first. In an interactive run, the hook checks Node.js, reads the options, calls `ensureService`, sends `POST /title` with the title, the folder, the model, its own start time `performance.timeOrigin` and `proxy` when the variables were written, and returns the link message. |
-| `secretsChanged`, `writeSecretVariables` | [hook.ts:123-135](../src/hook.ts#L123-L135) | the FileChanged hook; the variables of [API 4.9](api.md#49-secrets-proxy) appended to `CLAUDE_ENV_FILE` as `export` lines, when it is set and `ROOT/secrets.json` names secrets, with the port of `SIMPLEX_MCP_PROXY_PORT` |
+| `secretsChanged`, `writeSecretVariables` | [hook.ts](../src/hook.ts) | the FileChanged hook; the variables of [API 4.9](api.md#49-secrets-proxy) appended to `CLAUDE_ENV_FILE` as `export` lines, when it is set and `ROOT/secrets.json` names secrets, with the port of `SIMPLEX_MCP_PROXY_PORT` |
 | `markUnattended` | [hook.ts:137](../src/hook.ts#L137) | When `CLAUDE_PID` is set, the hook calls `ensureService` and sends `POST /title` with `unattended`, and `proxy` when the variables were written. A failure is logged. |
 | `turn` | [hook.ts:149](../src/hook.ts#L149) | The output is `{}`. In a run that is not interactive, and for a tool use of a subagent or of this plugin, or without `tool_use_id` or `tool_name`, the hook sends nothing. Otherwise it calls `ensureService`, then sends `POST /turn` with the fields of [8.6](#86-channel-and-mirroring). The request is tried up to 15 times, 1 s apart, while the service returns status 409. |
 | `answerModel`, `promptKind`, `findInTranscript`, `readTail`, `lastAnswer`, `promptRecord`, `isPrompt`, `recordText`, `recordKind` | [hook.ts:175-260](../src/hook.ts#L175-L260) | `answerModel` finds the model of Stop's answer. It is the `message.model` of the last entry of type `assistant` without `isSidechain` in the tail of `transcript_path`, once that entry's text is the answer. No model is sent for `<synthetic>`, an answer without text, an empty path, an unreadable transcript, or an entry not written within the reads. `promptKind` finds whether a person typed the prompt of UserPromptSubmit, its note and whether it is mid-turn. Its record, found by `promptRecord`, is the newest user entry or `queued_command` attachment whose text is the prompt, without subagent entries and tool results: the entry with the hook's `prompt_id` as `promptId`, or a record after the first user entry with that ID, a tool result included. Until such an entry is in the tail, `promptRecord` waits; at the last read, and at once without `prompt_id`, it takes any record with the prompt's text. It also waits while an `enqueue` entry with the prompt's text follows the record. The prompt is typed when the record's `origin.kind` is `human`, and mid-turn when the record is not the entry with `prompt_id`. A `queued_command` attachment without origin and with the `commandMode` `task-notification` is a task notification. At the last read, a record with an `enqueue` entry after it is classified by its origin, and a typed one is mid-turn. Without a record, an `enqueue` entry with the prompt's text makes the prompt typed and mid-turn; otherwise an entry with `prompt_id` and the origin `human` makes it typed. `findInTranscript` reads the tail, the last 1 MiB plus twice the bytes of the answer or the prompt, 100 ms apart: at most 20 times for an answer and 600 times for a prompt, and it tells its search which read is the last. It treats a failed read, as of a missing file, as an empty tail. |
@@ -1038,7 +1048,7 @@ Data flow of a prompt from the session group:
 | Symbol | Line | Contents |
 |---|---|---|
 | `interactiveEntrypoint`, `interactive` | [config.ts:33-39](../src/config.ts#L33-L39) | `false` for `CLAUDE_CODE_ENTRYPOINT` `sdk-cli`, `sdk-ts` or `sdk-py`. `interactive` is `false` for `CLAUDE_CODE_SESSION_ATTENDED` `0` as well. |
-| `proxyPort` | [config.ts:28-31](../src/config.ts#L28-L31) | `SIMPLEX_MCP_PROXY_PORT` when it is a port from 1 to 65535, otherwise 5225 |
+| `proxyPort` | [config.ts](../src/config.ts) | `SIMPLEX_MCP_PROXY_PORT` when it is a port from 1 to 65535, otherwise 5225 |
 | `Config`, `defaultConfig`, `configVariables` | [config.ts:4-18](../src/config.ts#L4-L18) | the Main group name, the mode and the expiry hours; their defaults `Claude Control`, `requests` and 23; their variables |
 | `readConfig` | [config.ts:41](../src/config.ts#L41) | `CLAUDE_PLUGIN_OPTION_*` to `Config`, defaults for blank values, `ConfigError` texts |
 | `withMachine` | [config.ts:56](../src/config.ts#L56) | ` - MACHINE` from `SIMPLEX_MCP_MACHINE` after the Main group name, checked by `validName`, with the `ConfigError` texts of the variable |
@@ -1073,8 +1083,8 @@ Memory of the service:
 | Registrations by process | `Service.registered`, the signal of a `/session` with that PID ([service.ts:79](../src/service.ts#L79)) | `onSession` | the wait of a held title |
 | Held titles | `Service.held`, PID to its last held `/title` request ([service.ts:80](../src/service.ts#L80)) | `onTitle`, the end of its wait | `onTitle`, `shutdown` |
 | Processes of unattended runs | `Service.unattended`, PID to the time of its mark ([service.ts:81](../src/service.ts#L81)) | `onTitle` with `unattended` | `onSession` |
-| Processes whose commands use the proxy | `Service.proxied`, PIDs ([service.ts:82](../src/service.ts#L82)) | `onTitle` with `proxy` | `scheduleStop`, which removes the processes that ended |
-| The proxy | `Service.proxy`, its server and `SecretsProxy` ([service.ts:83](../src/service.ts#L83)) | `Service.start` | `closeProxy` |
+| Processes whose commands use the proxy | `Service.proxied`, PIDs ([`Service`](../src/service.ts)) | `onTitle` with `proxy` | `scheduleStop`, which removes the processes that ended |
+| The proxy | `Service.proxy`, its server and `SecretsProxy` ([`Service`](../src/service.ts)) | `Service.start` | `closeProxy` |
 | Process of a session server | `Entry.pid`, `Entry.seen` ([service.ts:66-67](../src/service.ts#L66-L67)) | `onSession`, the end of the last attachment | `processSession` |
 | Sessions | `Hub.sessions`, by number ([hub.ts:443](../src/hub.ts#L443)) | `Hub.session` | events, Main group commands |
 | End of the held prompts | `Hub.promptsHeldUntil`, 30 s after the stored sessions opened ([hub.ts:442](../src/hub.ts#L442), [:469](../src/hub.ts#L469)) | `Hub.open` | `Session.deliver` |
@@ -1153,7 +1163,7 @@ ensureService(VERSION):                               client.ts:32
    - If the socket answers, the ready line is `running`.
    - Otherwise the ready line is `error: Another service uses ROOT (PID N). If no service runs, remove ROOT/service.lock.`, and the process exits with code 1.
 2. The stored sessions are read with their aliases, and the next number is set ([service.ts:88-92](../src/service.ts#L88-L92)).
-3. The service listens on the socket before the hub opens, and requests wait for the hub ([service.ts:98-99](../src/service.ts#L98-L99), [:164-169](../src/service.ts#L164-L169)). Then the secrets proxy starts on its port, as in [API 4.9](api.md#49-secrets-proxy) ([service.ts:103](../src/service.ts#L103), [:484-492](../src/service.ts#L484-L492)).
+3. The service listens on the socket before the hub opens, and requests wait for the hub ([service.ts:98-99](../src/service.ts#L98-L99), [:164-169](../src/service.ts#L164-L169)). Then the secrets proxy starts on its port, as in [API 4.9](api.md#49-secrets-proxy) ([`Service.start`, `secretsProxy`](../src/service.ts)).
 4. The service reads the options in `openHub` ([service.ts:127-130](../src/service.ts#L127-L130)). `Hub.open` then opens the core `_hub` with profile `Claude`, and finds the Main group by its marker or creates it. It runs `MainGroup.load` and `start`, with a link while no owner is in the Main group. The core `_user` opens, and connects to `Claude` at the first start. A `Session` opens for each stored session, prompts are held for 30 s, and events are dispatched ([hub.ts:458-476](../src/hub.ts#L458-L476)).
 5. When the hub fails to open, the proxy and the listener close, and the lock is released. The service answers the requests that waited with status 500 ([service.ts:100-119](../src/service.ts#L100-L119)).
 6. The stop timer and the hourly log trim start. The titles held at the last stop are read from `ROOT/titles.json` and taken as new `/title` requests. The service logs `SimpleX MCP service VERSION, data folder ROOT` and writes the ready line `ready` ([service.ts:106-114](../src/service.ts#L106-L114), [:446-447](../src/service.ts#L446-L447)).
@@ -1177,7 +1187,7 @@ After a stop, `Hub.onEvent` ignores events ([hub.ts:583-613](../src/hub.ts#L583-
 
 - The service cancels the session's idle timer at each attachment. When the last attachment ends, the service records the time, clears the line writer, ends the pending permissions and the steps, and starts the timer ([service.ts:305-326](../src/service.ts#L305-L326)).
 - After 10 minutes, the idle timer closes the entry when no call of the session runs and none of its actions is in memory. Otherwise the timer starts again ([service.ts:406-416](../src/service.ts#L406-L416)). The hub keeps the `Session` of a closed session, so Claude still answers `/list` and `/revoke` in its group ([hub.ts:497-502](../src/hub.ts#L497-L502)).
-- When no entry remains, the stop timer stops the service after 10 minutes. The timer is cleared when a new entry opens ([service.ts:418-424](../src/service.ts#L418-L424), [:364](../src/service.ts#L364)). While a Claude Code process whose `/title` had `proxy` runs, as a `claude -p` run with secrets, the timer starts again in place of the stop ([service.ts:432-440](../src/service.ts#L432-L440)).
+- When no entry remains, the stop timer stops the service after 10 minutes. The timer is cleared when a new entry opens ([service.ts:418-424](../src/service.ts#L418-L424), [:364](../src/service.ts#L364)). While a Claude Code process whose `/title` had `proxy` runs, as a `claude -p` run with secrets, the timer starts again in place of the stop ([`Service.scheduleStop`](../src/service.ts)).
 
 #### Stop
 
