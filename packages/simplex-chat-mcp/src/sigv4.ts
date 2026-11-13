@@ -36,6 +36,7 @@ export function sigV4Credential(authorization: string | undefined): Credential |
   return {keyId, date, region, service, signedHeaders: signed.split(";"), signature}
 }
 
+// spec: spec/architecture.md#sigv4-refusedform
 export function refusedForm(request: AwsRequest): string | undefined {
   const query = new URL(request.target, "http://host").searchParams
   if (query.has("X-Amz-Signature") || query.has("X-Amz-Credential")) return "presigned URL"
@@ -45,6 +46,7 @@ export function refusedForm(request: AwsRequest): string | undefined {
   return undefined
 }
 
+// spec: spec/architecture.md#sigv4-resign
 export function resign(client: AwsRequest, final: AwsRequest, clientSecret: string, keys: AwsKeys, clientSessionToken?: string): Resigned {
   const form = refusedForm(client)
   if (form !== undefined) return {refused: form}
@@ -62,6 +64,7 @@ export function resign(client: AwsRequest, final: AwsRequest, clientSecret: stri
   return {authorization: `${algorithm} Credential=${keys.keyId}/${scope}, SignedHeaders=${credential.signedHeaders.join(";")}, Signature=${resigned}`, ...(sessionToken === undefined ? {} : {sessionToken})}
 }
 
+// spec: spec/architecture.md#sigv4-resign
 export function signature(request: AwsRequest, credential: Omit<Credential, "keyId" | "signature">, amzDate: string, secretKey: string, doubleEncode: boolean): string {
   const scope = [credential.date, credential.region, credential.service, "aws4_request"].join("/")
   const stringToSign = [algorithm, amzDate, scope, sha256(canonicalRequest(request, credential.signedHeaders, doubleEncode))].join("\n")
@@ -69,6 +72,7 @@ export function signature(request: AwsRequest, credential: Omit<Credential, "key
   return hmac(key, stringToSign).toString("hex")
 }
 
+// spec: spec/architecture.md#sigv4-resign
 export function canonicalRequest({method, target, headers, body}: AwsRequest, signedHeaders: string[], doubleEncode: boolean): string {
   const [path, query = ""] = splitTarget(target)
   const canonicalHeaders = signedHeaders.map(name => `${name}:${headerValues(headers, name).map(value => value.trim().replace(/\s+/g, " ")).join(",")}\n`).join("")

@@ -36,6 +36,7 @@ export interface Entry {
   timeout: number
 }
 
+// spec: spec/architecture.md#register-register
 export function register({name, data, scope, host}: RegisterOptions, run: Run = runCommand, projectFolder: () => string = projectRoot, env: NodeJS.ProcessEnv = process.env): string {
   const server = readServerFile(data)
   if (server === undefined) throw new ExitError(`Agent "${name}" was never started. Start it with: npx -y @simplex-chat/mcp serve ${name}`, 1)
@@ -50,6 +51,7 @@ export function register({name, data, scope, host}: RegisterOptions, run: Run = 
   return `Added to Claude Code: scope ${scope}, server ${serverName}.`
 }
 
+// spec: spec/architecture.md#register-registeropencode
 function registerOpencode(name: string, data: string, port: number, run: Run, env: NodeJS.ProcessEnv): string {
   const home = env.HOME ?? homedir()
   const added = run("opencode", ["mcp", "add", `simplex-${name}`, "--url", `http://127.0.0.1:${port}/mcp`, "--header", `Authorization=Bearer {file:${join(data, "token")}}`], home)
@@ -62,6 +64,7 @@ function registerOpencode(name: string, data: string, port: number, run: Run, en
   return `Added to opencode: server simplex-${name}, plugin ${plugin}.`
 }
 
+// spec: spec/architecture.md#register-registryentry
 export function registryEntry(port: number, data: string, expireHours: number): Entry {
   return {
     type: "http",
@@ -71,11 +74,13 @@ export function registryEntry(port: number, data: string, expireHours: number): 
   }
 }
 
+// spec: spec/architecture.md#register-manualentrytext
 function manualEntryText(scope: Scope, serverName: string, entry: string, projectFolder: () => string): string {
   const location = scope === "user" ? `"mcpServers"` : `"projects" > "${projectFolder()}" > "mcpServers"`
   return `Add this entry under ${location} in ~/.claude.json: {"${serverName}": ${entry}}`
 }
 
+// spec: spec/architecture.md#register-projectroot
 export function projectRoot(folder: string = process.cwd()): string {
   const start = resolve(folder)
   const root = gitRoot(start)
@@ -102,6 +107,7 @@ function repositoryRoot(root: string): string {
   }
 }
 
+// spec: spec/architecture.md#register-runcommand
 function runCommand(command: string, args: string[], cwd?: string): RunResult {
   const result = spawnSync(command, args, {encoding: "utf8", cwd})
   const missing = (result.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT"

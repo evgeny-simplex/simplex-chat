@@ -14,11 +14,13 @@ import {log} from "./log"
 import {awsNames, boundEntries, placeholder, placeholderPattern, valueForms} from "./secrets"
 import {AwsRequest, Headers, headerValue, resign, sigV4Credential} from "./sigv4"
 
+// spec: spec/api.md#secrets-proxy
 const maxBody = 8 * 1_048_576
 const certRenewMs = 6 * 86_400_000
 const caName = "SimpleX MCP local CA"
 const systemBundles = ["/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/cert.pem"]
 const hopHeaders = new Set(["connection", "keep-alive", "proxy-authorization", "proxy-authenticate", "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade", "expect"])
+// spec: spec/api.md#secrets-proxy
 const textType = /^(text\/|application\/(json|x-www-form-urlencoded|xml|javascript|graphql)\b|[^;]*\+(json|xml)\b)/i
 const decoders = {gzip: createGunzip, "x-gzip": createGunzip, deflate: createInflate, br: createBrotliDecompress}
 const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1"])
@@ -58,6 +60,7 @@ interface Outgoing {
 
 class Refusal extends Error {}
 
+// spec: spec/architecture.md#proxy-secretsproxy
 export class SecretsProxy {
   private readonly contexts = new Map<string, {context: SecureContext; at: number}>()
   private readonly leafKey: KeyObject = newKey()
@@ -77,15 +80,18 @@ export class SecretsProxy {
     })
   }
 
+  // spec: spec/architecture.md#proxy-attach
   attach(server: Server): void {
     server.on("connect", (req: IncomingMessage, socket: Socket, head: Buffer) => this.connect(req, socket, head))
   }
 
+  // spec: spec/architecture.md#proxy-attach
   close(): void {
     this.agent.destroy()
     for (const socket of this.sockets) socket.destroy()
   }
 
+  // spec: spec/architecture.md#proxy-connect
   connect(req: IncomingMessage, client: Socket, head: Buffer): void {
     this.track(client)
     client.on("error", () => client.destroy())
@@ -100,6 +106,7 @@ export class SecretsProxy {
     this.inner.emit("connection", tls)
   }
 
+  // spec: spec/architecture.md#proxy-request
   request(req: IncomingMessage, res: ServerResponse): void {
     let url: URL
     try {
@@ -126,6 +133,7 @@ export class SecretsProxy {
     pipeline(req, upstream, () => undefined)
   }
 
+  // spec: spec/architecture.md#proxy-connect
   private tunnel(client: Socket, head: Buffer, target: Target): void {
     this.open(target).then(
       upstream => {
@@ -141,6 +149,7 @@ export class SecretsProxy {
     )
   }
 
+  // spec: spec/architecture.md#proxy-open
   private async open(target: Target): Promise<Socket> {
     const via = this.proxyFor(target, this.options.upstream?.https)
     if (via !== undefined) return this.chained(via, target)
@@ -156,6 +165,7 @@ export class SecretsProxy {
     return socket
   }
 
+  // spec: spec/architecture.md#proxy-open
   private chained(via: UpstreamProxy, {host, port}: Target): Promise<Socket> {
     const authority = `${isIP(host) === 6 ? `[${host}]` : host}:${port}`
     return new Promise((resolve, reject) => {
@@ -174,14 +184,17 @@ export class SecretsProxy {
     })
   }
 
+  // spec: spec/architecture.md#proxy-open
   private proxyFor(target: Target, via: UpstreamProxy | undefined): UpstreamProxy | undefined {
     return via === undefined || bypassed(this.options.upstream?.noProxy ?? [], target.host, target.port) ? undefined : via
   }
 
+  // spec: spec/architecture.md#proxy-open
   private targetOptions({host, port}: Target): HttpsRequestOptions {
     return {agent: this.agent, host, port, servername: host, ...(this.options.upstreamCa === undefined ? {} : {ca: this.options.upstreamCa})}
   }
 
+  // spec: spec/architecture.md#proxy-forward
   private async forward(req: IncomingMessage, res: ServerResponse, target: Target): Promise<void> {
     if (!sameHost(req.headers.host, target)) return this.refuse(res, target.host, `the request's Host differs from ${target.host}.`)
     const entries = this.options.secrets.entries()
@@ -196,6 +209,7 @@ export class SecretsProxy {
     else upstream.end(outgoing.body)
   }
 
+  // spec: spec/architecture.md#proxy-open
   private postForm(url: string, form: {[name: string]: string}): Promise<{status: number; body: unknown}> {
     const {hostname, port, pathname, search} = new URL(url)
     const body = new URLSearchParams(form).toString()
@@ -208,6 +222,7 @@ export class SecretsProxy {
     })
   }
 
+  // spec: spec/architecture.md#proxy-forward
   private async withSecrets(request: Outgoing, method: string, target: Target, entries: SecretEntry[], streamed: boolean): Promise<Outgoing> {
     const textBody = !streamed && request.body.length > 0 && headerValue(request.headers, "content-encoding") === undefined && textType.test(headerValue(request.headers, "content-type") ?? "text/plain")
     const bodyText = textBody ? request.body.toString("latin1") : ""
@@ -247,6 +262,7 @@ export class SecretsProxy {
     return outgoing
   }
 
+  // spec: spec/architecture.md#proxy-forward
   private signedForAws(original: Outgoing, outgoing: Outgoing, method: string, places: string[], bound: SecretEntry[]): Outgoing {
     const named = (name: string): boolean => bound.some(entry => entry.name === name)
     if (!named(awsNames.keyId) || !named(awsNames.secretKey)) throw new Refusal(`secrets ${awsNames.keyId} and ${awsNames.secretKey} are needed to sign this request.`)
@@ -267,6 +283,7 @@ export class SecretsProxy {
     return {...outgoing, headers: {...outgoing.headers, authorization: resigned.authorization, ...(resigned.sessionToken === undefined ? {} : {"x-amz-security-token": resigned.sessionToken})}}
   }
 
+  // spec: spec/architecture.md#proxy-respond
   private respond(response: IncomingMessage, res: ServerResponse, target: Target, entries: SecretEntry[]): void {
     const forms = this.forms(boundEntries(entries, target.host, target.port))
     const headers = forwardedHeaders(response.headers)
@@ -287,6 +304,7 @@ export class SecretsProxy {
     else pipeline(response, decoder(), scrubber, res, () => undefined)
   }
 
+  // spec: spec/architecture.md#proxy-respond
   private forms(bound: SecretEntry[]): [string, string][] {
     const marked = bound.flatMap(({name, mode}) => {
       const values = mode === "gcp" ? [this.issued.get(name)].filter((token): token is string => token !== undefined) : [this.options.secrets.value(name)]
@@ -295,6 +313,7 @@ export class SecretsProxy {
     return marked.sort(([a], [b]) => b.length - a.length)
   }
 
+  // spec: spec/architecture.md#proxy-context
   private context(host: string): SecureContext {
     const cached = this.contexts.get(host)
     if (cached !== undefined && Date.now() - cached.at < certRenewMs) return cached.context
@@ -304,11 +323,13 @@ export class SecretsProxy {
     return context
   }
 
+  // spec: spec/api.md#secrets-proxy
   private refuse(res: ServerResponse, host: string, reason: string): void {
     log(`SimpleX proxy: refused a request to ${host}: ${reason}`)
     plain(res, 403, `SimpleX proxy: ${reason}`)
   }
 
+  // spec: spec/api.md#secrets-proxy
   private fail(res: ServerResponse, error: unknown, host: string): void {
     if (error instanceof Refusal) return this.refuse(res, host, error.message)
     log(`SimpleX proxy: a request to ${host} failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -322,6 +343,7 @@ export class SecretsProxy {
   }
 }
 
+// spec: spec/architecture.md#proxy-open
 class TargetAgent extends HttpsAgent {
   constructor(private readonly open: (target: Target) => Promise<Socket>) {
     super({keepAlive: true})
@@ -336,6 +358,7 @@ class TargetAgent extends HttpsAgent {
   }
 }
 
+// spec: spec/architecture.md#proxy-upstreamproxies
 export function upstreamProxies(env: NodeJS.ProcessEnv, ownPort: number): Upstream {
   const https = upstreamProxy(env.https_proxy || env.HTTPS_PROXY, ownPort)
   const http = upstreamProxy(env.http_proxy || env.HTTP_PROXY, ownPort)
@@ -343,6 +366,7 @@ export function upstreamProxies(env: NodeJS.ProcessEnv, ownPort: number): Upstre
   return {...(https === undefined ? {} : {https}), ...(http === undefined ? {} : {http}), noProxy}
 }
 
+// spec: spec/architecture.md#proxy-upstreamproxies
 function upstreamProxy(text: string | undefined, ownPort: number): UpstreamProxy | undefined {
   const given = text?.trim()
   if (!given) return undefined
@@ -359,6 +383,7 @@ function upstreamProxy(text: string | undefined, ownPort: number): UpstreamProxy
   }
 }
 
+// spec: spec/architecture.md#proxy-upstreamproxies
 export function bypassed(noProxy: string[], host: string, port: number): boolean {
   return noProxy.some(entry => {
     if (entry === "*") return true
@@ -371,6 +396,7 @@ export function bypassed(noProxy: string[], host: string, port: number): boolean
   })
 }
 
+// spec: spec/architecture.md#proxy-upstreamproxies
 function inSubnet(host: string, subnet: string): boolean {
   const [address, bits] = subnet.split("/")
   const family = isIP(address)
@@ -401,6 +427,7 @@ function jsonOf(data: Buffer): unknown {
   }
 }
 
+// spec: spec/architecture.md#proxy-respond
 export class Scrubber extends Transform {
   private carry = ""
   private readonly pattern: RegExp
@@ -435,6 +462,7 @@ export class Scrubber extends Transform {
   }
 }
 
+// spec: spec/architecture.md#proxy-startproxy
 export function startProxy(port: number, options: ProxyOptions): Promise<{server: Server; proxy: SecretsProxy}> {
   const proxy = new SecretsProxy(options)
   const server = createServer((req, res) => (isProxyRequest(req) ? proxy.request(req, res) : plain(res, 400, "SimpleX proxy: proxy requests only.")))
@@ -448,10 +476,12 @@ export function startProxy(port: number, options: ProxyOptions): Promise<{server
   })
 }
 
+// spec: spec/architecture.md#proxy-startproxy
 export function isProxyRequest(req: IncomingMessage): boolean {
   return /^https?:\/\//i.test(req.url ?? "")
 }
 
+// spec: spec/architecture.md#proxy-proxyca
 export function proxyCa(dir: string): Issued {
   const keyFile = join(dir, "proxy-ca.key")
   const certFile = join(dir, "proxy-ca.pem")
@@ -460,6 +490,7 @@ export function proxyCa(dir: string): Issued {
   return ca
 }
 
+// spec: spec/architecture.md#proxy-proxyca
 function newCa(keyFile: string, certFile: string): Issued {
   const ca = createCa(caName)
   writePrivateFile(keyFile, ca.key.export({type: "pkcs8", format: "pem"}) as string)
@@ -467,11 +498,13 @@ function newCa(keyFile: string, certFile: string): Issued {
   return ca
 }
 
+// spec: spec/architecture.md#proxy-proxyca
 function systemCertificates(): string {
   const file = systemBundles.find(path => existsSync(path))
   return file === undefined ? rootCertificates.join("\n") : readFileSync(file, "utf8")
 }
 
+// spec: spec/api.md#secrets-proxy
 function replaceIn(text: string, names: string[], value: (name: string) => string, encode: (value: string) => string): string {
   return names.reduce((result, name) => result.replaceAll(placeholder(name), () => Buffer.from(encode(value(name)), "utf8").toString("latin1")), text)
 }
@@ -480,6 +513,7 @@ function raw(value: string): string {
   return value
 }
 
+// spec: spec/api.md#secrets-proxy
 function bodyEncoder(contentType: string): (value: string) => string {
   if (/json/i.test(contentType)) return value => JSON.stringify(value).slice(1, -1)
   if (/x-www-form-urlencoded/i.test(contentType)) return encodeURIComponent
@@ -492,16 +526,19 @@ function parseTarget(url: string | undefined): Target | undefined {
   return match === null ? undefined : {host: match[1].toLowerCase(), port: Number(match[2])}
 }
 
+// spec: spec/api.md#secrets-proxy
 function sameHost(header: string | undefined, target: Target): boolean {
   if (header === undefined) return false
   const match = /^\[?([^\]]+?)\]?(?::(\d+))?$/.exec(header.trim())
   return match !== null && match[1].toLowerCase() === target.host && Number(match[2] ?? 443) === target.port
 }
 
+// spec: spec/api.md#secrets-proxy
 function forwardedHeaders(headers: IncomingHttpHeaders | Headers): OutgoingHttpHeaders {
   return Object.fromEntries(Object.entries(headers).filter(([name, value]) => value !== undefined && !hopHeaders.has(name.toLowerCase()))) as OutgoingHttpHeaders
 }
 
+// spec: spec/api.md#secrets-proxy
 async function readBody(req: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = []
   let size = 0

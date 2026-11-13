@@ -21,6 +21,7 @@ export interface Issued {
   cert: X509Certificate
 }
 
+// spec: spec/architecture.md#certs-createca
 export function createCa(name: string, now = Date.now()): Issued {
   const {privateKey, publicKey} = generateKeyPairSync("ec", {namedCurve: "P-256"})
   const subject = distinguishedName(name)
@@ -35,6 +36,7 @@ export function createCa(name: string, now = Date.now()): Issued {
   return {key: privateKey, cert: issue({subject, issuer: subject, publicKey, signer: privateKey, from: now - day, until: notAfter.getTime(), extensions})}
 }
 
+// spec: spec/architecture.md#certs-createca
 export function hostCertificate(host: string, ca: Issued, key: KeyObject, now = Date.now()): X509Certificate {
   const ip = isIP(host)
   const altName = ip === 0 ? context(2, Buffer.from(host, "ascii"), false) : context(7, ipBytes(host, ip), false)

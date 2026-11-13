@@ -16,6 +16,7 @@ export type PostForm = (url: string, form: {[name: string]: string}) => Promise<
 
 export class GcpError extends Error {}
 
+// spec: spec/architecture.md#gcp-serviceaccountkey
 export function serviceAccountKey(value: string): ServiceAccountKey | undefined {
   try {
     const key = JSON.parse(value)
@@ -26,6 +27,7 @@ export function serviceAccountKey(value: string): ServiceAccountKey | undefined 
   }
 }
 
+// spec: spec/architecture.md#gcp-serviceaccountkey
 export function assertion(key: ServiceAccountKey, now: number): string {
   const iat = Math.floor(now / 1000)
   const header = {alg: "RS256", typ: "JWT", ...(key.private_key_id === undefined ? {} : {kid: key.private_key_id})}
@@ -34,6 +36,7 @@ export function assertion(key: ServiceAccountKey, now: number): string {
   return `${signed}.${sign("RSA-SHA256", Buffer.from(signed), key.private_key).toString("base64url")}`
 }
 
+// spec: spec/architecture.md#gcp-serviceaccountkey
 export class GcpTokens {
   private readonly tokens = new Map<string, Promise<{token: string; renewAt: number}>>()
 
