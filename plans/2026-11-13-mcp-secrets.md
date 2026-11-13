@@ -545,6 +545,9 @@ D12 the hook makes secrets.json for watchPaths   no file made                   
 D13 e2e: curl through the service's proxy        unit tests with local HTTPS servers, the      a bound host needs a certificate
                                                  serve scenario of e2e, and a curl run to      that the system trusts
                                                  httpbin.org through the build
+D14 the hooks' port: SIMPLEX_MCP_PROXY_PORT      proxyPort of GET /status, written after       the service may run without the
+    or 5225 (decisions 13, 21)                   /title, only while the service runs the       proxy, or on the port of its own
+                                                 proxy                                         environment
 ```
 
 Added: the unit tests run with `HOME` in a temporary folder, the `globalSetup` of the project `unit` in `jest.config.js`, and the hook tests pass their own `SIMPLEX_MCP_HOME`; a test of `files.test.ts` fails when the default data root is outside that folder. New spec text names functions and links files, without line numbers, for #8176.
@@ -555,3 +558,4 @@ Open:
 - O2. An agent of `serve` in Claude Code gets no variables, as no hook of `serve` runs there; the agent names the proxy in its commands. A fix: `register` adds a SessionStart hook, or `list` returns the proxy's URL.
 - O3. The FileChanged matcher `secrets.json` also makes Claude Code watch `secrets.json` of the session's folder (`ne`, 295488859), and a change there writes the variables again.
 - O4. The docs of Q1: the limits of the plugin variant and the stronger setups.
+- O5. README.md "## Secrets" still has #8151's text: `--secrets-folder`, `/secret` without hosts, `$(cat …)`. The text the user approves replaces it before the branch ships.

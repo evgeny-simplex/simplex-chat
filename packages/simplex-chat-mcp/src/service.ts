@@ -232,7 +232,7 @@ export class Service {
   private async onTitle(request: TitleRequest): Promise<TitleReply> {
     validConfig(request.config)
     const {id, pid} = request
-    if (request.proxy === true && pid !== undefined) this.proxied.add(pid)
+    if (request.proxy === true && pid !== undefined && this.proxy !== undefined) this.proxied.add(pid)
     if (request.unattended === true) this.markUnattended(pid)
     else if (pid !== undefined && !this.aliases.has(id) && readSessionFile(this.folder(id)) === undefined && (this.held.has(pid) || this.processSession(pid) === undefined)) {
       this.held.set(pid, request)
@@ -441,7 +441,7 @@ export class Service {
 
   private status(): StatusReply {
     const sessions = [...this.entries.values()].flatMap(({agent, attached}) => (agent === undefined ? [] : [{number: agent.number, name: agent.displayName, attached}]))
-    return {version: this.deps.version, protocol: protocolVersion, mainGroup: this.hub.mainGroup, owner: {owners: this.hub.owner().owners}, sessions}
+    return {version: this.deps.version, protocol: protocolVersion, mainGroup: this.hub.mainGroup, owner: {owners: this.hub.owner().owners}, sessions, ...(this.proxy === undefined ? {} : {proxyPort: this.deps.proxyPort})}
   }
 }
 

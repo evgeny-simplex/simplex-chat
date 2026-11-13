@@ -244,7 +244,7 @@ async function main(args: string[]): Promise<void> {
       process.stdout.write(`${JSON.stringify(await turn(await readStdin()))}\n`)
       return
     case "hook secrets-changed":
-      process.stdout.write(`${JSON.stringify(secretsChanged())}\n`)
+      process.stdout.write(`${JSON.stringify(await secretsChanged())}\n`)
       return
     case "link":
       process.stdout.write(`${await showLink()}\n`)

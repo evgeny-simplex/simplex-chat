@@ -1,6 +1,6 @@
 import {spawnSync} from "child_process"
 import * as fs from "fs"
-import {chmodSync, closeSync, existsSync, fstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync} from "fs"
+import {chmodSync, closeSync, existsSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync} from "fs"
 import {homedir, tmpdir} from "os"
 import {join} from "path"
 import {LockedError, SecretRecord, Secrets, acquireLock, createDataFolder, dataRoot, hubFolder, logFile, openLog, readServerFile, readSessionFile, releaseLock, serverToken, sessionFolder, socketPath, storedSessions, writeHeadersFile, writeServerFile, writeSessionFile} from "../../src/files"
@@ -400,13 +400,21 @@ describe("secrets", () => {
     ])
   })
 
-  it("records the hosts, the mode, the setter and the time in a private index in the data folder", () => {
+  it("records the hosts, the mode, the setter and the time in a private index in the data folder, replaced by a rename at each change", () => {
     expect(secrets.records()).toEqual({})
     secrets.set("API_TOKEN", "first value", alice)
+    const before = openSync(join(dir, "secrets.json"), "r")
     secrets.set("GIT_TOKEN", "second value", bob)
+    expect(readFileSync(before, "utf8")).toBe(`${JSON.stringify({API_TOKEN: alice})}\n`)
+    closeSync(before)
     expect(statSync(join(dir, "secrets.json")).mode & 0o777).toBe(0o600)
     expect(JSON.parse(readFileSync(join(dir, "secrets.json"), "utf8"))).toEqual({API_TOKEN: alice, GIT_TOKEN: bob})
     expect(secrets.records()).toEqual({API_TOKEN: alice, GIT_TOKEN: bob})
+    const removed = openSync(join(dir, "secrets.json"), "r")
+    secrets.remove("API_TOKEN")
+    expect(JSON.parse(readFileSync(removed, "utf8"))).toEqual({API_TOKEN: alice, GIT_TOKEN: bob})
+    closeSync(removed)
+    expect(existsSync(join(dir, "secrets.json.part"))).toBe(false)
   })
 
   it("lists the names of the secret files only, sorted", () => {

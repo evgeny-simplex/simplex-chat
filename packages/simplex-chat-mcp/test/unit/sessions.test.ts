@@ -1282,7 +1282,7 @@ describe("session channel", () => {
     expect(session.actions.get(1)?.state).toBe("pending")
   })
 
-  it("moderates every /secret before its answer, sets it for all sessions on this computer from an admin or owner, refuses it to a member and answers User nothing", async () => {
+  it("moderates every /secret before its answer, sets it for all sessions on this computer from an admin or owner, refuses it to a member, answers User nothing and another letter case as an unknown command", async () => {
     const chat = new FakeChat()
     const {hub, session, lines} = await channel(chat)
     hub.userContactId = 6
@@ -1293,18 +1293,21 @@ describe("session channel", () => {
     session.onMessage(event(sessionGroup, item(40, "/secret GITHUB_TOKEN api.github.com ghp_real_token_value", from(invitedAlice))))
     session.onMessage(event(sessionGroup, item(41, "/secret MIA_TOKEN api.github.com mia_token_value", from(mia))))
     session.onMessage(event(sessionGroup, item(42, "/secret USER_TOKEN api.github.com user_token_value", from({...member(1006, "User"), memberContactId: 6}))))
+    session.onMessage(event(sessionGroup, item(43, "/Secret OTHER_TOKEN api.github.com other_token_value", from(invitedAlice))))
     await session["delivery"]
     await session.control["ownerCommands"]
     expect(chat.moderated).toEqual([
       {groupId: 20, itemIds: [40], sentBefore: sent},
       {groupId: 20, itemIds: [41], sentBefore: sent + 1},
       {groupId: 20, itemIds: [42], sentBefore: sent + 2},
+      {groupId: 20, itemIds: [43], sentBefore: sent + 2},
     ])
-    expect(answers(chat).slice(-2)).toEqual([
+    expect(answers(chat).slice(-3)).toEqual([
       [{text: "Secret GITHUB_TOKEN is set for api.github.com, in all sessions on this computer. /'unsecret GITHUB_TOKEN'", quotedItemId: undefined}],
       [{text: commandsApproversOnly, quotedItemId: undefined}],
+      [{text: unknownCommand, quotedItemId: undefined}],
     ])
-    expect(chat.sent).toHaveLength(sent + 2)
+    expect(chat.sent).toHaveLength(sent + 3)
     expect(hub.secrets.entries()).toEqual([{name: "GITHUB_TOKEN", hosts: ["api.github.com"], mode: "value"}])
     expect(hub.secrets.value("GITHUB_TOKEN")).toBe("ghp_real_token_value")
     expect(lines).toEqual([])

@@ -1,4 +1,4 @@
-import {appendFileSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync} from "fs"
+import {appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync} from "fs"
 import {tmpdir} from "os"
 import {join} from "path"
 import {ServiceClient} from "../../src/client"
@@ -21,16 +21,17 @@ afterEach(() => jest.restoreAllMocks())
 const status = {version: "0.2.0", protocol: 1, mainGroup: "SimpleX MCP", sessions: []}
 const input = JSON.stringify({session_id: "11111111-1111-4111-8111-111111111111", session_title: "auth", cwd: "/p/app", source: "startup"})
 
-function fakeClient(owner: {owners: string[]; link?: string}, ensureError?: Error, mainGroup = "SimpleX MCP") {
+function fakeClient(owner: {owners: string[]; link?: string}, ensureError?: Error, mainGroup = "SimpleX MCP", proxyPort?: number) {
   const requests: unknown[] = []
   const fake = {
     ensureService: async () => {
       if (ensureError) throw ensureError
-      return {...status, owner}
+      return {...status, owner, proxyPort}
     },
     request: async (method: string, route: string, body: unknown) => {
       requests.push({method, route, body})
-      return {mainGroup, owner, version: "0.2.0", protocol: 1}
+      if (route === "/status" && ensureError) throw ensureError
+      return route === "/status" ? {...status, owner, proxyPort} : {mainGroup, owner, version: "0.2.0", protocol: 1}
     },
   }
   return {requests, client: fake as unknown as HookDeps["client"]}
@@ -141,10 +142,10 @@ describe("SessionStart hook", () => {
       envFile = join(root, "sessionstart-hook-0.sh")
     })
 
-    it("writes the proxy, its certificates and a placeholder for each secret to CLAUDE_ENV_FILE, watches the secrets and marks the process at the service", async () => {
+    it("writes the proxy at the service's port, its certificates and a placeholder for each secret to CLAUDE_ENV_FILE, watches the secrets and marks the process at the service", async () => {
       new Secrets(root).set("GITHUB_TOKEN", "ghp_real_token_value", record)
-      const {client, requests} = fakeClient({owners: ["Alice"]})
-      const env = {SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: envFile, CLAUDE_PID: "4321"}
+      const {client, requests} = fakeClient({owners: ["Alice"]}, undefined, undefined, 5225)
+      const env = {SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: envFile, CLAUDE_PID: "4321", SIMPLEX_MCP_PROXY_PORT: "7000"}
       expect(await sessionStart(input, env, {client, nodeVersion: "22.1.0"}, 5)).toEqual(watching())
       const bundle = join(root, "proxy-ca-bundle.pem")
       expect(readFileSync(envFile, "utf8")).toBe(
@@ -168,24 +169,40 @@ describe("SessionStart hook", () => {
         ].join("\n"),
       )
       expect(requests).toMatchObject([{route: "/title", body: {pid: 4321, proxy: true}}])
-      const unattended = fakeClient({owners: []})
-      await sessionStart(input, {...env, CLAUDE_CODE_ENTRYPOINT: "sdk-ts", SIMPLEX_MCP_PROXY_PORT: "6000"}, {client: unattended.client, nodeVersion: "22.1.0"})
+      const unattended = fakeClient({owners: []}, undefined, undefined, 6000)
+      await sessionStart(input, {...env, CLAUDE_CODE_ENTRYPOINT: "sdk-ts"}, {client: unattended.client, nodeVersion: "22.1.0"})
       expect(unattended.requests).toMatchObject([{route: "/title", body: {pid: 4321, unattended: true, proxy: true}}])
       expect(readFileSync(envFile, "utf8")).toContain("export HTTPS_PROXY='http://127.0.0.1:6000'")
     })
 
-    it("writes nothing without secrets or without CLAUDE_ENV_FILE, and writes the variables again when the secrets change", async () => {
-      const {client, requests} = fakeClient({owners: ["Alice"]})
+    it("writes nothing without secrets, without CLAUDE_ENV_FILE or without the service's proxy, and writes the variables again when the secrets change", async () => {
+      const {client, requests} = fakeClient({owners: ["Alice"]}, undefined, undefined, 5225)
       writeFileSync(envFile, "")
-      await sessionStart(input, {SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: envFile}, {client, nodeVersion: "22.1.0"})
+      const env = {SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: envFile, CLAUDE_PID: "4321"}
+      await sessionStart(input, env, {client, nodeVersion: "22.1.0"})
       expect(readFileSync(envFile, "utf8")).toBe("")
       expect(requests).toMatchObject([{route: "/title", body: expect.not.objectContaining({proxy: true})}])
       new Secrets(root).set("OPENAI_API_KEY", "sk-real-key-value", record)
       await sessionStart(input, {SIMPLEX_MCP_HOME: root}, {client, nodeVersion: "22.1.0"})
+      const unproxied = fakeClient({owners: ["Alice"]})
+      await sessionStart(input, env, {client: unproxied.client, nodeVersion: "22.1.0"})
+      await sessionStart(input, {...env, CLAUDE_CODE_ENTRYPOINT: "sdk-ts"}, {client: unproxied.client, nodeVersion: "22.1.0"})
+      expect(unproxied.requests).toMatchObject([{route: "/title", body: expect.not.objectContaining({proxy: true})}, {route: "/title", body: expect.not.objectContaining({proxy: true})}])
+      const errors = captureStderr()
+      const failing = fakeClient({owners: []}, new Error("spawn failed"), undefined, 5225)
+      expect(await sessionStart(input, env, {client: failing.client, nodeVersion: "22.1.0"})).toEqual({systemMessage: "SimpleX MCP: spawn failed", ...watching()})
+      await sessionStart(input, {...env, CLAUDE_CODE_ENTRYPOINT: "sdk-ts"}, {client: failing.client, nodeVersion: "22.1.0"})
+      expect(errors).toEqual(["SimpleX MCP session start: spawn failed"])
       expect(readFileSync(envFile, "utf8")).toBe("")
       const changed = join(root, "filechanged-hook-0.sh")
-      expect(secretsChanged({SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: changed})).toEqual({})
+      expect(await secretsChanged({SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: changed}, unproxied.client)).toEqual({})
+      const stopped = fakeClient({owners: []}, Object.assign(new Error("connect ENOENT /root/service.sock"), {code: "ENOENT"}), undefined, 5225)
+      expect(await secretsChanged({SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: changed}, stopped.client)).toEqual({})
+      expect(errors).toHaveLength(1)
+      expect(existsSync(changed)).toBe(false)
+      expect(await secretsChanged({SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: changed}, client)).toEqual({})
       expect(readFileSync(changed, "utf8")).toMatch(/^export HTTPS_PROXY='http:\/\/127\.0\.0\.1:5225'\n[\s\S]*export OPENAI_API_KEY='simplex-secret-OPENAI_API_KEY'\n$/)
+      expect(requests.at(-1)).toEqual({method: "GET", route: "/status", body: undefined})
     })
   })
 })

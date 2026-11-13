@@ -98,6 +98,7 @@ export interface StatusReply extends ServiceInfo {
   mainGroup: string
   owner: Owners
   sessions: {number: number; name: string; attached: number}[]
+  proxyPort?: number
 }
 
 export interface ResetReply {

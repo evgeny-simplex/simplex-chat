@@ -2,10 +2,10 @@ import {appendFileSync} from "fs"
 import {open} from "fs/promises"
 import {isAbsolute, relative} from "path"
 import {ServiceClient} from "./client"
-import {interactive, interactiveEntrypoint, proxyPort, readConfig} from "./config"
+import {interactive, interactiveEntrypoint, readConfig} from "./config"
 import {dataRoot, secretNames, secretsIndex} from "./files"
 import {errorText, logError, oneLine} from "./log"
-import {Step, TitleReply} from "./protocol"
+import {StatusReply, Step, TitleReply} from "./protocol"
 import {qrCodeText} from "./qr"
 import {proxyFiles, proxyVariables, shellExports} from "./secrets"
 import {SocketError, isNotRunning} from "./socket"
@@ -82,6 +82,12 @@ interface PromptKind {
   midTurn?: boolean
 }
 
+interface SecretVariables {
+  file: string
+  root: string
+  names: string[]
+}
+
 export interface HookOutput {
   systemMessage?: string
   hookSpecificOutput?: {hookEventName: "SessionStart"; watchPaths: string[]}
@@ -93,15 +99,13 @@ export interface HookDeps {
 }
 
 export async function sessionStart(stdin: string, env: NodeJS.ProcessEnv = process.env, deps?: HookDeps, at = performance.timeOrigin): Promise<HookOutput> {
-  const root = dataRoot(env)
-  const proxied = writeSecretVariables(root, env)
-  const output = await startSession(stdin, env, deps, at, proxied)
-  return {...output, hookSpecificOutput: {hookEventName: "SessionStart", watchPaths: [secretsIndex(root)]}}
+  const output = await startSession(stdin, env, deps, at, secretVariables(env))
+  return {...output, hookSpecificOutput: {hookEventName: "SessionStart", watchPaths: [secretsIndex(dataRoot(env))]}}
 }
 
-async function startSession(stdin: string, env: NodeJS.ProcessEnv, deps: HookDeps | undefined, at: number, proxied: boolean): Promise<HookOutput> {
+async function startSession(stdin: string, env: NodeJS.ProcessEnv, deps: HookDeps | undefined, at: number, secrets: SecretVariables | undefined): Promise<HookOutput> {
   if (!interactive(env)) {
-    if (interactiveEntrypoint(env) || proxied) await markUnattended(stdin, env, deps?.client, proxied)
+    if (interactiveEntrypoint(env) || secrets !== undefined) await markUnattended(stdin, env, deps?.client, secrets)
     return {}
   }
   const nodeVersion = deps?.nodeVersion ?? process.versions.node
@@ -110,8 +114,10 @@ async function startSession(stdin: string, env: NodeJS.ProcessEnv, deps: HookDep
     const input = JSON.parse(stdin) as SessionStartInput
     const config = readConfig(env)
     const client = deps?.client ?? ServiceClient.forRoot(dataRoot(env))
-    await client.ensureService(version)
+    const {proxyPort} = await client.ensureService(version)
+    const proxied = secrets !== undefined && proxyPort !== undefined
     const {mainGroup, owner} = await client.request<TitleReply>("POST", "/title", {id: input.session_id, pid: claudePid(env), at, name: input.session_title, project: input.cwd, model: input.model, config, ...(proxied ? {proxy: true} : {})})
+    if (proxied) writeSecretVariables(secrets, proxyPort)
     const {link, owners} = owner
     if (owners.length > 0 || link === undefined) return {}
     return {systemMessage: `SimpleX MCP: scan this QR code with the SimpleX app and tap Join to supervise your agents in "${mainGroup}":\n${qrCodeText(link, "plain")}\n${link}`}
@@ -120,27 +126,39 @@ async function startSession(stdin: string, env: NodeJS.ProcessEnv, deps: HookDep
   }
 }
 
-export function secretsChanged(env: NodeJS.ProcessEnv = process.env): HookOutput {
-  writeSecretVariables(dataRoot(env), env)
+export async function secretsChanged(env: NodeJS.ProcessEnv = process.env, client: HookDeps["client"] = ServiceClient.forRoot(dataRoot(env))): Promise<HookOutput> {
+  const secrets = secretVariables(env)
+  if (secrets === undefined) return {}
+  try {
+    const {proxyPort} = await client.request<StatusReply>("GET", "/status")
+    if (proxyPort !== undefined) writeSecretVariables(secrets, proxyPort)
+  } catch (error) {
+    if (!isNotRunning(error)) logError("SimpleX MCP secrets", error)
+  }
   return {}
 }
 
-function writeSecretVariables(root: string, env: NodeJS.ProcessEnv): boolean {
+function secretVariables(env: NodeJS.ProcessEnv): SecretVariables | undefined {
   const file = env.CLAUDE_ENV_FILE
-  if (!file) return false
+  if (!file) return undefined
+  const root = dataRoot(env)
   const names = secretNames(root)
-  if (names.length === 0) return false
-  appendFileSync(file, shellExports(proxyVariables(proxyFiles(root, proxyPort(env)), names)))
-  return true
+  return names.length === 0 ? undefined : {file, root, names}
 }
 
-async function markUnattended(stdin: string, env: NodeJS.ProcessEnv, client: HookDeps["client"] = ServiceClient.forRoot(dataRoot(env)), proxied: boolean): Promise<void> {
+function writeSecretVariables({file, root, names}: SecretVariables, port: number): void {
+  appendFileSync(file, shellExports(proxyVariables(proxyFiles(root, port), names)))
+}
+
+async function markUnattended(stdin: string, env: NodeJS.ProcessEnv, client: HookDeps["client"] = ServiceClient.forRoot(dataRoot(env)), secrets: SecretVariables | undefined): Promise<void> {
   const pid = claudePid(env)
   if (pid === undefined) return
   try {
     const input = JSON.parse(stdin) as SessionStartInput
-    await client.ensureService(version)
+    const {proxyPort} = await client.ensureService(version)
+    const proxied = secrets !== undefined && proxyPort !== undefined
     await client.request("POST", "/title", {id: input.session_id, pid, project: input.cwd, config: readConfig(env), unattended: true, ...(proxied ? {proxy: true} : {})})
+    if (proxied) writeSecretVariables(secrets, proxyPort)
   } catch (error) {
     logError("SimpleX MCP session start", error)
   }

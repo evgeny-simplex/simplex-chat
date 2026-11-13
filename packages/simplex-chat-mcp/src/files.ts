@@ -203,19 +203,23 @@ export class Secrets {
   }
 
   set(name: string, value: string, record: SecretRecord): void {
-    const part = join(this.folder, `${name}.part`)
-    writePrivateFile(part, value)
-    renameSync(part, join(this.folder, name))
-    writePrivateFile(this.index, `${JSON.stringify({...this.records(), [name]: record})}\n`)
+    replacePrivateFile(join(this.folder, name), value)
+    replacePrivateFile(this.index, `${JSON.stringify({...this.records(), [name]: record})}\n`)
   }
 
   remove(name: string): boolean {
     if (!this.names().includes(name)) return false
     unlinkSync(join(this.folder, name))
     const {[name]: _, ...records} = this.records()
-    writePrivateFile(this.index, `${JSON.stringify(records)}\n`)
+    replacePrivateFile(this.index, `${JSON.stringify(records)}\n`)
     return true
   }
+}
+
+function replacePrivateFile(file: string, text: string): void {
+  const part = `${file}.part`
+  writePrivateFile(part, text)
+  renameSync(part, file)
 }
 
 export function saveHeldTitles(root: string, titles: object[]): void {

@@ -410,7 +410,9 @@ Replies to `/secret`, first match:
 4. a reserved NAME: `NAME is reserved; choose another name.`
 5. otherwise: `Secret NAME is set for HOSTS. /unsecret NAME`. Mode `aws` adds ` It signs AWS requests, with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY set for the same hosts.`, and mode `gcp` adds ` It is a Google service-account key: $NAME stands for its access token.`
 
-`/Secret` and other letter cases are deleted too, and get the list of commands; the value is not saved.
+In the group of a Claude Code session, reply 2 is `Only admins and owners of this group can send / commands.`, and `User` gets no reply.
+
+`/Secret` and other letter cases are deleted too, and get the list of commands, or `Unknown command.` in the group of a session; the value is not saved.
 
 `/unsecret` and `/secrets` get the reply of 2 in the same way.
 
@@ -448,13 +450,13 @@ The agent's shell commands get these variables:
 | `NODE_EXTRA_CA_CERTS` | `proxy-ca.pem` of the data folder, the proxy's certificate authority |
 | NAME of each secret | `simplex-secret-NAME` |
 
-With the Claude Code plugin, its SessionStart hook writes them to the file in `CLAUDE_ENV_FILE` when secrets exist, and Claude Code applies that file to each Bash command of the session, a subagent's included. A FileChanged hook watches `secrets.json` and writes them again when a secret is set or removed. In opencode, the plugin of [opencode](#opencode) adds them for an agent of `serve`. An agent of `serve` in Claude Code gets no variables; the agent names the proxy and the certificates in its commands, such as `curl --proxy http://127.0.0.1:5226 --cacert DATA/proxy-ca-bundle.pem -H "Authorization: Bearer simplex-secret-GITHUB_TOKEN" https://api.github.com/user`, with the values of `proxy-env.json` in the agent's data folder.
+With the Claude Code plugin, its SessionStart hook writes them to the file in `CLAUDE_ENV_FILE` when secrets exist and the service runs the proxy, with the port of the service's proxy. Claude Code applies that file to each Bash command of the session, a subagent's included. A FileChanged hook watches `secrets.json` and writes them again when a secret is set or removed. In opencode, the plugin of [opencode](#opencode) adds them for an agent of `serve`. An agent of `serve` in Claude Code gets no variables; the agent names the proxy and the certificates in its commands, such as `curl --proxy http://127.0.0.1:5226 --cacert DATA/proxy-ca-bundle.pem -H "Authorization: Bearer simplex-secret-GITHUB_TOKEN" https://api.github.com/user`, with the values of `proxy-env.json` in the agent's data folder.
 
 `send` refuses the files of `_secrets/`, as the server's own files: `file: PATH is refused: private keys and the server's own files are not sent.`
 
 ### The proxy
 
-The proxy of `serve` listens on its HTTP port, 5226 by default, beside the MCP server: it takes `CONNECT` requests and requests with an absolute URL, without the token. The plugin's service runs the proxy on 127.0.0.1:5225, or on the port in `SIMPLEX_MCP_PROXY_PORT`. When that port is in use, the service logs `Port N is in use; secrets are not put into requests.` and runs without the proxy.
+The proxy of `serve` listens on its HTTP port, 5226 by default, beside the MCP server: it takes `CONNECT` requests and requests with an absolute URL, without the token. The plugin's service runs the proxy on 127.0.0.1:5225, or on the port in `SIMPLEX_MCP_PROXY_PORT`. When that port is in use, the service logs `Port N is in use; secrets are not put into requests.` and runs without the proxy, and the commands get none of the variables.
 
 - A `CONNECT` to a host bound to no secret is a tunnel: the proxy reads nothing, and a placeholder in it is sent to that host as text, without the value.
 - A `CONNECT` to a bound host is answered with TLS and a certificate of the proxy's certificate authority for that host. The proxy reads the requests inside it and sends each one to the host over its own TLS connection, which checks the host's certificate against the system's roots. It offers HTTP/1.1 only.
@@ -839,7 +841,7 @@ Set in `/plugin` > Installed > simplex > Configure options:
 
 A changed option applies from the next session start, and so does a changed `SIMPLEX_MCP_MACHINE`. The service renames the Main group to the new name. An invalid value is shown at the session start, and every tool call of that session returns the same text, for example `Plugin option expire_hours: hours from 1 to 23 expected, got 48. Change it in /plugin > Installed > simplex > Configure options.` or `SIMPLEX_MCP_MACHINE: a valid SimpleX name, such as mylaptop expected, got my.laptop. Change it in the environment of this machine.` A value of `approve` other than `requests` and `host` can come only from a hand edit of the settings. It is shown only at the session start, and the session's tools run in mode `requests`.
 
-`SIMPLEX_MCP_PROXY_PORT` in the environment sets the port of the proxy, 5225 by default; a value that is not a port from 1 to 65535 is ignored. Set it in the environment of Claude Code: the hooks and the service read it from there.
+`SIMPLEX_MCP_PROXY_PORT` in the environment sets the port of the proxy, 5225 by default; a value that is not a port from 1 to 65535 is ignored. Set it in the environment of Claude Code: the service reads it at its start, and the hooks get the port from the running service.
 
 In mode `host`, a session asks in its group to run in that mode: `I want to run in mode host: Claude Code asks you before each of my actions, and they are performed without approval here.`, with `/approve N or /reject N`. It asks at its start, or when the group gets its first admin or owner other than Claude, by a join or a role change. The session runs in mode `host` after an admin or owner approves, and keeps the mode across restarts, in the custom data of its group in the chat database. After a rejection, it asks again only after a session start with `requests`. A change back to `requests` applies at the next session start without a card, and a pending card then gets `Ended.`
 
