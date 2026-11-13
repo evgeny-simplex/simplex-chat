@@ -2043,12 +2043,10 @@ testGroupDelayedModeration ps = do
       alice <## "message marked deleted by you"
       cath <# "#team cath> [marked deleted by alice] hi"
     withTestChatCfg ps cfg "bob" $ \bob -> do
-      bob <## "subscribed 2 connections on server localhost"
-      bob <## "#team: alice added cath (Catherine) to the group (connecting...)"
+      bob <### ["subscribed 2 connections on server localhost", "#team: alice added cath (Catherine) to the group (connecting...)"]
       bob <# "#team cath> [marked deleted by alice] hi"
       withTestChatCfg ps cfg "cath" $ \cath -> do
-        cath <## "subscribed 3 connections on server localhost"
-        cath <## "#team: member bob (Bob) is connected"
+        cath <### ["subscribed 3 connections on server localhost", "#team: member bob (Bob) is connected"]
         bob <## "#team: new member cath is connected"
         alice #$> ("/_get chat #1 count=1", chat, [(0, "hi [marked deleted by you]")])
         cath #$> ("/_get chat #1 count=2", chat, [(1, "hi [marked deleted by alice]"), (0, "connected")])
@@ -2084,15 +2082,13 @@ testGroupDelayedModerationFullDelete ps = do
       cath <## "updated group preferences:"
       cath <## "Full deletion: on"
     withTestChatCfg ps cfg "bob" $ \bob -> do
-      bob <## "subscribed 2 connections on server localhost"
-      bob <## "#team: alice added cath (Catherine) to the group (connecting...)"
+      bob <### ["subscribed 2 connections on server localhost", "#team: alice added cath (Catherine) to the group (connecting...)"]
       bob <## "alice updated group #team: (signed)"
       bob <## "updated group preferences:"
       bob <## "Full deletion: on"
       bob <# "#team cath> moderated [deleted by alice] [>>]"
       withTestChatCfg ps cfg "cath" $ \cath -> do
-        cath <## "subscribed 3 connections on server localhost"
-        cath <## "#team: member bob (Bob) is connected"
+        cath <### ["subscribed 3 connections on server localhost", "#team: member bob (Bob) is connected"]
         bob <## "#team: new member cath is connected"
         alice #$> ("/_get chat #1 count=2", chat, [(0, "hi [marked deleted by you]"), (1, "Full deletion: on")])
         cath #$> ("/_get chat #1 count=3", chat, [(1, "hi [marked deleted by alice]"), (0, "Full deletion: on"), (0, "connected")])
@@ -2875,19 +2871,16 @@ testGroupAsync ps = do
       withTestChat ps "dan" $ \dan -> do
         concurrentlyN_
           [ do
-              alice <## "subscribed 4 connections on server localhost"
-              alice <## "#team: bob added dan (Daniel) to the group (connecting...)"
+              alice <### ["subscribed 4 connections on server localhost", "#team: bob added dan (Daniel) to the group (connecting...)"]
               alice <## "#team: new member dan is connected",
             do
-              cath <## "subscribed 3 connections on server localhost"
-              cath <## "#team: bob added dan (Daniel) to the group (connecting...)"
+              cath <### ["subscribed 3 connections on server localhost", "#team: bob added dan (Daniel) to the group (connecting...)"]
               cath <## "#team: new member dan is connected",
-            do
-              dan <## "subscribed 4 connections on server localhost"
-              dan
-                <### [ "#team: member alice (Alice) is connected",
-                       "#team: member cath (Catherine) is connected"
-                     ]
+            dan
+              <### [ "subscribed 4 connections on server localhost",
+                     "#team: member alice (Alice) is connected",
+                     "#team: member cath (Catherine) is connected"
+                   ]
           ]
         threadDelay 1000000
   withTestChat ps "alice" $ \alice -> do
