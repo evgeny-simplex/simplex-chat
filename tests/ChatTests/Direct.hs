@@ -14,7 +14,7 @@ module ChatTests.Direct where
 import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Utils
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_, poll, wait)
 import Control.Monad (forM_, void, (>=>))
 import Data.Aeson (ToJSON)
@@ -29,8 +29,8 @@ import GHC.Conc (ThreadStatus (..), threadStatus)
 import Simplex.Chat.AppSettings (defaultAppSettings)
 import qualified Simplex.Chat.AppSettings as AS
 import Simplex.Chat.Call
-import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), PresetServers (..))
-import Simplex.Chat.Messages (ChatItemId)
+import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatEvent (CEvtCallInvitation, CEvtChatItemsDeleted, CEvtNewChatItems, CEvtReceivedGroupInvitation), PresetServers (..))
+import Simplex.Chat.Messages (AChatItem (..), CIMeta (CIMeta, itemText), ChatItem (ChatItem, meta), ChatItemId)
 import Simplex.Chat.Options
 import Simplex.Chat.Protocol (supportedChatVRange)
 import Simplex.Chat.Types (ContactId, VersionRangeChat, authErrDisableCount, sameVerificationCode, verificationCode, pattern VersionChat)
@@ -79,6 +79,11 @@ chatDirectTests = do
     it "should send multiline message" testMultilineMessage
     it "send large message" testLargeMessage
     it "initial chat pagination" testChatPaginationInitial
+  describe "repeated delivery after chat stop" $ do
+    it "show received message once" testRepeatedMessage
+    it "delete message once" testRepeatedMessageDelete
+    it "show group invitation once" testRepeatedGroupInvitation
+    it "show call invitation once" testRepeatedCallInvitation
   describe "batch send messages" $ do
     it "send multiple messages api" testSendMulti
     it "send multiple timed messages" testSendMultiTimed
@@ -1441,6 +1446,81 @@ testExpireCallInvitation ps =
       M.member 2 <$> readTVarIO (currentCalls $ chatController bob) `shouldReturn` False
       callRowCount bob `shouldReturn` 0
       bob #$> ("/_get chat @2 count=100", chat, chatFeatures <> [(0, "incoming call: missed")])
+
+testRepeatedMessage :: HasCallStack => TestParams -> IO ()
+testRepeatedMessage ps = do
+  (received, cfg) <- blockFirstEventCfg rcvHelloItem
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice #> "@bob hello"
+      readMVar received
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob #$> ("/_get chat @2 count=2", chat, [(0, "hello"), (0, "hi")])
+
+testRepeatedMessageDelete :: HasCallStack => TestParams -> IO ()
+testRepeatedMessageDelete ps = do
+  (deleted, cfg) <- blockFirstEventCfg (\e -> case e of CEvtChatItemsDeleted {} -> True; _ -> False)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice #> "@bob hello"
+      bob <# "alice> hello"
+      alice #$> ("/_delete item @2 " <> itemId 1 <> " broadcast", id, "message marked deleted")
+      readMVar deleted
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob #$> ("/_get chat @2 count=2", chat, [(0, "hello [marked deleted]"), (0, "hi")])
+
+testRepeatedGroupInvitation :: HasCallStack => TestParams -> IO ()
+testRepeatedGroupInvitation ps = do
+  (invited, cfg) <- blockFirstEventCfg (\e -> case e of CEvtReceivedGroupInvitation {} -> True; _ -> False)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice ##> "/g team"
+      alice <## "group #team is created"
+      alice <## "to add members use /a team <name> or /create link #team"
+      alice ##> "/a team bob"
+      alice <## "invitation to join the group #team sent to bob"
+      readMVar invited
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob ##> "/j team"
+      concurrently_
+        (alice <## "#team: bob joined the group")
+        (bob <## "#team: you joined the group")
+      alice #> "#team hello"
+      bob <# "#team alice> hello"
+
+testRepeatedCallInvitation :: HasCallStack => TestParams -> IO ()
+testRepeatedCallInvitation ps = do
+  (invited, cfg) <- blockFirstEventCfg (\e -> case e of CEvtCallInvitation {} -> True; _ -> False)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice ##> ("/_call invite @2 " <> serialize testCallType)
+      alice <## "ok"
+      readMVar invited
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob #$> ("/_get chat @2 count=2", chat, [(0, "incoming call: calling..."), (0, "hi")])
+
+rcvHelloItem :: ChatEvent -> Bool
+rcvHelloItem (CEvtNewChatItems _ [AChatItem _ _ _ ChatItem {meta = CIMeta {itemText}}]) = itemText == "hello"
+rcvHelloItem _ = False
+
+stopStartChat :: HasCallStack => TestCC -> IO ()
+stopStartChat cc = do
+  cc ##> "/_stop"
+  cc <## "chat stopped"
+  cc ##> "/_start"
+  cc <### ["chat started", "subscribed 1 connections on server localhost"]
 
 testStopStartChat :: HasCallStack => TestParams -> IO ()
 testStopStartChat ps =
