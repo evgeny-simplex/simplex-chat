@@ -24,9 +24,10 @@ import Data.Maybe (fromMaybe)
 import Data.String
 import qualified Data.Text as T
 import Simplex.Chat.Badges (BadgeProof (..), BadgeStatus, LocalBadge (..), ProofPresHeader (..))
-import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatEvent, ChatHooks (..), defaultChatHooks, storeCxt)
+import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatEvent (CEvtNewChatItems), ChatHooks (..), defaultChatHooks, storeCxt)
 import Simplex.Chat.Library.Commands (maxProfileImageSize)
 import Simplex.Chat.Markdown (viewName)
+import Simplex.Chat.Messages (AChatItem (..), CIMeta (CIMeta, itemText), ChatItem (ChatItem, meta))
 import Simplex.Chat.Messages.CIContent (e2eInfoNoPQText, e2eInfoPQText)
 import Simplex.Chat.Protocol
 import Simplex.Chat.Store.Direct (getContact, getContactIdByName, getContactRequest, getContactRequestIdByName)
@@ -39,7 +40,6 @@ import Simplex.Chat.Types.Preferences
 import Simplex.Chat.Types.Shared
 import Simplex.Chat.Types.UITheme (ChatLayout)
 import Simplex.FileTransfer.Description (FileSize (..))
-import Simplex.Messaging.Agent (sendMessages, vrValue)
 import Simplex.Messaging.Agent.Client (agentClientStore)
 import Simplex.Messaging.Agent.Store.AgentStore (maybeFirstRow, withTransaction)
 import qualified Simplex.Messaging.Agent.Store.DB as DB
@@ -47,7 +47,6 @@ import qualified Simplex.Messaging.Crypto as C
 import Simplex.Messaging.Crypto.BBS (BBSPresHeader (..))
 import Simplex.Messaging.Crypto.Ratchet (PQEncryption (..), PQSupport, pattern PQEncOff, pattern PQEncOn, pattern PQSupportOff)
 import Simplex.Messaging.Encoding.String
-import Simplex.Messaging.Protocol (MsgFlags (MsgFlags))
 import Simplex.Messaging.Version
 import System.Directory (doesFileExist)
 import Test.Hspec hiding (it)
@@ -963,11 +962,6 @@ setRelativePaths cc filesFolder tempFolder = do
   cc ##> "/_start"
   cc <## "chat started"
 
-agentSendBody :: TestCC -> ByteString -> ByteString -> IO ()
-agentSendBody cc connId body = do
-  let ChatController {smpAgent} = chatController cc
-  runExceptT (sendMessages smpAgent [(connId, PQEncOff, MsgFlags False, vrValue body)]) >>= either (fail . show) (const $ pure ())
-
 blockFirstEventCfg :: (ChatEvent -> Bool) -> IO (MVar (), ChatConfig)
 blockFirstEventCfg blocks = do
   blocked <- newEmptyMVar
@@ -978,3 +972,7 @@ blockFirstEventCfg blocks = do
           pure ev
         _ -> pure ev
   pure (blocked, testCfg {chatHooks = defaultChatHooks {eventHook = Just hook}})
+
+newItemText :: T.Text -> ChatEvent -> Bool
+newItemText t (CEvtNewChatItems _ [AChatItem _ _ _ ChatItem {meta = CIMeta {itemText}}]) = itemText == t
+newItemText _ _ = False
