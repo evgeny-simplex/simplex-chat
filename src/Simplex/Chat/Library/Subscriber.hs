@@ -2005,7 +2005,10 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     processFDMessage :: Maybe ByteString -> FileTransferId -> AChatItem -> FileDescr -> Maybe UTCTime -> Maybe BadgeProof -> CM ()
     processFDMessage binding_ fileId aci fileDescr fileExpires fileBadge = do
       ft <- withStore $ \db -> getRcvFileTransfer db user fileId
-      unless (rcvFileCompleteOrCancelled ft) $ do
+      let started = case ft of
+            RcvFileTransfer {fileStatus = RFSConnected _} -> True
+            _ -> False
+      unless (rcvFileCompleteOrCancelled ft || started) $ do
         (rfd@RcvFileDescr {fileDescrComplete}, ft'@RcvFileTransfer {fileStatus, xftpRcvFile, cryptoArgs, fileProhibited, fileInvitation = FileInvitation {fileSize}}) <- withStore $ \db -> do
           rfd <- appendRcvFD db userId fileId fileDescr
           forM_ fileExpires $ liftIO . setFileExpiration db user fileId
