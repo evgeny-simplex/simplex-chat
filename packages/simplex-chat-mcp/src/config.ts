@@ -21,8 +21,14 @@ const optionNames: {[key in Key]: string} = {mainGroup: "main_group", approve: "
 const configurePath = "/plugin > Installed > simplex > Configure options"
 const machineVariable = "SIMPLEX_MCP_MACHINE"
 const unattendedEntrypoints = ["sdk-cli", "sdk-ts", "sdk-py"]
+const defaultProxyPort = 5225
 
 export class ConfigError extends Error {}
+
+export function proxyPort(env: NodeJS.ProcessEnv = process.env): number {
+  const port = Number(env.SIMPLEX_MCP_PROXY_PORT)
+  return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : defaultProxyPort
+}
 
 export function interactiveEntrypoint(env: NodeJS.ProcessEnv = process.env): boolean {
   return !unattendedEntrypoints.includes(env.CLAUDE_CODE_ENTRYPOINT ?? "")

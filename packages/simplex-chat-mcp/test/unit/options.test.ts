@@ -1,4 +1,3 @@
-import {join} from "path"
 import {helpText, parseCommand, validAgentName} from "../../src/cli"
 import {entryText} from "../../src/control"
 import {ExitError} from "../../src/log"
@@ -39,7 +38,7 @@ describe("serve options", () => {
 
   it("reads every option", () => {
     const {options} = parseCommand(
-      ["serve", "agent-2", "--data", "/tmp/a", "--display-name", "Agent Two", "--approve", "host", "--expire", "1", "--stop-wait", "0", "--port", "5227", "--qr-code", "large", "--new-token", "--reset-owners", "--owners", "--secrets-folder", "/tmp/s"],
+      ["serve", "agent-2", "--data", "/tmp/a", "--display-name", "Agent Two", "--approve", "host", "--expire", "1", "--stop-wait", "0", "--port", "5227", "--qr-code", "large", "--new-token", "--reset-owners", "--owners"],
       home,
     ) as {options: object}
     expect(options).toEqual({
@@ -55,18 +54,7 @@ describe("serve options", () => {
       newToken: true,
       resetOwners: true,
       owners: [],
-      secrets: "/tmp/s",
     })
-  })
-
-  it("takes a secrets folder disjoint from the data folder", () => {
-    expect(parseCommand(["serve", "agent", "--secrets-folder", "secrets"], home)).toMatchObject({options: {secrets: join(process.cwd(), "secrets")}})
-    expect(parseCommand(["serve", "agent", "--data", "/tmp/a", "--secrets-folder", "/tmp/x/../ab"], home)).toMatchObject({options: {data: "/tmp/a", secrets: "/tmp/ab"}})
-    const refused = (folder: string): string => `--secrets-folder: a folder disjoint from the data folder expected, got ${folder}`
-    for (const folder of ["/tmp/a", "/tmp/a/secrets", "/tmp"]) expect(usage(["serve", "agent", "--data", "/tmp/a", "--secrets-folder", folder])).toBe(refused(folder))
-    expect(usage(["serve", "agent", "--secrets-folder", "/tmp/a/secrets", "--data", "/tmp/a"])).toBe(refused("/tmp/a/secrets"))
-    expect(usage(["serve", "agent", "--secrets-folder", "/home/alice/.simplex-mcp"])).toBe(refused("/home/alice/.simplex-mcp"))
-    expect(usage(["serve", "agent", "--secrets-folder"])).toBe("--secrets-folder: a value expected.")
   })
 
   it("takes the QR code size", () => {
@@ -141,9 +129,11 @@ describe("display names", () => {
 
 describe("register options", () => {
   it("has defaults and reads options", () => {
-    expect(parseCommand(["register", "agent"], home)).toEqual({command: "register", options: {name: "agent", data: "/home/alice/.simplex-mcp/agent", scope: "user"}})
-    expect(parseCommand(["register", "agent", "--scope", "local", "--data", "/tmp/a"], home)).toEqual({command: "register", options: {name: "agent", data: "/tmp/a", scope: "local"}})
+    expect(parseCommand(["register", "agent"], home)).toEqual({command: "register", options: {name: "agent", data: "/home/alice/.simplex-mcp/agent", scope: "user", host: "claude"}})
+    expect(parseCommand(["register", "agent", "--scope", "local", "--data", "/tmp/a"], home)).toEqual({command: "register", options: {name: "agent", data: "/tmp/a", scope: "local", host: "claude"}})
+    expect(parseCommand(["register", "agent", "--host", "opencode"], home)).toMatchObject({options: {host: "opencode"}})
     expect(usage(["register", "agent", "--scope", "project"])).toBe("--scope: user or local expected, got project")
+    expect(usage(["register", "agent", "--host", "cursor"])).toBe("--host: claude or opencode expected, got cursor")
   })
 })
 
@@ -181,7 +171,8 @@ describe("help", () => {
     expect(parseCommand(["--help"], home)).toEqual({command: "help"})
     expect(helpText).toContain("  --owners [ID:NAME,...] only these owners approve; without a list, the link\n")
     expect(helpText).toContain("  --stop-wait SECONDS    at stop, wait SECONDS for cancelled cards to be sent,\n                         0 to 60 (default: 10)\n")
-    expect(helpText).toContain("  --secrets-folder DIR   folder of the secrets that owners set with /secret,\n                         one file per name; disjoint from the data folder\n")
+    expect(helpText).toContain("  --host HOST            claude (default) or opencode\n  --scope SCOPE          user (default) or local, for claude\n")
+    expect(helpText).not.toContain("--secrets-folder")
     expect(helpText.endsWith("--reset-owners takes --owners without a list.\n")).toBe(true)
   })
 })

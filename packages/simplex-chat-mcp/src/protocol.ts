@@ -35,6 +35,7 @@ export interface TitleRequest {
   model?: string
   config: Config
   unattended?: boolean
+  proxy?: boolean
 }
 
 export interface PermissionRequest {

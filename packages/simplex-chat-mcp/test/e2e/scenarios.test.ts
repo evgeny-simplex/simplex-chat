@@ -1,5 +1,6 @@
 import {randomBytes} from "crypto"
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync} from "fs"
+import {request} from "http"
 import {createServer} from "net"
 import {tmpdir} from "os"
 import {basename, dirname, join} from "path"
@@ -82,7 +83,7 @@ class Agent {
   server!: RunningServer
   client!: McpClient
 
-  constructor(private readonly data: string, readonly port: number) {}
+  constructor(readonly data: string, readonly port: number) {}
 
   async start(extra: Partial<ServeOptions> = {}): Promise<void> {
     this.server = await startServer(serveOptions(this.data, this.port, extra))
@@ -543,22 +544,24 @@ test("--display-name names the profile and the agent control chat", async () => 
   expect(await renamed).toBeDefined()
 }, 600_000)
 
-test("/secret: the owner's message is moderated in the agent control chat, its value is stored, and list returns its name", async () => {
+test("/secret: the owner's message is moderated in the agent control chat, its value is stored for its hosts, list returns its placeholder, and the agent's port refuses it over plain HTTP", async () => {
   const alice = await personIn("secret", "Alice")
   const agent = await agentIn("secret")
-  const folder = join(dir, "secret", "secrets")
-  await agent.start({secrets: folder})
+  await agent.start()
   const controlId = await joinAsOwner(alice)
 
   const value = "tok en/+?=é-1234"
   const deleted = alice.chat.wait("chatItemsDeleted", timeout)
-  const reply = received(alice.chat, textStarts("Secret API_TOKEN is set."))
-  const [sent] = await alice.chat.apiSendTextMessage([T.ChatType.Group, controlId], `/secret API_TOKEN ${value}`)
+  const reply = received(alice.chat, textStarts("Secret API_TOKEN is set for api.github.com."))
+  const [sent] = await alice.chat.apiSendTextMessage([T.ChatType.Group, controlId], `/secret API_TOKEN api.github.com ${value}`)
   expect((await deleted)!.chatItemDeletions.map(({deletedChatItem}) => deletedChatItem.chatItem.meta.itemId)).toEqual([sent.chatItem.meta.itemId])
   expect((await reply).chatItem.quotedItem).toBeUndefined()
-  expect(readFileSync(join(folder, "API_TOKEN"), "utf8")).toBe(value)
+  expect(readFileSync(join(agent.data, "_secrets", "API_TOKEN"), "utf8")).toBe(value)
   const {server} = agent
   const {chatItems} = await server.chat.apiGetChat(T.ChatType.Group, (await controlGroupOf(server.chat, server.user.userId)).groupId, 100)
   expect(chatItems.filter(chatItem => JSON.stringify(chatItem).includes(value))).toEqual([])
-  expect((await agent.client.tool("list", {})).result.secrets).toEqual({folder, names: ["API_TOKEN"]})
+  expect((await agent.client.tool("list", {})).result.secrets).toEqual([{name: "API_TOKEN", hosts: ["api.github.com"], mode: "value", placeholder: "simplex-secret-API_TOKEN"}])
+  expect(JSON.parse(readFileSync(join(agent.data, "proxy-env.json"), "utf8"))).toMatchObject({HTTPS_PROXY: `http://127.0.0.1:${agent.port}`, NODE_EXTRA_CA_CERTS: join(agent.data, "proxy-ca.pem")})
+  const refused = await new Promise<number>(resolve => request({host: "127.0.0.1", port: agent.port, path: "http://api.github.com/?k=simplex-secret-API_TOKEN"}, res => resolve(res.resume().statusCode ?? 0)).end())
+  expect(refused).toBe(403)
 }, 600_000)

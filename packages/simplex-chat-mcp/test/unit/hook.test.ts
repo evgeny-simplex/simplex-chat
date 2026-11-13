@@ -1,8 +1,9 @@
-import {appendFileSync, mkdtempSync, rmSync, truncateSync, writeFileSync} from "fs"
-import {tmpdir} from "os"
+import {appendFileSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync} from "fs"
+import {homedir, tmpdir} from "os"
 import {join} from "path"
 import {ServiceClient} from "../../src/client"
-import {HookDeps, sessionStart, turn} from "../../src/hook"
+import {SecretRecord, Secrets} from "../../src/files"
+import {HookDeps, secretsChanged, sessionStart, turn} from "../../src/hook"
 import {linkText, resetOwners, resetOwnersText, showLink} from "../../src/owner"
 import {qrCodeText} from "../../src/qr"
 import {SocketError} from "../../src/socket"
@@ -19,6 +20,7 @@ afterEach(() => jest.restoreAllMocks())
 
 const status = {version: "0.2.0", protocol: 1, mainGroup: "SimpleX MCP", sessions: []}
 const input = JSON.stringify({session_id: "11111111-1111-4111-8111-111111111111", session_title: "auth", cwd: "/p/app", source: "startup"})
+const watching = {hookSpecificOutput: {hookEventName: "SessionStart", watchPaths: [join(homedir(), ".simplex-mcp", "secrets.json")]}}
 
 function fakeClient(owner: {owners: string[]; link?: string}, ensureError?: Error, mainGroup = "SimpleX MCP") {
   const requests: unknown[] = []
@@ -39,8 +41,8 @@ describe("SessionStart hook", () => {
   it("starts the session with its title, folder, model, Claude Code process and the time the hook started, and stays quiet when the Main group has an owner", async () => {
     const {client, requests} = fakeClient({owners: ["Alice"]})
     const started = JSON.stringify({...JSON.parse(input), model: "claude-opus-5"})
-    expect(await sessionStart(started, {CLAUDE_PID: "4321"}, {client, nodeVersion: "22.1.0"}, 5)).toEqual({})
-    expect(await sessionStart(started, {}, {client, nodeVersion: "22.1.0"})).toEqual({})
+    expect(await sessionStart(started, {CLAUDE_PID: "4321"}, {client, nodeVersion: "22.1.0"}, 5)).toEqual(watching)
+    expect(await sessionStart(started, {}, {client, nodeVersion: "22.1.0"})).toEqual(watching)
     expect(requests).toEqual([
       {method: "POST", route: "/title", body: {id: "11111111-1111-4111-8111-111111111111", pid: 4321, at: 5, name: "auth", project: "/p/app", model: "claude-opus-5", config: {mainGroup: "Claude Control", approve: "requests", expireHours: 23}}},
       {method: "POST", route: "/title", body: {id: "11111111-1111-4111-8111-111111111111", at: performance.timeOrigin, name: "auth", project: "/p/app", model: "claude-opus-5", config: {mainGroup: "Claude Control", approve: "requests", expireHours: 23}}},
@@ -51,7 +53,7 @@ describe("SessionStart hook", () => {
     const link = "https://simplex.chat/g#link"
     const {client} = fakeClient({owners: [], link}, undefined, "Agents")
     const output = await sessionStart(input, {}, {client, nodeVersion: "22.1.0"})
-    expect(output).toEqual({systemMessage: `SimpleX MCP: scan this QR code with the SimpleX app and tap Join to supervise your agents in "Agents":\n${qrCodeText(link, "plain")}\n${link}`})
+    expect(output).toEqual({systemMessage: `SimpleX MCP: scan this QR code with the SimpleX app and tap Join to supervise your agents in "Agents":\n${qrCodeText(link, "plain")}\n${link}`, ...watching})
   })
 
   it("starts no service and opens no session in a non-interactive run, as with claude -p or the Agent SDK, and the turn hooks post nothing", async () => {
@@ -60,7 +62,7 @@ describe("SessionStart hook", () => {
     const client = {ensureService: ensured, request: async (...args: unknown[]) => void requests.push(args)} as unknown as HookDeps["client"]
     for (const entrypoint of ["sdk-cli", "sdk-ts", "sdk-py"]) {
       const env = {CLAUDE_CODE_ENTRYPOINT: entrypoint, CLAUDE_PID: "4321"}
-      expect(await sessionStart(input, env, {client, nodeVersion: "22.1.0"})).toEqual({})
+      expect(await sessionStart(input, env, {client, nodeVersion: "22.1.0"})).toEqual(watching)
       expect(await turn(JSON.stringify({session_id: "11111111-1111-4111-8111-111111111111", prompt: "Fix the build"}), env, client)).toEqual({})
     }
     expect(ensured).not.toHaveBeenCalled()
@@ -74,7 +76,7 @@ describe("SessionStart hook", () => {
     const {env} = recordedRun("claude-vscode", "SessionStart")
     const {client, requests} = fakeClient({owners: [], link: "https://simplex.chat/g#link"})
     const ensured = jest.spyOn(client, "ensureService")
-    expect(await sessionStart(input, env, {client, nodeVersion: "22.1.0"})).toEqual({})
+    expect(await sessionStart(input, env, {client, nodeVersion: "22.1.0"})).toEqual(watching)
     expect(ensured).toHaveBeenCalledTimes(1)
     expect(requests).toEqual([{method: "POST", route: "/title", body: {id: "11111111-1111-4111-8111-111111111111", pid: 1769596, project: "/p/app", config: {mainGroup: "Claude Control", approve: "requests", expireHours: 23}, unattended: true}}])
     const {env: turnEnv} = recordedRun("claude-vscode", "UserPromptSubmit")
@@ -82,7 +84,7 @@ describe("SessionStart hook", () => {
     expect(requests).toHaveLength(1)
     const errors = captureStderr()
     const failing = fakeClient({owners: []}, new Error("no service"))
-    expect(await sessionStart(input, env, {client: failing.client, nodeVersion: "22.1.0"})).toEqual({})
+    expect(await sessionStart(input, env, {client: failing.client, nodeVersion: "22.1.0"})).toEqual(watching)
     expect(errors).toEqual(["SimpleX MCP session start: no service"])
     const {client: attended, requests: sent} = fakeClient({owners: ["Alice"]})
     await sessionStart(input, {...env, CLAUDE_CODE_SESSION_ATTENDED: "1"}, {client: attended, nodeVersion: "22.1.0"})
@@ -91,7 +93,7 @@ describe("SessionStart hook", () => {
 
   it("needs Node.js 22", async () => {
     const {client, requests} = fakeClient({owners: []})
-    expect(await sessionStart(input, {}, {client, nodeVersion: "20.11.0"})).toEqual({systemMessage: "SimpleX MCP needs Node.js 22 or later; found 20.11.0."})
+    expect(await sessionStart(input, {}, {client, nodeVersion: "20.11.0"})).toEqual({systemMessage: "SimpleX MCP needs Node.js 22 or later; found 20.11.0.", ...watching})
     expect(requests).toEqual([])
   })
 
@@ -100,9 +102,11 @@ describe("SessionStart hook", () => {
     expect(await sessionStart("not json", {}, {client, nodeVersion: "22.1.0"})).toMatchObject({systemMessage: expect.stringMatching(/^SimpleX MCP: /)})
     expect(await sessionStart(input, {CLAUDE_PLUGIN_OPTION_APPROVE: "x"}, {client, nodeVersion: "22.1.0"})).toEqual({
       systemMessage: "SimpleX MCP: Plugin option approve: requests or host expected, got x. Change it in /plugin > Installed > simplex > Configure options.",
+      ...watching,
     })
     expect(await sessionStart(input, {SIMPLEX_MCP_MACHINE: "my.laptop"}, {client, nodeVersion: "22.1.0"})).toEqual({
       systemMessage: "SimpleX MCP: SIMPLEX_MCP_MACHINE: a valid SimpleX name, such as mylaptop expected, got my.laptop. Change it in the environment of this machine.",
+      ...watching,
     })
   })
 
@@ -111,12 +115,73 @@ describe("SessionStart hook", () => {
     const {client} = fakeClient({owners: []}, error)
     expect(await sessionStart(input, {}, {client, nodeVersion: "22.1.0"})).toEqual({
       systemMessage: "SimpleX MCP: The SimpleX service stopped; it starts again with the next tool call.",
+      ...watching,
     })
   })
 
   it("reports other service errors with their text", async () => {
     const {client} = fakeClient({owners: []}, new Error("spawn failed"))
-    expect(await sessionStart(input, {}, {client, nodeVersion: "22.1.0"})).toEqual({systemMessage: "SimpleX MCP: spawn failed"})
+    expect(await sessionStart(input, {}, {client, nodeVersion: "22.1.0"})).toEqual({systemMessage: "SimpleX MCP: spawn failed", ...watching})
+  })
+
+  describe("with secrets", () => {
+    let root: string
+    let envFile: string
+    const record: SecretRecord = {hosts: ["api.github.com"], mode: "value", setBy: "Alice", setById: 3, setAt: "2026-11-13T10:00:00.000Z"}
+
+    beforeEach(() => {
+      root = mkdtempSync(join(tmpdir(), "simplex-mcp-hook-"))
+      envFile = join(root, "sessionstart-hook-0.sh")
+    })
+
+    afterEach(() => rmSync(root, {recursive: true, force: true}))
+
+    it("writes the proxy, its certificates and a placeholder for each secret to CLAUDE_ENV_FILE, watches the secrets and marks the process at the service", async () => {
+      new Secrets(root).set("GITHUB_TOKEN", "ghp_real_token_value", record)
+      const {client, requests} = fakeClient({owners: ["Alice"]})
+      const env = {SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: envFile, CLAUDE_PID: "4321"}
+      expect(await sessionStart(input, env, {client, nodeVersion: "22.1.0"}, 5)).toEqual({hookSpecificOutput: {hookEventName: "SessionStart", watchPaths: [join(root, "secrets.json")]}})
+      const bundle = join(root, "proxy-ca-bundle.pem")
+      expect(readFileSync(envFile, "utf8")).toBe(
+        [
+          "export HTTPS_PROXY='http://127.0.0.1:5225'",
+          "export HTTP_PROXY='http://127.0.0.1:5225'",
+          "export https_proxy='http://127.0.0.1:5225'",
+          "export http_proxy='http://127.0.0.1:5225'",
+          "export NO_PROXY='localhost,127.0.0.1,::1'",
+          "export no_proxy='localhost,127.0.0.1,::1'",
+          "export NODE_USE_ENV_PROXY='1'",
+          `export SSL_CERT_FILE='${bundle}'`,
+          `export CURL_CA_BUNDLE='${bundle}'`,
+          `export REQUESTS_CA_BUNDLE='${bundle}'`,
+          `export GIT_SSL_CAINFO='${bundle}'`,
+          `export AWS_CA_BUNDLE='${bundle}'`,
+          `export CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE='${bundle}'`,
+          `export NODE_EXTRA_CA_CERTS='${join(root, "proxy-ca.pem")}'`,
+          "export GITHUB_TOKEN='simplex-secret-GITHUB_TOKEN'",
+          "",
+        ].join("\n"),
+      )
+      expect(requests).toMatchObject([{route: "/title", body: {pid: 4321, proxy: true}}])
+      const unattended = fakeClient({owners: []})
+      await sessionStart(input, {...env, CLAUDE_CODE_ENTRYPOINT: "sdk-ts", SIMPLEX_MCP_PROXY_PORT: "6000"}, {client: unattended.client, nodeVersion: "22.1.0"})
+      expect(unattended.requests).toMatchObject([{route: "/title", body: {pid: 4321, unattended: true, proxy: true}}])
+      expect(readFileSync(envFile, "utf8")).toContain("export HTTPS_PROXY='http://127.0.0.1:6000'")
+    })
+
+    it("writes nothing without secrets or without CLAUDE_ENV_FILE, and writes the variables again when the secrets change", async () => {
+      const {client, requests} = fakeClient({owners: ["Alice"]})
+      writeFileSync(envFile, "")
+      await sessionStart(input, {SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: envFile}, {client, nodeVersion: "22.1.0"})
+      expect(readFileSync(envFile, "utf8")).toBe("")
+      expect(requests).toMatchObject([{route: "/title", body: expect.not.objectContaining({proxy: true})}])
+      new Secrets(root).set("OPENAI_API_KEY", "sk-real-key-value", record)
+      await sessionStart(input, {SIMPLEX_MCP_HOME: root}, {client, nodeVersion: "22.1.0"})
+      expect(readFileSync(envFile, "utf8")).toBe("")
+      const changed = join(root, "filechanged-hook-0.sh")
+      expect(secretsChanged({SIMPLEX_MCP_HOME: root, CLAUDE_ENV_FILE: changed})).toEqual({})
+      expect(readFileSync(changed, "utf8")).toMatch(/^export HTTPS_PROXY='http:\/\/127\.0\.0\.1:5225'\n[\s\S]*export OPENAI_API_KEY='simplex-secret-OPENAI_API_KEY'\n$/)
+    })
   })
 })
 

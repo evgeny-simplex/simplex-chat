@@ -1,18 +1,24 @@
 import {spawnSync} from "child_process"
-import {existsSync, readFileSync} from "fs"
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from "fs"
+import {homedir} from "os"
 import {basename, dirname, join, resolve} from "path"
 import {headersFile, readServerFile} from "./files"
 import {ExitError, shellPath} from "./log"
 
 const cmdNotFound = 9009
 const cmdMetaChars = /([()\][%!^"`<>&|;, *?])/g
+const opencodePlugin = join(__dirname, "..", "opencode", "simplex-secrets.ts")
+const dataMark = "__SIMPLEX_MCP_DATA__"
 
 export type Scope = "user" | "local"
+
+export type RegisterHost = "claude" | "opencode"
 
 export interface RegisterOptions {
   name: string
   data: string
   scope: Scope
+  host: RegisterHost
 }
 
 export interface RunResult {
@@ -21,7 +27,7 @@ export interface RunResult {
   stderr: string
 }
 
-export type Run = (command: string, args: string[]) => RunResult
+export type Run = (command: string, args: string[], cwd?: string) => RunResult
 
 export interface Entry {
   type: "http"
@@ -30,9 +36,10 @@ export interface Entry {
   timeout: number
 }
 
-export function register({name, data, scope}: RegisterOptions, run: Run = runCommand, projectFolder: () => string = projectRoot): string {
+export function register({name, data, scope, host}: RegisterOptions, run: Run = runCommand, projectFolder: () => string = projectRoot, env: NodeJS.ProcessEnv = process.env): string {
   const server = readServerFile(data)
   if (server === undefined) throw new ExitError(`Agent "${name}" was never started. Start it with: npx -y @simplex-chat/mcp serve ${name}`, 1)
+  if (host === "opencode") return registerOpencode(name, data, server.port, run, env)
   const serverName = `simplex-${name}`
   const entry = JSON.stringify(registryEntry(server.port, data, server.expireHours))
   const removed = run("claude", ["mcp", "remove", "--scope", scope, serverName])
@@ -41,6 +48,18 @@ export function register({name, data, scope}: RegisterOptions, run: Run = runCom
   if (added.missing) throw new ExitError(manualEntryText(scope, serverName, entry, projectFolder), 1)
   if (added.status !== 0) throw new ExitError(`claude mcp add-json failed: ${added.stderr.trim()}`, 1)
   return `Added to Claude Code: scope ${scope}, server ${serverName}.`
+}
+
+function registerOpencode(name: string, data: string, port: number, run: Run, env: NodeJS.ProcessEnv): string {
+  const home = env.HOME ?? homedir()
+  const added = run("opencode", ["mcp", "add", `simplex-${name}`, "--url", `http://127.0.0.1:${port}/mcp`, "--header", `Authorization=Bearer {file:${join(data, "token")}}`], home)
+  if (added.missing) throw new ExitError("opencode is not installed. Install it with: npm install -g --prefix ~/.local opencode-ai", 1)
+  if (added.status !== 0) throw new ExitError(`opencode mcp add failed: ${added.stderr.trim()}`, 1)
+  const plugins = join(env.XDG_CONFIG_HOME || join(home, ".config"), "opencode", "plugins")
+  const plugin = join(plugins, `simplex-${name}.ts`)
+  mkdirSync(plugins, {recursive: true})
+  writeFileSync(plugin, readFileSync(opencodePlugin, "utf8").replace(dataMark, JSON.stringify(data).slice(1, -1)))
+  return `Added to opencode: server simplex-${name}, plugin ${plugin}.`
 }
 
 export function registryEntry(port: number, data: string, expireHours: number): Entry {
@@ -83,15 +102,15 @@ function repositoryRoot(root: string): string {
   }
 }
 
-function runCommand(command: string, args: string[]): RunResult {
-  const result = spawnSync(command, args, {encoding: "utf8"})
+function runCommand(command: string, args: string[], cwd?: string): RunResult {
+  const result = spawnSync(command, args, {encoding: "utf8", cwd})
   const missing = (result.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT"
-  if (missing && process.platform === "win32") return runInCmd(command, args)
+  if (missing && process.platform === "win32") return runInCmd(command, args, cwd)
   return {missing, status: result.status, stderr: result.stderr ?? ""}
 }
 
-function runInCmd(command: string, args: string[]): RunResult {
-  const result = spawnSync([command, ...args.map(cmdArgument)].join(" "), {encoding: "utf8", shell: true})
+function runInCmd(command: string, args: string[], cwd?: string): RunResult {
+  const result = spawnSync([command, ...args.map(cmdArgument)].join(" "), {encoding: "utf8", shell: true, cwd})
   return {missing: result.status === cmdNotFound, status: result.status, stderr: result.stderr ?? ""}
 }
 

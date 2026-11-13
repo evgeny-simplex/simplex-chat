@@ -1,23 +1,24 @@
 #!/usr/bin/env node
 import {homedir} from "os"
-import {join, resolve, sep} from "path"
+import {join, resolve} from "path"
 import {Mode} from "./actions"
-import {sessionStart, turn} from "./hook"
+import {secretsChanged, sessionStart, turn} from "./hook"
 import {ExitError, log, logError} from "./log"
 import {validName} from "./messages"
 import {resetOwners, showLink} from "./owner"
-import {RegisterOptions, Scope, register} from "./register"
+import {RegisterHost, RegisterOptions, Scope, register} from "./register"
 import {OwnerEntry, QrCodeSize, ServeOptions, serve} from "./serve"
 import {runService} from "./service"
 import {startSession} from "./session"
 
 export const helpText = `Usage:
   simplex-mcp serve NAME [options]     run agent NAME
-  simplex-mcp register NAME [options]  add agent NAME to Claude Code
+  simplex-mcp register NAME [options]  add agent NAME to Claude Code or opencode
   simplex-mcp session                  MCP server of one Claude Code session (run by the plugin)
   simplex-mcp service                  the shared SimpleX service of the plugin (started on demand)
   simplex-mcp hook session-start       Claude Code SessionStart hook (run by the plugin)
   simplex-mcp hook turn                Claude Code hooks of prompts, answers and model changes (run by the plugin)
+  simplex-mcp hook secrets-changed     Claude Code hook of changed secrets (run by the plugin)
   simplex-mcp link                     show the Main group link, or its owners
   simplex-mcp reset-owners             replace the Main group and its owners
 
@@ -44,17 +45,16 @@ serve options:
   --new-token            replace the access token
   --port N               HTTP port on 127.0.0.1 (default: 5226)
   --qr-code SIZE         QR code of the link: small (default) or large
-  --secrets-folder DIR   folder of the secrets that owners set with /secret,
-                         one file per name; disjoint from the data folder
 
 register options:
-  --scope SCOPE          user (default) or local
+  --host HOST            claude (default) or opencode
+  --scope SCOPE          user (default) or local, for claude
   --data DIR             data folder (default: ~/.simplex-mcp/NAME)
 
 --reset-owners takes --owners without a list.
 `
 
-const pluginCommands = ["session", "service", "hook session-start", "hook turn", "link", "reset-owners"] as const
+const pluginCommands = ["session", "service", "hook session-start", "hook turn", "hook secrets-changed", "link", "reset-owners"] as const
 
 export type Command =
   | {command: "help"}
@@ -119,9 +119,6 @@ function serveOptions(name: string, options: OptionReader, home: string): ServeO
       case "--qr-code":
         serve.qrCode = qrCodeSize(options.value(option))
         break
-      case "--secrets-folder":
-        serve.secrets = resolve(options.value(option))
-        break
       default:
         throw unknownOption(option)
     }
@@ -129,15 +126,16 @@ function serveOptions(name: string, options: OptionReader, home: string): ServeO
   if (serve.resetOwners && serve.owners !== undefined && serve.owners.length > 0) {
     throw usageError("--reset-owners takes --owners without a list: member IDs change in a new agent control chat.")
   }
-  const within = (folder: string, path: string): boolean => join(path, sep).startsWith(join(folder, sep))
-  if (serve.secrets !== undefined && (within(serve.data, serve.secrets) || within(serve.secrets, serve.data))) throw usageError(`--secrets-folder: a folder disjoint from the data folder expected, got ${serve.secrets}`)
   return serve
 }
 
 function registerOptions(name: string, options: OptionReader, home: string): RegisterOptions {
-  const register: RegisterOptions = {name, data: dataFolder(name, home), scope: "user"}
+  const register: RegisterOptions = {name, data: dataFolder(name, home), scope: "user", host: "claude"}
   for (let option = options.next(); option !== undefined; option = options.next()) {
     switch (option) {
+      case "--host":
+        register.host = registerHost(options.value(option))
+        break
       case "--scope":
         register.scope = scope(options.value(option))
         break
@@ -198,6 +196,11 @@ function scope(value: string): Scope {
   return value
 }
 
+function registerHost(value: string): RegisterHost {
+  if (value !== "claude" && value !== "opencode") throw usageError(`--host: claude or opencode expected, got ${value}`)
+  return value
+}
+
 function ownerEntry(entry: string): OwnerEntry {
   const match = /^([1-9]\d*):(.+)$/.exec(entry)
   if (!match) throw usageError(`--owners: ID:NAME expected, got ${entry}`)
@@ -241,6 +244,9 @@ async function main(args: string[]): Promise<void> {
       return
     case "hook turn":
       process.stdout.write(`${JSON.stringify(await turn(await readStdin()))}\n`)
+      return
+    case "hook secrets-changed":
+      process.stdout.write(`${JSON.stringify(secretsChanged())}\n`)
       return
     case "link":
       process.stdout.write(`${await showLink()}\n`)

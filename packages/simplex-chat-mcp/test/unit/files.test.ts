@@ -358,20 +358,20 @@ describe("service log", () => {
 })
 
 describe("secrets", () => {
-  const alice: SecretRecord = {setBy: "Alice", setById: 3, setAt: "2026-11-12T10:00:00.000Z"}
-  const bob: SecretRecord = {setBy: "Bob", setById: 7, setAt: "2026-11-12T11:30:00.000Z"}
+  const alice: SecretRecord = {hosts: ["api.github.com"], mode: "value", setBy: "Alice", setById: 3, setAt: "2026-11-12T10:00:00.000Z"}
+  const bob: SecretRecord = {hosts: ["*.amazonaws.com"], mode: "aws", setBy: "Bob", setById: 7, setAt: "2026-11-12T11:30:00.000Z"}
   let folder: string
   let secrets: Secrets
 
   beforeEach(() => {
-    folder = join(dir, "..", "secrets")
-    secrets = new Secrets(folder, join(dir, "secrets.json"))
+    folder = join(dir, "_secrets")
+    secrets = new Secrets(dir)
   })
 
-  it("creates a private folder and keeps the mode of an existing one", () => {
+  it("creates a private folder in the data folder and keeps the mode of an existing one", () => {
     expect(statSync(folder).mode & 0o777).toBe(0o700)
     chmodSync(folder, 0o750)
-    new Secrets(folder, join(dir, "secrets.json"))
+    new Secrets(dir)
     expect(statSync(folder).mode & 0o777).toBe(0o750)
   })
 
@@ -384,7 +384,18 @@ describe("secrets", () => {
     expect(readFileSync(join(folder, "API_TOKEN"), "utf8")).toBe("second value")
   })
 
-  it("records the setter and the time in a private index in the data folder", () => {
+  it("returns the value, and the name, hosts and mode of each secret with a record", () => {
+    secrets.set("API_TOKEN", "first value", alice)
+    secrets.set("AWS_SECRET_ACCESS_KEY", "second value", bob)
+    writeFileSync(join(folder, "NO_RECORD"), "value")
+    expect(secrets.value("AWS_SECRET_ACCESS_KEY")).toBe("second value")
+    expect(secrets.entries()).toEqual([
+      {name: "API_TOKEN", hosts: ["api.github.com"], mode: "value"},
+      {name: "AWS_SECRET_ACCESS_KEY", hosts: ["*.amazonaws.com"], mode: "aws"},
+    ])
+  })
+
+  it("records the hosts, the mode, the setter and the time in a private index in the data folder", () => {
     expect(secrets.records()).toEqual({})
     secrets.set("API_TOKEN", "first value", alice)
     secrets.set("GIT_TOKEN", "second value", bob)

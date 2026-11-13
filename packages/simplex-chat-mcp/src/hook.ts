@@ -1,10 +1,12 @@
+import {appendFileSync} from "fs"
 import {open} from "fs/promises"
 import {ServiceClient} from "./client"
-import {interactive, interactiveEntrypoint, readConfig} from "./config"
-import {dataRoot} from "./files"
+import {interactive, interactiveEntrypoint, proxyPort, readConfig} from "./config"
+import {dataRoot, secretNames, secretsIndex} from "./files"
 import {errorText, logError, oneLine} from "./log"
 import {TitleReply} from "./protocol"
 import {qrCodeText} from "./qr"
+import {proxyFiles, proxyVariables, shellExports} from "./secrets"
 import {SocketError, isNotRunning} from "./socket"
 import {version} from "./version"
 
@@ -71,6 +73,7 @@ interface PromptKind {
 
 export interface HookOutput {
   systemMessage?: string
+  hookSpecificOutput?: {hookEventName: "SessionStart"; watchPaths: string[]}
 }
 
 export interface HookDeps {
@@ -79,8 +82,15 @@ export interface HookDeps {
 }
 
 export async function sessionStart(stdin: string, env: NodeJS.ProcessEnv = process.env, deps?: HookDeps, at = performance.timeOrigin): Promise<HookOutput> {
+  const root = dataRoot(env)
+  const proxied = writeSecretVariables(root, env)
+  const output = await startSession(stdin, env, deps, at, proxied)
+  return {...output, hookSpecificOutput: {hookEventName: "SessionStart", watchPaths: [secretsIndex(root)]}}
+}
+
+async function startSession(stdin: string, env: NodeJS.ProcessEnv, deps: HookDeps | undefined, at: number, proxied: boolean): Promise<HookOutput> {
   if (!interactive(env)) {
-    if (interactiveEntrypoint(env)) await markUnattended(stdin, env, deps?.client)
+    if (interactiveEntrypoint(env) || proxied) await markUnattended(stdin, env, deps?.client, proxied)
     return {}
   }
   const nodeVersion = deps?.nodeVersion ?? process.versions.node
@@ -90,7 +100,7 @@ export async function sessionStart(stdin: string, env: NodeJS.ProcessEnv = proce
     const config = readConfig(env)
     const client = deps?.client ?? ServiceClient.forRoot(dataRoot(env))
     await client.ensureService(version)
-    const {mainGroup, owner} = await client.request<TitleReply>("POST", "/title", {id: input.session_id, pid: claudePid(env), at, name: input.session_title, project: input.cwd, model: input.model, config})
+    const {mainGroup, owner} = await client.request<TitleReply>("POST", "/title", {id: input.session_id, pid: claudePid(env), at, name: input.session_title, project: input.cwd, model: input.model, config, ...(proxied ? {proxy: true} : {})})
     const {link, owners} = owner
     if (owners.length > 0 || link === undefined) return {}
     return {systemMessage: `SimpleX MCP: scan this QR code with the SimpleX app and tap Join to supervise your agents in "${mainGroup}":\n${qrCodeText(link, "plain")}\n${link}`}
@@ -99,13 +109,27 @@ export async function sessionStart(stdin: string, env: NodeJS.ProcessEnv = proce
   }
 }
 
-async function markUnattended(stdin: string, env: NodeJS.ProcessEnv, client: HookDeps["client"] = ServiceClient.forRoot(dataRoot(env))): Promise<void> {
+export function secretsChanged(env: NodeJS.ProcessEnv = process.env): HookOutput {
+  writeSecretVariables(dataRoot(env), env)
+  return {}
+}
+
+function writeSecretVariables(root: string, env: NodeJS.ProcessEnv): boolean {
+  const file = env.CLAUDE_ENV_FILE
+  if (!file) return false
+  const names = secretNames(root)
+  if (names.length === 0) return false
+  appendFileSync(file, shellExports(proxyVariables(proxyFiles(root, proxyPort(env)), names)))
+  return true
+}
+
+async function markUnattended(stdin: string, env: NodeJS.ProcessEnv, client: HookDeps["client"] = ServiceClient.forRoot(dataRoot(env)), proxied: boolean): Promise<void> {
   const pid = claudePid(env)
   if (pid === undefined) return
   try {
     const input = JSON.parse(stdin) as SessionStartInput
     await client.ensureService(version)
-    await client.request("POST", "/title", {id: input.session_id, pid, project: input.cwd, config: readConfig(env), unattended: true})
+    await client.request("POST", "/title", {id: input.session_id, pid, project: input.cwd, config: readConfig(env), unattended: true, ...(proxied ? {proxy: true} : {})})
   } catch (error) {
     logError("SimpleX MCP session start", error)
   }

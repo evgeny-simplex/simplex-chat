@@ -1,11 +1,12 @@
 import {CEvt, ChatEvent, T} from "@simplex-chat/types"
 import {api, core} from "simplex-chat"
 import {Action, ActionHooks, Actions, DownloadAction, Standing, State, Subject, ToolError, hasUnknownServers, leaveVerbs, subjectText, summary} from "./actions"
-import {Secrets, secretName} from "./files"
+import {SecretMode, Secrets, secretName} from "./files"
 import {ExitError, chatErrorOf, errorText, fileError, log, logError, oneLine, serverHostname, shellWord} from "./log"
 import {chatRef, fileContent, isChatRef, utcMinutes, validName, viewName} from "./messages"
 import {linkCommand} from "./owner"
 import {qrCodeText} from "./qr"
+import {awsNames, minValueLength, parseHosts, reservedName, secretMode} from "./secrets"
 import type {OwnerEntry, QrCodeSize} from "./serve"
 import {AgentTools, chatSubject, customDataOf, featureOff, fitsMessage, isActive, isConnected, memberCurrent, memberCurrentOrPending, refusedFeature, refusedFileReason, setChatData} from "./tools"
 
@@ -22,8 +23,13 @@ export const fullDelete: T.GroupPreference = {enable: T.GroupFeatureEnabled.On}
 const commandsReply = "Commands: /approve, /reject, /receive, /forward, /revoke, /leave, /delete, /pending, /list, /secret, /unsecret, /secrets. Each card shows its commands."
 const unknownCommand = "Unknown command."
 const filesAndMedia = "Files and media"
-const secretsOff = "Secrets are off: the server runs without --secrets-folder."
-const secretUsage = "Usage: /secret NAME VALUE on one line. NAME: capital letters, digits and _, starting with a letter, up to 64 characters. VALUE: 8 characters or more."
+const secretUsage = "Usage: /secret NAME HOSTS VALUE on one line. NAME: capital letters, digits and _, starting with a letter, up to 64 characters. HOSTS: host names separated by commas, such as api.github.com,github.com. VALUE: 8 characters or more."
+export const commandsApproversOnly = "Only admins and owners of this group can send / commands."
+const modeNote: {[mode in SecretMode]: (name: string) => string} = {
+  value: () => "",
+  aws: () => ` It signs AWS requests, with ${awsNames.keyId} and ${awsNames.secretKey} set for the same hosts.`,
+  gcp: name => ` It is a Google service-account key: $${name} stands for its access token.`,
+}
 const cardTooLong = {
   send: "text: too long for its approval card; shorten it.",
   connect: "message: too long for its approval card; shorten it.",
@@ -59,7 +65,7 @@ export interface ControlOptions {
   session?: SessionOptions
   registerHint: string
   qrCode: QrCodeSize
-  secrets?: Secrets
+  secrets: Secrets
 }
 
 export interface SessionOptions {
@@ -86,7 +92,7 @@ type OwnerRequest =
   | {type: "leave" | "deleteFiles"; chat: string}
   | {type: "give"; chat: string; session: number}
   | {type: "observer"; group: string; member: number}
-  | {type: "secret"; name: string; value: string}
+  | {type: "secret"; name: string; hosts: string; value: string}
   | {type: "unsecret"; name: string}
   | {type: "pending" | "list" | "secrets"}
 
@@ -224,14 +230,15 @@ export class Control implements Pick<ActionHooks, "refusal" | "saveCounter" | "p
   onMessage(ci: T.AChatItem): void {
     const {chatItem} = ci
     if (this.actions.lost || chatItem.chatDir.type !== "groupRcv" || chatItem.content.type !== "rcvMsgContent") return
-    const secret = /^\s*\/secret(\s|$)/i.test(chatItem.content.msgContent.text)
+    const secret = isSecretMessage(chatItem.content.msgContent.text)
     if (ci.chatInfo.type === "group" && ci.chatInfo.groupChatScope !== undefined) return secret ? this.queueAfterReplies(() => this.chat.apiDeleteMemberChatItem(this.groupId, [chatItem.meta.itemId])) : undefined
     const command = parseCommand(chatItem.content.msgContent.text)
     const sender = chatItem.chatDir.groupMember
-    if ((command === undefined && !secret) || this.options.session?.isUser(sender)) return
+    const fromUser = this.options.session?.isUser(sender) === true
+    if ((command === undefined || fromUser) && !secret) return
     this.ownerCommands = this.ownerCommands
       .then(() => (secret ? this.chat.apiDeleteMemberChatItem(this.groupId, [chatItem.meta.itemId]) : undefined))
-      .then(() => (command === undefined ? secretUsage : this.ownerCommand(sender, command)))
+      .then(() => (fromUser ? undefined : command === undefined ? secretUsage : this.ownerCommand(sender, command)))
       .then((reply): Promise<unknown> | undefined => (reply === undefined ? undefined : secret ? this.post(reply) : this.chat.apiSendTextReply(ci, reply)))
       .catch(error => logError("control chat command", error))
   }
@@ -258,7 +265,7 @@ export class Control implements Pick<ActionHooks, "refusal" | "saveCounter" | "p
     this.actions.expireDue()
     const request = ownerRequest(command, this.options.session !== undefined)
     if (request === undefined) return this.options.session === undefined ? commandsReply : unknownCommand
-    if (!this.isApprover(sender)) return this.options.session !== undefined ? undefined : this.options.owners === undefined ? "Only owners approve actions." : "Only the owners listed in --owners approve actions."
+    if (!this.isApprover(sender)) return this.options.session !== undefined ? (request.type === "secret" ? commandsApproversOnly : undefined) : this.options.owners === undefined ? "Only owners approve actions." : "Only the owners listed in --owners approve actions."
     switch (request.type) {
       case "pending": {
         const lines = this.actions.pending().filter(({card}) => card !== undefined).map(pendingLine)
@@ -280,11 +287,11 @@ export class Control implements Pick<ActionHooks, "refusal" | "saveCounter" | "p
       case "observer":
         return this.setObserver(sender, request.group, request.member)
       case "secret":
-        return this.options.secrets === undefined ? secretsOff : this.setSecret(this.options.secrets, sender, request.name, request.value)
+        return this.setSecret(sender, request.name, request.hosts, request.value)
       case "unsecret":
-        return this.options.secrets === undefined ? secretsOff : this.removeSecret(this.options.secrets, sender, request.name)
+        return this.removeSecret(sender, request.name)
       case "secrets":
-        return this.options.secrets === undefined ? secretsOff : this.secretsText(this.options.secrets)
+        return this.secretsText()
       case "approve":
       case "reject":
       case "receive":
@@ -422,25 +429,30 @@ export class Control implements Pick<ActionHooks, "refusal" | "saveCounter" | "p
     return lines.length > 0 ? lines.join("\n") : "No chats."
   }
 
-  private setSecret(secrets: Secrets, sender: T.GroupMember, name: string, value: string): string {
-    if (!secretName.test(name) || [...value].length < 8) return secretUsage
+  private setSecret(sender: T.GroupMember, name: string, hostsText: string, value: string): string {
+    const hosts = parseHosts(hostsText)
+    if (!secretName.test(name) || hosts === undefined || [...value].length < minValueLength || /[\0-\x1f\x7f]/.test(value)) return secretUsage
+    if (reservedName(name)) return `${name} is reserved; choose another name.`
     const setBy = sender.memberProfile.displayName
-    secrets.set(name, value, {setBy, setById: sender.groupMemberId, setAt: new Date().toISOString()})
-    log(`Secret ${name} set by ${oneLine(setBy)}.`)
-    return `Secret ${name} is set. /'unsecret ${name}'`
+    const mode = secretMode(name, value)
+    this.options.secrets.set(name, value, {hosts, mode, setBy, setById: sender.groupMemberId, setAt: new Date().toISOString()})
+    log(`Secret ${name} for ${hosts.join(", ")} set by ${oneLine(setBy)}.`)
+    const scope = this.options.session === undefined ? "" : ", in all sessions on this computer"
+    return `Secret ${name} is set for ${hosts.join(", ")}${scope}.${modeNote[mode](name)} /'unsecret ${name}'`
   }
 
-  private removeSecret(secrets: Secrets, sender: T.GroupMember, name: string): string {
-    if (!secrets.remove(name)) return "No such secret. /secrets lists them."
+  private removeSecret(sender: T.GroupMember, name: string): string {
+    if (!this.options.secrets.remove(name)) return "No such secret. /secrets lists them."
     log(`Secret ${name} removed by ${oneLine(sender.memberProfile.displayName)}.`)
     return `Secret ${name} is removed.`
   }
 
-  private secretsText(secrets: Secrets): string {
+  private secretsText(): string {
+    const {secrets} = this.options
     const records = secrets.records()
     const lines = secrets.names().map(name => {
       const record = records[name]
-      return record === undefined ? name : `${name}  set by ${safeName(record.setBy)}  ${utcMinutes(Date.parse(record.setAt))}`
+      return record === undefined ? name : `${name}  ${record.hosts.join(", ")}  set by ${safeName(record.setBy)}  ${utcMinutes(Date.parse(record.setAt))}`
     })
     return lines.length > 0 ? lines.join("\n") : "No secrets."
   }
@@ -709,6 +721,10 @@ export function isControlEvent(event: ChatEvent, groupId: number): boolean {
   }
 }
 
+export function isSecretMessage(text: string): boolean {
+  return /^\s*\/secret(\s|$)/i.test(text)
+}
+
 export function parseCommand(text: string): Command | undefined {
   const lines = text.split("\n")
   if (lines.at(-1) === "") lines.pop()
@@ -896,7 +912,7 @@ function ownerRequest({keyword, params}: Command, session: boolean): OwnerReques
   if (keyword === "delete" && chat !== undefined && value === "files") return {type: "deleteFiles", chat}
   if (session && keyword === "give" && chat !== undefined && value !== undefined && /^\d+$/.test(value)) return {type: keyword, chat, session: Number(value)}
   if (session && keyword === "observer" && chat?.startsWith("#") && value !== undefined && /^\d+$/.test(value)) return {type: "observer", group: chat, member: Number(value)}
-  if (keyword === "secret") return {type: keyword, name: words[0] ?? "", value: params.replace(/^\S*\s*/, "")}
+  if (keyword === "secret") return {type: keyword, name: words[0] ?? "", hosts: words[1] ?? "", value: params.replace(/^\S*\s*\S*\s*/, "")}
   if (keyword === "unsecret" && words.length === 1) return {type: keyword, name: words[0]}
   if ((keyword === "pending" || keyword === "list" || keyword === "secrets") && words.length === 0) return {type: keyword}
   return undefined

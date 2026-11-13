@@ -1,6 +1,6 @@
 import {ChatEvent, T} from "@simplex-chat/types"
 import {api} from "simplex-chat"
-import {Command, createGroup, deleteGroup, isLost, joinedText, losesControl, parseCommand, safeName, updateGroupProfile} from "./control"
+import {Command, createGroup, deleteGroup, fullDelete, isLost, isSecretMessage, joinedText, losesControl, parseCommand, safeName, updateGroupProfile} from "./control"
 import {chatErrorOf, log, logError, oneLine} from "./log"
 import {resetCommand} from "./owner"
 import {isActive} from "./tools"
@@ -16,6 +16,7 @@ const noOwners = "No owners in the Main group."
 const welcome = "Everyone in this group can join the groups of your Claude Code sessions, prompt Claude and approve what it does. Invite only people you trust with that."
 const joinRights = "They can join the group of any Claude Code session here, prompt Claude and approve its actions."
 const shortDescr = "Everyone in this group can join the groups of your Claude Code sessions, prompt Claude and approve what it does."
+const secretsElsewhere = "Send /secret in the group of a session; the secret is set for all sessions on this computer."
 
 export interface SessionGroups {
   sessionsText(): string
@@ -58,8 +59,8 @@ export class MainGroup {
     if (isLost(this.group)) return this.lose()
     const displayName = this.name
     this.group = await updateGroupProfile(this.chat, this.group, profile =>
-      profile.displayName !== displayName || JSON.stringify(profile.groupPreferences?.commands) !== JSON.stringify(mainCommands)
-        ? {...profile, displayName, groupPreferences: {...profile.groupPreferences, commands: mainCommands}}
+      profile.displayName !== displayName || JSON.stringify(profile.groupPreferences?.commands) !== JSON.stringify(mainCommands) || profile.groupPreferences?.fullDelete?.enable !== fullDelete.enable
+        ? {...profile, displayName, groupPreferences: {...profile.groupPreferences, fullDelete, commands: mainCommands}}
         : undefined,
     )
     await this.refreshMembers()
@@ -83,6 +84,13 @@ export class MainGroup {
   onMessage(ci: T.AChatItem): void {
     const {chatItem} = ci
     if (this.lost || chatItem.chatDir.type !== "groupRcv" || chatItem.content.type !== "rcvMsgContent") return
+    if (isSecretMessage(chatItem.content.msgContent.text)) {
+      this.commands = this.commands
+        .then(() => this.chat.apiDeleteMemberChatItem(this.groupId, [chatItem.meta.itemId]))
+        .then(() => this.post(secretsElsewhere))
+        .catch(error => logError("Main group /secret", error))
+      return
+    }
     const command = parseCommand(chatItem.content.msgContent.text)
     if (command === undefined) return
     const sender = chatItem.chatDir.groupMember
@@ -198,7 +206,7 @@ export async function createMainGroup(chat: api.ChatApi, userId: number, display
     fullName: "",
     shortDescr,
     description: welcome,
-    groupPreferences: {history: {enable: T.GroupFeatureEnabled.On}, directMessages: {enable: T.GroupFeatureEnabled.On, role: T.GroupMemberRole.Owner}, commands: mainCommands},
+    groupPreferences: {history: {enable: T.GroupFeatureEnabled.On}, directMessages: {enable: T.GroupFeatureEnabled.On, role: T.GroupMemberRole.Owner}, fullDelete, commands: mainCommands},
   }, {[mainKey]: true})
   log(`Main group "${displayName}" created.`)
   return group

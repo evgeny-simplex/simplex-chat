@@ -1,5 +1,5 @@
 import * as childProcess from "child_process"
-import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from "fs"
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from "fs"
 import {tmpdir} from "os"
 import {join} from "path"
 import {createDataFolder, serverToken, writeServerFile} from "../../src/files"
@@ -51,7 +51,7 @@ describe("register", () => {
     writeServerFile(dir, {name: "agent", port: 5227, expireHours: 2})
     const token = serverToken(dir, false)
     const {calls, run} = recorder([{missing: false, status: 1, stderr: "not found"}, ok])
-    expect(register({name: "agent", data: dir, scope: "user"}, run)).toBe("Added to Claude Code: scope user, server simplex-agent.")
+    expect(register({name: "agent", data: dir, scope: "user", host: "claude"}, run)).toBe("Added to Claude Code: scope user, server simplex-agent.")
     const entry = JSON.stringify({type: "http", url: "http://127.0.0.1:5227/mcp", headersHelper: `cat ${join(dir, "headers.json")}`, timeout: 26 * 3_600_000 + 600_000})
     expect(calls).toEqual([
       ["claude", "mcp", "remove", "--scope", "user", "simplex-agent"],
@@ -62,7 +62,10 @@ describe("register", () => {
 
   it("reports an agent that was never started", () => {
     const {run} = recorder([])
-    expect(() => register({name: "agent", data: dir, scope: "user"}, run)).toThrow(
+    expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"}, run)).toThrow(
+      new ExitError('Agent "agent" was never started. Start it with: npx -y @simplex-chat/mcp serve agent', 1),
+    )
+    expect(() => register({name: "agent", data: dir, scope: "user", host: "opencode"}, run)).toThrow(
       new ExitError('Agent "agent" was never started. Start it with: npx -y @simplex-chat/mcp serve agent', 1),
     )
   })
@@ -71,19 +74,52 @@ describe("register", () => {
     writeServerFile(dir, {name: "agent", port: 5226, expireHours: 23})
     const entry = JSON.stringify(registryEntry(5226, dir, 23))
     const missing = {missing: true, status: null, stderr: ""}
-    expect(() => register({name: "agent", data: dir, scope: "user"}, recorder([missing]).run)).toThrow(
+    expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"}, recorder([missing]).run)).toThrow(
       new ExitError(`Add this entry under "mcpServers" in ~/.claude.json: {"simplex-agent": ${entry}}`, 1),
     )
-    expect(() => register({name: "agent", data: dir, scope: "local"}, recorder([missing]).run, () => "/work/project")).toThrow(
+    expect(() => register({name: "agent", data: dir, scope: "local", host: "claude"}, recorder([missing]).run, () => "/work/project")).toThrow(
       new ExitError(`Add this entry under "projects" > "/work/project" > "mcpServers" in ~/.claude.json: {"simplex-agent": ${entry}}`, 1),
     )
   })
 
   it("reports a failed add", () => {
     writeServerFile(dir, {name: "agent", port: 5226, expireHours: 23})
-    expect(() => register({name: "agent", data: dir, scope: "user"}, recorder([ok, {missing: false, status: 1, stderr: "bad scope\n"}]).run)).toThrow(
+    expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"}, recorder([ok, {missing: false, status: 1, stderr: "bad scope\n"}]).run)).toThrow(
       new ExitError("claude mcp add-json failed: bad scope", 1),
     )
+  })
+
+  describe("to opencode", () => {
+    let home: string
+
+    beforeEach(() => {
+      home = join(dir, "..", "home")
+      writeServerFile(dir, {name: "agent", port: 5227, expireHours: 2})
+    })
+
+    it("adds the server with the token file in its header from the home folder, and the plugin with the agent's data folder", () => {
+      const token = serverToken(dir, false)
+      const calls: [string, string[], string | undefined][] = []
+      const message = register({name: "agent", data: dir, scope: "user", host: "opencode"}, (command, args, cwd) => (calls.push([command, args, cwd]), ok), undefined, {HOME: home})
+      const plugin = join(home, ".config", "opencode", "plugins", "simplex-agent.ts")
+      expect(message).toBe(`Added to opencode: server simplex-agent, plugin ${plugin}.`)
+      expect(calls).toEqual([["opencode", ["mcp", "add", "simplex-agent", "--url", "http://127.0.0.1:5227/mcp", "--header", `Authorization=Bearer {file:${join(dir, "token")}}`], home]])
+      expect(calls.flat(2).join(" ")).not.toContain(token)
+      const source = readFileSync(join(__dirname, "..", "..", "opencode", "simplex-secrets.ts"), "utf8")
+      expect(readFileSync(plugin, "utf8")).toBe(source.replace('const data = "__SIMPLEX_MCP_DATA__"', `const data = ${JSON.stringify(dir)}`))
+      register({name: "agent", data: dir, scope: "user", host: "opencode"}, () => ok, undefined, {HOME: home, XDG_CONFIG_HOME: join(home, "xdg")})
+      expect(existsSync(join(home, "xdg", "opencode", "plugins", "simplex-agent.ts"))).toBe(true)
+    })
+
+    it("reports opencode missing and a failed add, and writes no plugin then", () => {
+      expect(() => register({name: "agent", data: dir, scope: "user", host: "opencode"}, () => ({missing: true, status: null, stderr: ""}), undefined, {HOME: home})).toThrow(
+        new ExitError("opencode is not installed. Install it with: npm install -g --prefix ~/.local opencode-ai", 1),
+      )
+      expect(() => register({name: "agent", data: dir, scope: "user", host: "opencode"}, () => ({missing: false, status: 1, stderr: "bad url\n"}), undefined, {HOME: home})).toThrow(
+        new ExitError("opencode mcp add failed: bad url", 1),
+      )
+      expect(existsSync(join(home, ".config"))).toBe(false)
+    })
   })
 
   describe("when claude can't be spawned", () => {
@@ -97,7 +133,7 @@ describe("register", () => {
     it("runs it through cmd.exe on Windows, with the arguments quoted for cmd.exe", () => {
       onPlatform("win32")
       const spawn = spawnClaude(0)
-      expect(register({name: "agent", data: dir, scope: "user"})).toBe("Added to Claude Code: scope user, server simplex-agent.")
+      expect(register({name: "agent", data: dir, scope: "user", host: "claude"})).toBe("Added to Claude Code: scope user, server simplex-agent.")
       const words = (args: string[]): string => ["claude", ...args.map(cmdArgument)].join(" ")
       expect(spawn.mock.calls).toEqual([
         ["claude", ["mcp", "remove", "--scope", "user", "simplex-agent"], {encoding: "utf8"}],
@@ -110,14 +146,14 @@ describe("register", () => {
     it("prints the entry on Windows when cmd.exe does not find it either", () => {
       onPlatform("win32")
       const spawn = spawnClaude(9009)
-      expect(() => register({name: "agent", data: dir, scope: "user"})).toThrow(manualEntry())
+      expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"})).toThrow(manualEntry())
       expect(spawn).toHaveBeenCalledTimes(2)
     })
 
     it("prints the entry on other platforms without a shell", () => {
       onPlatform("linux")
       const spawn = spawnClaude(0)
-      expect(() => register({name: "agent", data: dir, scope: "user"})).toThrow(manualEntry())
+      expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"})).toThrow(manualEntry())
       expect(spawn).toHaveBeenCalledTimes(1)
     })
   })

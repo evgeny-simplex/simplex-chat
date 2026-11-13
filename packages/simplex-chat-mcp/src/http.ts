@@ -3,20 +3,23 @@ import {Server, ServerResponse, createServer} from "http"
 import {localhostHostValidation, localhostOriginValidation, toNodeHandler} from "@modelcontextprotocol/node"
 import {McpServerFactory, createMcpHandler} from "@modelcontextprotocol/server"
 import {logError} from "./log"
+import {SecretsProxy, isProxyRequest} from "./proxy"
 
 export interface HttpOptions {
   port: number
   token: string
   factory: McpServerFactory
   ready: () => boolean
+  proxy?: SecretsProxy
 }
 
-export function startHttp({port, token, factory, ready}: HttpOptions): Promise<Server> {
+export function startHttp({port, token, factory, ready, proxy}: HttpOptions): Promise<Server> {
   const expectedAuthorization = Buffer.from(`Bearer ${token}`)
   const validHost = localhostHostValidation()
   const validOrigin = localhostOriginValidation()
   const mcp = toNodeHandler(createMcpHandler(factory, {onerror: error => logError("MCP", error)}), {onerror: error => logError("HTTP request", error)})
   const server = createServer((req, res) => {
+    if (proxy !== undefined && isProxyRequest(req)) return proxy.request(req, res)
     if (!validHost(req, res) || !validOrigin(req, res)) return
     if (!authorized(req.headers.authorization)) return plain(res, 401)
     if (requestPath(req.url) !== "/mcp") return plain(res, 404)
@@ -26,6 +29,7 @@ export function startHttp({port, token, factory, ready}: HttpOptions): Promise<S
       res.destroy()
     })
   })
+  proxy?.attach(server)
   server.requestTimeout = 0
   server.headersTimeout = 60_000
   server.keepAliveTimeout = 5_000

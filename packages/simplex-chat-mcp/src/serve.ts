@@ -6,10 +6,12 @@ import {api} from "simplex-chat"
 import {Action, Actions, Mode} from "./actions"
 import {Control, controlDataOf, createControlChat, findControlGroup, hasOutcomeCard, isControlEvent, resetControlChat} from "./control"
 import {bufferEvents, prepareCore, updatedUser} from "./core"
-import {Secrets, acquireLock, createDataFolder, releaseLock, serverToken, writeHeadersFile, writeServerFile} from "./files"
+import {Secrets, acquireLock, createDataFolder, releaseLock, serverToken, writeHeadersFile, writePrivateFile, writeServerFile} from "./files"
 import {startHttp, stopHttp} from "./http"
 import {ExitError, log, logError, shellPath} from "./log"
 import {ChatItemsWatch} from "./messages"
+import {SecretsProxy, proxyCa} from "./proxy"
+import {proxyFiles, proxyVariables} from "./secrets"
 import {AgentTools, instructions} from "./tools"
 import {version} from "./version"
 
@@ -33,7 +35,6 @@ export interface ServeOptions {
   port: number
   qrCode: QrCodeSize
   stopWait: number
-  secrets?: string
 }
 
 export interface RunningServer {
@@ -87,7 +88,9 @@ export async function startServer(options: ServeOptions): Promise<RunningServer>
 
 async function startAgent(chat: api.ChatApi, options: ServeOptions, token: string): Promise<RunningServer> {
   const {name, data, port, approve, expireHours} = options
-  const secrets = options.secrets === undefined ? undefined : new Secrets(options.secrets, join(data, "secrets.json"))
+  const secrets = new Secrets(data)
+  const proxy = new SecretsProxy({secrets, ca: proxyCa(data)})
+  writePrivateFile(join(data, "proxy-env.json"), `${JSON.stringify(proxyVariables(proxyFiles(data, port), []))}\n`)
   const created = (await chat.apiGetActiveUser()) ?? (await chat.apiCreateActiveUser({displayName: options.displayName ?? name, fullName: "", peerType: T.ChatPeerType.Agent}))
   await prepareCore(chat, data)
   const events = bufferEvents(chat)
@@ -112,7 +115,7 @@ async function startAgent(chat: api.ChatApi, options: ServeOptions, token: strin
     return mcp
   }
   let started = false
-  const server = await listen(port, token, factory, () => started)
+  const server = await listen(port, token, factory, () => started, proxy)
   writeServerFile(data, {name, port, expireHours})
   try {
     await control.start()
@@ -146,6 +149,7 @@ async function startAgent(chat: api.ChatApi, options: ServeOptions, token: strin
       stopped = true
       const cancelling = actions.stop()
       await stopHttp(server)
+      proxy.close()
       const cancelled = await cancelling
       if (cancelled.length > 0) log(`Cancelled ${cancelled.length} action${cancelled.length === 1 ? "" : "s"}.`)
       await waitForCancelledCards(actions.lost ? [] : cancelled, options.stopWait, endWait)
@@ -183,9 +187,9 @@ async function controlGroup(chat: api.ChatApi, userId: number, displayName: stri
   return resetOwners ? resetControlChat(chat, userId, group, displayName, nextAction) : group
 }
 
-async function listen(port: number, token: string, factory: McpServerFactory, ready: () => boolean): Promise<Server> {
+async function listen(port: number, token: string, factory: McpServerFactory, ready: () => boolean, proxy: SecretsProxy): Promise<Server> {
   try {
-    return await startHttp({port, token, factory, ready})
+    return await startHttp({port, token, factory, ready, proxy})
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") throw new ExitError(`Port ${port} is in use. Start with --port N.`, 1)
     throw error

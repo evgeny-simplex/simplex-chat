@@ -4,9 +4,9 @@ import {ChatEvent, T} from "@simplex-chat/types"
 import {api} from "simplex-chat"
 import {Action, Actions, HostTexts, Mode, isDecided, maxPending} from "./actions"
 import {Config} from "./config"
-import {Control, canSend, controlCommands, controlDataOf, createGroup, fullDelete, isControlEvent, isGroupMessage, parseCommand, rightsText, safeName, sessionApproverRoles} from "./control"
+import {Control, canSend, commandsApproversOnly, controlCommands, controlDataOf, createGroup, fullDelete, isControlEvent, isGroupMessage, isSecretMessage, parseCommand, rightsText, safeName, sessionApproverRoles} from "./control"
 import {openCore} from "./core"
-import {SessionFile, hubFolder, readSessionFile, sessionFolder, writeSessionFile} from "./files"
+import {Secrets, SessionFile, hubFolder, readSessionFile, sessionFolder, writeSessionFile} from "./files"
 import {chatErrorOf, errorText, log, logError, oneLine} from "./log"
 import {MainGroup, SessionGroups, createMainGroup, findMainGroup} from "./main-group"
 import {Changes, ChatItemsWatch, ToolCall, getChat, nextChange, storedName, validName} from "./messages"
@@ -25,7 +25,6 @@ const fileWait = 10 * 60_000
 const pendingDays = 1
 const attachWait = 30_000
 const channelPrompt = /<channel source="plugin:simplex:simplex"[^\n]* item="(\d+)"[^\n]*>\n([\s\S]*?)\n<\/channel>/g
-const commandsApproversOnly = "Only admins and owners of this group can send / commands."
 
 export const hubTexts: HostTexts = {lost: "The group of this session is lost. Start a new Claude Code session.", stopping: "The SimpleX service is stopping.", pending: `${maxPending} actions are pending; wait for the approvers' decisions.`}
 
@@ -93,6 +92,7 @@ export class Session {
       replyChat: `#${group.groupId}`,
       setMode: (next: Mode) => this.setMode(next),
       pending: (connId: number) => this.savePending(connId),
+      secrets: hub.secrets,
     }
     this.tools = new AgentTools(agent, () => this.actions.mode, number)
     const session = {
@@ -100,7 +100,7 @@ export class Session {
       ownerOf: (n: number) => hub.sessionId(n),
       isUser: (member: T.GroupMember) => this.isUser(member),
     }
-    this.control = new Control(chat, group, {displayName: group.groupProfile.displayName, session, registerHint: "", qrCode: "small"}, this.actions, this.tools)
+    this.control = new Control(chat, group, {displayName: group.groupProfile.displayName, session, registerHint: "", qrCode: "small", secrets: hub.secrets}, this.actions, this.tools)
   }
 
   get displayName(): string {
@@ -154,6 +154,7 @@ export class Session {
     const {chatDir, content} = ci.chatItem
     if (chatDir.type !== "groupRcv" || content.type !== "rcvMsgContent") return
     const {text} = content.msgContent
+    if (isSecretMessage(text)) return this.control.onMessage(ci)
     if (this.refusesCommand(text, chatDir.groupMember)) return this.queue(() => this.post([commandsApproversOnly], ci.chatItem.meta.itemId))
     if (parseCommand(text) !== undefined) return this.control.onMessage(ci)
     this.queue(() => this.prompt(ci, text, chatDir.groupMember))
@@ -350,6 +351,7 @@ export class Hub implements SessionGroups {
   user?: User
   userContactId?: number
   promptsHeldUntil = 0
+  readonly secrets: Secrets
   private readonly sessions = new Map<number, Session>()
   private stopped = false
   private controlEvents: Promise<void> = Promise.resolve()
@@ -363,6 +365,7 @@ export class Hub implements SessionGroups {
     mainName: string,
   ) {
     this.main = new MainGroup(chat, mainGroup, profile.userId, mainName, this)
+    this.secrets = new Secrets(root)
   }
 
   static async open(root: string, config: Config, stored: StoredSession[]): Promise<Hub> {

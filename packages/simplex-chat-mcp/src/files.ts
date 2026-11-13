@@ -26,7 +26,15 @@ export interface ServerFile {
   expireHours: number
 }
 
-export type SecretRecord = {setBy: string; setById: number; setAt: string}
+export type SecretMode = "value" | "aws" | "gcp"
+
+export type SecretRecord = {hosts: string[]; mode: SecretMode; setBy: string; setById: number; setAt: string}
+
+export interface SecretEntry {
+  name: string
+  hosts: string[]
+  mode: SecretMode
+}
 
 export const secretName = /^[A-Z][A-Z0-9_]{0,63}$/
 
@@ -154,9 +162,24 @@ export function readServerFile(dir: string): ServerFile | undefined {
   return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : undefined
 }
 
+export function secretsIndex(dir: string): string {
+  return join(dir, "secrets.json")
+}
+
+export function secretNames(dir: string): string[] {
+  const index = secretsIndex(dir)
+  const names = existsSync(index) ? Object.keys(JSON.parse(readFileSync(index, "utf8"))) : []
+  return names.filter(name => secretName.test(name)).sort()
+}
+
 export class Secrets {
-  constructor(readonly folder: string, private readonly index: string) {
-    mkdirSync(folder, {recursive: true, mode: 0o700})
+  readonly folder: string
+  private readonly index: string
+
+  constructor(dir: string) {
+    this.folder = join(dir, "_secrets")
+    this.index = secretsIndex(dir)
+    mkdirSync(this.folder, {recursive: true, mode: 0o700})
   }
 
   names(): string[] {
@@ -165,6 +188,18 @@ export class Secrets {
 
   records(): {[name: string]: SecretRecord | undefined} {
     return existsSync(this.index) ? JSON.parse(readFileSync(this.index, "utf8")) : {}
+  }
+
+  entries(): SecretEntry[] {
+    const records = this.records()
+    return this.names().flatMap(name => {
+      const record = records[name]
+      return record === undefined ? [] : [{name, hosts: record.hosts, mode: record.mode}]
+    })
+  }
+
+  value(name: string): string {
+    return readFileSync(join(this.folder, name), "utf8")
   }
 
   set(name: string, value: string, record: SecretRecord): void {
@@ -203,7 +238,7 @@ function sessionsFolder(root: string): string {
   return join(root, "_sessions")
 }
 
-function writePrivateFile(file: string, text: string): void {
+export function writePrivateFile(file: string, text: string): void {
   writeFileSync(file, text, {mode: 0o600})
   if (process.platform !== "win32") chmodSync(file, 0o600)
 }
@@ -258,7 +293,7 @@ function lockPid(file: string): number | undefined {
   return Number.isInteger(pid) && pid > 0 ? pid : undefined
 }
 
-function isRunning(pid: number): boolean {
+export function isRunning(pid: number): boolean {
   try {
     process.kill(pid, 0)
     return true

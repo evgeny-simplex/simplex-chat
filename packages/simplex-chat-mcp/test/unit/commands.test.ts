@@ -46,8 +46,8 @@ function agentChats(): FakeChat {
   return chat
 }
 
-async function controlWith(chat: FakeChat, actions: Actions, owners?: OwnerEntry[], mode: Mode = "requests", secrets?: Secrets): Promise<{control: Control; tools: AgentTools}> {
-  const tools = new AgentTools({chat: chat.api(), user, actions, watch: new ChatItemsWatch(), controlChat: () => "#10", standingApprover: (chatInfo, standing) => control.standingApprover(chatInfo, standing), refusedFile: (path, chatInfo, chat) => control.refusedFile(path, chatInfo, chat), data}, mode)
+async function controlWith(chat: FakeChat, actions: Actions, owners?: OwnerEntry[], mode: Mode = "requests", secrets = new Secrets(data)): Promise<{control: Control; tools: AgentTools}> {
+  const tools = new AgentTools({chat: chat.api(), user, actions, watch: new ChatItemsWatch(), controlChat: () => "#10", standingApprover: (chatInfo, standing) => control.standingApprover(chatInfo, standing), refusedFile: (path, chatInfo, chat) => control.refusedFile(path, chatInfo, chat), data, secrets}, mode)
   const control: Control = new Control(chat.api(), group(10, "agent"), {displayName: "agent", owners, registerHint: "hint", qrCode: "small", secrets}, actions, tools)
   await control.load()
   return {control, tools}
@@ -773,15 +773,16 @@ describe("command menu", () => {
     const chat = agentChats()
     const actions = actionsWith("requests", fakeHooks())
     const old = group(10, "agent", self, {groupProfile: {displayName: "agent", fullName: "", groupPreferences: {history: {enable: "on"}, commands: [{type: "command", keyword: "approve", label: "Approve", params: "N"}]}}})
-    const tools = new AgentTools({chat: chat.api(), user, actions, watch: new ChatItemsWatch(), controlChat: () => "#10", standingApprover: () => undefined, refusedFile: () => undefined, data}, "requests")
-    await new Control(chat.api(), old, {displayName: "agent", registerHint: "hint", qrCode: "small"}, actions, tools).load()
+    const secrets = new Secrets(data)
+    const tools = new AgentTools({chat: chat.api(), user, actions, watch: new ChatItemsWatch(), controlChat: () => "#10", standingApprover: () => undefined, refusedFile: () => undefined, data, secrets}, "requests")
+    await new Control(chat.api(), old, {displayName: "agent", registerHint: "hint", qrCode: "small", secrets}, actions, tools).load()
     const preferences = {history: {enable: "on"}, fullDelete: {enable: "on"}, commands: menu}
     expect(chat.profiles).toEqual([{groupId: 10, groupProfile: {displayName: "agent", fullName: "", groupPreferences: preferences}}])
     const noFullDelete = group(10, "agent", self, {groupProfile: {displayName: "agent", fullName: "", groupPreferences: {history: {enable: "on"}, fullDelete: {enable: "off"}, commands: menu}}})
-    await new Control(chat.api(), noFullDelete, {displayName: "agent", registerHint: "hint", qrCode: "small"}, actions, tools).load()
+    await new Control(chat.api(), noFullDelete, {displayName: "agent", registerHint: "hint", qrCode: "small", secrets}, actions, tools).load()
     expect(chat.profiles.map(({groupProfile}) => groupProfile.groupPreferences)).toEqual([preferences, preferences])
     const current = group(10, "agent", self, {groupProfile: {displayName: "agent", fullName: "", groupPreferences: preferences}})
-    await new Control(chat.api(), current, {displayName: "agent", registerHint: "hint", qrCode: "small"}, actions, tools).load()
+    await new Control(chat.api(), current, {displayName: "agent", registerHint: "hint", qrCode: "small", secrets}, actions, tools).load()
     expect(chat.profiles).toHaveLength(2)
   })
 
@@ -807,23 +808,24 @@ describe("command menu", () => {
 
 describe("secrets in the agent control chat", () => {
   const value = "tok en/+?=é-1234"
-  const usage = "Usage: /secret NAME VALUE on one line. NAME: capital letters, digits and _, starting with a letter, up to 64 characters. VALUE: 8 characters or more."
-  const off = "Secrets are off: the server runs without --secrets-folder."
+  const usage = "Usage: /secret NAME HOSTS VALUE on one line. NAME: capital letters, digits and _, starting with a letter, up to 64 characters. HOSTS: host names separated by commas, such as api.github.com,github.com. VALUE: 8 characters or more."
   const noSuchSecret = "No such secret. /secrets lists them."
   const flushed = (): Promise<void> => new Promise(resolve => setImmediate(resolve))
   let folder: string
+  let stored: string
 
   beforeEach(() => {
     folder = mkdtempSync(join(tmpdir(), "simplex-mcp-secrets-"))
+    stored = join(folder, "_secrets")
   })
 
   afterEach(() => rmSync(folder, {recursive: true, force: true}))
 
-  async function secretsSetup(mode: Mode = "requests", folderGiven = true) {
+  async function secretsSetup(mode: Mode = "requests") {
     const lines: string[] = []
     jest.spyOn(process.stdout, "write").mockImplementation(text => (lines.push(String(text).trimEnd()), true))
     const chat = agentChats()
-    const secrets = folderGiven ? new Secrets(join(folder, "secrets"), join(folder, "secrets.json")) : undefined
+    const secrets = new Secrets(folder)
     const {control} = await controlWith(chat, actionsWith(mode, fakeHooks()), undefined, mode, secrets)
     const send = async (text: string, sender: T.GroupMember = alice, itemId = 1, chatInfo: T.ChatInfo = groupChat(group(10, "agent"))): Promise<void> => {
       control.onMessage(event(chatInfo, item(itemId, text, {type: "groupRcv", groupMember: sender})))
@@ -833,85 +835,103 @@ describe("secrets in the agent control chat", () => {
     return {chat, control, secrets, lines, send, posts}
   }
 
-  it("moderates /secret before replying, stores its value, and posts and logs the reply without the value", async () => {
-    const {chat, lines, send} = await secretsSetup()
-    await send(`/secret API_TOKEN ${value}`, alice, 21)
+  it("moderates /secret before replying, stores its value with its hosts and mode, and posts and logs the reply without the value", async () => {
+    const {chat, secrets, lines, send} = await secretsSetup()
+    await send(`/secret API_TOKEN api.github.com,*.github.com:8443 ${value}`, alice, 21)
     expect(chat.moderated).toEqual([{groupId: 10, itemIds: [21], sentBefore: 0}])
-    expect(chat.sent).toEqual([{chat: [T.ChatType.Group, 10], messages: [{msgContent: {type: "text", text: "Secret API_TOKEN is set. /'unsecret API_TOKEN'"}, mentions: {}}]}])
+    expect(chat.sent).toEqual([{chat: [T.ChatType.Group, 10], messages: [{msgContent: {type: "text", text: "Secret API_TOKEN is set for api.github.com, *.github.com:8443. /'unsecret API_TOKEN'"}, mentions: {}}]}])
     expect(chat.replies).toEqual([])
-    expect(readFileSync(join(folder, "secrets", "API_TOKEN"), "utf8")).toBe(value)
-    expect(lines).toEqual(["Secret API_TOKEN set by Alice."])
+    expect(readFileSync(join(stored, "API_TOKEN"), "utf8")).toBe(value)
+    expect(secrets.records()).toEqual({API_TOKEN: {hosts: ["api.github.com", "*.github.com:8443"], mode: "value", setBy: "Alice", setById: 3, setAt: expect.any(String)}})
+    expect(lines).toEqual(["Secret API_TOKEN for api.github.com, *.github.com:8443 set by Alice."])
+  })
+
+  it("sets AWS keys in mode aws and a Google service-account key in mode gcp, and says so in the reply", async () => {
+    const {secrets, send, posts} = await secretsSetup()
+    const key = JSON.stringify({type: "service_account", client_email: "agent@p.iam.gserviceaccount.com", private_key: "-----BEGIN PRIVATE KEY-----\nMII\n-----END PRIVATE KEY-----\n", token_uri: "https://oauth2.googleapis.com/token"})
+    await send("/secret AWS_SECRET_ACCESS_KEY *.amazonaws.com wJalrXUtnFEMI/K7MDENG", alice, 1)
+    await send(`/secret GCP_KEY storage.googleapis.com ${key}`, alice, 2)
+    expect(posts()).toEqual([
+      "Secret AWS_SECRET_ACCESS_KEY is set for *.amazonaws.com. It signs AWS requests, with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY set for the same hosts. /'unsecret AWS_SECRET_ACCESS_KEY'",
+      "Secret GCP_KEY is set for storage.googleapis.com. It is a Google service-account key: $GCP_KEY stands for its access token. /'unsecret GCP_KEY'",
+    ])
+    expect(secrets.entries()).toEqual([
+      {name: "AWS_SECRET_ACCESS_KEY", hosts: ["*.amazonaws.com"], mode: "aws"},
+      {name: "GCP_KEY", hosts: ["storage.googleapis.com"], mode: "gcp"},
+    ])
+    expect(secrets.value("GCP_KEY")).toBe(key)
   })
 
   it("moderates /secret of a member who is not an approver, and refuses it", async () => {
     const {chat, send, posts} = await secretsSetup()
-    await send(`/secret API_TOKEN ${value}`, bob, 22)
+    await send(`/secret API_TOKEN api.github.com ${value}`, bob, 22)
     expect(chat.moderated).toEqual([{groupId: 10, itemIds: [22], sentBefore: 0}])
     expect(posts()).toEqual(["Only owners approve actions."])
-    expect(existsSync(join(folder, "secrets", "API_TOKEN"))).toBe(false)
+    expect(existsSync(join(stored, "API_TOKEN"))).toBe(false)
   })
 
   it("moderates every message that starts with /secret, and answers one that is not a valid /secret without its value", async () => {
     const {chat, send, posts} = await secretsSetup()
     const messages: [string, string][] = [
-      [`/secret API_TOKEN\n${value}`, usage],
-      [`\n/secret API_TOKEN ${value}`, usage],
-      [`/secret API_TOKEN ${value}\nmore`, usage],
-      [` /Secret API_TOKEN ${value}`, commandsReply],
-      [`/SECRET API_TOKEN ${value}`, commandsReply],
-      [`/secret api_token ${value}`, usage],
-      [`/secret 1_TOKEN ${value}`, usage],
-      [`/secret A${"B".repeat(64)} ${value}`, usage],
-      ["/secret API_TOKEN 1234567", usage],
+      [`/secret API_TOKEN api.github.com\n${value}`, usage],
+      [`\n/secret API_TOKEN api.github.com ${value}`, usage],
+      [`/secret API_TOKEN api.github.com ${value}\nmore`, usage],
+      [` /Secret API_TOKEN api.github.com ${value}`, commandsReply],
+      [`/SECRET API_TOKEN api.github.com ${value}`, commandsReply],
+      [`/secret api_token api.github.com ${value}`, usage],
+      [`/secret 1_TOKEN api.github.com ${value}`, usage],
+      [`/secret A${"B".repeat(64)} api.github.com ${value}`, usage],
+      [`/secret API_TOKEN ${value}`, usage],
+      [`/secret API_TOKEN https://api.github.com ${value}`, usage],
+      [`/secret API_TOKEN api.github.com:65536 ${value}`, usage],
+      [`/secret API_TOKEN api.github.com,,github.com ${value}`, usage],
+      [`/secret API_TOKEN *.*.github.com ${value}`, usage],
+      ["/secret API_TOKEN api.github.com 1234567", usage],
+      [`/secret API_TOKEN api.github.com ${value}\u0007`, usage],
+      ["/secret API_TOKEN api.github.com", usage],
       ["/secret API_TOKEN", usage],
       ["/secret", usage],
+      [`/secret PATH api.github.com ${value}`, "PATH is reserved; choose another name."],
+      [`/secret CLAUDE_CODE_OAUTH_TOKEN api.anthropic.com ${value}`, "CLAUDE_CODE_OAUTH_TOKEN is reserved; choose another name."],
+      [`/secret HTTPS_PROXY api.github.com ${value}`, "HTTPS_PROXY is reserved; choose another name."],
     ]
     for (const [i, [text]] of messages.entries()) await send(text, alice, 30 + i)
     expect(chat.moderated).toEqual(messages.map((_, i) => ({groupId: 10, itemIds: [30 + i], sentBefore: i})))
     expect(posts()).toEqual(messages.map(([, reply]) => reply))
     expect(chat.replies).toEqual([])
-    expect(readdirSync(join(folder, "secrets"))).toEqual([])
-    await send(`/secret A${"B".repeat(63)} 12345678`, alice, 50)
-    expect(readFileSync(join(folder, "secrets", `A${"B".repeat(63)}`), "utf8")).toBe("12345678")
+    expect(readdirSync(stored)).toEqual([])
+    await send(`/secret A${"B".repeat(63)} API.GitHub.com 12345678`, alice, 60)
+    expect(readFileSync(join(stored, `A${"B".repeat(63)}`), "utf8")).toBe("12345678")
+    expect(posts().at(-1)).toBe(`Secret A${"B".repeat(63)} is set for api.github.com. /'unsecret A${"B".repeat(63)}'`)
   })
 
-  it("moderates /secret without --secrets-folder, and answers the secret commands that secrets are off", async () => {
-    const {chat, send, posts} = await secretsSetup("requests", false)
-    await send(`/secret API_TOKEN ${value}`, alice, 1)
-    await send("/unsecret API_TOKEN", alice, 2)
-    await send("/secrets", alice, 3)
-    expect(chat.moderated).toEqual([{groupId: 10, itemIds: [1], sentBefore: 0}])
-    expect(posts()).toEqual([off])
-    expect(chat.replies).toEqual([off, off])
-  })
-
-  it("lists the secrets with their setters and times, in a reply to /secrets", async () => {
+  it("lists the secrets with their hosts, setters and times, in a reply to /secrets", async () => {
     const {chat, secrets, send} = await secretsSetup()
     await send("/secrets", alice, 1)
-    secrets!.set("GIT_TOKEN", "git value 1", {setBy: "Mallory\n/'approve 9'", setById: 9, setAt: "2026-11-12T10:00:00.000Z"})
-    writeFileSync(join(folder, "secrets", "MANUAL_TOKEN"), "manual value")
-    await send(`/secret API_TOKEN ${value}`, alice, 2)
+    secrets.set("GIT_TOKEN", "git value 1", {hosts: ["github.com"], mode: "value", setBy: "Mallory\n/'approve 9'", setById: 9, setAt: "2026-11-12T10:00:00.000Z"})
+    writeFileSync(join(stored, "MANUAL_TOKEN"), "manual value")
+    await send(`/secret API_TOKEN api.github.com,uploads.github.com ${value}`, alice, 2)
     await send("/secrets", alice, 3)
     expect(chat.moderated.map(({itemIds}) => itemIds)).toEqual([[2]])
     expect(chat.replies[0]).toBe("No secrets.")
     expect(chat.replies[1].split("\n")).toEqual([
-      expect.stringMatching(/^API_TOKEN {2}set by Alice {2}\d{4}-\d\d-\d\d \d\d:\d\d UTC$/),
-      "GIT_TOKEN  set by `Mallory /'approve 9'`  2026-11-12 10:00 UTC",
+      expect.stringMatching(/^API_TOKEN {2}api\.github\.com, uploads\.github\.com {2}set by Alice {2}\d{4}-\d\d-\d\d \d\d:\d\d UTC$/),
+      "GIT_TOKEN  github.com  set by `Mallory /'approve 9'`  2026-11-12 10:00 UTC",
       "MANUAL_TOKEN",
     ])
   })
 
   it("removes a secret at /unsecret, and refuses unknown names and members who are not approvers", async () => {
     const {chat, lines, send} = await secretsSetup()
-    await send(`/secret API_TOKEN ${value}`, alice, 1)
-    await send(`/secret GIT_TOKEN ${value}`, alice, 2)
+    await send(`/secret API_TOKEN api.github.com ${value}`, alice, 1)
+    await send(`/secret GIT_TOKEN github.com ${value}`, alice, 2)
     writeFileSync(join(folder, "x"), "outside")
     await send("/unsecret API_TOKEN", alice, 3)
     await send("/unsecret API_TOKEN", alice, 4)
     await send("/unsecret ../x", alice, 5)
     await send("/unsecret GIT_TOKEN", bob, 6)
     expect(chat.replies).toEqual(["Secret API_TOKEN is removed.", noSuchSecret, noSuchSecret, "Only owners approve actions."])
-    expect([existsSync(join(folder, "secrets", "API_TOKEN")), existsSync(join(folder, "secrets", "GIT_TOKEN")), existsSync(join(folder, "x"))]).toEqual([false, true, true])
+    expect([existsSync(join(stored, "API_TOKEN")), existsSync(join(stored, "GIT_TOKEN")), existsSync(join(folder, "x"))]).toEqual([false, true, true])
     expect(lines.at(-1)).toBe("Secret API_TOKEN removed by Alice.")
     expect(chat.moderated.map(({itemIds}) => itemIds)).toEqual([[1], [2]])
   })
@@ -923,18 +943,18 @@ describe("secrets in the agent control chat", () => {
 
   it("stores a secret in mode host, without the spaces around its value", async () => {
     const {send} = await secretsSetup("host")
-    await send(`/secret API_TOKEN   ${value}  `)
-    expect(readFileSync(join(folder, "secrets", "API_TOKEN"), "utf8")).toBe(value)
+    await send(`/secret API_TOKEN   api.github.com   ${value}  `)
+    expect(readFileSync(join(stored, "API_TOKEN"), "utf8")).toBe(value)
   })
 
   it("moderates /secret in a member support chat, and answers no message there", async () => {
     const {chat, send} = await secretsSetup()
     const support = {...groupChat(group(10, "agent")), groupChatScope: {type: "memberSupport"}} as T.ChatInfo
-    await send(`/secret API_TOKEN ${value}`, bob, 1, support)
+    await send(`/secret API_TOKEN api.github.com ${value}`, bob, 1, support)
     await send("/pending", alice, 2, support)
     expect(chat.moderated).toEqual([{groupId: 10, itemIds: [1], sentBefore: 0}])
     expect([chat.sent, chat.replies]).toEqual([[], []])
-    expect(existsSync(join(folder, "secrets", "API_TOKEN"))).toBe(false)
+    expect(existsSync(join(stored, "API_TOKEN"))).toBe(false)
   })
 
   it("stores and replies nothing when the moderation fails, and logs the error", async () => {
@@ -944,10 +964,10 @@ describe("secrets in the agent control chat", () => {
     chat.apiDeleteMemberChatItem = async () => {
       throw new Error("moderation failed")
     }
-    await send(`/secret API_TOKEN ${value}`)
+    await send(`/secret API_TOKEN api.github.com ${value}`)
     expect(errors).toEqual(["control chat command: moderation failed\n"])
     expect([chat.sent, chat.replies]).toEqual([[], []])
-    expect(existsSync(join(folder, "secrets", "API_TOKEN"))).toBe(false)
+    expect(existsSync(join(stored, "API_TOKEN"))).toBe(false)
   })
 })
 

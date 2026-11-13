@@ -4,11 +4,12 @@ import {Server, ServerResponse} from "http"
 import {basename, join} from "path"
 import {CallToolResult} from "@modelcontextprotocol/server"
 import {Action, Mode} from "./actions"
-import {Config, readConfig} from "./config"
-import {LockedError, SessionFile, acquireLock, createDataFolder, dataRoot, logFile, readSessionFile, releaseLock, saveHeldTitles, serviceLock, serviceToken, sessionFolder, socketPath, storedSessions, takeHeldTitles, trimLog, writeSessionFile} from "./files"
+import {Config, proxyPort, readConfig} from "./config"
+import {LockedError, Secrets, SessionFile, acquireLock, createDataFolder, dataRoot, isRunning, logFile, readSessionFile, releaseLock, saveHeldTitles, serviceLock, serviceToken, sessionFolder, socketPath, storedSessions, takeHeldTitles, trimLog, writeSessionFile} from "./files"
 import {Hub, StoredSession, hubTexts} from "./hub"
 import {ExitError, errorText, log, logError} from "./log"
 import {ToolCall, validName} from "./messages"
+import {SecretsProxy, proxyCa, startProxy} from "./proxy"
 import {AttachLine, AttachRequest, CallRequest, OwnerState, PermissionRequest, ResetReply, SessionReply, SessionRequest, StatusReply, TitleReply, TitleRequest, TurnRequest, protocolVersion, unattendedStatus} from "./protocol"
 import {Handler, SocketError, isNotRunning, listen, requestJson, sendJson, startLines} from "./socket"
 import {ToolName} from "./tools"
@@ -51,6 +52,7 @@ export interface ServiceDeps {
   root: string
   token: string
   version: string
+  proxyPort?: number
   openHub(config: Config, stored: StoredSession[]): Promise<HubLike>
   onStopped(code: number): void
 }
@@ -76,6 +78,8 @@ export class Service {
   private readonly registered = new EventEmitter()
   private readonly held = new Map<number, TitleRequest>()
   private readonly unattended = new Map<number, number>()
+  private readonly proxied = new Set<number>()
+  private proxy?: {server: Server; proxy: SecretsProxy}
   private nextNumber: number
   private stopTimer?: NodeJS.Timeout
   private logTimer?: NodeJS.Timeout
@@ -95,10 +99,12 @@ export class Service {
     try {
       const service = new Service(deps)
       service.server = await listen(socketPath(deps.root), deps.token, service.routes())
+      if (deps.proxyPort !== undefined) service.proxy = await secretsProxy(deps.root, deps.proxyPort)
       service.hubReady = service.openHub(config)
       try {
         await service.hubReady
       } catch (error) {
+        service.closeProxy()
         await service.closeListener()
         throw error
       }
@@ -132,6 +138,12 @@ export class Service {
     const closed = new Promise<void>(resolve => this.server.close(() => resolve()))
     this.server.closeIdleConnections()
     return closed
+  }
+
+  private closeProxy(): void {
+    this.proxy?.server.close()
+    this.proxy?.server.closeAllConnections()
+    this.proxy?.proxy.close()
   }
 
   private routes(): {[route: string]: Handler} {
@@ -187,6 +199,7 @@ export class Service {
       return []
     })
     if (cancelled > 0) log(`Cancelled ${cancelled} action${cancelled === 1 ? "" : "s"}.`)
+    this.closeProxy()
     this.entries.clear()
     releaseLock(this.deps.root, serviceLock)
     log("Stopped.")
@@ -218,6 +231,7 @@ export class Service {
   private async onTitle(request: TitleRequest): Promise<TitleReply> {
     validConfig(request.config)
     const {id, pid} = request
+    if (request.proxy === true && pid !== undefined) this.proxied.add(pid)
     if (request.unattended === true) this.markUnattended(pid)
     else if (pid !== undefined && !this.aliases.has(id) && readSessionFile(this.folder(id)) === undefined && (this.held.has(pid) || this.processSession(pid) === undefined)) {
       this.held.set(pid, request)
@@ -417,6 +431,8 @@ export class Service {
     clearTimeout(this.stopTimer)
     if (this.stopping !== undefined) return
     this.stopTimer = setTimeout(() => {
+      for (const pid of this.proxied) if (!isRunning(pid)) this.proxied.delete(pid)
+      if (this.proxied.size > 0) return this.scheduleStop()
       this.stop().catch(error => logError("stop", error))
     }, idleStop)
   }
@@ -433,7 +449,7 @@ export async function runService(env: NodeJS.ProcessEnv = process.env, checks = 
   let service: Service
   try {
     createDataFolder(root)
-    service = await Service.start(productionDeps(root), () => readConfig(env))
+    service = await Service.start({...productionDeps(root), proxyPort: proxyPort(env)}, () => readConfig(env))
   } catch (error) {
     const holder = error instanceof LockedError ? await lockHolder(root, checks) : undefined
     if (holder === "released") return runService(env, checks)
@@ -460,6 +476,16 @@ export function productionDeps(root: string): ServiceDeps {
     version,
     openHub: (config, stored) => Hub.open(root, config, stored),
     onStopped: code => process.exit(code),
+  }
+}
+
+async function secretsProxy(root: string, port: number): Promise<{server: Server; proxy: SecretsProxy} | undefined> {
+  try {
+    return await startProxy(port, {secrets: new Secrets(root), ca: proxyCa(root)})
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") throw error
+    log(`Port ${port} is in use; secrets are not put into requests.`)
+    return undefined
   }
 }
 

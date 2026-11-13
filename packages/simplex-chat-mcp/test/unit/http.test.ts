@@ -1,9 +1,13 @@
-import {Server, request as httpRequest} from "http"
-import {AddressInfo, connect} from "net"
+import {once} from "events"
+import {IncomingMessage, Server, request as httpRequest} from "http"
+import {AddressInfo, Socket, connect, createServer as createTcpServer} from "net"
 import {McpServer} from "@modelcontextprotocol/server"
 import {Actions, Mode} from "../../src/actions"
+import {createCa} from "../../src/certs"
+import {Secrets} from "../../src/files"
 import {startHttp, stopHttp} from "../../src/http"
 import {ChatItemsWatch} from "../../src/messages"
+import {SecretsProxy} from "../../src/proxy"
 import {AgentTools} from "../../src/tools"
 import {FakeChat, actionsWith, contact, data, direct, fakeHooks, user} from "./fixtures"
 
@@ -14,18 +18,18 @@ let url: string
 let actions: Actions
 let ready: boolean
 
-async function start(mode: Mode = "requests"): Promise<void> {
+async function start(mode: Mode = "requests", proxy?: SecretsProxy): Promise<void> {
   ready = true
   const chat = new FakeChat()
   chat.chats.set("@4", {chatInfo: direct(contact(4, "SimpleX Directory")), items: []})
   actions = actionsWith(mode, fakeHooks())
-  const tools = new AgentTools({chat: chat.api(), user, actions, watch: new ChatItemsWatch(), controlChat: () => "#10", standingApprover: () => undefined, refusedFile: () => undefined, data}, mode)
+  const tools = new AgentTools({chat: chat.api(), user, actions, watch: new ChatItemsWatch(), controlChat: () => "#10", standingApprover: () => undefined, refusedFile: () => undefined, data, secrets: new Secrets(data)}, mode)
   const factory = (): McpServer => {
     const mcp = new McpServer({name: "simplex-mcp", version: "0.1.0"}, {instructions: "Use the tools."})
     tools.register(mcp)
     return mcp
   }
-  server = await startHttp({port: 0, token, factory, ready: () => ready})
+  server = await startHttp({port: 0, token, factory, ready: () => ready, proxy})
   url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 }
 
@@ -107,6 +111,27 @@ describe("HTTP", () => {
     await start()
     expect(await rawStatusLine("http://[")).toBe("HTTP/1.1 404 Not Found")
     expect((await post(modern("tools/list"), modernHeaders("tools/list"))).status).toBe(200)
+  })
+
+  it("serves as the secrets proxy for CONNECT and absolute-form requests, without the token, and serves /mcp as before", async () => {
+    const proxy = new SecretsProxy({secrets: new Secrets(data), ca: createCa("test CA")})
+    await start("requests", proxy)
+    const {port} = server.address() as AddressInfo
+    const echo = createTcpServer(socket => socket.pipe(socket))
+    echo.listen(0, "127.0.0.1")
+    await once(echo, "listening")
+    const tunnel = httpRequest({host: "127.0.0.1", port, method: "CONNECT", path: `127.0.0.1:${(echo.address() as AddressInfo).port}`})
+    tunnel.end()
+    const [response, socket] = (await once(tunnel, "connect")) as [IncomingMessage, Socket]
+    expect(response.statusCode).toBe(200)
+    socket.write("through")
+    expect(String((await once(socket, "data"))[0])).toBe("through")
+    socket.destroy()
+    echo.close()
+    const status = await new Promise<number>(resolve => httpRequest({host: "127.0.0.1", port, path: "http://api.github.com/?k=simplex-secret-GITHUB_TOKEN"}, res => resolve(res.resume().statusCode ?? 0)).end())
+    expect(status).toBe(403)
+    expect((await post(modern("tools/list"), modernHeaders("tools/list"))).status).toBe(200)
+    proxy.close()
   })
 
   it("answers /mcp with 503 and Retry-After until the server is ready, after the token check", async () => {

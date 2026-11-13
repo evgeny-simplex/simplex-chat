@@ -2,12 +2,13 @@ import {once} from "events"
 import * as fs from "fs"
 import {closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync} from "fs"
 import {Server, request} from "http"
-import {Socket} from "net"
+import {AddressInfo, Socket, connect, createServer} from "net"
 import {tmpdir} from "os"
 import {join} from "path"
 import {Mode} from "../../src/actions"
 import {ServiceClient} from "../../src/client"
 import {defaultConfig} from "../../src/config"
+import * as files from "../../src/files"
 import {LockedError, createDataFolder, readSessionFile, serviceToken, sessionFolder, socketPath, writeSessionFile} from "../../src/files"
 import {protocolVersion} from "../../src/protocol"
 import {HubLike, Service, ServiceDeps, SessionLike, productionDeps, runService} from "../../src/service"
@@ -415,6 +416,42 @@ describe("service", () => {
     await jest.advanceTimersByTimeAsync(10 * minutes)
     expect(await stoppedCode).toBe(0)
     service = undefined
+  })
+
+  it("keeps running while a Claude Code process whose commands use its proxy runs, and stops when idle after it ends", async () => {
+    jest.useFakeTimers(fakeTimers)
+    const {d, onStopped, stoppedCode} = deps(root)
+    service = await Service.start(d, readDefaultConfig)
+    await post("/title", {id: id1, pid: process.pid, project: "/p/app", config: defaultConfig, unattended: true, proxy: true})
+    await jest.advanceTimersByTimeAsync(30 * minutes)
+    expect(onStopped).not.toHaveBeenCalled()
+    jest.spyOn(files, "isRunning").mockImplementation(pid => pid !== process.pid)
+    await jest.advanceTimersByTimeAsync(10 * minutes)
+    expect(await stoppedCode).toBe(0)
+    service = undefined
+  })
+
+  it("runs the secrets proxy on its port with a CA in the data root, closes it at stop, and runs without it when the port is in use", async () => {
+    const lines: string[] = []
+    jest.spyOn(process.stdout, "write").mockImplementation(text => (lines.push(String(text).trimEnd()), true))
+    const busy = createServer()
+    busy.listen(0, "127.0.0.1")
+    await once(busy, "listening")
+    const port = (busy.address() as AddressInfo).port
+    service = await Service.start({...deps(root).d, proxyPort: port}, readDefaultConfig)
+    expect(lines).toContain(`Port ${port} is in use; secrets are not put into requests.`)
+    await service.stop()
+    busy.close()
+    await once(busy, "close")
+    service = await Service.start({...deps(root).d, proxyPort: port}, readDefaultConfig)
+    expect(statSync(join(root, "proxy-ca.key")).mode & 0o777).toBe(0o600)
+    expect(readFileSync(join(root, "proxy-ca-bundle.pem"), "utf8")).toContain(readFileSync(join(root, "proxy-ca.pem"), "utf8"))
+    const refused = await new Promise<number>(resolve => request({host: "127.0.0.1", port, path: "http://api.github.com/?k=simplex-secret-GITHUB_TOKEN"}, res => resolve(res.resume().statusCode ?? 0)).end())
+    expect(refused).toBe(403)
+    await service.stop()
+    service = undefined
+    const closed = await new Promise<string>(resolve => connect(port, "127.0.0.1").on("connect", () => resolve("open")).on("error", error => resolve((error as NodeJS.ErrnoException).code ?? "")))
+    expect(closed).toBe("ECONNREFUSED")
   })
 
   it("keeps running when a session registers during the idle stop wait", async () => {

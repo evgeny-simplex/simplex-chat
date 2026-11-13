@@ -1092,6 +1092,34 @@ describe("session channel", () => {
     expect(session.actions.get(1)?.state).toBe("pending")
   })
 
+  it("moderates every /secret before its answer, sets it for all sessions on this computer from an admin or owner, refuses it to a member and answers User nothing", async () => {
+    const chat = new FakeChat()
+    const {hub, session, lines} = await channel(chat)
+    hub.userContactId = 6
+    const mia = member(13, "Mia", T.GroupMemberRole.Member)
+    chat.members.set(20, [self, invitedAlice, mia])
+    await session.control.load()
+    const sent = chat.sent.length
+    session.onMessage(event(sessionGroup, item(40, "/secret GITHUB_TOKEN api.github.com ghp_real_token_value", from(invitedAlice))))
+    session.onMessage(event(sessionGroup, item(41, "/secret MIA_TOKEN api.github.com mia_token_value", from(mia))))
+    session.onMessage(event(sessionGroup, item(42, "/secret USER_TOKEN api.github.com user_token_value", from({...member(1006, "User"), memberContactId: 6}))))
+    await session["delivery"]
+    await session.control["ownerCommands"]
+    expect(chat.moderated).toEqual([
+      {groupId: 20, itemIds: [40], sentBefore: sent},
+      {groupId: 20, itemIds: [41], sentBefore: sent + 1},
+      {groupId: 20, itemIds: [42], sentBefore: sent + 2},
+    ])
+    expect(answers(chat).slice(-2)).toEqual([
+      [{text: "Secret GITHUB_TOKEN is set for api.github.com, in all sessions on this computer. /'unsecret GITHUB_TOKEN'", quotedItemId: undefined}],
+      [{text: commandsApproversOnly, quotedItemId: undefined}],
+    ])
+    expect(chat.sent).toHaveLength(sent + 2)
+    expect(hub.secrets.entries()).toEqual([{name: "GITHUB_TOKEN", hosts: ["api.github.com"], mode: "value"}])
+    expect(hub.secrets.value("GITHUB_TOKEN")).toBe("ghp_real_token_value")
+    expect(lines).toEqual([])
+  })
+
   it("answers nothing to a part of a terminal prompt that User posts as one line starting with /, and answers the next command", async () => {
     const chat = new FakeChat()
     const {hub, session, lines} = await channel(chat)
@@ -1444,6 +1472,24 @@ describe("Main group", () => {
     const handled = hub["onEvent"]({type: "joinedGroupMember", groupInfo: group(10, "SimpleX MCP", self), member: carol} as unknown as ChatEvent).then(() => "handled")
     expect(await Promise.race([handled, new Promise(resolve => setTimeout(() => resolve("blocked"), 100))])).toBe("handled")
     await until(() => chat.roles.length === 1)
+  })
+
+  it("turns on full deletion at its creation and at a load, moderates /secret, sets nothing and answers where to send it", async () => {
+    const chat = new FakeChat()
+    const hub = await hubWith(chat)
+    expect(chat.profiles).toEqual([{groupId: 10, groupProfile: expect.objectContaining({groupPreferences: expect.objectContaining({fullDelete: {enable: "on"}})})}])
+    await createMainGroup(chat.api(), 1, "SimpleX MCP")
+    expect(chat.newGroups.at(-1)!.groupProfile.groupPreferences).toMatchObject({fullDelete: {enable: "on"}})
+    hub.main.onMessage(mainMessage("/secret GITHUB_TOKEN api.github.com ghp_real_token_value", alice))
+    hub.main.onMessage(mainMessage(" /SECRET", bob))
+    await until(() => sentTo(chat, 10).length === 2)
+    expect(chat.moderated).toEqual([
+      {groupId: 10, itemIds: [900], sentBefore: 0},
+      {groupId: 10, itemIds: [900], sentBefore: 1},
+    ])
+    expect(sentTo(chat, 10)).toEqual(Array(2).fill("Send /secret in the group of a session; the secret is set for all sessions on this computer."))
+    expect(chat.replies).toEqual([])
+    expect(hub.secrets.entries()).toEqual([])
   })
 
   it("lists the sessions and invites a member to the group of a session as admin by /join", async () => {
