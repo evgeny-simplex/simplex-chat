@@ -595,7 +595,7 @@ appendRcvFD db userId fileId fd@FileDescr {fileDescrText, fileDescrPartNo, fileD
           "UPDATE rcv_files SET file_descr_id = ?, updated_at = ? WHERE file_id = ?"
           (fileDescrId, currentTs, fileId)
       pure rfd
-    Just rfd@RcvFileDescr {fileDescrPartNo = rfdPNo} | fileDescrPartNo <= rfdPNo -> pure rfd
+    Just rfd@RcvFileDescr {fileDescrPartNo = rfdPNo} | fileDescrPartNo == rfdPNo -> pure rfd
     Just
       RcvFileDescr
         { fileDescrId,
@@ -848,7 +848,7 @@ setAcceptedRcvFileConnected db fileId = do
 createRcvFileChunk :: DB.Connection -> RcvFileTransfer -> Integer -> AgentMsgId -> IO RcvChunkStatus
 createRcvFileChunk db RcvFileTransfer {fileId, fileInvitation = FileInvitation {fileSize}, chunkSize} chunkNo msgId = do
   status <- getLastChunkNo
-  unless (status == RcvChunkError) $ do
+  unless (status == RcvChunkError || status == RcvChunkDuplicate) $ do
     currentTs <- getCurrentTime
     DB.execute
       db
