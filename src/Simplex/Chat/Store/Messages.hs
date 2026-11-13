@@ -30,6 +30,7 @@ module Simplex.Chat.Store.Messages
     createNewMessageAndRcvMsgDelivery,
     getLastRcvMsgInfo,
     checkMsgDeliveryExists,
+    checkSharedMsgDeliveryExists,
     createNewRcvMessage,
     updateSndMsgDeliveryStatus,
     createPendingGroupMessage,
@@ -314,6 +315,20 @@ checkMsgDeliveryExists db connId agentMsgId =
       db
       "SELECT EXISTS (SELECT 1 FROM msg_deliveries WHERE connection_id = ? AND agent_msg_id = ?)"
       (connId, agentMsgId)
+
+checkSharedMsgDeliveryExists :: DB.Connection -> Int64 -> AgentMsgId -> SharedMsgId -> IO Bool
+checkSharedMsgDeliveryExists db connId agentMsgId sharedMsgId =
+  fromOnly . head
+    <$> DB.query
+      db
+      [sql|
+        SELECT EXISTS (
+          SELECT 1 FROM msg_deliveries d
+          JOIN messages m ON m.message_id = d.message_id
+          WHERE d.connection_id = ? AND d.agent_msg_id = ? AND m.shared_msg_id = ?
+        )
+      |]
+      (connId, agentMsgId, sharedMsgId)
 
 createNewRcvMessage :: forall e. MsgEncodingI e => DB.Connection -> ConnOrGroupId -> NewRcvMessage e -> Maybe SharedMsgId -> Maybe GroupMemberId -> Maybe GroupMemberId -> ExceptT StoreError IO RcvMessage
 createNewRcvMessage db connOrGroupId NewRcvMessage {chatMsgEvent, verifiedMsg, brokerTs} sharedMsgId_ authorMember forwardedByMember =
