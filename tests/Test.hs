@@ -117,7 +117,7 @@ main = do
             describe "managed group" badgeGroupIntegrationTests
           describe "Remote session" remoteTests
 #if !defined(dbPostgres)
-          sequential $ xdescribe'' "Save query plans" saveQueryPlans
+          sequential $ describe "Save query plans" saveQueryPlans
 #endif
   where
 #if defined(dbPostgres)
