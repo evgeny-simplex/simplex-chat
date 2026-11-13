@@ -1216,7 +1216,7 @@ jobs:
   build-macos:
     name: "${{ matrix.os }} (CLI,Desktop), GHC: ${{ matrix.ghc }}"
     needs: [maybe-release, variables]
-    if: needs.maybe-release.outputs.reduced != 'true' && needs.maybe-release.outputs.haskell == 'true'
+    if: needs.maybe-release.outputs.haskell == 'true'
     runs-on: ${{ matrix.os }}
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-macos-${{ matrix.os }}-${{ needs.maybe-release.outputs.libs_tag }}
@@ -1231,13 +1231,6 @@ jobs:
             cli_asset_name: simplex-chat-macos-aarch64
             desktop_asset_name: simplex-desktop-macos-aarch64.dmg
             openssl_dir: "/opt/homebrew/opt"
-            should_run: ${{ needs.maybe-release.outputs.haskell == 'true' }}
-          - os: macos-15-intel
-            arch: x86_64
-            ghc: ${{ needs.variables.outputs.GHC_VER }}
-            cli_asset_name: simplex-chat-macos-x86-64
-            desktop_asset_name: simplex-desktop-macos-x86_64.dmg
-            openssl_dir: "/usr/local/opt"
             should_run: ${{ needs.maybe-release.outputs.haskell == 'true' }}
     steps:
       - name: Checkout Code
@@ -1452,23 +1445,9 @@ jobs:
         if: matrix.should_run == true && matrix.arch == 'aarch64'
         timeout-minutes: 120
         shell: bash
-        run: |
-          i=1
-          attempts=1
-          ${{ (github.ref == 'refs/heads/stable' || startsWith(github.ref, 'refs/tags/v')) }} && attempts=3
-          while [ "$i" -le "$attempts" ]; do
-            if cabal test --test-show-details=direct ${{ env.ghc_options }}; then
-              break
-            else
-              echo "Attempt $i failed, retrying..."
-              i=$((i + 1))
-              sleep 1
-            fi
-          done
-          if [ "$i" -gt "$attempts" ]; then
-            echo "All "$attempts" attempts failed."
-            exit 1
-          fi
+        env:
+          TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.tests || '' }}
+        run: scripts/ci/run-tests.sh "$(cabal list-bin --enable-tests simplex-chat-test ${{ env.ghc_options }})"
 
       - name: Check generated files
         id: generated

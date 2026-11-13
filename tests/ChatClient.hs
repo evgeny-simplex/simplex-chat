@@ -22,12 +22,14 @@ import Control.Logger.Simple (LogLevel (..))
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.Reader
+import qualified Data.ByteString as BS
 import Data.Functor (($>))
 import Data.List (dropWhileEnd, find)
 import qualified Data.List.NonEmpty as L
 import Data.Maybe (isNothing)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (getCurrentTime)
 import Network.Socket
 import Simplex.Chat
@@ -69,6 +71,7 @@ import Simplex.Messaging.Version
 import Simplex.Messaging.Version.Internal
 import System.Directory (createDirectoryIfMissing, listDirectory, removePathForcibly)
 import System.FilePath ((</>))
+import System.IO (stderr)
 import qualified System.Terminal as C
 import System.Terminal.Internal (Command (..), Terminal (..), VirtualTerminal (..), VirtualTerminalSettings (..), withVirtualTerminal)
 import System.Timeout (timeout)
@@ -409,7 +412,8 @@ startTestChat_ ps@TestParams {tmpPath, printOutput} db cfg_ opts_ dbPrefix user 
   pure TestCC {chatController = cc, chatAsync, termQ, printOutput, ccParams = ps}
 
 stopTestChat :: TestParams -> TestCC -> IO ()
-stopTestChat ps TestCC {chatController = cc@ChatController {smpAgent, chatStore}, chatAsync} = do
+stopTestChat ps tcc@TestCC {chatController = cc@ChatController {smpAgent, chatStore}, chatAsync, termQ, printOutput} = do
+  when printOutput $ atomically (flushTQueue termQ) >>= mapM_ (diagTerm "TERM-UNREAD" tcc)
   stopped <- async $ do
     stopChatController cc
     cancel chatAsync
@@ -546,9 +550,7 @@ getTermLine' expected cc@TestCC {printOutput} =
     Just s -> do
       -- remove condition to always echo virtual terminal
       -- when True $ do
-      when printOutput $ do
-        name <- userName cc
-        putStrLn $ name <> ": " <> s
+      when printOutput $ diagTerm "TERM" cc s
       pure s
     Nothing -> do
       name <- userName cc
@@ -556,6 +558,12 @@ getTermLine' expected cc@TestCC {printOutput} =
             Just e -> ", expected: " <> show e
             Nothing -> ""
       error $ name <> ": no output for 20 seconds" <> expectedMsg
+
+diagTerm :: String -> TestCC -> String -> IO ()
+diagTerm label cc@TestCC {ccParams = TestParams {tmpPath}} s = do
+  name <- userName cc
+  ts <- getCurrentTime
+  BS.hPut stderr $ encodeUtf8 $ T.pack $ label <> " " <> show ts <> " " <> tmpPath <> " " <> name <> ": " <> s <> "\n"
 
 userName :: TestCC -> IO [Char]
 userName TestCC {chatController = ChatController {currentUser}} =

@@ -8,6 +8,7 @@ import ChatTests.DBUtils
 import ChatTests.Groups (memberJoinChannel, prepareChannel1Relay)
 import ChatTests.Utils
 import Control.Concurrent.Async (concurrently_)
+import Control.Monad (forM_)
 import qualified Data.Text as T
 import NameResolver
 import Simplex.Messaging.SimplexName (SimplexDomain (..), SimplexNameInfo (..), SimplexNameType (..), SimplexTLD (..))
@@ -26,6 +27,7 @@ chatNamesTests = do
   it "channel name is not verified just by joining via link" testChannelDomainLinkJoinUnverified
   it "verify channel name, fail on re-point, retain status on refresh" testChannelDomainVerify
   it "connect by channel name" testConnectByChannelName
+  forM_ [1 .. 100 :: Int] $ \i -> it ("diag connect by channel name " <> show i) $ withTestOutput testConnectByChannelName
   it "channel name is verified when the channel is prepared with it" testPrepareChannelWithName
   it "connect by name resolving to channel (primary) and direct contact" testConnectByNameChannelAndContact
   it "connect by name resolving to direct contact (primary) and channel" testConnectByNameContactAndChannel

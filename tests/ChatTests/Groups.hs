@@ -328,6 +328,8 @@ chatGroupTests = do
       it "should remove member (signed)" testChannelRemoveMemberSigned
       it "should verify member security code via membership keys" testChannelMemberSecurityCode
       it "should delete channel (signed)" testChannelDeleteGroupSigned
+      forM_ [1 .. 100 :: Int] $ \i -> it ("diag delete channel natural " <> show i) $ withTestOutput testChannelDeleteGroupSigned
+      forM_ [1 .. 3 :: Int] $ \i -> it ("diag delete channel forced " <> show i) $ withTestOutput testChannelDeleteGroupForcedRace
       it "should delete channel and clean up relay connections" testChannelDeleteGroupCleanup
       it "owner should leave channel (signed)" testChannelOwnerLeave
       it "subscriber should leave channel (signed)" testChannelSubscriberLeave
@@ -11658,6 +11660,33 @@ testChannelDeleteGroupSigned ps =
                   eve <## "use /d #team to delete the local copy of the group"
               ]
             lastJobNotification bob `shouldReturn` True
+
+testChannelDeleteGroupForcedRace :: HasCallStack => TestParams -> IO ()
+testChannelDeleteGroupForcedRace ps =
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatOpts ps relayTestOpts "bob" bobProfile $ \bob ->
+      withNewTestChat ps "cath" cathProfile $ \cath ->
+        withNewTestChat ps "dan" danProfile $ \dan ->
+          withNewTestChat ps "eve" eveProfile $ \eve -> do
+            createChannel1Relay "dteam" alice bob cath dan eve
+            waitQueuedLinkUpdates alice
+            alice ##> "/d #dteam"
+            alice <## "no group link, to create: /create link #dteam"
+            alice <## "#dteam: you deleted the group (signed)"
+            concurrentlyN_
+              [ do
+                  bob <## "#dteam: alice deleted the group (signed)"
+                  bob <## "use /d #dteam to delete the local copy of the group",
+                do
+                  cath <## "#dteam: alice deleted the group (signed)"
+                  cath <## "use /d #dteam to delete the local copy of the group",
+                do
+                  dan <## "#dteam: alice deleted the group (signed)"
+                  dan <## "use /d #dteam to delete the local copy of the group",
+                do
+                  eve <## "#dteam: alice deleted the group (signed)"
+                  eve <## "use /d #dteam to delete the local copy of the group"
+              ]
 
 testChannelDeleteGroupCleanup :: HasCallStack => TestParams -> IO ()
 testChannelDeleteGroupCleanup ps =

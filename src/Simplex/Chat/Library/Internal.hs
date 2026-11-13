@@ -108,7 +108,7 @@ import qualified Simplex.Messaging.TMap as TM
 import Simplex.Messaging.Util
 import Simplex.Messaging.Version
 import System.FilePath (takeFileName, (</>))
-import System.IO (Handle, IOMode (..), hFlush)
+import System.IO (Handle, IOMode (..), hFlush, stderr)
 import UnliftIO.Concurrent (forkFinally, mkWeakThreadId)
 import UnliftIO.Directory
 import UnliftIO.IO (hClose, openFile)
@@ -122,6 +122,16 @@ maxRcvMentions = 5
 
 maxSndMentions :: Int
 maxSndMentions = 3
+
+diagLog :: String -> CM ()
+diagLog s = do
+  tmp <- readTVarIO =<< asks tempDirectory
+  ts <- liftIO getCurrentTime
+  liftIO $ B.hPut stderr $ encodeUtf8 $ T.pack $ "DIAG " <> show ts <> " " <> fromMaybe "-" tmp <> " " <> s <> "\n"
+
+diagMember :: GroupMember -> String
+diagMember m@GroupMember {localDisplayName = n, memberStatus = s, memberCategory = c, activeConn = conn_} =
+  T.unpack n <> "/" <> show c <> "/" <> show s <> "/" <> show ((\Connection {connStatus} -> connStatus) <$> conn_) <> "/ready=" <> show (isJust $ readyMemberConn m)
 
 withChatLock :: Text -> CM a -> CM a
 withChatLock name action = asks chatLock >>= \l -> withLock l name action
@@ -1326,6 +1336,7 @@ introduceInChannel cxt user g@(GIK gInfo _) subscriber@GroupMember {activeConn =
   (owners, adminsMods) <- withStore' $ \db ->
     (,) <$> getGroupOwners db cxt user gInfo <*> getGroupAdminsMods db cxt user gInfo
   let modMs = owners <> adminsMods
+  diagLog $ "introduceInChannel subscriber=" <> diagMember subscriber <> " modMs=" <> show (map diagMember modMs)
   void $ sendGroupMessage' user g modMs $ XGrpMemNew (memberInfo gInfo subscriber) Nothing
   withStore' $ \db ->
     setMemberVectorNewRelations db subscriber [(indexInGroup m, (IDSubjectIntroduced, MRIntroduced)) | m <- modMs]
@@ -3173,6 +3184,7 @@ deleteAgentConnectionsAsync' acIds waitDelivery = do
 setAgentConnShortLinkAsync :: User -> Connection -> UserConnLinkData 'CMContact -> Maybe CRClientData -> CM ()
 setAgentConnShortLinkAsync user conn@Connection {connId} userLinkData crClientData_ = do
   cmdId <- withStore' $ \db -> createCommand db user (Just connId) CFSetShortLink
+  diagLog $ "set_short_link command created cmdId=" <> show cmdId <> " connId=" <> show connId
   withAgent $ \a -> setConnShortLinkAsync a (aCorrId cmdId) (aConnId conn) userLinkData crClientData_
 
 getAgentConnShortLinkAsync :: User -> CommandFunction -> Maybe Connection -> ShortLinkContact -> CM (CommandId, ConnId)

@@ -143,7 +143,12 @@ processAgentMessage _ "" (ERR e) =
 processAgentMessage _ connId (SSENT _ _) =
   toView $ CEvtServiceReplySent (AgentConnId connId)
 processAgentMessage corrId connId msg = do
-  lockEntity <- critical connId (withStore (`getChatLockEntity` AgentConnId connId))
+  case msg of
+    LINK {} -> diagLog $ "agent LINK event corrId=" <> show corrId <> " connId=" <> show connId
+    _ -> pure ()
+  lockEntity <-
+    critical connId (withStore (`getChatLockEntity` AgentConnId connId))
+      `catchAllErrors` \e -> diagLog ("processAgentMessage lock entity error corrId=" <> show corrId <> ": " <> show e) >> throwError e
   withEntityLock "processAgentMessage" lockEntity $ do
     cxt <- chatStoreCxt
     -- Missing connection/entity errors here will be sent to the view but not shown as CRITICAL alert,
@@ -884,6 +889,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           _ -> messageError "INFO from member must have x.grp.mem.info, x.info or x.ok"
         pure ()
       CON _pqEnc -> unless rejected $ do
+        diagLog $ "member CON " <> diagMember m
         -- TODO [knocking] send pending messages after accepting?
         -- possible improvement: check for each pending message, requires keeping track of connection state
         unless (connDisabled conn) $ sendPendingGroupMessages user gInfo m conn
@@ -1043,6 +1049,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           processAChatMsg gInfo' scopeInfo m' tags eInfo newDeliveryTasks = \case
             Right (APMsg enc (parsedMsg@(ParsedMsg fwd_ _ ChatMessage {chatMsgEvent}))) -> do
               let tag = toCMEventTag chatMsgEvent
+              diagLog $ "group msg tag=" <> show tag <> " fwd=" <> show (isJust fwd_) <> " from=" <> diagMember m'
               atomically $ modifyTVar' tags (tshow tag :)
               case fwd_ of
                 Just fwd | SJson <- enc -> do
@@ -1426,19 +1433,30 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           False -> dropSReq
         where
           dropSReq = withAgent $ \a -> rejectServiceRequest a NRMBackground (aUserId user) invId Nothing
-      LINK _link auData ->
+      LINK _link auData -> do
+        diagLog $ "LINK handler start corrId=" <> show corrId
         withCompletedCommand conn agentMsg $ \CommandData {cmdFunction} ->
           case cmdFunction of
             CFSetShortLink ->
               case (ucGroupId_, auData) of
                 (Just groupId, UserContactLinkData UserContactData {relays = relayLinks}) -> do
-                  (g@(GIK gInfo _), gLink, relays, relaysChanged, newlyActiveLinks) <- withStore $ \db -> do
-                    g@(GIK gInfo _) <- getGroupInfoKeys db cxt user groupId
-                    gLink <- getGroupLink db user gInfo
-                    relays <- liftIO $ getGroupRelays db gInfo
-                    (relays', changed, newlyActiveLinks) <- liftIO $ foldrM (updateRelay db) ([], False, []) relays
-                    liftIO $ setGroupInProgressDone db gInfo
-                    pure (g, gLink, relays', changed, newlyActiveLinks)
+                  gInfo0 <- withStore $ \db -> getGroupInfo db cxt user groupId
+                  let GroupSummary {publicMemberCount = count0} = groupSummary gInfo0
+                  when (groupName' gInfo0 == "dteam" && count0 == Just 4) $ do
+                    diagLog "CFSetShortLink forced delay 5s"
+                    liftIO $ threadDelay' 5000000
+                  diagLog $ "CFSetShortLink tx start groupId=" <> show groupId <> " count=" <> show count0
+                  (g@(GIK gInfo _), gLink, relays, relaysChanged, newlyActiveLinks) <-
+                    ( withStore $ \db -> do
+                        g@(GIK gInfo _) <- getGroupInfoKeys db cxt user groupId
+                        gLink <- getGroupLink db user gInfo
+                        relays <- liftIO $ getGroupRelays db gInfo
+                        (relays', changed, newlyActiveLinks) <- liftIO $ foldrM (updateRelay db) ([], False, []) relays
+                        liftIO $ setGroupInProgressDone db gInfo
+                        pure (g, gLink, relays', changed, newlyActiveLinks)
+                    )
+                      `catchAllErrors` \e -> diagLog ("CFSetShortLink tx error: " <> show e) >> throwError e
+                  diagLog "CFSetShortLink tx ok"
                   toView $ CEvtGroupLinkDataUpdated user gInfo gLink relays relaysChanged
                   let GroupSummary {publicMemberCount} = groupSummary gInfo
                   -- Owner is counted in publicMemberCount; > 1 means at least one subscriber.
@@ -1779,6 +1797,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     withCompletedCommand Connection {connId} agentMsg action = do
       let agentMsgTag = AEvtTag (sAEntity @e) $ aEventTag agentMsg
       cmdData_ <- withStore' $ \db -> getCommandDataByCorrId db user corrId
+      diagLog $ "withCompletedCommand corrId=" <> show corrId <> " found=" <> show (isJust cmdData_)
       case cmdData_ of
         Just cmdData@CommandData {cmdId, cmdConnId = Just cmdConnId', cmdFunction}
           | connId == cmdConnId' && (agentMsgTag == commandExpectedResponse cmdFunction || agentMsgTag == AEvtTag SAEConn ERR_) -> do
@@ -3218,6 +3237,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
 
     xGrpMemNew :: GroupInfoKeys -> GroupMember -> MemberInfo -> Maybe MsgScope -> RcvMessage -> UTCTime -> CM (Maybe DeliveryJobScope)
     xGrpMemNew (GIK gInfo gks) m memInfo@(MemberInfo memId memRole _ _ assertedKey_) msgScope_ msg brokerTs = do
+      diagLog $ "xGrpMemNew from=" <> diagMember m <> " memId=" <> show memId
       unless (useRelays' gInfo) $ checkHostRole m memRole
       let presHeader_ = memberInfoPresHeader gInfo memInfo
       if sameMemberId memId (membership gInfo)
@@ -3258,7 +3278,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                   memberAnnouncedToView updatedMember gInfo''
                   pure $ deliveryJobScope updatedMember
             Right _
-              | useRelays' gInfo -> logInfo "x.grp.mem.new: member already created via another relay" $> Nothing
+              | useRelays' gInfo -> (diagLog "xGrpMemNew: member already exists" >> logInfo "x.grp.mem.new: member already created via another relay") $> Nothing
               | otherwise -> messageError "x.grp.mem.new error: member already exists" $> Nothing
             Left _
               -- a privileged member absent from the roster is a relay conjuring one

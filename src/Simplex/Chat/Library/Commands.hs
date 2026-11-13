@@ -1413,6 +1413,7 @@ processChatCommand cxt nm = \case
       unless canDelete $ throwChatError $ CEGroupUserRole gInfo GROwner
       filesInfo <- withFastStore' $ \db -> getGroupFileInfo db user gInfo
       withGroupLock "deleteChat group" chatId $ do
+        diagLog "deleteChat: start"
         deleteCIFiles user filesInfo
         -- the roster blob file has no chat item, so it is missed by getGroupFileInfo above
         cleanupGroupRosterFile user gInfo
@@ -1422,13 +1423,19 @@ processChatCommand cxt nm = \case
           if doSendDel
             then (\SndMessage {signedMsg_} -> isJust signedMsg_) <$> sendGroupMessage' user g recipients XGrpDel
             else pure False
+        diagLog "deleteChat: x.grp.del sent"
         deleteGroupLinkIfExists user gInfo
+        diagLog "deleteChat: group link deleted"
+        when (groupName' gInfo == "dteam") $ do
+          diagLog "deleteChat: forced delay 8s"
+          liftIO $ threadDelay' 8000000
         deleteMembersConnections' user members doSendDel
         updateCIGroupInvitationStatus user gInfo CIGISRejected `catchAllErrors` \_ -> pure ()
         withFastStore' $ \db -> deleteGroupChatItems db user gInfo
         withFastStore' $ \db -> cleanupHostGroupLinkConn db user gInfo
         withFastStore' $ \db -> deleteGroupMembers db user gInfo
         withFastStore' $ \db -> deleteGroup db user gInfo
+        diagLog "deleteChat: group deleted"
         pure $ CRGroupDeletedUser user gInfo msgSigned (not doSendDel)
         where
           getRecipients gInfo
