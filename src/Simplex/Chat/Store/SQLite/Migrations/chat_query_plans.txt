@@ -1142,6 +1142,16 @@ Plan:
 SEARCH display_names USING COVERING INDEX sqlite_autoindex_display_names_2 (user_id=? AND ldn_base=?)
 
 Query: 
+            SELECT p.display_name, m.member_status
+            FROM group_members m
+            JOIN contact_profiles p ON p.contact_profile_id = COALESCE(m.member_profile_id, m.contact_profile_id)
+            WHERE m.member_category = 'user'
+          
+Plan:
+SCAN m
+SEARCH p USING INTEGER PRIMARY KEY (rowid=?)
+
+Query: 
             SELECT s.contact_id, g.group_id, s.group_member_id
             FROM sent_probes s
             LEFT JOIN contacts c ON s.contact_id = c.contact_id AND c.deleted = 0
@@ -5082,6 +5092,13 @@ Query:
 Plan:
 
 Query: 
+      INSERT INTO chat_item_moderations
+        (group_id, moderator_member_id, item_member_id, shared_msg_id, created_by_msg_id, moderated_at)
+        VALUES (?,?,?,?,?,?)
+    
+Plan:
+
+Query: 
       INSERT INTO chat_item_versions (chat_item_id, msg_content, item_version_ts)
       VALUES (?,?,?)
     
@@ -6920,6 +6937,10 @@ Query: DELETE FROM chat_item_mentions WHERE chat_item_id = ?
 Plan:
 SEARCH chat_item_mentions USING COVERING INDEX idx_chat_item_mentions_chat_item_id (chat_item_id=?)
 
+Query: DELETE FROM chat_item_moderations WHERE group_id = ? AND item_member_id = ? AND shared_msg_id = ?
+Plan:
+SEARCH chat_item_moderations USING COVERING INDEX idx_chat_item_moderations_group (group_id=? AND item_member_id=? AND shared_msg_id=?)
+
 Query: DELETE FROM chat_item_reactions WHERE contact_id = ?
 Plan:
 SEARCH chat_item_reactions USING COVERING INDEX idx_chat_item_reactions_contact_id (contact_id=?)
@@ -7573,6 +7594,11 @@ SEARCH chat_items USING COVERING INDEX idx_chat_items_groups_msg_content_tag_del
 Query: SELECT COUNT(1) FROM commands WHERE command_function = 'set_short_link'
 Plan:
 SCAN commands
+
+Query: SELECT COUNT(1) FROM connections c JOIN group_members m ON m.group_member_id = c.group_member_id WHERE m.local_display_name = ? AND c.conn_status != 'deleted'
+Plan:
+SCAN m USING COVERING INDEX idx_group_members_user_id_local_display_name
+SEARCH c USING INDEX idx_connections_group_member_id (group_member_id=?)
 
 Query: SELECT COUNT(1) FROM contacts WHERE user_id = ? AND chat_item_ttl > 0
 Plan:
@@ -8249,6 +8275,10 @@ Query: SELECT message_id FROM messages WHERE msg_sent = 0 AND hex(shared_msg_id)
 Plan:
 SCAN messages
 
+Query: SELECT message_id FROM messages WHERE msg_sent = 0 AND hex(shared_msg_id) = ?
+Plan:
+SCAN messages
+
 Query: SELECT next_wake_at FROM badge_purchases
 Plan:
 SCAN badge_purchases
@@ -8357,6 +8387,10 @@ SCAN chat_items
 Query: SELECT short_descr FROM contact_profiles WHERE display_name = ? LIMIT 1
 Plan:
 SEARCH contact_profiles USING INDEX contact_profiles_index (display_name=?)
+
+Query: SELECT short_descr FROM group_profiles
+Plan:
+SCAN group_profiles
 
 Query: SELECT should_sync FROM connections_sync WHERE connections_sync_id = 1
 Plan:
@@ -8784,7 +8818,21 @@ Query: UPDATE group_profiles SET description = ? WHERE display_name = ?
 Plan:
 SCAN group_profiles
 
+Query: UPDATE group_profiles SET group_link = (SELECT group_link FROM group_profiles WHERE display_name = 'news') WHERE display_name = 'team'
+Plan:
+SCAN group_profiles
+SCALAR SUBQUERY 1
+SCAN group_profiles
+
 Query: UPDATE group_profiles SET public_group_id = ?
+Plan:
+SCAN group_profiles
+
+Query: UPDATE group_profiles SET short_descr = 'earlier copy'
+Plan:
+SCAN group_profiles
+
+Query: UPDATE group_profiles SET short_descr = 'relay copy'
 Plan:
 SCAN group_profiles
 
