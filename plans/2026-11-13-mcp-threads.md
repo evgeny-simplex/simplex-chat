@@ -1,27 +1,14 @@
-# Threads in groups, with channel comments: the core, the apps and the Claude Code plugin
+# Threads, channel comments and sessions as topics, from how agents use them
 
-Status: revised after the user's answers of 2026-11-13: Q1 B, Q2 A with a staged release, and Q3 replaced by Claude's own use of threads. Q4 and Q5 are open. Code references: master `97bbbd9ac` (`@simplex-chat/mcp` 0.3.0 with #8157). The channel comments work: branch `f/channel-comments` of simplex-chat at `69fdc1c27` (2026-05-27), plans `plans/2026-04-06-channel-comments.md` (v1) and `plans/2026-04-06-channel-comments-v2.md` (v2) on that branch. Plans of other items: `ep/mcp-replies` (approved), `ep/mcp-reactions`, `ep/mcp-activity`, `ep/mcp-silent-messages`, `ep/mcp-flat-sessions`, and `plans/2026-10-13-message-priority.md` (approved). Decisions of the 0.3.0 plan are cited as "0.3.0 decision N" ([2026-11-07-mcp-claude-code-channel.md](2026-11-07-mcp-claude-code-channel.md)).
+Status: third revision, 2026-11-13. The user's answers: Q1 B, Q2 A with a staged release, Q3 replaced by Claude's own use of threads, Q4 by a note (all work in this session, threads and sessions together, vertically), Q5 A. Q6, Q7 and Q8 are open.
 
-Threads in groups and comments in channels are one core effort, in the feature branch `f/channel-comments`. Its pull requests merge into that branch; the branch merges into master once the apps show both. The plugin follows the release:
+Precondition: execution starts after the release of the current items: activity, silent messages, flat layout, agent profile, replies, reactions, allow-tool, session list, session usage, context summary and live answers.
 
-```mermaid
-flowchart LR
-  F[f/channel-comments updated to master] --> C1[core: channel comments completed]
-  F --> C2[core: threads in groups]
-  C1 --> I[iOS: comments and threads, stage 1]
-  C2 --> I
-  C1 --> K[Android and desktop: comments and threads, stage 1]
-  C2 --> K
-  I --> M[f/channel-comments merged into master]
-  K --> M
-  M --> R[release: apps, core libraries, npm packages]
-  R --> P[plugin: threads as Claude's tasks]
-  R --> S[stage 2, a later release: the Threads preference in the apps, on in new groups]
-```
+Code references: master `8fda06295`, by file and function name. The starting point of the core: branch `f/channel-comments` of simplex-chat at `69fdc1c27` (2026-05-27), with its plans `plans/2026-04-06-channel-comments.md` (v1) and `plans/2026-04-06-channel-comments-v2.md` (v2). Plans of the items in the precondition, on their `ep/mcp-*` branches, and `plans/2026-10-13-message-priority.md` (approved). Decisions of the 0.3.0 plan are cited as "0.3.0 decision N" ([2026-11-07-mcp-claude-code-channel.md](2026-11-07-mcp-claude-code-channel.md)).
 
 ## 1. Goal
 
-`ROADMAP.md` of the plugin has no line for threads. Proposed line, in "In your sessions", added with this plan's approval: "Claude keeps each task in its own thread of the session's group." The plugin's pull request removes it.
+Roadmap line, `ROADMAP.md` of the plugin, "In your sessions": "Each session is a topic inside one group, not a group of its own." Proposed line, added with this plan's approval: "Claude keeps each task in its own thread of the session." The plugin's pull request removes both.
 
 The user's words, 2026-11-13:
 
@@ -35,69 +22,107 @@ The user's words, 2026-11-13:
 
 > good question, as it's unclear what creates threads. Needs to be thought of. I think it's wrong to have users be responsible for threads, and claude should see thread as task, and deside when and how to use them contextually, not formally
 
+> We can ship the rest up to this point, release, then do threads and sessions. To me they are related and should be planned, designed and executed together, vertically. That is we won't just design threads and sessions, but how we use them with agents.
+
+The user's model of sessions, 2026-11-07: sessions are subgroups of a group, not supergroups: sub-conversations, potentially short-lived, open or by invitation, and referenced in the main chat.
+
 Outcome:
-- Threads in groups and comments in channels are one mechanism of the core, released together.
-- Stage 1: apps show threads and replies in them; they offer no preference to turn threads on. The plugin turns threads on in session groups.
-- Stage 2, a later release: the Threads preference in the apps, and threads on in new groups.
-- Claude decides when a task gets a thread. It opens the thread, and the task's step lines, notes, cards and answers go there. Members reply in threads, and Claude follows.
+- A group holds sessions: each session is a conversation of its own, listed in the group and referenced in the main chat by its card.
+- A message of the main chat or of a session can have a thread: the conversation under it. Comments under channel posts are threads.
+- Claude Code's sessions are sessions of the Claude Control group. Claude opens a thread for a task it takes on, and the task's posts go there.
+- The core, the apps and the plugin ship this together, after one release that receives and shows it without switches in the apps.
 
 ## 2. What users see
 
-### 2.1 In the apps
+### 2.1 Words and structure
 
-Stage 1, in a group with threads on, which only the plugin or the API turns on:
 ```
-place                        before                          after
-under a message with replies -                               1 reply
-                                                             5 replies
-                                                             5 replies, 2 new
-                                                             @ 5 replies, 2 new     (a reply to you or a mention waits after your last message)
-tap on that line             -                               the thread opens
-thread view                  -                               title: Thread, subtitle: the group's name
-                                                             first item: the message the thread is under
-                                                             then the replies, oldest first, and the composer
-item menu of a message       Reply, Forward, ...             Reply, Reply in thread, Forward, ...
-reply inside a thread        -                               quotes the first message or a reply of this thread
-chat list                    unread: main chat               unread: main chat and threads
-                             preview: last message           preview: last message of the main chat
-main chat scroll button      unread of the chat              unread of the main chat
-notifications                as now                          a reply in a thread notifies as a message of the group
-group preferences            -                               no row for threads
+word       what it is                                        who makes it
+group      members, a main chat, sessions                    a person, or the plugin for Claude Control
+session    a conversation inside a group: a topic             an admin or owner, or Claude for each Claude Code session
+           its card in the main chat references it
+thread     the conversation under one message of the main     anyone who sends; in Claude Control, Claude decides
+           chat or of a session, one level deep
+comments   threads under the posts of a channel              subscribers
 ```
 
-Stage 2 adds:
+```mermaid
+flowchart TD
+  G[Claude Control group] --> MC[main chat: session cards, joins, notices]
+  G --> S3[session 3: simplex-chat]
+  G --> S7[session 7: website]
+  S3 --> T1[thread: Fix the flaky test]
+  S3 --> T2[thread: Review PR 8170]
+  S7 --> T3[thread: Pricing page copy]
+  CH[channel] --> P1[post]
+  P1 --> C1[comments: a thread]
 ```
-group preferences            -                               Threads
-                                                               on:  Members can reply in threads.
-                                                               off: Threads are prohibited.
-composer of a thread,        -                               disabled, with "Threads are prohibited."
-threads off
-new group                    threads off                     threads on
+
+### 2.2 Scenario 1: Claude Code sessions as sessions of Claude Control
+
+Today each Claude Code session has a group of its own, and each owner gets an invitation to it in the Main group. After this plan:
+
+```
+moment                          today                                       after
+Claude Code starts session 7    a group "7 · website", an invitation for    a session "7 · website" in Claude Control, its card
+                                each owner, joined with a tap               in the main chat; every member sees it at once
+the owner opens it              the group, from the chat list               the card, or the group's list of sessions
+Claude works                    prompts, steps, cards, answers in the       the same posts in the session
+                                session's group
+the session's state             one list message in the Main group          the card: 🟠 7 · website: working
+                                (session list plan)
+model, effort, usage            the group's description, a line per turn    the card's second line; the line per turn in the session
+Claude Code ends                the group stays                             the card: ⚪ 7 · website: not running
+claude --resume                 the same group                              the same session
+chat list                       one chat per session                        one chat, Claude Control, with the unread of its sessions
 ```
 
-Channel comments, in the same release, are shown as v2 describes them (`comments N` under a post, a comments view). Q5 asks whether their stages follow the stages of threads.
+The card of a session, edited by Claude, in the state lines of the session list plan:
+```
+🟠 7 · website: working
+opus · effort high
+```
 
-With the message-priority pull request, the `@` sign becomes the bell when the waiting reply is important, as in the chat list (`plans/2026-10-13-message-priority.md`, section 1).
+The group's list of sessions, in its info and above its main chat:
+```
+🔵 6 · docs: waiting for you, 1 approval       2 new
+🟠 7 · website: working                        5 new
+🟢 3 · simplex-chat: idle
+⚪ 2 · openclaw: not running
+```
 
-Members with older apps see each reply in a thread as an ordinary message of the main chat, without the message it is under.
+```mermaid
+sequenceDiagram
+  participant CC as Claude Code
+  participant H as hub
+  participant G as Claude Control
+  participant O as owner's app
+  CC->>H: session 7 starts
+  H->>G: new session 7 · website, open to all members
+  G->>O: the card in the main chat, the session in the list
+  O->>G: opens the session, writes a prompt
+  G->>H: the prompt, in session 7
+  H->>CC: the prompt
+  CC->>H: steps, the answer
+  H->>G: posts in session 7
+  H->>G: the card edited: idle
+```
 
-### 2.2 In a session group of the plugin
+### 2.3 Scenario 2: Claude's tasks as threads
 
-Threads are Claude's tasks. Alice writes in the main chat: "Fix the flaky test in ChatRelays and update the docs." Claude judges it a task of several steps, and opens its thread under her message. Its step lines and its answer appear in that thread. In the main chat, her message shows `@ 7 replies, 7 new`. Alice opens the thread and replies there; her reply reaches Claude in that thread, and Claude's next answer stays there.
+Threads are Claude's tasks. Alice writes in session 3: "Fix the flaky test in ChatRelays and update the docs." Claude judges it a task of several steps and opens its thread under her message. Its step lines and its answer appear in that thread. In the session, her message shows `@ 7 replies, 7 new`. Alice replies in the thread, and Claude's next answer stays there.
 
 Where Claude's posts go: to the place of the last event below, during a turn.
 ```
 event                                          place of the posts that follow
-a turn starts with a member's message          its thread, or the main chat
-a turn starts without one                      the main chat: a terminal prompt, a prompt of Claude Code
+a turn starts with a member's message          its thread, or the session outside threads
+a turn starts without one                      the session outside threads: a terminal prompt, a prompt of Claude Code
 Claude calls thread                            the thread it names, a new thread under a message, a new task's
-                                               thread, or the main chat
-a member's message reaches the running turn    its thread, or the main chat
+                                               thread, or the session outside threads
+a member's message reaches the running turn    its thread, or the session outside threads
 ```
 
-The posts that follow these events: step lines, notes of prompts added to a running turn, tool-use and action cards, `reply` posts and the final answer. The note of a prompt of Claude Code that starts a turn is posted before Claude acts, so it is in the main chat. `User`'s terminal prompts, rights posts and replies to `/` commands outside threads are in the main chat. A reply to a `/` command sent in a thread is in that thread.
-
-The answer quotes the prompt of its turn (0.3.0 decision 39) when that prompt is in the answer's place: the first message or a reply of the thread, or a message of the main chat for the main chat. Otherwise the answer has no quote.
+The posts that follow these events: Claude's texts and live answer (`ep/mcp-live-answers`), step lines, notes, tool-use and action cards, `reply` posts, the end line of the turn (`ep/mcp-session-usage`). The answer quotes the prompt of its turn (0.3.0 decision 39) when that prompt is in the answer's place.
 
 A member's message in a thread reaches Claude with the thread's first message as its reply when it quotes no other:
 ```
@@ -111,188 +136,243 @@ Channel instructions, after `ep/mcp-replies`; its last sentence is replaced:
 
 Before: `... Your final answer of each turn reaches them in that group; reply sends them a file.`
 
-After: `... Threads of the group are tasks. For a task that needs more than a short answer, call thread: under the member's prompt, or with a title when no prompt in the group starts it. Your step lines, cards, reply posts and final answer go to the place of the last message you received, or to the place thread chose after it. A message in a thread has thread, the ID of the thread's first message, and is passed as a reply to that message when it replies to no other.`
+After: `... Threads of this session are tasks. For a task that needs more than a short answer, call thread: under the member's prompt, or with a title when no prompt starts it. Your texts, steps, cards, reply posts and final answer go to the place of the last message you received, or to the place thread chose after it. A message in a thread has thread, the ID of the thread's first message, and is passed as a reply to that message when it replies to no other.`
 
 New tool `thread`:
 ```
-input    item      Item ID of a message of the group: a member's prompt, a thread's first message, or a post of yours.
+input    item      Item ID of a message of this session: a member's prompt, a thread's first message, or a post of yours.
                    A message inside a thread means its thread.
-         title     Title of a new task, up to 200 characters: posted as a new message of the group, and its thread opened.
-                   Without item and title: the group outside threads.
+         title     Title of a new task, up to 200 characters: posted as a new message of the session, and its thread opened.
+                   Without item and title: the session outside threads.
 output   thread    Item ID of the thread's first message; absent outside threads.
 errors   give item or title, not both.
-         item: the group of this session has no message N.
+         item: this session has no message N.
          item: message N can't have a thread.
-         Threads are off in the group of this session.
+         Threads are off in this session's group.
 ```
-Its description: `Chooses where your posts of this turn go: the thread of a task, or the group outside threads. Your step lines, cards, reply posts and final answer go there, until you call thread again or a member's message reaches you.`
+Its description: `Chooses where your posts of this turn go: the thread of a task, or the session outside threads. Your texts, steps, cards, reply posts and final answer go there, until you call thread again or a member's message reaches you.`
 
-The `reply` tool:
-```
-input    file      Path of the file on this computer. Optional now.
-         text      Caption of the file, or the text of a message without a file.
-output   item      Item ID of the sent message.
-errors   reply: give file, text or both.
-         text: too long for a message; shorten it.
-```
-Its description: `Sends a file, with text as its caption, or a text message, to the place of your posts of this turn (see thread). Your final answer of each turn reaches them without this tool.` The second line of 0.3.0 about the preference for files and media stays. A turn that answers two tasks posts the first answer with `reply`, calls `thread`, and ends with the second.
+The `reply` tool takes `file`, `text` or both, and posts to that place: `Sends a file, with text as its caption, or a text message, to the place of your posts of this turn (see thread). Your final answer of each turn reaches them without this tool.` A turn that answers two tasks posts the first answer with `reply`, calls `thread`, and ends with the second.
 
 ```mermaid
 sequenceDiagram
   participant A as Alice, app
   participant H as hub
   participant C as Claude Code
-  A->>H: Fix the flaky test and update the docs, item 52
-  H->>C: prompt 52, main chat
-  C->>H: turn record: prompt 52, main chat
+  A->>H: Fix the flaky test and update the docs, item 52, session 3
+  H->>C: prompt 52
+  C->>H: turn record: prompt 52, session 3
   C->>H: thread, item 52
-  H->>H: posts of this turn go to thread 52
   C->>H: tool hooks: steps
   H->>A: step lines in thread 52
   C->>H: Stop hook: the answer
   H->>A: the answer in thread 52, quoting 52
   A->>H: Also run the e2e tests, in thread 52
   H->>C: prompt 61 with thread 52
-  C->>H: turn record: prompt 61, thread 52
   C->>H: Stop hook: the answer
   H->>A: the answer in thread 52, quoting 61
 ```
 
-A background task of thread 52 ends later:
-```mermaid
-sequenceDiagram
-  participant A as Alice, app
-  participant H as hub
-  participant C as Claude Code
-  C->>H: a task notification starts a turn
-  H->>A: its note in the main chat
-  C->>H: thread, item 52
-  C->>H: Stop hook: the answer
-  H->>A: the answer in thread 52, without a quote
+A background task of thread 52 ends later. Its note is posted when the turn starts, before Claude acts, so it is in the session outside threads; Claude calls `thread` with item 52, and its answer goes to thread 52 without a quote.
+
+### 2.4 Scenario 3: a person in one session only
+
+Today an admin of a session's group adds a person to that group alone (0.3.0 trust model, rule 7). Q7 decides how this works when sessions are topics. With Q7 A: an admin adds a person to one session in the session's info; the person joins Claude Control as a member of that session only. That member sees the session's card and the session, and nothing else of the group.
+
+### 2.5 Scenario 4: Claude in other chats
+
+Claude reads and writes threads in groups and channels it has joined with `connect`:
+- A message in a thread has `thread`, the item ID of the thread's first message, in the results of `receive`, `send` and `connect`. A comment under a channel post has the post's item ID.
+- `send` takes `thread`, to post in that thread. A `reply_to` of a message inside a thread posts in its thread.
+- A message in a session of another group has `session`, the session's title, and the chat reference of the session, such as `#15(_session:4)`, which `send` takes.
+
+Business chats are groups, so they get sessions with this plan. Q6 asks whether sessions also come to direct chats, for agents that serve people in them.
+
+### 2.6 In the apps
+
+Stage 1, the release after the merge. Threads, comments and sessions appear where the plugin, a bot or the API turned them on:
 ```
+place                          after
+under a message with replies   1 reply / 5 replies / 5 replies, 2 new / @ 5 replies, 2 new
+                               (@ while a reply to you or a mention waits after your last message)
+tap on that line               the thread opens: the first message on top, then the replies, and the composer
+item menu of a message         Reply in thread, after Reply, while threads are on
+session card                   its title and state lines; a tap opens the session
+group info                     Sessions: each session with its card's first line and its new messages
+session view                   title: the session's title, subtitle: the group's name; a thread opens from it
+chat list                      unread of the main chat, the sessions and the threads
+main chat scroll button        unread of the main chat
+channel post                   comments N, as v2 describes; the comments view
+group preferences              no row for threads, sessions or comments
+```
+
+Stage 2, a later release, adds the preference rows and the actions that create:
+```
+group preferences              Threads: "Members can reply in threads." / "Threads are prohibited."
+                               Sessions: "Admins can create sessions." / "Sessions are prohibited." (its role decides who)
+channel preferences            Comments, as v2
+group info                     New session
+new group, new channel         threads on; comments on
+```
+
+With the message-priority pull request, the `@` sign becomes the bell when the waiting reply is important (`plans/2026-10-13-message-priority.md`, section 1).
+
+Members with older apps see replies in threads as messages of the main chat, without the message they are under. They receive no messages of sessions (decision 30); the card of a session shows them its title as a message.
 
 ## 3. Questions for the user
 
 Answered on 2026-11-13:
-- Q1 B: threads ship together with channel comments, one core effort. Section 10 lists its parts; the user assigns them (Q4).
-- Q2 A, staged: stage 1 receives and shows threads, with no preference in the apps; the plugin turns threads on in session groups. Stage 2 adds the preference and turns threads on in new groups.
-- Q3, replaced: Claude decides when a task gets a thread (section 2.2, decisions 41-49).
+- Q1 B: threads ship together with channel comments.
+- Q2 A, staged: stage 1 receives and shows, without switches in the apps; the plugin turns its features on. Stage 2 adds the switches and the defaults. Decisions 41 and 42 apply it to sessions and comments too.
+- Q3: Claude decides when a task gets a thread; members are not responsible for threads.
+- Q4: all work is done by this session's agents; threads and sessions are planned and executed together, vertically, from how agents use them, after the release of the current items.
+- Q5 A: comments follow the stages of threads.
 
-Q4. Who builds each part of section 10?
-- A, recommended: the core team owns the parts it started: the branch's update to master (a), the completion of channel comments (b) and iOS (d). This item's agents build threads in the core (c), the Android and desktop app (e) and the plugin (f). spaced4ndy reviews (c); (c) waits for (a).
-- B: the core team builds every part of the core and apps; this item's agents build the plugin (f) after the release.
-- C: this item's agents build every part, and the core team reviews.
+Q6. Do sessions also come to direct chats in this plan?
+- A, recommended: yes. A person talking to an agent, as with the vendors of the agent catalogue, starts a new session for each conversation, and the agent keeps the context per session; Claude gets the same with its peers. Business chats are groups, so they get sessions from the group design, and their preference is already on (`defaultBusinessGroupPrefs`). Direct chats need `scope` in direct messages, a session table per contact and the contact's preference `SessionsPreference`. Cost: about 300 more lines of Haskell, 200 per app platform, and `session` in the plugin's tools for contacts.
+- B: groups and business chats now, direct chats in a later plan. A direct chat keeps one conversation.
 
-Q5. Do channel comments follow the stages of threads?
-- A, recommended: yes. In stage 1, apps show comments of channels whose owners turned them on through the API, and channel owners get no switch; stage 2 adds the switch, and new channels get comments on. One rule for both: no new content kind appears before most apps show it. Cost: v2 decision 7, "comments on at channel creation", moves to stage 2.
-- B: no. New channels get comments on at creation in stage 1, as v2 decision 7 states, and channel owners get the switch. Subscribers with older apps see comments as posts of the channel.
+Q7. Can a person be a member of one session only?
+- A, recommended: yes. A member of a session only receives the session's card and messages, and no message of the main chat or of other sessions; the core delivers to them as it delivers to a member pending approval, who receives only the support scope (`getGroupRecipients`). The plugin keeps the people an admin adds to one session today (0.3.0 trust model, rule 7). Cost: a member flag, the delivery rule, the history rule, and "Add to session" in the apps.
+- B: sessions are open to every member of the group. A person who should see one session only gets a group of their own: that Claude Code session stays a group, as in 0.3.0.
+- C: sessions open to a subset of members, without members of one session only. Outsiders join the whole group.
+
+Q8. Do the session cards replace the session list message of the approved session list plan?
+- A, recommended: yes. Each card shows its session's state lines, edited by Claude, and the apps list the sessions with their unread in the group's info. The list message would repeat the cards. The list message stays for sessions that keep their own group, and while any member's app has no sessions.
+- B: both. The list message stays in the main chat, and the cards show only the titles.
 
 ## 4. Decisions
 
 Facts:
-1. The wire field exists. `MsgContainer` has `parent :: Maybe MsgRef` ([Protocol.hs:704](../src/Simplex/Chat/Protocol.hs#L704)), and its JSON is derived, so the field is optional on the wire ([:926](../src/Simplex/Chat/Protocol.hs#L926)). `MsgRef` is `{msgId?, sentAt, sent, memberId?}` ([:236-241](../src/Simplex/Chat/Protocol.hs#L236-L241)).
-2. Every released app shows a message with `parent` as a message of the main chat. Master ignores the field: `newGroupContentMessage` does not read it ([Subscriber.hs:2240](../src/Simplex/Chat/Library/Subscriber.hs#L2240)). Versions before #6808 (`ac6f8b76a`, 2026-04-15) parse it as `MCComment` and use its content as of any message (`ac6f8b76a^:src/Simplex/Chat/Protocol.hs:636-645`, `:838-841`). They parse `quote` first, so a message with both keeps only the quote there.
-3. The channel comments branch: comments in channels only (`useRelays'`); the parent in `MsgContainer`, not in `MsgScope`; the migration `M20260516_channel_comments` adds `parent_chat_item_id` with `ON DELETE CASCADE`, `comments_total` and `comments_disabled`, and two indexes; `parentChatItemId`, `commentsTotal` and `commentsDisabled` in `CIMeta`; `/_send #N parent=ID` inside `SendRef`, and `/_get chat #N parent=ID`; a flat thread; a missing parent drops the message; comments are not unread; the role `GRCommenter`; `commentsVersion`; iOS work in commits up to `fad148440` (2026-05-25); Android and desktop deferred (v2, sections 1 and 9). Its base `92e9640e4` is 799 commits behind master; 8 of the core files it changes differ on master by 6,405 added and 2,554 removed lines since then.
-4. The preference exists and is hidden. `GFComments` and `CommentsGroupPreference {enable, duration}` ([Types/Preferences.hs:217](../src/Simplex/Chat/Types/Preferences.hs#L217), [:769-774](../src/Simplex/Chat/Types/Preferences.hs#L769-L774)), off by default ([:583](../src/Simplex/Chat/Types/Preferences.hs#L583)), outside both feature lists ([:278-281](../src/Simplex/Chat/Types/Preferences.hs#L278-L281), [:313](../src/Simplex/Chat/Types/Preferences.hs#L313), [:334](../src/Simplex/Chat/Types/Preferences.hs#L334)). The lists decide the feature items of a group and of its preference changes (`groupFeatures`, [Internal.hs:3326-3346](../src/Simplex/Chat/Library/Internal.hs#L3326-L3346)), the CLI views ([View.hs:2141](../src/Simplex/Chat/View.hs#L2141), [:2173](../src/Simplex/Chat/View.hs#L2173)) and the CLI's `/set` ([Commands.hs:4301-4308](../src/Simplex/Chat/Library/Commands.hs#L4301-L4308)). `/_group_profile` sets any preference. The apps' `GroupFeature` has no such case ([ChatTypes.swift:1379-1390](../apps/ios/SimpleXChat/ChatTypes.swift#L1379-L1390), [SimpleXAPI.kt:6184-6195](../apps/multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt#L6184-L6195)); their texts depend on the group type ([ChatTypes.swift:1570-1575](../apps/ios/SimpleXChat/ChatTypes.swift#L1570-L1575)). The TypeScript `GroupPreferences` has `comments` ([types.ts:3221](../packages/simplex-chat-client/types/typescript/src/types.ts#L3221)).
-5. The main chat's queries filter `group_scope_tag IS NULL` at [Store/Messages.hs:914](../src/Simplex/Chat/Store/Messages.hs#L914) (last item), [:927](../src/Simplex/Chat/Store/Messages.hs#L927) (unread counts of the chat list), [:1231](../src/Simplex/Chat/Store/Messages.hs#L1231) (content types), [:1542](../src/Simplex/Chat/Store/Messages.hs#L1542) (item pages), [:1764](../src/Simplex/Chat/Store/Messages.hs#L1764) (first unread, last viewed, unread counts of the chat), [:2106](../src/Simplex/Chat/Store/Messages.hs#L2106) (mark the chat read) and [:2163](../src/Simplex/Chat/Store/Messages.hs#L2163) (unread timed items).
-6. A quote's `MsgRef` in a group is built by `quoteData`: the item's shared ID and time, `sent`, and the author's member ID, the user's own membership for a sent item, none for an item sent as the channel ([Internal.hs:221-241](../src/Simplex/Chat/Library/Internal.hs#L221-L241)). `getGroupMemberCIBySharedMsgId` finds an item by the author's member ID and shared ID, own items included ([Store/Messages.hs:3076-3091](../src/Simplex/Chat/Store/Messages.hs#L3076-L3091)).
-7. Reactions and mentions are attached to each loaded group item in `groupCIWithReactions` ([Store/Messages.hs:2772-2780](../src/Simplex/Chat/Store/Messages.hs#L2772-L2780)).
-8. History for a new member takes the last 100 items with `include_in_history` ([Internal.hs:1423](../src/Simplex/Chat/Library/Internal.hs#L1423), [Store/Messages.hs:3747-3770](../src/Simplex/Chat/Store/Messages.hs#L3747-L3770)), oldest first. A signed item is forwarded as its stored bytes; an unsigned one is encoded again by `prepareGroupMsg` with its quote ([Internal.hs:1550-1558](../src/Simplex/Chat/Library/Internal.hs#L1550-L1558)).
-9. `userMention` is true for a message that mentions the user or replies to the user's message ([Messages.hs:522](../src/Simplex/Chat/Messages.hs#L522)). The approved priority plan makes an important item an attention item too (its section 5).
-10. The API docs describe `SendRef` as `ChatRef` ([bots/src/API/TypeInfo.hs:188](../bots/src/API/TypeInfo.hs#L188)), so the generated TypeScript sends `ChatRef.cmdString(sendRef)` ([commands.ts:105-118](../packages/simplex-chat-client/types/typescript/src/commands.ts#L105-L118)); master parses `/_send` and `/_get chat` at [Commands.hs:6755](../src/Simplex/Chat/Library/Commands.hs#L6755), [:6759](../src/Simplex/Chat/Library/Commands.hs#L6759), [:7258-7266](../src/Simplex/Chat/Library/Commands.hs#L7258-L7266).
-11. The Node.js library's `apiSendTextReply` sends into the replied item's chat with its quote ([api.ts:479-481](../packages/simplex-chat-nodejs/src/api.ts#L479-L481)); `apiGetChat` takes any pagination, `around` included ([api.ts:956-961](../packages/simplex-chat-nodejs/src/api.ts#L956-L961)). An `around` page holds the item itself ([Store/Messages.hs:1687-1695](../src/Simplex/Chat/Store/Messages.hs#L1687-L1695)).
-12. Both apps open member support chats in a secondary context: iOS `SecondaryItemsModelFilter` and `getCIItemsModel` ([ChatModel.swift:58-60](../apps/ios/Shared/Model/ChatModel.swift#L58-L60), [:750-772](../apps/ios/Shared/Model/ChatModel.swift#L750-L772)), `SecondaryChatView` ([SecondaryChatView.swift:12](../apps/ios/Shared/Views/Chat/Group/SecondaryChatView.swift#L12)); Kotlin `SecondaryContextFilter` and `ChatsContext` ([ChatModel.kt:3914-3917](../apps/multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/ChatModel.kt#L3914-L3917), [:425](../apps/multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/ChatModel.kt#L425)), `MemberSupportChatView.kt:160`. Reactions are drawn under the item ([ChatView.swift:2282](../apps/ios/Shared/Views/Chat/ChatView.swift#L2282), [ChatItemView.kt:147](../apps/multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/chat/item/ChatItemView.kt#L147)); "Reply" is in the item menu ([ChatView.swift:2529](../apps/ios/Shared/Views/Chat/ChatView.swift#L2529), [ChatItemView.kt:414](../apps/multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/chat/item/ChatItemView.kt#L414)).
-13. The plugin takes every group item without a scope as a message of the main chat ([control.ts:652-654](../packages/simplex-chat-mcp/src/control.ts#L652-L654), [hub.ts:153-160](../packages/simplex-chat-mcp/src/hub.ts#L153-L160)). It posts with `apiSendMessages` ([hub.ts:290-296](../packages/simplex-chat-mcp/src/hub.ts#L290-L296), [control.ts:516-519](../packages/simplex-chat-mcp/src/control.ts#L516-L519), [user.ts:31](../packages/simplex-chat-mcp/src/user.ts#L31)), answers commands with `apiSendTextReply` ([control.ts:224](../packages/simplex-chat-mcp/src/control.ts#L224)), and keeps turn records with the hook's start time and the matched prompt's item ([hub.ts:180-186](../packages/simplex-chat-mcp/src/hub.ts#L180-L186), [:267-276](../packages/simplex-chat-mcp/src/hub.ts#L267-L276)). `reply` sends files only ([tools.ts:462-480](../packages/simplex-chat-mcp/src/tools.ts#L462-L480), [:713-724](../packages/simplex-chat-mcp/src/tools.ts#L713-L724)).
-14. A channel meta key consists of letters, digits and `_` (decision 2 of `ep/mcp-replies`), so `thread` reaches Claude.
-15. The plugin's end-to-end tests run the core libraries pinned in `release.ts`, `core-7.1.3.0` ([scripts/ci/README.md:140-145](../scripts/ci/README.md#L140-L145), [release.ts:3](../packages/simplex-chat-nodejs/src/release.ts#L3)).
-16. Claude Code adds a prompt that arrives during a turn to that turn (fact 3 of `ep/mcp-harness-notes`), and such a prompt adds a turn record when it matches a pushed prompt (decision 18 there).
+1. The wire field of threads exists. `MsgContainer` in `Protocol.hs` has `parent :: Maybe MsgRef`, and its JSON is derived, so the field is optional on the wire. `MsgRef` is `{msgId?, sentAt, sent, memberId?}`.
+2. Every released app shows a message with `parent` as a message of the main chat. `newGroupContentMessage` in `Library/Subscriber.hs` does not read `parent`. Versions before #6808 (`ac6f8b76a`, 2026-04-15) parse it as `MCComment` and use its content as of any message; they parse `quote` first, so a message with both keeps only the quote there.
+3. The channel comments branch: comments in channels only (`useRelays'`); the parent in `MsgContainer`, not in `MsgScope`; the migration `M20260516_channel_comments` adds `parent_chat_item_id` with `ON DELETE CASCADE`, `comments_total` and `comments_disabled`, and two indexes; `parentChatItemId`, `commentsTotal` and `commentsDisabled` in `CIMeta`; `/_send #N parent=ID` inside `SendRef`, and `/_get chat #N parent=ID`; a flat thread; a missing parent drops the message; comments are not unread; the role `GRCommenter`; `commentsVersion`; iOS work up to `fad148440`; Android and desktop deferred (v2, sections 1 and 9). Its base `92e9640e4` is 799 commits behind master `97bbbd9ac`; 8 of the core files it changes differ on master by 6,405 added and 2,554 removed lines since then.
+4. The preferences exist and are hidden. `Types/Preferences.hs`: `CommentsGroupPreference {enable, duration}`, `SessionsGroupPreference {enable, role}` and the contact's `SessionsPreference {allow}`, all off by default (`defaultGroupPrefs`), except sessions in business chats (`defaultBusinessGroupPrefs`). `allGroupFeatures`, `groupFeatureInChannel` and `groupFeatureInRegularGroup` leave comments and sessions out. These lists decide the feature items of a group and of its preference changes (`groupFeatures`, `createGroupFeatureItems_` and `createGroupFeatureChangedItems` in `Library/Internal.hs`), the CLI views (`View.hs`) and the CLI's `/set` (`updateGroupProfileByName_` in `Library/Commands.hs`). `/_group_profile` sets any preference. The apps' `GroupFeature` (`ChatTypes.swift`, `SimpleXAPI.kt`) has neither case. No RFC defines sessions; #5360 reserved the preference.
+5. Group chat scopes hold member support only: `GroupChatScope` and `GroupChatScopeInfo` in `Messages.hs`, `MsgScope = MSMember` in `Protocol.hs`, parsed by its tag. A scope decides the recipients (`getGroupRecipients` in `Library/Internal.hs`, which filters them by a compatible chat version), the delivery job (`infoToDeliveryContext` in `Delivery.hs`), the receiver's scope (`mkGetMessageChatScope`), the stored scope (`createNewChatItem_` in `Store/Messages.hs`), the chat reference (`gcScopeP` in `chatCommandP`, `ChatRef.cmdString` in TypeScript) and the CLI's `(support)` (`groupScopeInfoStr` in `View.hs`). A member pending approval receives only the support scope.
+6. The main chat's queries filter `group_scope_tag IS NULL` in `Store/Messages.hs`: `findGroupChatPreviews_` (the last item and the unread counts of the chat list), `getChatContentTypes`, `getChatItemIDs` (item pages), `queryUnreadGroupItems` (the first unread, last viewed and unread counts of a chat), `updateGroupChatItemsRead` and `getGroupUnreadTimedItems`.
+7. A quote's `MsgRef` in a group is built by `quoteData` in `prepareGroupMsg` (`Library/Internal.hs`): the item's shared ID and time, `sent`, and the author's member ID, the user's own membership for a sent item. `getGroupMemberCIBySharedMsgId` (`Store/Messages.hs`) finds an item by its author's member ID and its shared ID, own items included.
+8. Reactions and mentions are attached to each loaded group item in `groupCIWithReactions`.
+9. History for a new member is the last 100 items with `include_in_history`, of the main chat only (`getGroupHistoryItems`, `sendHistory`); a signed item is forwarded as its stored bytes, an unsigned one is encoded again by `prepareGroupMsg`.
+10. `CIMeta.userMention` is true for a message that mentions the user or replies to the user's message; the approved priority plan adds important messages (its section 5).
+11. The API docs describe `SendRef` as `ChatRef` (`bots/src/API/TypeInfo.hs`), so the generated `APISendMessages.cmdString` sends `ChatRef.cmdString(sendRef)`; a scope in `ChatRef` reaches every command that takes a chat. The Node.js library's `apiSendMessages` takes a `ChatRef` with its scope; `apiSendTextReply` replies in the replied item's chat; `apiGetChat` takes any pagination, `around` included, and an `around` page holds the item itself (`getGroupChatAround'`).
+12. Both apps open member support chats in a secondary context by the scope: iOS `SecondaryItemsModelFilter.groupChatScopeContext`, `getCIItemsModel` and `SecondaryChatView`; Kotlin `SecondaryContextFilter.GroupChatScopeContext` and `ChatsContext`. They list support chats in `MemberSupportView` (iOS, Kotlin).
+13. The plugin: one group per session (`Hub.createSessionGroup`, `Hub.session`), owners invited at its start (`Hub.session`, `Hub.inviteOwner`), `/join N` (`Hub.join`), rights posts (`Session.announceRights`); every group item without a scope is a message of the main chat (`isGroupMessage` in `control.ts`); posts by `apiSendMessages` (`Session.post`, `Control.postMessage`); command replies by `apiSendTextReply` (`Control.onMessage`); turn records with the hook's start time and the matched prompt (`Session.turn`, `Session.turnQuote`); `reply` sends files only (`replyTool`, `AgentTools.reply`). Per-session data is in the group's custom data (`SessionGroupData`).
+14. Claude Code adds a prompt that arrives during a turn to that turn (`ep/mcp-harness-notes`, fact 3); such a prompt adds a turn record when it matches a pushed prompt (decision 18 there). A channel meta key consists of letters, digits and `_` (`ep/mcp-replies`, decision 2).
+15. The plugin's end-to-end tests run the core libraries pinned in `release.ts` of the Node.js library.
 
-Choices, the core, in `f/channel-comments`:
+Choices, the model:
 
-17. Q1 B. Every core and app pull request of this effort targets `f/channel-comments`; the branch merges into master by a merge commit once both apps show threads and comments. Threads in groups take the branch's wire field, column, migration, `CIMeta` fields and commands (fact 3).
-18. A thread is the conversation under one message of a group's main chat, its first message. In a regular group, a first message is a content message of the main chat, sent or received, with a shared ID, not deleted, not a report and not itself in a thread. A thread has one level. Channels keep the branch's rule: a channel post.
-19. A message in a thread is `x.msg.new` with `parent`, the `MsgRef` of the first message built by `quoteData`'s rules (fact 6). Updates, deletions and reactions are unchanged: they address an item by its shared ID.
-20. A receiver in a regular group finds the first message by `getGroupMemberCIBySharedMsgId` with `parent.memberId` and `parent.msgId`, and stores the item with `parent_chat_item_id` when that message is a first message by decision 18. When the first message is absent, deleted or outside the history a new member received, the item is stored in the main chat, as every released app stores it (fact 2), so a reply is never lost. Channels keep the branch's rule: a missing parent drops the message, against a relay that forges parents (v2, section 7.2).
-21. The preference `comments` governs threads in regular groups. A received message in a thread while it is off is stored as `CIRcvGroupFeatureRejected GFComments` by `prohibitedGroupContent`; a send is refused with `feature not allowed Comments`. Sending in a thread needs the role `GRCommenter` or above, the branch's `memberCanComment`; in a regular group, every member who sends in the main chat has it.
-22. Stage 1: `GFComments` stays outside the regular group list (fact 4), so turning threads on creates no feature item, and the CLI's `/set` refuses it; `/_group_profile` sets it, as the plugin and the tests do. `APINewGroup` leaves new groups without threads.
-23. Stage 2, a later release: `groupFeatureInRegularGroup GFComments = True`, `/set threads #<group> on|off`, and `APINewGroup` turns `comments` on when the new profile lacks it (Q2 A). The default of a group without the preference stays off.
-24. The main chat's item pages, last item, content types, first unread item and last viewed item exclude thread items, as in the branch (fact 5: `:914`, `:1231`, `:1542`, and `:1764` for the first unread and last viewed items). In regular groups the unread counts, "mark the chat read" and unread timed items keep them (`:927`, `:1764` for the counts, `:2106`, `:2163`), so a new reply in a thread shows in the chat list. Channels keep the branch's rule: comments are not unread.
-25. `ChatStats.unreadInThreads`, the unread items of threads, a part of `unreadCount`, 0 when absent from JSON.
-26. The summary of a first message: `replies` is the branch's `commentsTotal`, kept by its inserts and deletions. In regular groups, `ChatItem.thread` adds `{unread, unreadMentions, awaitsReply}`, read by `groupCIWithReactions` with one grouped query over the item's thread, as reactions are read (fact 7). `awaitsReply` is true when a received attention item (fact 9) of the thread is newer than the user's last sent item in it.
-27. API: `/_get chat #<groupId> parent=<itemId> <pagination>`, as in the branch. `/_send #<groupId> parent=<itemId> json [...]` is a field of `APISendMessages`, `parentItemId`, outside `SendRef`, so `SendRef` stays `ChatRef` in the API docs (fact 10). The branch puts `parent` in `SendRef`; its update to master changes that. The send is refused unless the item is a first message by decision 18 and threads are on. A quote in such a send must be the first message or an item of its thread, as the branch's `quotedItemInCommentSection` checks.
-28. A send that quotes an item of a thread, without `parent`, is sent in that thread. So replies of bots, `apiSendTextReply` (fact 11) and the plugin's command replies stay in the thread without a change in their code.
-29. History: items of threads stay in history, as in the branch. `prepareGroupMsg` gets the first message's item ID and builds `parent`; `sendHistory` passes the item's `parentChatItemId`. Items are sent oldest first, so a first message within the 100 items precedes its replies (fact 8).
-30. Deleting a first message's row deletes its thread by the cascade. Every path that deletes rows of group items deletes the files of their threads' items first. A deletion that only marks the first message deleted keeps its thread.
-31. Events keep their shape: `newChatItems` of a reply in a thread has the group's chat info and the item with `parentChatItemId`. Apps update the first message's summary in memory (decision 35).
-32. The CLI prints a reply in a thread as `#team (thread) alice> TEXT`, as a member support message is printed with `(support)` ([View.hs:3159-3163](../src/Simplex/Chat/View.hs#L3159-L3163)).
-33. Docs and types: `parent` of `x.msg.new` in `docs/protocol/simplex-chat.md` and its schema; the bots API docs and the TypeScript and Python types, generated by `tests/APIDocs.hs` (the priority plan, section 11).
+16. A session is a scope of a group: a conversation with its own messages, members and unread counts, referenced by its card in the main chat. A thread is the conversation under one message, of the main chat or of a session, one level deep. A channel's comments are the threads of its posts. Scope and thread are independent: a message has at most one of each.
+17. Threads take the comments design of `f/channel-comments`: the wire field `parent`, the column `parent_chat_item_id`, the `CIMeta` fields and `/_get chat #N parent=ID` (fact 3).
+18. Sessions are a new scope kind, next to member support, so every path that takes a scope takes them (fact 5). They are in regular groups and business chats; channels have comments.
 
-Choices, the apps, in `f/channel-comments`:
+Choices, threads in the core:
 
-34. One secondary filter serves threads and comments on both platforms: iOS `SecondaryItemsModelFilter.groupChannelMsgContext` of the branch's iOS work (v2, section 5.2), and its Kotlin counterpart in `SecondaryContextFilter`. It loads `/_get chat #N parent=ID` and takes new items whose `parentChatItemId` is the root's ID (fact 12). The main context does not show items with `parentChatItemId`.
-35. On a new item of a thread, the apps add 1 to the root's `replies`. For a received item in a regular group they also add 1 to the root's `unread`, to `unreadMentions` for an attention item, and to the chat's `unreadCount` and `unreadInThreads`. `awaitsReply` becomes true for a received attention item and false for a sent item. Items read in the thread view subtract from the root's and the chat's counts.
-36. The line under a first message (section 2.1) is drawn under its reactions, in the classic and the flat layouts. A tap opens the thread view, the first message on top.
-37. "Reply in thread" is in the item menu of a first message by decision 18 while threads are on and the user's role sends. Members may start threads; nobody has to.
-38. The main chat's scroll button shows `unreadCount - unreadInThreads`; the chat list shows `unreadCount`.
-39. Stage 1 apps have no preference row; they read `comments` of the group's preferences to show the composer of a thread. Stage 2 adds the row "Threads" with the texts of section 2.1.
+19. In a regular group, a thread's first message is a content message of the main chat or of a session, sent or received, with a shared ID, not deleted, not a report and not itself in a thread. A message in a thread has the scope of its first message. Channels keep the branch's rule: a channel post.
+20. A message in a thread is `x.msg.new` with `parent`, built by `quoteData`'s rules (fact 7). Updates, deletions and reactions address an item by its shared ID, unchanged.
+21. A receiver in a regular group finds the first message by `getGroupMemberCIBySharedMsgId`. When it is absent, deleted or outside the history a new member received, the item is stored outside threads, as every released app stores it (fact 2), so nothing is lost. Channels keep the branch's rule: a missing parent drops the message, against a relay that forges parents (v2, section 7.2).
+22. Sending in a thread needs `GRCommenter` or above (the branch's `memberCanComment`); in a regular group, every member who sends has it. A quote in a thread must be its first message or one of its items (the branch's `quotedItemInCommentSection`). A send that quotes an item of a thread, without `parent`, is sent in that thread, so bots, `apiSendTextReply` and the plugin's command replies stay in it unchanged.
+23. Thread items leave the item pages, last item, content types, first unread and last viewed of their scope's view (fact 6). In regular groups they count as unread; in channels they do not, as in the branch.
+24. The summary of a first message: `replies` is the branch's `commentsTotal`; in regular groups `ChatItem.thread` adds `{unread, unreadMentions, awaitsReply}`, read in `groupCIWithReactions` by one grouped query, as reactions are read (fact 8). `awaitsReply` is true when a received attention item (fact 10) of the thread is newer than the user's last sent item in it.
+25. API: `/_get chat <chatRef> parent=<itemId> <pagination>`; `/_send <chatRef> parent=<itemId> json [...]` with `parentItemId` as a field of `APISendMessages`, outside `SendRef`, so `SendRef` stays `ChatRef` in the API docs (fact 11).
+26. History carries `parent` (`prepareGroupMsg` gets the first message's item ID; `sendHistory` passes it). Deleting a first message's row deletes its thread by the cascade, after every row-deleting path deletes the files of the thread's items.
+
+Choices, sessions in the core:
+
+27. A session is created by its card: `x.msg.new` in the main chat with the content `MCSession {text}`, from a member allowed by the `sessions` preference and its role. The first line of `text` is the session's title in lists; more lines follow it on the card. Older apps parse an unknown content type with its text (`MCUnknown`), so they show it. The session's ID on the wire is the card's shared ID. The card's author edits it (`x.msg.update`). A card deleted for everyone closes the session; its messages stay.
+28. A message of a session is `x.msg.new` with `scope: {type: "session", msgId}` (`MsgScope.MSSession`). Updates, deletions and reactions carry the scope as they carry the member support scope.
+29. Stored: a table `group_sessions` (the group, the card's shared ID and item, the title, closed, members' access, custom data), a table `group_session_members` for Q7 A, and `chat_items.group_scope_tag = 'session'` with a new column `group_scope_group_session_id`. `GroupChatScope.GCSSession {groupSessionId}`, `GroupChatScopeInfo.GCSISession {groupSession}`, chat reference `#G(_session:ID)`.
+30. One chat protocol version for comments, threads and sessions: master's next version. `getGroupRecipients` sends a session's messages to the current members, or to the session's members by Q7 A, with that version; older apps receive none (fact 5). A receiver finds the session by the card's shared ID; a message of an unknown session creates it without a title, which its card fills.
+31. Unread: `ChatStats.unreadOutsideMain`, the unread items of threads and sessions, part of `unreadCount`, 0 when absent from JSON. The chat list counts them; the main chat's scroll button shows `unreadCount - unreadOutsideMain`. `APIGetGroupSessions` returns each session with its card, last item and unread counts.
+32. API: `APICreateGroupSession {groupId, title}`, `APIUpdateGroupSession {groupId, groupSessionId, title, closed}`, `APIGetGroupSessions`, `APISetGroupSessionCustomData`; messages, pages, reads and deletions of a session take the chat reference with its scope.
+33. History for a new member covers the main chat and the sessions it can see, the last 100 items across them, cards first by time.
+34. Q7 A: a member of one session is a group member with `memberSessionOnly`; the main chat's recipients and history leave them out, as they leave out a member pending approval (fact 5); sessions they belong to include them. An admin adds them with `APIAddGroupSessionMember`, an invitation through a connection of the inviter, as `/_add` invites members today.
+35. The CLI prints a message of a session as `#team (session website) alice> TEXT`, as `(support)` (fact 5), and a message in a thread as `#team (thread) alice> TEXT`.
+
+Choices, channel comments:
+
+36. Channel comments are completed as v2 plans them (sections 4 and 6): the receive check `memberCanComment`, the scope conditions of `getGroupNavInfo_`, reactions on comments, the remaining tests.
+37. Comments follow the stages (Q5 A): v2 decision 7, "comments on at channel creation", moves to stage 2.
+
+Choices, stages:
+
+38. Stage 1 core: comments, the preference of threads in groups, and sessions stay outside the group lists (fact 4), so turning them on creates no feature item and the CLI's `/set` refuses it; `/_group_profile` turns them on. `APINewGroup` and `APINewPublicGroup` leave new groups and channels without threads, sessions and comments.
+39. Stage 1 apps: they show threads, comments and sessions, send in them, open threads from the item menu, and list sessions, wherever these are on. They have no preference rows and no action that creates a session; "Add to session" exists with Q7 A, because the plugin's sessions need it.
+40. Stage 2: the lists include comments and sessions, the CLI gets `/set threads`, `/set sessions` and `/set comments`, `APINewGroup` turns threads on and `APINewPublicGroup` comments on when the profile lacks them, and the apps add the rows and "New session".
+41. Sessions follow the stages by the user's note on Q2: no new content kind appears before most apps show it.
+42. Comments follow them by Q5 A.
+
+Choices, the apps:
+
+43. Sessions open in the existing scope context (fact 12): `groupChatScopeContext` with `GCSISession`. Threads open in a context for the first message, the branch's iOS `groupChannelMsgContext` and its Kotlin counterpart; a thread opens from the main chat, from a session and from a channel. Each context takes new items by its scope and `parentChatItemId`; the main chat shows neither.
+44. The list of sessions is a view of the group's info, as `MemberSupportView`, and a row above the main chat while the group has sessions. The session card shows its title and state lines, and its unread.
+45. The thread line under a first message is drawn under its reactions, in the classic and the flat layouts. On a new item the apps update the summary, the session's counts and `unreadOutsideMain` in memory, and reads in a context subtract from them.
+46. "Reply in thread" is in the item menu of a first message while threads are on and the user's role sends. Members may start threads; nobody has to.
 
 Choices, the plugin, on master after the release:
 
-40. Session groups are created with `comments` on ([hub.ts:484](../packages/simplex-chat-mcp/src/hub.ts#L484)). At its load, a session group whose preferences lack `comments` gets it on: an absent value was never set by an owner (0.3.0 decision 90).
-41. Threads are Claude's tasks: Claude decides when a task gets a thread, by the channel instructions of section 2.2. The hub creates no thread by itself.
-42. The tool `thread` names the place of the turn's posts (section 2.2). With `item`, the hub checks the message, takes its thread when it is inside one, and records the place; the first post there creates the thread. With `title`, the hub posts the title in the main chat as Claude and records its thread. Without either, the place is the main chat.
-43. The place of a post is the place of the newest event before it, by time: a turn record, whose place is its prompt's thread or the main chat (a record without an item means the main chat), or a `thread` call. Hook records use the hook's start time `at`; a `thread` call uses the service's receive time, both milliseconds since the epoch on one computer. Calls older than the last answer are dropped with its turn records.
-44. Posts that follow decision 43: the answer, step lines, notes of prompts added to a running turn, `reply` posts, and the cards and notes of `Control`, which gets the place from a `place()` callback in its session options, next to `approves`.
-45. The answer keeps its quote (0.3.0 decision 39) only when the quoted prompt is in its place: the first message or a reply of the thread, or a message of the main chat for the main chat. A quote in another place would move the post (decision 28), so it is dropped.
-46. `Session.onMessage` takes `thread = meta.parentChatItemId`. In a thread, a message without a quote gets the `replyTo` of the first message, read by `apiGetChat` with `around` the first message and count 0 (fact 11), in the queued delivery, so the order of prompts stays (0.3.0 decision 45). The quote line and `replyTo` are those of `ep/mcp-replies`.
-47. The prompt line gets `thread?: number`; the session server writes it as the meta key `thread` (fact 14). The protocol version stays 1: an older session server drops the field, and its Claude gets the quote line.
-48. `Session.post` and `Control.postMessage` send every part with `parentItemId`: the Node.js library's `apiSendMessages` gets an optional `parentItemId`. A thread post refused because threads were turned off during the turn is posted in the main chat without its quote.
-49. `reply` takes `file`, `text` or both, and posts to the place of decision 43. A text without a file must fit one message, measured by `fitsMessage`. It returns `{item}`.
-50. `User`'s prompts, rights posts, the session's start and the Main group are unchanged: the main chat.
+47. Claude Control gets `sessions` on, with the role owner, and `comments` on. A new Claude Code session is a session of Claude Control (`APICreateGroupSession`, title `N · NAME`). The plugin creates a session when every human member's app has the version of decision 30; otherwise a group, as 0.3.0, and Claude posts once in the main chat: `NAME's app shows no sessions; update SimpleX to see them.`
+48. A session that already has a group, by `session.json`, keeps it, also after `claude --resume`. The plugin moves no existing group.
+49. The hub binds a `Session` to Claude Control and its session's scope: its posts, `Control` and the turn's routing use the chat reference with the scope. Per-session data moves to the session's custom data (`APISetGroupSessionCustomData`), as `SessionGroupData` is in the group's custom data today.
+50. Rights: every member of Claude Control sees every session (0.3.0 trust model, rule 1); approvals and commands come from its admins and owners, prompts from its members whose role sends (rules 3 to 5). Owner invitations at a session's start and `/join N` are not used for sessions. With Q7 A, a member of one session has the rights of their role in that session.
+51. The card shows the session's state lines of the session list plan and its description line (model, effort) of `ep/mcp-session-usage`. With Q8 A, the list message is posted only while Claude Control has sessions with groups of their own or members whose apps show no sessions.
+52. Threads are Claude's tasks: Claude decides when a task gets a thread, by the channel instructions of section 2.3. The hub creates no thread by itself.
+53. The tool `thread` (section 2.3): with `item`, the hub checks the message by decision 19, in this session, and records the place, its thread when the message is inside one; the first post there creates the thread. With `title`, the hub posts the title in the session and records its thread. Without either, the place is the session outside threads.
+54. The place of a post is the place of the newest event before it, by time: a turn record, whose place is its prompt's thread or the session outside threads, or a `thread` call. Hook records use the hook's start time `at`; a `thread` call uses the service's receive time, both milliseconds since the epoch on one computer. Calls older than the last answer are dropped with its turn records.
+55. The answer keeps its quote only when the quoted prompt is in its place. A quote in another place would move the post (decision 22), so it is dropped.
+56. The opening live message of `ep/mcp-live-answers` is posted at the prompt, in the prompt's place. When the place changes before the opening message is filled, the hub deletes it and posts in the new place.
+57. `Session.onMessage` takes `thread` from `parentChatItemId`. A message in a thread without a quote gets the `replyTo` of the first message, read by `apiGetChat` with `around` the first message and count 0, in the queued delivery, so the order of prompts stays (0.3.0 decision 45). The prompt line gets `thread?: number`, written as the meta key `thread` (fact 14); the protocol version stays 1.
+58. `reply` takes `file`, `text` or both, and posts to the place of decision 54. A text without a file must fit one message (`fitsMessage`). It returns `{item}`.
+59. Tools in other chats (section 2.5): `thread` in a message of the results and in `send`'s input; a session's chat reference in `chat` of results and inputs, and its title in `session`.
 
 ## 5. Design
 
-Options for who opens threads in a session group:
+Options for sessions:
+```
+option                                   cost
+A. a scope, created by its card          a scope kind at the sites of fact 5; a card content type; members' delivery
+   (chosen)                              and history rules; the apps' scope contexts take it; older apps receive none
+B. a thread under a card                 one level of threads is taken: tasks inside a session have no thread;
+                                         no members of one session; no state of its own
+C. a group per session, linked           connections between every two members per session; joins per session;
+   from the parent group                 what 0.3.0 does, so not "inside one group"
+D. sessions by their own events          an event kind per change; older apps ignore them and show no title
+```
+
+Options for who opens threads in Claude Control:
 ```
 option                                   who decides               cost
 T1. Claude names the place of its posts  Claude, by the task       one tool, one record kind, instructions; the hub routes
     with thread (chosen)                                           every post of the turn
-T2. Claude names a thread per post       Claude, per post          a thread field in reply only: steps, notes, cards and the
-                                                                   answer have no place to follow
-T3. the hub opens a thread per prompt    the hub, by a rule        every prompt gets a thread, short answers too: the user's
-                                                                   note asks for contextual use
-T4. members open threads                 members                   the user's note: users are not responsible for threads
+T2. Claude names a thread per post       Claude, per post          steps, notes, cards and the answer have no place to follow
+T3. the hub opens a thread per prompt    the hub, by a rule        short answers get threads too: the user asks for
+                                                                   contextual use
+T4. members open threads                 members                   the user: members are not responsible for threads
 ```
-T1 serves the user's note: Claude uses threads as tasks, and every post of the task follows. Members' own replies in threads keep working, as events of decision 43.
 
 Options for the place of a post during a turn:
 ```
 option                                       cost
 P1. the newest event: prompt or thread call  one lookup per post; a member's message moves the posts to its place
     (chosen)
-P2. the turn's first prompt                  the answer's quote crosses threads, so it is dropped, or 0.3.0 decision 39
-                                             changes
+P2. the turn's first prompt                  the answer's quote crosses threads and is dropped, or 0.3.0 decision 39 changes
 P3. the place stays across turns             a background task's notification lands in the last task's thread, also
                                              when Claude moved on
 ```
 
-Options for the wire:
+Options for the wire of threads:
 ```
-option                                 producer                  consumers                        older apps                         wire
-A. parent in x.msg.new (chosen)        MsgRef of the first msg   resolve it, store the link       a message of the main chat         + parent, about 80 bytes
-B. a new MsgScope kind                 scope field               scope handling, recipients       the unknown scope fails the        + scope
-                                                                                                   message's parse
-C. replies as threads                  none                      follow quote chains              replies, as today                  a quote copies the quoted text into
-                                                                                                                                     every reply, up to a whole message
+option                                 older apps                                  wire
+A. parent in x.msg.new (chosen)        a message outside threads                   + parent, about 80 bytes
+B. a MsgScope kind per thread          the unknown scope fails the message's parse  + scope
+C. replies as threads                  replies, as today                           a quote copies the quoted text into every reply
 ```
-B fails the messages at older apps: `MsgScope` has one constructor, parsed by its tag ([Protocol.hs:229-232](../src/Simplex/Chat/Protocol.hs#L229-L232)). C keeps every reply in the main chat, which threads exist to empty, and its quotes copy the first message's text (`quoteContent`, [Internal.hs:373-399](../src/Simplex/Chat/Library/Internal.hs#L373-L399)). A is the branch's design.
 
 Options for the summary of a first message:
 ```
 option                                       cost
-S1. the branch's comments_total for replies, the count channels need: subscribers lack comments outside their history,
-    unread and awaitsReply read at load      and the owner sends the total. Unread exists in groups only, read as reactions
-    (chosen)                                 are read
+S1. comments_total for replies, the rest     the total channels need: subscribers lack comments outside their history;
+    read at load (chosen)                    unread exists in groups only, read as reactions are read
 S2. every count read at load                 a second source of the total beside comments_total
 S3. every count kept in columns              an update at every read, insertion, deletion and member removal
 ```
@@ -300,123 +380,106 @@ S3. every count kept in columns              an update at every read, insertion,
 Options for the thread of a send in the API:
 ```
 option                                       cost for clients
-A1. parentItemId of APISendMessages          one optional field in the generated types
-    (chosen)
+A1. parentItemId of APISendMessages (chosen) one optional field in the generated types
 A2. parent in SendRef, as the branch         SendRef needs its own API type: every client's sendRef changes
-A3. parent per composed message              one batch could span threads; reading a thread needs parent= anyway
 ```
 
 Data flow:
 ```mermaid
 flowchart LR
-  M[member or Claude: a message in a thread] --> W[x.msg.new with parent]
-  W --> R{receiver: first message found}
-  R -- yes --> T[item with parent_chat_item_id]
-  R -- no, regular group --> MC[item of the main chat]
-  T --> E[newChatItems: item with parentChatItemId]
-  E --> AP[app: thread view and summary]
-  E --> HB[hub: prompt with thread]
-  HB --> CC[Claude Code: meta thread]
-  CC --> TR[turn record: the place of the prompt]
-  CC --> TC[thread call: the place Claude chose]
-  TR --> PL[place of each post: the newest event]
-  TC --> PL
-  PL --> P[posts with parentItemId]
+  CD[card x.msg.new MCSession] --> SS[group_sessions row]
+  M[message with scope session and parent] --> RC{receiver}
+  SS --> RC
+  RC -- session known or created --> SC[item in the session scope]
+  RC -- first message found --> TH[item with parent_chat_item_id]
+  RC -- first message absent --> OT[item outside threads]
+  SC --> EV[newChatItems with scope and parentChatItemId]
+  TH --> EV
+  EV --> AP[apps: session and thread contexts]
+  EV --> HB[hub: Session by scope, prompt with thread]
+  HB --> CC[Claude Code]
+  CC --> TC[thread calls and turn records]
+  TC --> PL[place of each post]
+  PL --> PS[posts with scope and parentItemId]
 ```
 
-Changes, the core, in `f/channel-comments` after its update to master:
+Changes, the core, on the feature branch:
 ```
-file                                    function or type             change for threads in regular groups
-Messages.hs                             ChatItem                     + thread :: Maybe CIThread {unread, unreadMentions, awaitsReply}
-                                        ChatStats                    + unreadInThreads, 0 when absent
-                                        ChannelMsgInfo               covers first messages of groups too
-Controller.hs                           APISendMessages              + parentItemId, in place of the branch's SendRef field
-Library/Commands.hs                     sendGroupContentMessages_    regular groups: decisions 18, 21, 27; the quote rule of 28
-Library/Internal.hs                     prepareGroupMsg              parent by quoteData's rules for a group's first message
-                                        prohibitedGroupContent       GFComments in regular groups
-                                        sendHistory                  passes parentChatItemId
-Library/Subscriber.hs                   newGroupContentMessage       regular groups: decision 20
-Store/Messages.hs                       queries of decision 24       thread items counted as unread in regular groups
-                                        groupCIWithReactions         thread summary
-                                        chat list counts,            unreadInThreads
-                                        getGroupUnreadCount_
-                                        deletion paths               files of threads' items
-View.hs                                 groupScopeInfoStr callers    "(thread)"
-docs/protocol                           x.msg.new                    parent
-bots API docs, TS and Python types      generated
-tests/ChatTests/Groups.hs               describe "threads"           section 7
-stage 2: Types/Preferences.hs,          groupFeatureInRegularGroup,  GFComments in the regular group list, /set threads,
-Commands.hs                             APINewGroup                  threads on in new groups
-```
-
-Changes, the apps, in `f/channel-comments`:
-```
-platform     file                               change for threads; comments as v2, section 5
-iOS          SimpleXChat/ChatTypes.swift         ChatItem.thread, ChatStats.unreadInThreads, GroupFeature.comments
-             Shared/Model/AppAPITypes.swift,     apiGetChat and apiSendMessages with parentItemId
-             SimpleXAPI.swift
-             Shared/Model/ChatModel.swift        the shared filter; getCIItemsModel; loadSecondaryChat; decisions 35, 38
-             Shared/Views/Chat/ChatView.swift    the thread line under reactions; "Reply in thread"
-             Shared/Views/Chat/Group/            the thread toolbar, as MemberSupportChatToolbar
-             ComposeView.swift                   parent of a send in the thread view
-             flat rows                           the thread line, in the rows of ep/mcp-flat-sessions
-Kotlin       model/ChatModel.kt                  the shared filter in SecondaryContextFilter; ChatsContext routing; counters
-             model/SimpleXAPI.kt                 types, API functions, GroupFeature.Comments
-             views/chat/item/ChatItemView.kt     the thread line; "Reply in thread"
-             views/chat/ChatView.kt,             the thread view in the secondary context; composer with parent
-             ComposeView.kt
-             views/chat/group/                   the thread and comments view, as MemberSupportChatView
-             moko-resources strings              texts of section 2.1
-both         spec folders                        the changed functions
-stage 2      group preferences views             the row "Threads"
+file                                    function or type                change
+Protocol.hs                             MsgScope, MsgContent            MSSession {msgId}; MCSession {text}
+Messages.hs                             GroupChatScope, ...Info, Tag    GCSSession, GCSISession, "session"
+                                        ChatItem, ChatStats             thread summary; unreadOutsideMain
+Controller.hs                           commands                        APISendMessages.parentItemId; session commands of decision 32
+Library/Commands.hs                     chatCommandP, gcScopeP          parent=; (_session:ID); session commands; stage 2 /set
+                                        sendGroupContentMessages_       decisions 19, 22, 25; the scope's recipients
+                                        APINewGroup, APINewPublicGroup  stage 2 defaults
+Library/Internal.hs                     getGroupRecipients              session recipients by version and Q7
+                                        mkGetMessageChatScope           MSSession, the session found or created
+                                        prepareGroupMsg, sendHistory    parent; history of decision 33
+                                        prohibitedGroupContent          threads, sessions by their preferences
+Library/Subscriber.hs                   newGroupContentMessage          decisions 21, 27, 28; card updates by groupMessageUpdate
+Delivery.hs                             DeliveryJobScope,               a session job scope
+                                        infoToDeliveryContext
+Store/Messages.hs                       createNewChatItem_, queries     the session scope column; decisions 23, 31
+                                        groupCIWithReactions            thread summary
+Store/Groups.hs                         new                             group_sessions, group_session_members
+Store/SQLite|Postgres/Migrations        the branch's and a new one      sessions tables and column
+View.hs                                 groupScopeInfoStr               (session TITLE), (thread)
+docs/protocol, bots API, TS, Python     generated and written           parent, scope session, MCSession, commands
+tests                                   Groups.hs, ProtocolTests.hs     section 7
 ```
 
-Changes, the plugin:
+Changes, the apps, on the feature branch: types (`ChatTypes.swift`, `SimpleXAPI.kt`) with the session scope, the content `session`, the thread summary and the counters; the API functions; the scope and thread contexts (`ChatModel.swift`, `ChatModel.kt`); the session card, the thread line and "Reply in thread" (`ChatView.swift`, `ChatItemView.kt`, the flat rows); the sessions list (as `MemberSupportView`); the session and thread views (as `SecondaryChatView`, `MemberSupportChatView`); "Add to session" with Q7 A; the comments of v2, section 5; strings; specs. Stage 2: the preference rows and "New session".
+
+Changes, the plugin, after the release:
 ```
-file                         function                 change
-src/protocol.ts              AttachLine.prompt        + thread?: number
-src/hub.ts                   Session.onMessage,       thread; replyTo of the first message (decision 46)
-                             prompt, deliver
-                             Session.placeOf(at)      new: decision 43
-                             Session.setPlace         new: the record of a thread call (decision 42)
-                             Session.turn, answer,    every post to placeOf; the answer's quote by decision 45
-                             post, step, note posts
-                             createSessionGroup       comments on
-                             Hub.session              comments on when absent (decision 40)
-src/control.ts               postMessage              parentItemId from the session option place()
-src/session.ts               channelInstructions      section 2.2
-                             channelNotification      meta thread
-src/tools.ts                 threadTool, thread       new (section 2.2)
-                             replyTool, reply         file optional, text; the place of decision 43
-packages/simplex-chat-nodejs apiSendMessages          + parentItemId, optional, released with the core
-src/api.ts
+file                 function                        change
+src/hub.ts           Hub.session, createSessionGroup  a session of Claude Control by decision 47; groups of decision 48 kept
+                     Session                         bound to a chat reference with a scope; data in the session's custom data
+                     Session.onMessage, deliver      thread and its replyTo (decision 57)
+                     Session.placeOf, setPlace       new: decisions 53, 54
+                     Session.turn, answer, post,     every post to placeOf; the quote by decision 55; the opening message by 56
+                     step, note posts
+                     Hub.join, inviteOwner,          not used for sessions (decision 50)
+                     announceRights
+                     the list of the session list    the cards of decision 51
+                     plan
+src/main-group.ts    Claude Control                  sessions and comments on; the notice of decision 47
+src/control.ts       Control, isGroupMessage,        the session scope; the place of posts
+                     isControlEvent, postMessage
+src/session.ts       channelInstructions,            section 2.3; meta thread
+                     channelNotification
+src/tools.ts         threadTool, replyTool,          section 2.3; thread and session in results and send (section 2.5)
+                     messageSchema, send
+src/messages.ts      toMessage                       thread, session
+src/protocol.ts      AttachLine.prompt               + thread?: number
+nodejs src/api.ts    apiSendMessages                 + parentItemId; session commands
 ```
 
 ```
 placeOf(at):
-  events = turn records with at below the given at: (at, thread of record.item, or main chat)
-         + thread calls with at below the given at: (at, chosen thread, or main chat)
-  the newest event's place; none: the main chat
+  events = turn records before at: (at, thread of the record's item, or the session outside threads)
+         + thread calls before at: (at, the chosen place)
+  the newest event's place; none: the session outside threads
 thread call {item?, title?} at time t:
-  title: post title in the main chat as Claude; place = its item
-  item: the message checked by decision 18; place = its thread when it is inside one, else item
-  neither: place = the main chat
-  calls += (t, place)
+  title: post the title in the session as Claude; place = its item
+  item: checked by decision 19; place = its thread when it is inside one, else item
+  neither: place = the session outside threads
 post(parts, quote, place):
-  every part sent with parentItemId = place; the first with the quote when decision 45 keeps it
-  refused as Comments off: the same parts, in the main chat, without the quote
-on an answer at a:   turn records and thread calls with at below a are dropped
+  every part sent to the session's chat reference with parentItemId = place; the first with the quote when decision 55 keeps it
+  refused as threads off: the same parts outside threads, without the quote
+on an answer at a: turn records and thread calls before a are dropped
 ```
 
 ## 6. Compatibility
 
-- Older apps and bots: they show a reply in a thread as a message of the main chat (fact 2). They send no `parent`.
-- Stage 1 apps: they show threads in every group where an owner or a bot turned them on through the API; their users cannot turn threads on.
-- Older forwarding members and hosts: a member who forwards to members without a connection encodes an unsigned message again from its parsed form. Master keeps `parent`. Versions before #6808 keep `parent` without a quote and drop it with a quote, so such a reply reaches that member's receivers as a reply in the main chat.
-- A new member's history: a reply whose first message is outside the 100 items is shown in the main chat (decision 20).
-- Remote desktop: an older controller ignores the new fields; a newer controller reads `unreadInThreads` as 0 and the others as absent from an older host.
-- Downgrade: the branch's down migration drops the columns, and replies return to the main chat.
-- Plugin: an older session server drops `thread` (decision 47), and its Claude has no `thread` tool. A newer session server stops an older service ([client.ts:37-40](../packages/simplex-chat-mcp/src/client.ts#L37-L40)). Session groups of 0.3.x get threads at their first load (decision 40). Data folders: nothing new is stored.
+- Older apps and bots: a reply in a thread is a message outside threads (fact 2); a session's card is a text message; messages of sessions do not reach them (decision 30).
+- Stage 1 apps: they show threads, comments and sessions where an owner, a bot or the plugin turned them on; their users cannot turn them on.
+- Older forwarding members: versions before #6808 keep `parent` without a quote and drop it with a quote. Messages of sessions are forwarded only to members with the version of decision 30.
+- A new member's history: a reply whose first message is outside the 100 items is shown outside threads (decision 21).
+- Remote desktop: an older controller ignores the new fields and scope kinds; a newer controller reads `unreadOutsideMain` as 0 from an older host.
+- Downgrade: the migrations drop the columns and tables; replies return to their scope's view, and messages of sessions are lost from view.
+- Plugin: sessions with groups keep them (decision 48); members with older apps keep the group per session (decision 47). An older session server drops `thread`, and its Claude has no `thread` tool. Plugin data folders: per-session data moves to the session's custom data at the session's creation; older sessions keep theirs in the group.
 - Claude Code: 2.1.316 to 2.1.322 write meta keys by the same rule (fact 14).
 
 ## 7. Acceptance and tests
@@ -424,81 +487,88 @@ on an answer at a:   turn records and thread calls with at below a are dropped
 Done when:
 ```
 #   criterion                                                                       checked by
-1   a reply in a thread of a regular group is stored in the thread at every member,  core: Groups.hs "threads"
-    by direct connection and by a forwarding member
-2   the main chat's pages, last item, content types and first unread exclude          core
-    replies; unread counts include them; unreadInThreads counts them
-3   the first message has replies, unread, unreadMentions and awaitsReply             core
-4   /_get chat parent= returns the thread; /_send parent= sends in it                 core; fails on master: parent= does not parse
-5   a send quoting a reply of a thread goes to the thread                            core
-6   a reply whose first message is absent is shown in the main chat                   core
-7   threads off: the receiver stores a rejected item; the send is refused            core
-8   a new member gets the replies in history, in their thread                         core
-9   stage 1: turning threads on creates no feature item; /set refuses it             core
-10  deleting a first message's row deletes its thread and their files                 core
-11  channel comments: v2, section 6, passes                                           core
-12  an older app shows the reply in the main chat                                     fact 2; a manual check with the released 7.1 app
-13  the apps show the thread line, open the thread, send and read in it, without     ios-sim, desktop-linux, android-emu; Kotlin
-    a preference row                                                                  desktop test of the thread context routing
-14  a member's message in a thread reaches Claude with thread, reply_to and the       plugin unit: sessions, session; e2e service
-    quote line of the first message
+1   a reply in a thread of the main chat or of a session is stored in its thread at  core: Groups.hs "threads"
+    every member, also through a forwarding member
+2   a session is created by its card, receives messages, edits its title, closes     core: Groups.hs "sessions"
+3   a session's messages reach its members with the version, not older members       core: "sessions"
+4   with Q7 A, a member of one session receives that session only                    core: "sessions"
+5   the views exclude threads; unread counts include threads and sessions            core
+6   the thread summary and the sessions list have their counts                       core
+7   a reply whose first message is absent is shown outside threads                   core
+8   history: threads, sessions and cards in order for a new member                   core
+9   stage 1: turning features on creates no feature item; /set refuses them          core
+10  /_send parent= and #G(_session:N) work; both fail to parse on master              core
+11  channel comments: v2, section 6                                                  core
+12  the apps show sessions, threads and comments, send and read in them, without     ios-sim, desktop-linux, android-emu; Kotlin
+    switches                                                                          desktop tests of the contexts and counters
+13  a Claude Code session is a session of Claude Control, with its card and states   plugin unit: sessions; e2e service
+14  a member's message in a thread reaches Claude with thread and its reply line     plugin unit: sessions, session
 15  each post of a turn goes to the place of the newest event before it              plugin unit: sessions
-16  thread opens a thread under a prompt, under a title, moves to an existing         plugin unit: tools, sessions; e2e mcp
-    thread and back to the main chat; reply posts text to the place
-17  the answer drops its quote outside the quoted prompt's place                     plugin unit: sessions
-18  session groups have threads on, new and existing                                  plugin unit: sessions
-19  a real session: Claude opens a thread for a task, and a reply there continues it  TESTING check
+16  thread opens, moves and returns; reply posts text to the place                   plugin unit: tools, sessions; e2e mcp
+17  a member with an older app keeps groups per session and gets the notice           plugin unit: sessions
+18  tools read and write threads and sessions in other chats                         plugin unit: messages, tools; e2e mcp
+19  a real session: Claude opens a thread for a task in its session, and a reply     TESTING check
+    there continues it
 ```
 
-Core tests, `tests/ChatTests/Groups.hs`, `describe "threads"`: `testThreadSend` (criteria 1, 3, 4; it fails on master), `testThreadMainChat` (2), `testThreadQuoteRule` (5), `testThreadMissingRoot` (6), `testThreadPrefOff` (7), `testThreadHistory` (8), `testThreadStage1` (9), `testThreadDeleteRoot` (10), with `/_group_profile` turning threads on. The branch's `describe "channel comments"` (11). `tests/ProtocolTests.hs`: `x.msg.new` with `parent`, with and without `quote`. The reduced build runs them with `TESTS='/SimpleX chat client/group tests/'` (scripts/ci/README.md, "core").
+Core tests in `tests/ChatTests/Groups.hs`: `describe "threads"` (criteria 1, 5 to 8, 10; `testThreadSend` fails on master), `describe "sessions"` (2 to 4, 6, 8, 10), `describe "stages"` (9), the branch's `describe "channel comments"` (11); `tests/ProtocolTests.hs` for `parent`, `MSSession` and `MCSession`. The reduced build runs them with `TESTS='/SimpleX chat client/group tests/'`.
 
-App tests: the three app test workflows, with a test backend member that replies in a thread and a relay with comments; a Kotlin desktop test of the thread context and of the counters of decision 35.
+App tests: the three app test workflows, with a test backend that creates a session through the API, replies in a thread and comments in a channel; Kotlin desktop tests of the contexts and of the counters.
 
-Plugin tests, `npm test` and `npm run test:e2e`, against the released core libraries:
-- `sessions.test.ts`, "session channel": "passes a member's message in a thread to the session with thread and the quote line of the first message, and a reply in a thread with its own quote" (fails on master: no `thread`); "posts the steps, notes, cards and the answer of a turn to the place of the newest prompt or thread call before each"; "drops the answer's quote outside the quoted prompt's place"; "posts in the main chat without the quote when threads are turned off during the turn"; "creates session groups with threads on and turns them on at the load of a group without the preference".
-- `tools.test.ts`: "thread opens a thread under a message, under a new title, moves to an existing thread and back to the main chat, and refuses a missing message, a message that can't have a thread and both fields"; "reply sends a text, a file, or both, to the place of the turn".
-- `session.test.ts`: "passes thread as a meta key and describes threads as tasks in the channel instructions".
-- e2e `service.test.ts`: the mirroring test adds a thread call and expects a step and the answer in the thread; `mcp.test.ts`: `thread` and `reply`.
+Plugin tests (`npm test`, `npm run test:e2e`, with the released core libraries): `sessions.test.ts` for decisions 47 to 57 (the first test of a thread prompt fails on master: no `thread`); `tools.test.ts` for `thread`, `reply` and the fields of section 2.5; `session.test.ts` for the meta key and the instructions; `messages.test.ts` for `thread` and `session` in results; the e2e mirroring test with a session, a thread call and a reply in the thread.
 
 ## 8. Docs to change
 
-- The core: `docs/protocol/simplex-chat.md` and `docs/protocol/simplex-chat.schema.json` (`parent`); `bots/api` generated; `bots/README.md`, a section on threads and comments: `parent=` of `/_send` and `/_get chat`, the quote rule, the stages.
-- The apps: `apps/ios/spec` and `apps/multiplatform/spec`, the changed functions; the v2 documents for comments.
-- The plugin: `README.md`, step 4: `Claude keeps each task in its own thread; reply there to continue it.`; `REFERENCE.md`, "Prompts and answers": threads as tasks, the meta key, the places of posts, `thread` and `reply`; `spec/api.md` (the prompt line, the tools), `spec/architecture.md` (`placeOf`, `post`), `spec/flows.md` (a task in a thread, a background task's turn); `TESTING.md` (tests, the real-session check); `ROADMAP.md`, the line of section 1 removed.
+- The core: `docs/protocol/simplex-chat.md` and its schema (`parent`, the session scope, `MCSession`); a new RFC, `docs/rfcs/2026-11-NN-sessions.md`, for sessions; `bots/api` generated; `bots/README.md`, a section on threads, sessions and the stages.
+- The apps: `apps/ios/spec`, `apps/multiplatform/spec`; v2's documents for comments.
+- The plugin: `README.md` (sessions in Claude Control, tasks in threads); `REFERENCE.md` (sessions, the places of posts, `thread`, `reply`, the fields of section 2.5, the notice for older apps); `spec/api.md`, `spec/architecture.md`, `spec/flows.md`; `TESTING.md`; `ROADMAP.md`, the lines of section 1 removed.
 
-## 9. Conflict areas with the other items
+## 9. Conflict areas
 
+Execution starts after the release of the precondition's items, so they are on master by then. The places where this plan changes their work:
 ```
-file or area                                   where                                         items
-f/channel-comments, all core and app files     the whole effort                              channel comments (the core team)
-src/Simplex/Chat/Protocol.hs, Messages.hs      MsgContainer, CIMeta, ChatStats               mcp-silent-messages (priority), message priority
-Library/Internal.hs                            prepareGroupMsg parameters, sendHistory       mcp-silent-messages (priority parameter)
-Store/Messages.hs, migrations                  createNewChatItem_, the migration order       mcp-silent-messages (item_priority)
-apps: ChatView, ChatItemView, flat rows        the line under reactions                      mcp-flat-sessions, mcp-agent-profile
-apps: CIMeta, ChatStats, counters              unread counters                               mcp-silent-messages Q4 B (unreadSilent)
-packages/simplex-chat-nodejs, types            apiSendMessages, generated types              mcp-silent-messages (priority)
-src/hub.ts                                     onMessage, prompt, deliver                    mcp-replies (replyTo), mcp-reactions (Prompt)
-src/hub.ts                                     turn, answer, post, step, notes               mcp-activity (priority, live steps), mcp-harness-notes
-src/hub.ts                                     createSessionGroup                            mcp-flat-sessions
-src/session.ts                                 channelInstructions, channelNotification      mcp-replies, mcp-reactions
-src/protocol.ts                                AttachLine.prompt                             mcp-replies, mcp-reactions
-src/tools.ts                                   threadTool, replyTool                         none known
-src/control.ts                                 postMessage, session options                  none known
-REFERENCE, spec, TESTING, ROADMAP              "Prompts and answers", flows, checks          every plugin item
+item                  their work                                     change here
+session list          one list message in the Main group             the cards of decision 51 (Q8)
+session usage         the description line, the end line per turn    the card's second line; the end line follows the place
+live answers          the opening message, live texts                decision 56; texts follow the place
+activity              step lines                                     they follow the place
+harness notes         notes                                          notes of mid-turn prompts follow the place
+context summary       its line                                       it follows the place
+allow-tool, 0.3.0     tool-use cards, mode cards, rights posts       cards follow the place; rights by decision 50
+flat layout           flat rows                                      the thread line and the session card in flat rows
+silent messages       priority, unreadSilent                         the counters of decision 31 next to unreadSilent
+f/channel-comments    the core and iOS work                          the feature branch starts from it
 ```
 
-## 10. Parts and estimate
+## 10. Execution and estimate
+
+All parts are built by this session's agents. The feature branch `ep/threads-sessions` starts from `f/channel-comments`, merges master, and receives the pull requests below; it merges into master by a merge commit when both apps show threads, comments and sessions. The release follows, then the plugin's pull request on master. Stage 2 comes in a later release.
+
+```mermaid
+flowchart LR
+  PC[precondition: release of the current items] --> F[ep/threads-sessions from f/channel-comments, master merged]
+  F --> C1[core: threads and channel comments]
+  C1 --> C2[core: sessions]
+  C2 --> I[iOS: threads, comments, sessions, stage 1]
+  C2 --> K[Android and desktop: the same, stage 1]
+  I --> M[feature branch merged into master]
+  K --> M
+  M --> R[release: apps, core libraries, npm packages]
+  R --> P[plugin: sessions in Claude Control, threads as tasks]
+  R --> S2[stage 2, a later release: switches and defaults]
+```
 
 ```
-part                                              size                                      work      owner (Q4 A)
-a  f/channel-comments updated to master           conflicts in the 8 core files of fact 3   3-5 days  core team
-b  channel comments completed: v2, sections 4, 6  about 300 Haskell, 400 test lines          3 days    core team
-c  threads in regular groups, in the core         about 400 Haskell, 350 test lines          4 days    this item, after a
-d  iOS: comments and threads, stage 1             about 700 Swift, workflow scenario         5 days    core team
-e  Android and desktop: comments and threads,     about 700 Kotlin, workflow scenario        5 days    this item
-   stage 1
-   f/channel-comments merged; release of the apps, the core libraries and the npm packages
-f  plugin: threads as Claude's tasks              about 200 TypeScript, 320 test lines       2 days    this item
-g  stage 2: the preference row, threads on in     about 60 lines per platform, 20 Haskell    1 day     the owner of d and e
-   new groups, comments by Q5
+part                                              size                                         work
+a  feature branch from f/channel-comments,        conflicts in the 8 core files of fact 3       3-5 days
+   master merged
+b  core: channel comments completed, threads in   about 700 Haskell, 750 test lines             6 days
+   groups and sessions' scopes
+c  core: sessions                                 about 900 Haskell, 600 test lines, the RFC    7 days
+d  iOS: threads, comments, sessions, stage 1      about 1,100 Swift                             7 days
+e  Android and desktop: the same                  about 1,100 Kotlin                            7 days
+   the merge into master; the release
+f  plugin                                         about 500 TypeScript, 600 test lines          4 days
+g  stage 2                                        about 150 lines per platform, 60 Haskell      2 days
+Q6 A adds about 300 Haskell, 200 per app platform and 80 plugin lines: about 4 days. Q7 A is included above.
 ```
