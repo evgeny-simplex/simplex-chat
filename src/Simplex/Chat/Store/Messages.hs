@@ -29,7 +29,7 @@ module Simplex.Chat.Store.Messages
     createSndMsgDelivery,
     createNewMessageAndRcvMsgDelivery,
     getLastRcvMsgInfo,
-    checkRcvMsgDeliveryExists,
+    checkMsgDeliveryExists,
     createNewRcvMessage,
     updateSndMsgDeliveryStatus,
     createPendingGroupMessage,
@@ -307,8 +307,8 @@ getLastRcvMsgInfo db connId =
     rcvMsgInfo (msgId, msgDeliveryId, msgDeliveryStatus, agentMsgId, agentMsgMeta) =
       RcvMsgInfo {msgId, msgDeliveryId, msgDeliveryStatus, agentMsgId, agentMsgMeta}
 
-checkRcvMsgDeliveryExists :: DB.Connection -> Int64 -> AgentMsgId -> IO Bool
-checkRcvMsgDeliveryExists db connId agentMsgId =
+checkMsgDeliveryExists :: DB.Connection -> Int64 -> AgentMsgId -> IO Bool
+checkMsgDeliveryExists db connId agentMsgId =
   fromOnly . head
     <$> DB.query
       db
