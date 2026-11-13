@@ -19,6 +19,7 @@ import ChatTests.Utils
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Concurrent.STM (TVar, atomically, modifyTVar', newTVarIO, readTVarIO, writeTVar)
+import qualified Control.Exception as E
 import Control.Monad (forM_, void, when)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (runReaderT)
@@ -26,7 +27,7 @@ import Data.Bifunctor (second)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Maybe (fromMaybe, isJust, maybeToList)
-import Data.Time (UTCTime, getCurrentTime)
+import Data.Time (UTCTime, defaultTimeLocale, formatTime, getCurrentTime)
 import Data.Int (Int64)
 import Data.List (intercalate, isInfixOf, isSubsequenceOf, isSuffixOf)
 import qualified Data.Map.Strict as M
@@ -60,7 +61,8 @@ import Simplex.Messaging.Server.Env.STM hiding (subscriptions)
 import Simplex.Messaging.Transport
 import Simplex.Messaging.Version
 import System.Directory (copyFile, doesFileExist)
-import System.FilePath ((</>))
+import System.FilePath (takeFileName, (</>))
+import System.Timeout (timeout)
 import Test.Hspec hiding (it)
 #if defined(dbPostgres)
 import Database.PostgreSQL.Simple (Only (..))
@@ -250,7 +252,7 @@ chatGroupTests = do
     it "mentions of blocked member are ignored" testBlockForAllMentionsIgnored
     it "replies of blocked member are not mentions" testBlockedMemberReplyNotMention
   describe "group member inactivity" $ do
-    it "mark member inactive on reaching quota" testGroupMemberInactive
+    forM_ [1 .. 60 :: Int] $ \i -> it ("mark member inactive on reaching quota " <> show i) testGroupMemberInactive
   describe "group member reports" $ do
     it "should send report to group owner, admins and moderators, but not other users" testGroupMemberReports
   describe "group member mentions" $ do
@@ -8217,7 +8219,7 @@ testBlockForAllLeftRemoved =
 
 testGroupMemberInactive :: HasCallStack => TestParams -> IO ()
 testGroupMemberInactive ps = do
-  withSmpServer' serverCfg' $ do
+  diagResult <- E.try $ withSmpServer' serverCfg' $ do
     withNewTestChatCfgOpts ps cfg' opts' "alice" aliceProfile $ \alice -> do
       withNewTestChatCfgOpts ps cfg' opts' "bob" bobProfile $ \bob -> do
         createGroup2 "team" alice bob
@@ -8227,12 +8229,15 @@ testGroupMemberInactive ps = do
         bob #> "#team hey"
         alice <# "#team bob> hey"
         threadDelay 1000000
+        diagMark "bob stopping"
 
       -- bob is offline
+      diagMark "bob stopped"
       alice #> "#team 1"
       alice #> "#team 2"
       alice #> "#team 3"
       alice <## "[#team bob] connection is marked as inactive"
+      diagMark "alice: bob marked inactive"
       -- 4 and 5 will be sent to bob as pending messages
       alice #> "#team 4"
       alice #> "#team 5"
@@ -8243,17 +8248,24 @@ testGroupMemberInactive ps = do
 
       threadDelay 1500000
 
-      withTestChatCfgOpts ps cfg' opts' "bob" $ \bob -> do
+      diagMark "bob starting"
+      withTestChatCfgOpts ps cfg' opts' "bob" $ \bob -> (do
+        diagMark "bob started"
         bob
           <### [ "subscribed 2 connections on server localhost",
                  WithTime "#team alice> 1"
                ]
+        diagMark "bob: 1"
         bob <# "#team alice> 2"
+        diagMark "bob: 2"
         bob <#. "#team alice> skipped message ID"
+        diagMark "bob: skipped"
         alice <## "[#team bob] inactive connection is marked as active"
+        diagMark "alice: bob marked active"
 
         bob <# "#team alice> 4"
         bob <# "#team alice> 5"
+        diagMark "bob: 4, 5"
 
         pgmCount' <- withCCTransaction alice $ \db ->
           DB.query_ db "SELECT count(1) FROM pending_group_messages" :: IO [[Int]]
@@ -8264,7 +8276,22 @@ testGroupMemberInactive ps = do
         bob <# "#team alice> hi"
         bob #> "#team hey"
         alice <# "#team bob> hey"
+        ) `E.onException` (diagDrain "bob" bob >> diagDrain "alice" alice)
+  diagDump $ either (\e -> "FAIL " <> show (e :: E.SomeException)) (const "PASS") diagResult
+  either E.throwIO pure diagResult
   where
+    diagMark diagText = do
+      diagTs <- getCurrentTime
+      appendFile (tmpPath ps </> "test.diag") $ formatTime defaultTimeLocale "%H:%M:%S%Q" diagTs <> " " <> diagText <> "\n"
+    diagDrain diagName diagCC =
+      timeout 3000000 (getTermLine diagCC) >>= mapM_ (\diagLine -> diagMark ("drained " <> diagName <> ": " <> diagLine) >> diagDrain diagName diagCC)
+    diagDump diagRes = do
+      let diagTag = "QD " <> takeFileName (tmpPath ps) <> " "
+      putStrLn $ diagTag <> "RESULT " <> unwords (lines diagRes)
+      forM_ ["test", "alice", "bob"] $ \diagName -> do
+        let diagFile = tmpPath ps </> diagName <> ".diag"
+        diagExists <- doesFileExist diagFile
+        when diagExists $ readFile diagFile >>= \diagText -> putStr $ unlines $ map ((diagTag <> diagName <> " ") <>) $ lines diagText
     serverCfg' =
       (smpServerCfg ps)
         { transports = [(smpTestPort2 ps, transport @TLS, False)],

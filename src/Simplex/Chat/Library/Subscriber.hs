@@ -143,15 +143,31 @@ processAgentMessage _ "" (ERR e) =
 processAgentMessage _ connId (SSENT _ _) =
   toView $ CEvtServiceReplySent (AgentConnId connId)
 processAgentMessage corrId connId msg = do
-  lockEntity <- critical connId (withStore (`getChatLockEntity` AgentConnId connId))
-  withEntityLock "processAgentMessage" lockEntity $ do
-    cxt <- chatStoreCxt
-    -- Missing connection/entity errors here will be sent to the view but not shown as CRITICAL alert,
-    -- as in this case no need to ACK message - we can't process messages for this connection anyway.
-    critical connId (withStore $ getUserEntity cxt) >>= \case
-      Just (user, entity, gks_) -> processAgentMessageConn cxt user entity gks_ corrId connId msg `catchAllErrors` eToView
-      _ -> throwChatError $ CENoConnectionUser (AgentConnId connId)
+  t0 <- liftIO getCurrentTime
+  diagAgentEvent t0 Nothing
+  r <- tryAllErrors $ do
+    lockEntity <- critical connId (withStore (`getChatLockEntity` AgentConnId connId))
+    withEntityLock "processAgentMessage" lockEntity $ do
+      cxt <- chatStoreCxt
+      -- Missing connection/entity errors here will be sent to the view but not shown as CRITICAL alert,
+      -- as in this case no need to ACK message - we can't process messages for this connection anyway.
+      critical connId (withStore $ getUserEntity cxt) >>= \case
+        Just (user, entity, gks_) -> processAgentMessageConn cxt user entity gks_ corrId connId msg `catchAllErrors` eToView
+        _ -> throwChatError $ CENoConnectionUser (AgentConnId connId)
+  t1 <- liftIO getCurrentTime
+  diagAgentEvent t1 (Just $ diffUTCTime t1 t0)
+  liftEither r
   where
+    diagAgentEvent :: UTCTime -> Maybe NominalDiffTime -> CM ()
+    diagAgentEvent ts dur_ = do
+      diagDir_ <- readTVarIO =<< asks tempDirectory
+      forM_ diagDir_ $ \diagDir -> liftIO $ appendFile (diagDir <> ".diag") diagLine
+      where
+        diagLine = unwords [formatTime defaultTimeLocale "%H:%M:%S%Q" ts, maybe ">" (\d -> "< " <> show d) dur_, take 8 (B.unpack $ strEncode connId), diagEvt] <> "\n"
+        diagEvt = case (dur_, msg) of
+          (Just _, _) -> show (aEventTag msg)
+          (_, MSG diagMeta _ diagBody) -> "MSG " <> show diagMeta <> " " <> take 200 (B.unpack diagBody)
+          _ -> take 400 (show msg)
     getUserEntity :: StoreCxt -> DB.Connection -> ExceptT StoreError IO (Maybe (User, ConnectionEntity, Maybe GroupInfoKeys))
     getUserEntity cxt db =
       liftIO (getUserByAConnId db $ AgentConnId connId)
