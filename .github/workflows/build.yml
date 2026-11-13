@@ -664,6 +664,13 @@ jobs:
           ATTEMPTS: ${{ (github.ref == 'refs/heads/stable' || startsWith(github.ref, 'refs/tags/v')) && 3 || 1 }}
         run: scripts/ci/run-tests.sh timeout 35m ./simplex-chat-test
 
+      - name: Upload query plans
+        if: ${{ !cancelled() && matrix.should_run == true && matrix.arch == 'x86_64' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: chat-query-plans
+          path: src/Simplex/Chat/Store/SQLite/Migrations/chat_query_plans.txt
+
       # Compiling the desktop and Android targets of :common in parallel exceeds the 2 GB Kotlin daemon heap.
       # cmakeBuildAndCopy links the JNI library against libsimplex, which this job does not build.
       - name: Build and test Kotlin apps
