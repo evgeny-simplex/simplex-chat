@@ -1,6 +1,6 @@
 # SimpleX MCP: secrets in Claude Code, redacted by the plugin's service
 
-Status: Q2 A and Q3 A answered by the user on 2026-11-13; Q1 open. The plan waits for the user's approval before implementation. It completes #8151 (https://github.com/simplex-chat/simplex-chat/pull/8151, "mcp server: give the agent secrets without exposing them to the model"), whose head is `cc45d339b`. Code references: #8151 at `cc45d339b` and master `8fda06295`, by file and function. Claude Code references: the 2.1.322 binary at the byte offsets given, the 2.1.323 binary where named, and the official docs, quoted. Runs E1, E2 and E3 used Claude Code 2.1.323 with `claude -p`, a scratch `HOME` and `CLAUDE_CONFIG_DIR`, no plugin, the fake token `CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-fake-…`, a local server that records requests and answers with a canned stream, and `HTTPS_PROXY` set to a local recording proxy:
+Status: Q2 A, Q3 A and Q4 A answered by the user on 2026-11-13; Q1 open. The plan waits for the user's approval before implementation. It completes #8151 (https://github.com/simplex-chat/simplex-chat/pull/8151, "mcp server: give the agent secrets without exposing them to the model"), whose head is `cc45d339b`. Code references: #8151 at `cc45d339b` and master `8fda06295`, by file and function. Claude Code references: the 2.1.322 binary at the byte offsets given, the 2.1.323 binary where named, and the official docs, quoted. Runs E1, E2 and E3 used Claude Code 2.1.323 with `claude -p`, a scratch `HOME` and `CLAUDE_CONFIG_DIR`, no plugin, the fake token `CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-fake-…`, a local server that records requests and answers with a canned stream, and `HTTPS_PROXY` set to a local recording proxy:
 
 - E1: `ANTHROPIC_BASE_URL` in the environment; the proxy refused every `CONNECT`.
 - E2: `ANTHROPIC_BASE_URL` in the `env` of the scratch `settings.json`, a SessionStart hook that wrote its environment to a file, and the proxy terminating TLS for `api.anthropic.com` with a test CA in `NODE_EXTRA_CA_CERTS`. The prompt carried the marker `MARKER_PROMPT`.
@@ -151,7 +151,7 @@ sequenceDiagram
 
 ## 3. Questions for the user
 
-Answered on 2026-11-13: Q2 A and Q3 A. Q1 is open.
+Answered on 2026-11-13: Q2 A, Q3 A and Q4 A. Q1 is open.
 
 Q1. How Claude Code's model requests come to the proxy, so that secret values never reach the model. Claude's commands to web services are not affected in any option.
 - A, recommended: the person adds one line to their own Claude Code settings, `~/.claude/settings.json`, once per computer: `"env": {"ANTHROPIC_BASE_URL": "http://127.0.0.1:5225"}`. Claude Code then sends its model requests to the proxy, which replaces the values and forwards them to Anthropic. Claude Code's login passes through unchanged and is never stored. Costs:
@@ -168,6 +168,9 @@ Q2. Who sets secrets in the plugin, and for which sessions.
 Q3. A session whose Claude Code does not send its requests through the service.
 - A, recommended: Claude gets no secrets there: `list` leaves them out, and the replies to `/secret` and `/secrets` say how to turn redaction on. The plugin fails closed, as #8151's opencode plugin does.
 - B: Claude gets them, and the replies warn. Values that commands print reach the model.
+
+Q4. Is the plugin's computer used by one person?
+- A, chosen: yes. The docs state that the plugin and its proxy are meant for a computer or a container that one person uses.
 
 ## 4. Decisions
 
@@ -217,6 +220,7 @@ Choices:
 32. `src/redaction.ts` keeps its own copy of `replacements` and `redacted`, because the opencode plugin is a standalone file that its user copies. A unit test gives both the same folder and texts and expects the same output.
 33. The protocol version stays 1. `TitleRequest` gets the optional `proxy`; an older service ignores it.
 34. Delivery: our own pull request, stacked on #8151. Its branch is `ep/mcp-secrets` of the evgeny-simplex fork, started at #8151's head `cc45d339b`. The pull request into master states that it depends on #8151; after #8151 merges, `git rebase --onto master cc45d339b` leaves only our commits. A request to Alain costs a round trip on plugin internals that eight items in progress change (section 9), and #8151 conflicts with master today (fact 15).
+35. Q4 A. The plugin and its proxy are meant for a computer or a container that one person uses. REFERENCE.md states it in "Plugin security", and the plan's compatibility section names the case of several people.
 
 ## 5. Design
 
@@ -378,6 +382,7 @@ not covered
 - Older plugin data folders: `secrets.json` and the secrets folder appear at the first start of this version.
 - An older service: the hook of this version stops it (`client.ts` `ensureService`); an older service ignores `proxy`.
 - `serve`: as #8151; its Claude Code requests are not redacted.
+- A computer that several people use: outside the plugin's intended use (Q4 A). Each person runs the plugin on a computer or in a container of their own.
 
 ## 7. Acceptance and tests
 
@@ -415,7 +420,7 @@ Tests:
 ## 8. Docs to change
 
 - `README.md`: section Secrets: the plugin's setting, `/secret` in a session's group, what the model gets.
-- `REFERENCE.md`: section Secrets: a part for the plugin, with the commands, the folder, the setting and the replies; section Redaction: Claude Code through the service, with the covered requests, what is not covered, the features that turn off and the errors; "Plugin data folder": `secrets.json` and the secrets folder; "Options": `SIMPLEX_MCP_PROXY_PORT`, `SIMPLEX_MCP_SECRETS`; "Plugin security": the local port, the token in transit.
+- `REFERENCE.md`: section Secrets: a part for the plugin, with the commands, the folder, the setting and the replies; section Redaction: Claude Code through the service, with the covered requests, what is not covered, the features that turn off and the errors; "Plugin data folder": `secrets.json` and the secrets folder; "Options": `SIMPLEX_MCP_PROXY_PORT`, `SIMPLEX_MCP_SECRETS`; "Plugin security": the local port, the token in transit, and this line (Q4 A): `The plugin and its proxy are meant for a computer or a container that one person uses.`
 - `TESTING.md`: the automated tests; real checks for criterion 12, with Claude Code 2.1.323.
 - `spec/api.md`: 4.2 and 4.3, `/secret` and its replies; 4.6, `TitleRequest.proxy`; a new part for the proxy, with its interface and refusals.
 - `spec/architecture.md`: 8.1, the proxy in the system diagram; 8.2, `proxy.ts` and `redaction.ts`; 8.3, the forms seen, the marks and the PIDs; 8.4, the start order and the idle stop; 8.7 and 8.8, the boundaries and limits of section 5.
