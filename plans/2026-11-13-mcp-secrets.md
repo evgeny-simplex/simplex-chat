@@ -1,6 +1,6 @@
 # SimpleX MCP: secrets bound to hosts, put into requests by the plugin's proxy
 
-Status: rewritten on 2026-11-13 to the user's design, which replaces the redaction of the model's requests in the earlier version of this plan. Answered by the user on 2026-11-13: Q2 A, Q3 A, Q4 A, Q5 A, with opencode support as part of this work, and Q6 A on the plans page, the plugin's own proxy. Q1 is open. Implemented on `ep/mcp-secrets` without the docs that depend on Q1; section 12 lists where the implementation differs from this plan.
+Status: rewritten on 2026-11-13 to the user's design, which replaces the redaction of the model's requests in the earlier version of this plan. Answered by the user on 2026-11-13: Q2 A, Q3 A, Q4 A, Q5 A, with opencode support as part of this work, and Q6 A on the plans page, the plugin's own proxy. Then Q1 B, Q7 A, Q8 B and Q9 A; section 13 proposes the setups of Q1 B and the storage of the values. Implemented on `ep/mcp-secrets` without the docs that depend on Q1; section 12 lists where the implementation differs from this plan.
 
 It completes #8151 (https://github.com/simplex-chat/simplex-chat/pull/8151, "mcp server: give the agent secrets without exposing them to the model"), whose head is `cc45d339b`. Code references: #8151 at `cc45d339b` and master `8fda06295`, by file and function. Claude Code references: the 2.1.322 binary at the byte offsets given, and the official docs, quoted. Runs R1 to R3 used Claude Code 2.1.323 with `claude -p`, a scratch `HOME` and `CLAUDE_CONFIG_DIR`, a fake token, a local server that answers model requests with canned tool calls, a test plugin loaded with `--plugin-dir`, and a local proxy that terminates TLS for `api.anthropic.com` with a test CA:
 
@@ -559,7 +559,107 @@ Added: the proxy connects to hosts through the HTTPS proxy of its own environmen
 
 Open:
 
-- O2. An agent of `serve` in Claude Code gets no variables, as no hook of `serve` runs there; the agent names the proxy in its commands. A fix: `register` adds a SessionStart hook, or `list` returns the proxy's URL.
+- O2. An agent of `serve` in Claude Code gets no variables, as no hook of `serve` runs there; the agent names the proxy in its commands. Q9 A: `register` adds a SessionStart hook.
 - O3. The FileChanged matcher `secrets.json` also makes Claude Code watch `secrets.json` of the session's folder (`ne`, 295488859), and a change there writes the variables again. A matcher can't name the data root's file: Claude Code matches an event by the file's name alone, and the data root depends on `SIMPLEX_MCP_HOME`, while `hooks.json` is fixed. Documented in REFERENCE and api 4.8; left as is.
-- O4. The docs of Q1: the limits of the plugin variant and the stronger setups.
-- O5. README.md "## Secrets" still has #8151's text: `--secrets-folder`, `/secret` without hosts, `$(cat …)`. The text the user approves replaces it before the branch ships.
+- O4. Q1 B: secrets only while Claude's commands can't read the values; proposal in section 13.
+- O5. README.md "## Secrets" still has #8151's text: `--secrets-folder`, `/secret` without hosts, `$(cat …)`. Q8 B: one or two sentences with a link to REFERENCE's Secrets section replace it, in the wording the user approves.
+
+## 13. Q1 B and storage: proposal
+
+Answered on 2026-11-13: Q1 B, with the user's note "why secrets should be in file? we could put them in chat database maybe? propose ideas"; Q7 A, the replies as implemented; Q8 B; Q9 A.
+
+### 13.1 Setups
+
+The hooks, the session server and the service run outside Claude Code's sandbox; only Claude's Bash commands run in it. So the plugin checks the setup from the hook, before it writes the proxy's variables.
+
+```
+setup                          set up by                     checked by                          cost
+S. Claude Code's sandbox,      the person: the settings      the SessionStart hook reads the      10 h
+   Linux and macOS             below, in ~/.claude           settings files Claude Code reads
+I. the service out of Claude's the person: a container, a    the hook opens the values folder     14 h
+   reach                       VM or another OS user that    that /status names; ENOENT or
+                               starts the service            EACCES passes
+```
+
+S. The person's settings:
+
+```json
+{
+  "permissions": {"deny": ["Read(~/.simplex-mcp/**)"]},
+  "sandbox": {"enabled": true, "failIfUnavailable": true, "allowUnsandboxedCommands": false, "network": {"httpProxyPort": 5225}}
+}
+```
+
+Claude Code 2.1.323, schema texts in the binary:
+- `sandbox.filesystem.denyRead`: "Merged with paths from Read(...) deny permission rules" (offset 299222587). The one `Read` rule covers Claude's file tools and sandboxed commands.
+- `allowUnsandboxedCommands`: "When false, the dangerouslyDisableSandbox parameter is completely ignored"; "A false in managed, --settings or user settings holds whatever [project settings] say" (offset 299240136).
+- `failIfUnavailable`: when false, "a warning is shown and commands run unsandboxed" if the sandbox can't start (offset 299240136).
+- `network.httpProxyPort`: "Local TCP port of your own HTTP proxy for sandboxed traffic, used instead of the proxy Claude Code runs" (offset 299221154).
+- `excludedCommands`: "commands to run outside the sandbox" (offset 299242965).
+
+The hook's check, over managed (`/etc/claude-code/managed-settings.json` and `managed-settings.d/`, macOS `/Library/Application Support/ClaudeCode/`), user, project and local settings in Claude Code's order:
+- `sandbox.enabled`, `failIfUnavailable` true; `allowUnsandboxedCommands` false;
+- a `Read` deny rule that covers ROOT;
+- `network.httpProxyPort` equal to the service's `proxyPort`;
+- no `excludedCommands`, no `filesystem.disabled`, no `network.tlsTerminate`.
+
+The hook can't see `--settings` on Claude Code's command line, nor managed settings from a server or MDM. Before the code, a real run (R5, Linux with bubblewrap) checks that a sandboxed `curl` reaches the proxy through `httpProxyPort` and trusts the CA of `CLAUDE_ENV_FILE`, and that `cat ROOT/_secrets/NAME` and the Read tool are refused.
+
+I. Mechanics:
+- The person starts the service as another OS user, or outside the container or VM. The clients get `SIMPLEX_MCP_SERVICE=external` and never spawn it.
+- `service.sock` and `service.token` are readable by Claude's user, by group or by a mount; `_secrets/`, `proxy-ca.key` and the databases stay the service user's.
+- Downloads get group read, so Claude reads them. The service reads the files of `send` and `reply` only where Claude's user lets it.
+- Claude's commands reach the proxy's port: the same host network, or a port the container is given.
+- `/status` names the values folder; the hook passes when it can't open it.
+
+`serve` and opencode:
+- `serve` can't see where its agent runs. `serve --secrets` turns `/secret` on; without it, `/secret` gets the refusal of 13.2.
+- An agent of `serve` in Claude Code: the SessionStart hook of Q9 runs the checks of S and I.
+- opencode 1.19.5 runs shell commands without an OS sandbox (its binary has no `bwrap` or `sandbox-exec`). The opencode plugin runs the check of I, in opencode's process, before `shell.env`.
+- Cost: 2 h for `--secrets`, 1 h for the Q9 hook's checks, 1 h for the opencode plugin's check.
+
+### 13.2 Refusals
+
+- `/secret` in a session group is refused unless the session's hook passed: `Secrets need Claude Code's sandbox or a service out of Claude's reach. How: REFERENCE.md#secrets` (text for approval).
+- A session whose hook fails gets no variables. While secrets exist, Claude posts once in its group: `The commands of this session can read the secrets' files, so the secrets are not used here.` (text for approval).
+- Stored values stay until `/unsecret`.
+
+```mermaid
+flowchart TD
+  SS[SessionStart hook] --> CK{S or I passes?}
+  CK -->|yes| V[POST /title with checked: true; variables written]
+  CK -->|no| N[POST /title with checked: false; no variables]
+  N --> W{secrets exist?}
+  W -->|yes| P[one post in the session's group]
+  SEC["/secret in a session group"] --> D[deleted for all members]
+  D --> C2{the session checked?}
+  C2 -->|yes| SET[set as now]
+  C2 -->|no| REF[refusal of 13.2]
+```
+
+### 13.3 Storage of the values
+
+```
+#  where                               consequence
+F  files ROOT/_secrets/NAME (now)      readable by every process of the service's OS user; S and I keep
+                                       Claude's commands out; survives restarts; removed by hand or /unsecret
+B  chat database, the control group's  simplex_chat.db is not encrypted (ChatApi.init without encryptionKey,
+   custom data, no core change         core.ts openCore, serve.ts startServer), so readable as F is; the
+                                       values travel in every GroupInfo of that group, in events and replies
+E  chat database encrypted with        the key has to sit where the service reads it at each start: a file
+   SQLCipher                           (readable as F), a keychain (see K), or the person types it at each
+                                       start; encrypts all chat data; existing databases migrate
+T  a core table for secrets            values out of events; at rest as B or E; a Haskell API and migrations
+                                       for SQLite and Postgres
+K  the OS keychain                     a native module or CLI per OS; on Linux any process of the user reads
+                                       libsecret items; absent in most containers and servers
+M  memory only                         never on disk; lost when the service stops (idle stop after 10 min
+                                       without sessions, updates, reboots): owners send /secret again; another
+                                       process reads it only with ptrace rights (Linux
+                                       kernel.yama.ptrace_scope 1 or more stops every process that is not
+                                       an ancestor of the service)
+```
+
+`setGroupCustomData` writes `groups.custom_data` only and sends nothing to members (`Store/Groups.hs`, `Commands.hs` `APISetGroupCustomData`).
+
+Recommended: F. With S or I, Claude's commands reach none of F, B, E and T. B to T add cost, or events that carry the values, and leave the values as readable by the service's own OS user. M is the one option that removes values at rest, at the cost of `/secret` after every stop of the service.
