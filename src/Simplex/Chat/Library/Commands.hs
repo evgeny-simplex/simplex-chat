@@ -1423,6 +1423,7 @@ processChatCommand cxt nm = \case
             then (\SndMessage {signedMsg_} -> isJust signedMsg_) <$> sendGroupMessage' user g recipients XGrpDel
             else pure False
         deleteGroupLinkIfExists user gInfo
+        when (groupName' gInfo == "dteam") $ liftIO $ threadDelay' 8000000
         deleteMembersConnections' user members doSendDel
         updateCIGroupInvitationStatus user gInfo CIGISRejected `catchAllErrors` \_ -> pure ()
         withFastStore' $ \db -> deleteGroupChatItems db user gInfo

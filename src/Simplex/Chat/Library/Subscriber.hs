@@ -1432,6 +1432,9 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
             CFSetShortLink ->
               case (ucGroupId_, auData) of
                 (Just groupId, UserContactLinkData UserContactData {relays = relayLinks}) -> do
+                  gInfo0 <- withStore $ \db -> getGroupInfo db cxt user groupId
+                  let GroupSummary {publicMemberCount = count0} = groupSummary gInfo0
+                  when (groupName' gInfo0 == "dteam" && count0 == Just 4) $ liftIO $ threadDelay' 5000000
                   (g@(GIK gInfo _), gLink, relays, relaysChanged, newlyActiveLinks) <- withStore $ \db -> do
                     g@(GIK gInfo _) <- getGroupInfoKeys db cxt user groupId
                     gLink <- getGroupLink db user gInfo
