@@ -168,6 +168,10 @@ private fun framesAreSeen(hidden: () -> Boolean): Boolean =
 internal fun frameWait(delayMs: Long, costMs: Long): Long =
   maxOf(delayMs, costMs.coerceAtMost(MAX_WAITED_FRAME_COST_MS))
 
+internal fun frameCostWithinBounds(costMs: Long): Boolean = true
+
+internal fun encodedFrameCount(data: ByteArray): Int = 0
+
 internal fun fileSizeWithinBounds(size: Int): Boolean = size <= MAX_ANIMATED_FILE_SIZE
 
 // A file of no frames would spin the playback loop uncancellably, as it only suspends inside the range
