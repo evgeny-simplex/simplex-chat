@@ -60,9 +60,9 @@ class FlatMediaTest {
     fun red(x: Int, y: Int) = pixel(x, y).let { it.red > 0.8f && it.green < 0.2f && it.blue < 0.2f }
     val start = (0 until rowWidth).first { red(it, 20) }
     val end = (start until rowWidth).first { !red(it, 20) }
-    val bottom = (20 until 1200).first { !red(start + 5, it) }
+    val bottom = (20 until 1200).first { !red((start + end) / 2, it) }
     val timeBeside = (end + 2 until rowWidth).any { x -> (20 until bottom).any { y -> pixel(x, y).luminance() < 0.9f } }
-    val timeOver = (start until end).any { x -> (bottom - 40 until bottom).any { y -> pixel(x, y).luminance() > 0.9f } }
+    val timeOver = (start + 10 until end - 10).any { x -> (bottom - 30 until bottom - 8).any { y -> pixel(x, y).luminance() > 0.9f } }
     return Media(start, end - start, timeBeside, timeOver)
   }
 
