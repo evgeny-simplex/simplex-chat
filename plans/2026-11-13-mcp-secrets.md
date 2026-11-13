@@ -1,6 +1,6 @@
 # SimpleX MCP: secrets in Claude Code, redacted by the plugin's service
 
-Status: a plan for the user's approval. It completes #8151 (https://github.com/simplex-chat/simplex-chat/pull/8151, "mcp server: give the agent secrets without exposing them to the model"), whose head is `cc45d339b`. Code references: #8151 at `cc45d339b` and master `8fda06295`, by file and function. Claude Code references: the 2.1.322 binary at the byte offsets given, the 2.1.323 binary where named, and the official docs, quoted. Runs E1, E2 and E3 used Claude Code 2.1.323 with `claude -p`, a scratch `HOME` and `CLAUDE_CONFIG_DIR`, no plugin, the fake token `CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-fake-…`, a local server that records requests and answers with a canned stream, and `HTTPS_PROXY` set to a local recording proxy:
+Status: Q2 A and Q3 A answered by the user on 2026-11-13; Q1 open. The plan waits for the user's approval before implementation. It completes #8151 (https://github.com/simplex-chat/simplex-chat/pull/8151, "mcp server: give the agent secrets without exposing them to the model"), whose head is `cc45d339b`. Code references: #8151 at `cc45d339b` and master `8fda06295`, by file and function. Claude Code references: the 2.1.322 binary at the byte offsets given, the 2.1.323 binary where named, and the official docs, quoted. Runs E1, E2 and E3 used Claude Code 2.1.323 with `claude -p`, a scratch `HOME` and `CLAUDE_CONFIG_DIR`, no plugin, the fake token `CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-fake-…`, a local server that records requests and answers with a canned stream, and `HTTPS_PROXY` set to a local recording proxy:
 
 - E1: `ANTHROPIC_BASE_URL` in the environment; the proxy refused every `CONNECT`.
 - E2: `ANTHROPIC_BASE_URL` in the `env` of the scratch `settings.json`, a SessionStart hook that wrote its environment to a file, and the proxy terminating TLS for `api.anthropic.com` with a test CA in `NODE_EXTRA_CA_CERTS`. The prompt carried the marker `MARKER_PROMPT`.
@@ -14,18 +14,42 @@ The user's words, 2026-11-13, in the plugin's session group:
 
 #8151 states its limit: "Claude Code: no redaction in this PR."
 
-Outcome:
-- Admins and owners of a session's group set secrets there with `/secret NAME VALUE`, as owners do in #8151's agent control chat.
-- Every model request of Claude Code on the computer passes the plugin's service, which replaces each value with `[secret NAME]` before the request reaches Anthropic.
-- Claude gets the secrets only in sessions whose requests pass the service.
+The secrets are tokens for any web service that Claude uses in its commands, such as AWS IAM keys or a GitHub token. Admins and owners of a session's group send one with `/secret NAME VALUE`. Claude gets the name, never the value, and uses the value by reference:
 
-The user's assumption holds in part:
-- The plugin runs the proxy: its service is a long-running process that the plugin starts on demand (`client.ts` `spawnService`, `service.ts` `Service.start`), and it can listen on `127.0.0.1`.
-- The plugin can't send Claude Code to it. Claude Code sends model requests to `ANTHROPIC_BASE_URL`, which only the environment or the `env` of a settings file sets (facts 3 and 4). The person adds one setting on each computer, as with the status line of `ep/mcp-session-usage`.
+```
+curl -H "Authorization: Bearer $(cat ~/.simplex-mcp-secrets/GITHUB_TOKEN)" https://api.github.com/user
+```
+
+The shell puts the value into the command, and the request reaches the web service with the real value. Claude Code's own claude.ai login is not one of these secrets.
+
+The proxy guards one thing: that a secret's value never reaches the model. A command's output becomes part of the conversation, and Claude Code sends the conversation to Anthropic in its next model request. When the output holds a value, as `curl -v` or `env` can print it, the value reaches the model without the proxy.
+
+Claude Code sends its model requests to Anthropic. The proxy sits on that path only:
+- Claude Code sends each model request to the proxy in the plugin's service, which replaces every value with `[secret NAME]` and forwards the request to Anthropic.
+- Claude Code's login passes through the proxy unchanged; the proxy never stores or logs it.
+- Claude's commands to other services don't pass the proxy and keep the real values.
+
+```mermaid
+flowchart LR
+  CL[Claude] -->|a command, the value by its path| SH[shell on this computer]
+  SH -->|real value| WS[web services such as AWS or GitHub]
+  SH -->|command output| CC[Claude Code]
+  CC -->|model request, login unchanged| PX[proxy in the SimpleX service]
+  PX -->|values replaced by secret names| AN[Anthropic API]
+  AN -->|answer| PX
+  PX -->|answer| CC
+```
+
+One setting tells Claude Code where to send its model requests: `ANTHROPIC_BASE_URL` in the `env` of the person's own Claude Code settings, `~/.claude/settings.json`. It is a user setting of Claude Code, the same on a laptop and in a container. It applies to Claude Code and to the processes Claude Code starts, such as its hooks, and to no other program. The plugin runs the proxy in its service (`client.ts` `spawnService`, `service.ts` `Service.start`), but it can't add this setting: Claude Code lets no plugin set Claude Code's own environment (facts 3 and 4). The person adds the line once, as with the status line of `ep/mcp-session-usage`.
+
+Outcome:
+- Admins and owners of a session's group set secrets there, as owners do in #8151's agent control chat (Q2 A).
+- With the setting, every model request of Claude Code on the computer passes the proxy, with each value replaced.
+- Claude gets the secrets only in sessions whose model requests pass the proxy (Q3 A).
 
 ## 2. What users see
 
-Setup, once per computer or container that shares `~/.claude`, then a restart of Claude Code:
+Setup, a user setting of Claude Code, once per computer or container that shares `~/.claude`, then a restart of Claude Code:
 
 ```json
 {
@@ -127,10 +151,14 @@ sequenceDiagram
 
 ## 3. Questions for the user
 
-Q1. Redaction of Claude Code requests by the plugin's service, turned on by one setting on each computer.
-- A, recommended: the person adds `ANTHROPIC_BASE_URL` to `env` in `~/.claude/settings.json`. Every model request of Claude Code on that computer passes the service, with the claude.ai login token in its `Authorization` header, which the service forwards and never stores or logs. Remote Control, moving a session to the cloud, server-managed settings and the prompt cache keepalive turn off (fact 7). Claude Code gets no answers while the service is down.
-- B: the service writes the setting into `~/.claude/settings.json` at the first `/secret`. No manual step. The plugin edits the person's own settings file, which Claude Code's plugin settings exclude (fact 4), and the consequences of A follow without the person's choice.
-- C: no Claude Code redaction, as #8151. Plugin sessions get no secrets.
+Answered on 2026-11-13: Q2 A and Q3 A. Q1 is open.
+
+Q1. How Claude Code's model requests come to the proxy, so that secret values never reach the model. Claude's commands to web services are not affected in any option.
+- A, recommended: the person adds one line to their own Claude Code settings, `~/.claude/settings.json`, once per computer: `"env": {"ANTHROPIC_BASE_URL": "http://127.0.0.1:5225"}`. Claude Code then sends its model requests to the proxy, which replaces the values and forwards them to Anthropic. Claude Code's login passes through unchanged and is never stored. Costs:
+  - Claude Code turns off Remote Control, moving a session to the cloud, server-managed settings and the prompt cache keepalive whenever its model requests go to an address other than Anthropic's (fact 7).
+  - Claude Code gets no answers while the SimpleX service is down; it retries for about 3 minutes, then shows an error.
+- B: the plugin's service writes the same line into `~/.claude/settings.json` itself, at the first `/secret`. No manual step, with the costs of A. The plugin edits the person's own settings file, which Claude Code's plugin settings exclude (fact 4).
+- C: no redaction in Claude Code, as in #8151. Claude in plugin sessions gets no secrets.
 
 Q2. Who sets secrets in the plugin, and for which sessions.
 - A, recommended: admins and owners of each session's group, with #8151's commands, which the group's Control already runs. One set per computer, in one folder, for every session whose requests pass the service. A Main group member joins a session group as an admin, so every Main group member can set secrets; the Main group's welcome already trusts them to approve Claude's actions.
