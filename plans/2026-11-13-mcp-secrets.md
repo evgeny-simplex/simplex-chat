@@ -1,12 +1,13 @@
 # SimpleX MCP: secrets bound to hosts, put into requests by the plugin's proxy
 
-Status: rewritten on 2026-11-13 to the user's design, which replaces the redaction of the model's requests in the earlier version of this plan. The user's answers Q2 A and Q4 A still apply. Q1, Q3 and Q5 are new. The plan waits for the user's approval before implementation.
+Status: rewritten on 2026-11-13 to the user's design, which replaces the redaction of the model's requests in the earlier version of this plan. Answered by the user on 2026-11-13: Q2 A, Q3 A, Q4 A, Q5 A, with opencode support as part of this work, and Q6 A on the plans page, the plugin's own proxy. Q1 is open; the implementation proceeds with the parts that both of its options need.
 
 It completes #8151 (https://github.com/simplex-chat/simplex-chat/pull/8151, "mcp server: give the agent secrets without exposing them to the model"), whose head is `cc45d339b`. Code references: #8151 at `cc45d339b` and master `8fda06295`, by file and function. Claude Code references: the 2.1.322 binary at the byte offsets given, and the official docs, quoted. Runs R1 to R3 used Claude Code 2.1.323 with `claude -p`, a scratch `HOME` and `CLAUDE_CONFIG_DIR`, a fake token, a local server that answers model requests with canned tool calls, a test plugin loaded with `--plugin-dir`, and a local proxy that terminates TLS for `api.anthropic.com` with a test CA:
 
 - R1: the test plugin's SessionStart hook wrote `HTTPS_PROXY`, `https_proxy`, `NO_PROXY`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE` and `NODE_EXTRA_CA_CERTS` to `CLAUDE_ENV_FILE`. The model asked for a Bash command that printed these variables and ran `curl https://api.anthropic.com/probe-from-bash-main`.
 - R2: as R1, from a Bash command of a subagent.
 - R3: Node.js 22.23.3 `fetch` and `https.get` through the same proxy, with and without `NODE_USE_ENV_PROXY=1`.
+- R4: `npm install -g --prefix DIR opencode-ai@1.19.5` into a scratch folder, then `opencode models` and `opencode run --model opencode/deepseek-v4.1-flash-free "Reply with the single word OK."` with a scratch `HOME`.
 
 ## 1. Goal
 
@@ -146,19 +147,19 @@ model requests                  values redacted by an opencode plugin         un
 
 ## 3. Questions for the user
 
-Answered on 2026-11-13: Q2 A and Q4 A.
+Answered on 2026-11-13: Q2 A, Q3 A, Q4 A, Q5 A and Q6 A. The user's note on Q5: "we need to install opencode and make it work with it with some model - you will guide me. Opencode has lots of users, it's good to add support as part of this work." Q1 is open.
 
 Q1. What the plugin promises about Claude reading a value. Claude's commands run as the person's own OS user, as the SimpleX service does.
 - A, recommended: the plugin variant now. Values stay in the service's private folder. Claude is never told the folder, a command sees only placeholders, and a command that avoids the proxy gets no value. A command that searches the person's files can still read the folder, as any program of that user can. The docs name two stronger setups: Claude Code's own sandbox, whose settings can deny reading the folder and send traffic to a proxy of the person's choice, still to be checked with this proxy; and a container without network that reaches the proxy only through a Unix socket, as in steward (facts 7 and 8).
 - B: secrets only for Claude Code in such a sandbox or container. The plugin refuses `/secret` until the setup is in place. Every person who uses secrets sets it up first.
 
 Q3. Which uses of a secret the first version covers (section 5, "Modes").
-- A, recommended: the modes `value`, `aws` and `gcp`. `value` puts values into headers, `Authorization: Basic`, the URL and the body, as in the user's words. A command can also put a `value` secret into data that the bound host stores or shows, such as an issue comment.
+- A, chosen: the modes `value`, `aws` and `gcp`. `value` puts values into headers, `Authorization: Basic`, the URL and the body, as in the user's words. A command can also put a `value` secret into data that the bound host stores or shows, such as an issue comment.
 - B: `value` and `aws` now, `gcp` later. Google Cloud keys don't work until then; about 90 source lines less now.
 - C: `value` in headers and the URL only, with `aws`. Bodies keep the placeholder, so services that take keys in a body don't work.
 
 Q5. #8151's way for `serve` and opencode, where the agent reads the value by path and opencode redacts model requests.
-- A, recommended: replaced everywhere by the proxy. `serve` runs the same proxy, the person starts opencode with the proxy variables that `serve` prints, and the opencode plugin is removed. One way for every host.
+- A, chosen: replaced everywhere by the proxy. `serve` runs the same proxy, and the opencode plugin gives opencode's shell commands the proxy variables (decision 35). One way for every host.
 - B: kept for `serve` and opencode; the proxy is for the plugin only. Two ways, with values in the agent's shell under `serve`.
 
 ## 4. Decisions
@@ -235,6 +236,9 @@ Choices:
     - HMAC signatures of other services, such as Azure Shared Key and OAuth 1.0a, by the pattern of `aws`.
     - TLS client certificates, which the proxy could present to a bound host.
 34. Delivery: our own pull request, stacked on #8151, branch `ep/mcp-secrets` of the evgeny-simplex fork, started at #8151's head `cc45d339b`. After #8151 merges, `git rebase --onto master cc45d339b` leaves only our commits. Alain is told of the user's design before he changes #8151 further; his commands, moderation and store remain.
+35. Q5 A, `serve`: the agent's HTTP server on `127.0.0.1:PORT` (5226 by default) also serves as the proxy: `CONNECT` and requests in absolute form are proxy requests, and `/mcp` keeps its token. The store and the CA are in the agent's data folder. `--secrets-folder` and #8151's separate folder are removed.
+36. Q5 A, opencode: opencode 1.19.5 calls the plugin hook `shell.env` with `{cwd, sessionID, callID}` before each shell command and adds the returned variables to the command's environment (`ShellTool.shellEnv`, `{...process.env, ...k.env}`, offset 125356956 of the `opencode-linux-x64-baseline` binary; the same for `!` commands and terminals, 125536886, 125789515). `opencode/simplex-secrets.ts` becomes a `shell.env` hook that returns the variables of decision 21 for the agent's port, read from `DATA/proxy-env.json`, which `serve` writes. Its redaction of model requests is removed.
+37. `register NAME --host opencode` runs `opencode mcp add simplex-NAME --url http://127.0.0.1:PORT/mcp --header Authorization=...` (R4: `opencode mcp add` takes `--url` and `--header`) and writes the plugin to `~/.config/opencode/plugins/simplex-NAME.ts`, with the agent's data folder in it. `register` without `--host` adds the agent to Claude Code as now.
 
 ## 5. Design
 
@@ -315,7 +319,10 @@ src/hook.ts         sessionStart              the variables of decision 21; watc
 src/protocol.ts     TitleRequest              + proxy?: boolean
 hooks/hooks.json    FileChanged               new entry: hook secrets-changed
 src/cli.ts          main                      hook secrets-changed
-opencode/           simplex-secrets.ts        removed (Q5 A)
+src/serve.ts        startAgent                the proxy on the agent's HTTP server; DATA/proxy-env.json (decision 35)
+src/http.ts         startHttp                 CONNECT and absolute-form requests to the proxy
+src/register.ts     register                  --host opencode (decision 37)
+opencode/           simplex-secrets.ts        the shell.env hook in place of the redaction (decision 36)
 ```
 
 The proxy, per connection:
@@ -395,7 +402,7 @@ not kept from Claude
 - Older plugin data folders: the CA and `secrets.json` appear at the first start of this version.
 - An older service: the hook of this version stops it (`client.ts` `ensureService`).
 - Older SimpleX apps: moderation and full deletion as in #8151.
-- `serve`: by Q5.
+- `serve` and opencode: the same proxy (decisions 35 to 37). An agent started with `--secrets-folder` exits with the usage error of an unknown option.
 
 ## 7. Acceptance and tests
 
@@ -464,17 +471,39 @@ REFERENCE.md, spec  Secrets, 4.x, 8.x, flows                every item; mcp-spec
 
 ## 10. Estimate
 
+Hours of agent work:
+
 ```
-part                                        source lines   test lines
-proxy.ts: tunnels, TLS, mode value, refusals, 260            320
+part                                                  source lines   test lines   hours
+proxy.ts: tunnels, TLS, mode value, refusals,         260            320          2
   responses
-certs.ts                                    90             50
-sigv4.ts: mode aws                          110            110
-gcp.ts: mode gcp                            90             80
-control.ts, hub.ts, main-group.ts, tools.ts 60             140
-hook.ts, service.ts, files.ts, protocol.ts  70             100
-e2e                                                        60
-docs                                        230 lines of text
+certs.ts                                              90             50           0.5
+sigv4.ts: mode aws                                    110            110          1
+gcp.ts: mode gcp                                      90             80           0.5
+control.ts, hub.ts, main-group.ts, tools.ts           60             140          1
+hook.ts, service.ts, files.ts, protocol.ts            70             100          1
+serve, http.ts, register.ts, the opencode plugin      80             80           1
+e2e and the real checks of criterion 10                              60           1
+docs                                                  250 lines of text           1
+two review rounds                                                                 2
 ```
 
-About seven working days, with two review rounds, after #8151's conflicts with master are resolved. Q3 B takes `gcp.ts` out, about one day less.
+About 11 hours, after #8151's conflicts with master are resolved, which takes about half an hour more.
+
+## 11. opencode setup
+
+What the agent did here, without the user (R4):
+- `npm install -g --prefix DIR opencode-ai` installed opencode 1.19.5 without a prompt or `sudo`. The default prefix of this machine is `/usr`, which needs `sudo`, so the user's step uses `~/.local`, whose `bin` is on `PATH`.
+- opencode lists free models of its own provider without any key, such as `opencode/deepseek-v4.1-flash-free`. `opencode run` with that model answered `OK`.
+- This machine has no model provider key in its environment, so the free model is the one to test with. Other providers are added in opencode with `/connect`.
+
+The user's steps, after the implementation is published:
+
+1. `npm install -g --prefix ~/.local opencode-ai`
+2. `npx -y @simplex-chat/mcp serve my-agent`, in its own terminal; scan the QR code with the SimpleX app.
+3. `npx -y @simplex-chat/mcp register my-agent --host opencode`
+4. `opencode --model opencode/deepseek-v4.1-flash-free`
+
+Then send `/secret GITHUB_TOKEN api.github.com <token>` in the agent control chat, and ask opencode: `Show my GitHub login with the GITHUB_TOKEN secret.`
+
+Before the publication, the agent gives the commands of steps 2 and 3 for the branch's build.
