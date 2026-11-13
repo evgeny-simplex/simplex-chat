@@ -2830,7 +2830,9 @@ testGroupAsync ps = do
       cath ##> "/j team"
       concurrentlyN_
         [ alice <## "#team: cath joined the group",
-          cath <## "#team: you joined the group"
+          do
+            cath <## "#team: you joined the group"
+            cath <# "#team alice> hello bob [>>]"
         ]
       alice #> "#team hello cath"
       cath <# "#team alice> hello cath"
@@ -2849,7 +2851,7 @@ testGroupAsync ps = do
   threadDelay 500000
   withTestChat ps "bob" $ \bob -> do
     withNewTestChat ps "dan" danProfile $ \dan -> do
-      bob <## "subscribed 4 connections on server localhost"
+      bob <## "subscribed 3 connections on server localhost"
       connectUsers bob dan
       bob ##> "/a team dan"
       concurrentlyN_
@@ -2861,7 +2863,10 @@ testGroupAsync ps = do
       dan ##> "/j team"
       concurrentlyN_
         [ bob <## "#team: dan joined the group",
-          dan <## "#team: you joined the group"
+          do
+            dan <## "#team: you joined the group"
+            dan <# "#team alice> hello bob [>>]"
+            dan <# "#team alice> hello cath [>>]"
         ]
       threadDelay 1000000
   threadDelay 1000000
@@ -2874,13 +2879,15 @@ testGroupAsync ps = do
               alice <## "#team: bob added dan (Daniel) to the group (connecting...)"
               alice <## "#team: new member dan is connected",
             do
-              cath <## "subscribed 4 connections on server localhost"
+              cath <## "subscribed 3 connections on server localhost"
               cath <## "#team: bob added dan (Daniel) to the group (connecting...)"
               cath <## "#team: new member dan is connected",
             do
-              dan <## "subscribed 5 connections on server localhost"
-              dan <## "#team: member alice (Alice) is connected"
-              dan <## "#team: member cath (Catherine) is connected"
+              dan <## "subscribed 4 connections on server localhost"
+              dan
+                <### [ "#team: member alice (Alice) is connected",
+                       "#team: member cath (Catherine) is connected"
+                     ]
           ]
         threadDelay 1000000
   withTestChat ps "alice" $ \alice -> do
@@ -2888,10 +2895,10 @@ testGroupAsync ps = do
       withTestChat ps "cath" $ \cath -> do
         withTestChat ps "dan" $ \dan -> do
           concurrentlyN_
-            [ alice <## "subscribed 6 connections on server localhost",
-              bob <## "subscribed 6 connections on server localhost",
-              cath <## "subscribed 6 connections on server localhost",
-              dan <## "subscribed 6 connections on server localhost"
+            [ alice <## "subscribed 5 connections on server localhost",
+              bob <## "subscribed 5 connections on server localhost",
+              cath <## "subscribed 4 connections on server localhost",
+              dan <## "subscribed 4 connections on server localhost"
             ]
           alice #> "#team hello"
           concurrentlyN_
@@ -2917,9 +2924,45 @@ testGroupAsync ps = do
               bob <# "#team dan> how is it going?",
               cath <# "#team dan> how is it going?"
             ]
-          bob <##> cath
-          dan <##> cath
-          dan <##> alice
+          bob `send` "@cath hi"
+          bob
+            <### [ "member #team cath does not have direct connection, creating",
+                   "contact for member #team cath is created",
+                   "sent invitation to connect directly to member #team cath",
+                   WithTime "@cath hi"
+                 ]
+          cath
+            <### [ "#team bob requests to create direct contact with you",
+                   "to accept: /accept_member_contact @bob",
+                   "to reject: /delete @bob (the sender will NOT be notified)",
+                   WithTime "bob> hi"
+                 ]
+          dan `send` "@cath hi"
+          dan
+            <### [ "member #team cath does not have direct connection, creating",
+                   "contact for member #team cath is created",
+                   "sent invitation to connect directly to member #team cath",
+                   WithTime "@cath hi"
+                 ]
+          cath
+            <### [ "#team dan requests to create direct contact with you",
+                   "to accept: /accept_member_contact @dan",
+                   "to reject: /delete @dan (the sender will NOT be notified)",
+                   WithTime "dan> hi"
+                 ]
+          dan `send` "@alice hi"
+          dan
+            <### [ "member #team alice does not have direct connection, creating",
+                   "contact for member #team alice is created",
+                   "sent invitation to connect directly to member #team alice",
+                   WithTime "@alice hi"
+                 ]
+          alice
+            <### [ "#team dan requests to create direct contact with you",
+                   "to accept: /accept_member_contact @dan",
+                   "to reject: /delete @dan (the sender will NOT be notified)",
+                   WithTime "dan> hi"
+                 ]
 
 testGroupLinkDeleteGroupRejoin :: HasCallStack => TestParams -> IO ()
 testGroupLinkDeleteGroupRejoin =
