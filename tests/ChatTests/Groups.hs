@@ -11671,7 +11671,6 @@ testChannelDeleteGroupForcedRace ps =
             createChannel1Relay "dteam" alice bob cath dan eve
             waitQueuedLinkUpdates alice
             alice ##> "/d #dteam"
-            alice <## "no group link, to create: /create link #dteam"
             alice <## "#dteam: you deleted the group (signed)"
             concurrentlyN_
               [ do

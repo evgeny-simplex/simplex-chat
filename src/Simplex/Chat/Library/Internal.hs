@@ -1760,9 +1760,12 @@ deleteGroupLinkIfExists user gInfo = do
   mapM_ (deleteGroupLink_ user gInfo) conn_
 
 deleteGroupLink_ :: User -> GroupInfo -> Connection -> CM ()
-deleteGroupLink_ user gInfo conn = do
-  deleteAgentConnectionAsync $ aConnId conn
-  withStore' $ \db -> deleteGroupLink db user gInfo
+deleteGroupLink_ user gInfo conn@Connection {entityId} = do
+  diagLog $ "deleteGroupLink_: waiting for link lock " <> show entityId
+  maybe id (withUserContactLock "deleteGroupLink") entityId $ do
+    diagLog "deleteGroupLink_: link lock acquired"
+    deleteAgentConnectionAsync $ aConnId conn
+    withStore' $ \db -> deleteGroupLink db user gInfo
 
 startProximateTimedItemThread :: User -> (ChatRef, ChatItemId) -> UTCTime -> CM ()
 startProximateTimedItemThread user itemRef deleteAt = do
