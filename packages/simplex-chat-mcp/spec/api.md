@@ -40,6 +40,7 @@
    - [4.6 Socket protocol](#46-socket-protocol)
    - [4.7 Plugin commands](#47-plugin-commands)
    - [4.8 Plugin options, files and hook output](#48-plugin-options-files-and-hook-output)
+   - [4.9 Secrets proxy](#49-secrets-proxy)
 
 ---
 
@@ -191,7 +192,7 @@ Tool errors:
 | `mention: CHAT has no member N.` | ID absent from `apiListMembers` | [tools.ts:1330](../src/tools.ts#L1330) |
 | `mention: members N and M have the same name.` | two mentioned members with the same display name | [tools.ts:1333](../src/tools.ts#L1333) |
 | `file: an absolute path is expected.`<br>`file: no file at FILE.`<br>`file: PATH is not a file.`<br>`file: PATH can't be read.` | the path, after symbolic links | [tools.ts:1625-1636](../src/tools.ts#L1625-L1636) |
-| `file: PATH is refused: private keys and the server's own files are not sent.` | a file named `id_*`, `*.pem`, `*.key`, `*.p12` or `*.pfx`, or under `~/.ssh`, `~/.gnupg` or the secrets folder, or under the data folder or `~/.simplex-mcp` outside `DATA/files/`; each folder by its real path | [tools.ts:995-998](../src/tools.ts#L995-L998), [:1004-1009](../src/tools.ts#L1004-L1009) |
+| `file: PATH is refused: private keys and the server's own files are not sent.` | a file named `id_*`, `*.pem`, `*.key`, `*.p12` or `*.pfx`, or under `~/.ssh`, `~/.gnupg` or `_secrets/` of the data folder or data root, or under the data folder or `~/.simplex-mcp` outside `DATA/files/`; each folder by its real path | [tools.ts:995-998](../src/tools.ts#L995-L998), [:1004-1009](../src/tools.ts#L1004-L1009) |
 | `file: PATH is empty.` | size 0 | [tools.ts:999](../src/tools.ts#L999) |
 | `text: too long for the message with its quote; shorten it.`<br>`text: too long for a message with this TYPE; shorten it.` | the message, as the core sends it, above 15602 bytes | [tools.ts:926](../src/tools.ts#L926), [:1580-1582](../src/tools.ts#L1580-L1582), [:1584-1600](../src/tools.ts#L1584-L1600) |
 | refusals | see [1.9](#19-action-refusals) | |
@@ -296,9 +297,9 @@ Output:
 |---|---|
 | `chats` | `chat`<br>`type`<br>`name`<br>`simplex_name`, when verified<br>`peer_type`, when present<br>`incognito`<br>`known_as`, when incognito<br>`connected`<br>`unread`: `chatStats.unreadCount`<br>`approved: true`, only under a standing approval of messages in mode `requests` |
 | `actions` | `action`<br>`tool`<br>`input`: the input of the creating call<br>`state`<br>`open`: `true` while a call waits on it |
-| `secrets` | an object, only with `--secrets-folder`:<br>`folder`: SECRETS, the server's path<br>`names`: the names of the secrets, sorted |
+| `secrets` | present while secrets exist, sorted by name:<br>`name`<br>`hosts`: the bound hosts, as set<br>`mode`: `value`, `aws` or `gcp`<br>`placeholder`: `simplex-secret-NAME` |
 
-`chats`: the contacts and groups of the main conversations from one read, `apiGetChats(USER, last 1000000)`, except the control chat. In the plugin, only the chats of the calling session are listed ([tools.ts:1293-1301](../src/tools.ts#L1293-L1301), [:585-587](../src/tools.ts#L585-L587)). `actions`: the actions in memory of the calling session other than its mode and tool-use cards, or all actions for `serve` ([tools.ts:1288](../src/tools.ts#L1288)). `secrets`: the folder and the names read at each call; values are not returned ([tools.ts:1289-1290](../src/tools.ts#L1289-L1290), [files.ts:162-164](../src/files.ts#L162-L164)). The `list` description states the use of a secret: inside a shell command, as `"$(cat FOLDER/NAME)"`, never by its value ([tools.ts:442](../src/tools.ts#L442)).
+`chats`: the contacts and groups of the main conversations from one read, `apiGetChats(USER, last 1000000)`, except the control chat. In the plugin, only the chats of the calling session are listed ([tools.ts:1293-1301](../src/tools.ts#L1293-L1301), [:585-587](../src/tools.ts#L585-L587)). `actions`: the actions in memory of the calling session other than its mode and tool-use cards, or all actions for `serve` ([tools.ts:1288](../src/tools.ts#L1288)). `secrets`: the secrets with both a file in `DATA/_secrets/` and a record in `DATA/secrets.json`, read at each call; values are not returned ([tools.ts:1304-1305](../src/tools.ts#L1304-L1305), [files.ts:193-199](../src/files.ts#L193-L199)). The `list` description tells the agent to use the placeholder, or the shell variable named as the secret, in an HTTPS request to one of the secret's hosts, and states what the proxy does in each mode ([tools.ts:458](../src/tools.ts#L458)).
 
 ### 1.7 `leave`
 
@@ -426,7 +427,7 @@ requests
   delete CHAT files
   pending
   list
-  secret NAME VALUE
+  secret NAME HOSTS VALUE
   unsecret NAME
   secrets
   give CHAT N         in a plugin session group only
@@ -435,12 +436,12 @@ requests
 
 The server reads commands from members' messages in the main conversation of the control chat ([serve.ts:131](../src/serve.ts#L131), [control.ts:224-237](../src/control.ts#L224-L237)). It answers a command with a reply that quotes it, one command after another, and it runs the expiry check before each command ([control.ts:235](../src/control.ts#L235), [:258](../src/control.ts#L258)).
 
-A received message whose first word is `/secret`, in any letter case, from any member, while the control chat is not lost ([control.ts:226-228](../src/control.ts#L226-L228)):
+A received message whose first word is `/secret`, in any letter case, from any member, while the control chat is not lost ([control.ts:232-233](../src/control.ts#L232-L233)):
 
-- is deleted for all members by `apiDeleteMemberChatItem`, queued after the earlier commands; after a failed deletion, the command is not run, and the error is logged ([control.ts:232-236](../src/control.ts#L232-L236));
-- in a member support chat, is deleted and gets no reply ([control.ts:228](../src/control.ts#L228));
-- outside the accepted text, such as a message of several lines, gets the usage reply of `secret`, from any sender ([control.ts:231](../src/control.ts#L231), [:234](../src/control.ts#L234));
-- gets its reply as a new message, without a quote ([control.ts:235](../src/control.ts#L235)).
+- is deleted for all members by `apiDeleteMemberChatItem`, queued after the earlier commands; after a failed deletion, the command is not run, and the error is logged ([control.ts:239-243](../src/control.ts#L239-L243));
+- in a member support chat, is deleted and gets no reply ([control.ts:234](../src/control.ts#L234));
+- outside the accepted text, such as a message of several lines, gets the usage reply of `secret`, from any sender but `User` of a plugin session group, who gets no reply ([control.ts:238](../src/control.ts#L238), [:241](../src/control.ts#L241));
+- gets its reply as a new message, without a quote ([control.ts:242](../src/control.ts#L242)).
 
 | Request | Condition | Reply | Code |
 |---|---|---|---|
@@ -467,19 +468,19 @@ A received message whose first word is `/secret`, in any letter case, from any m
 | `pending` | otherwise | one line per action: `N  WHAT  expires YYYY-MM-DD HH:MM UTC` | [control.ts:264](../src/control.ts#L264), [:792-794](../src/control.ts#L792-L794) |
 | `list` | no chats | `No chats.` | [control.ts:422](../src/control.ts#L422) |
 | `list` | otherwise | one line per chat of the 100 most recent: `CHAT  KIND NAME`, then `, approved for this chat by APPROVER`, `, files approved by APPROVER` and `, not connected` when applicable, cut to 100 bytes with `…`; then `K older chats are not shown.` (`1 older chat is not shown.`) | [control.ts:410-423](../src/control.ts#L410-L423) |
-| `secret`, `unsecret`, `secrets` | `--secrets-folder` absent | `Secrets are off: the server runs without --secrets-folder.` | [control.ts:25](../src/control.ts#L25), [:282-287](../src/control.ts#L282-L287) |
-| `secret NAME VALUE` | NAME not 1 to 64 capital letters, digits and `_` starting with a letter, or VALUE of fewer than 8 characters | `Usage: /secret NAME VALUE on one line. NAME: capital letters, digits and _, starting with a letter, up to 64 characters. VALUE: 8 characters or more.` | [control.ts:26](../src/control.ts#L26), [:426](../src/control.ts#L426), [files.ts:31](../src/files.ts#L31) |
-| `secret NAME VALUE` | accepted; VALUE written to `SECRETS/NAME`, replacing an earlier value; the setter and the time written to `DATA/secrets.json`; logged | `Secret NAME is set. /'unsecret NAME'` | [control.ts:425-431](../src/control.ts#L425-L431) |
-| `unsecret NAME` | NAME not among the secrets | `No such secret. /secrets lists them.` | [control.ts:434](../src/control.ts#L434) |
-| `unsecret NAME` | accepted; `SECRETS/NAME` and its record deleted; logged | `Secret NAME is removed.` | [control.ts:433-437](../src/control.ts#L433-L437) |
-| `secrets` | no secrets | `No secrets.` | [control.ts:445](../src/control.ts#L445) |
-| `secrets` | otherwise | one line per name, sorted: `NAME  set by SETTER  YYYY-MM-DD HH:MM UTC`, or `NAME` for a file without a record | [control.ts:439-446](../src/control.ts#L439-L446) |
+| `secret NAME HOSTS VALUE` | NAME not 1 to 64 capital letters, digits and `_` starting with a letter; HOSTS not host names separated by commas, each with a dot, an optional `*.` before it and an optional port from 1 to 65535 after it; or VALUE of fewer than 8 characters or with a control character | `Usage: /secret NAME HOSTS VALUE on one line. NAME: capital letters, digits and _, starting with a letter, up to 64 characters. HOSTS: host names separated by commas, such as api.github.com,github.com. VALUE: 8 characters or more.` | [control.ts:26](../src/control.ts#L26), [:432-434](../src/control.ts#L432-L434), [secrets.ts:9](../src/secrets.ts#L9), [:37-40](../src/secrets.ts#L37-L40), [files.ts:39](../src/files.ts#L39) |
+| `secret NAME HOSTS VALUE` | NAME reserved: `PATH`, `HOME`, `SHELL`, `USER`, `LOGNAME`, `PWD`, `TERM`, `LANG`, `TMPDIR`, `NO_PROXY`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `AWS_CA_BUNDLE`, or a name starting with `CLAUDE_`, `SIMPLEX_`, `LC_`, `NODE_` or `CLOUDSDK_` | `NAME is reserved; choose another name.` | [control.ts:435](../src/control.ts#L435), [secrets.ts:10-11](../src/secrets.ts#L10-L11), [:28-30](../src/secrets.ts#L28-L30) |
+| `secret NAME HOSTS VALUE` | accepted; HOSTS in small letters without duplicates; the mode `aws` for `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`, `gcp` for a Google service-account key, `value` otherwise; VALUE written to `DATA/_secrets/NAME`, replacing an earlier value; the hosts, the mode, the setter and the time written to `DATA/secrets.json`; logged | `Secret NAME is set for HOSTS. /'unsecret NAME'`, HOSTS joined by `, `; in a plugin session group `, in all sessions on this computer` before the period. Mode `aws` adds ` It signs AWS requests, with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY set for the same hosts.` and mode `gcp` ` It is a Google service-account key: $NAME stands for its access token.` before the command | [control.ts:28-32](../src/control.ts#L28-L32), [:432-442](../src/control.ts#L432-L442), [secrets.ts:32-35](../src/secrets.ts#L32-L35) |
+| `unsecret NAME` | NAME not among the secrets | `No such secret. /secrets lists them.` | [control.ts:445](../src/control.ts#L445) |
+| `unsecret NAME` | accepted; `DATA/_secrets/NAME` and its record deleted; logged | `Secret NAME is removed.` | [control.ts:444-448](../src/control.ts#L444-L448) |
+| `secrets` | no secrets | `No secrets.` | [control.ts:456](../src/control.ts#L456) |
+| `secrets` | otherwise | one line per name, sorted: `NAME  HOSTS  set by SETTER  YYYY-MM-DD HH:MM UTC`, or `NAME` for a file without a record | [control.ts:450-457](../src/control.ts#L450-L457) |
 
 KIND is `contact`, `bot`, `agent`, `business`, `group` or `channel` ([tools.ts:1508-1515](../src/tools.ts#L1508-L1515)). WHAT is `connect to SUBJECT`, `send to SUBJECT`, `download NAME from SUBJECT`, `delete SUBJECT` or `leave SUBJECT` ([actions.ts:382-396](../src/actions.ts#L382-L396)). SIZE is in bytes, KB, MB or GB, by 1000, with one decimal ([control.ts:850-853](../src/control.ts#L850-L853)). Names are shown by `safeName` ([control.ts:867-870](../src/control.ts#L867-L870)).
 
 A standing approval is stored in the chat's custom data, `simplexMcp` for messages and `simplexMcpFiles` for files, as `{approvedBy, approvedById, approvedAt}`; it applies in mode `requests` while member `approvedById` is an approver ([control.ts:32-35](../src/control.ts#L32-L35), [:175-178](../src/control.ts#L175-L178)).
 
-SECRETS is the folder of `--secrets-folder`. The secrets are its files whose names have 1 to 64 capital letters, digits and `_`, starting with a letter; a value is written to `NAME.part` and renamed to `NAME`, both mode 0600 ([files.ts:31](../src/files.ts#L31), [:157-184](../src/files.ts#L157-L184)). The record of a secret in `DATA/secrets.json` is `{setBy, setById, setAt}`: the setter's display name and member ID, and the time. A secret is kept until `unsecret`, also when its setter is no longer an approver. In mode `host`, the secret commands work as in mode `requests`.
+The secrets are the files of `DATA/_secrets/`, mode 0700, whose names have 1 to 64 capital letters, digits and `_`, starting with a letter; a value is written to `NAME.part` and renamed to `NAME`, both mode 0600 ([files.ts:39](../src/files.ts#L39), [:175-219](../src/files.ts#L175-L219)). DATA is the data folder of `serve`, or the plugin's data root, for all its sessions. The record of a secret in `DATA/secrets.json` is `{hosts, mode, setBy, setById, setAt}`: the bound hosts, the mode, the setter's display name and member ID, and the time. A secret is kept until `unsecret`, also when its setter is no longer an approver. In mode `host`, the secret commands work as in mode `requests`. The proxy that uses the secrets is in [4.9](#49-secrets-proxy).
 
 ### 2.2 Cards
 
@@ -600,14 +601,16 @@ NAME: 1 to 32 characters of `[a-z0-9]` and single hyphens, starting with a lette
 | `--new-token` | flag | off | | [cli.ts:113-115](../src/cli.ts#L113-L115) |
 | `--port` | number | 5226 | integer 1 to 65535 | [cli.ts:116-118](../src/cli.ts#L116-L118) |
 | `--qr-code` | `small` or `large` | `small` | | [cli.ts:119-121](../src/cli.ts#L119-L121) |
-| `--secrets-folder` | folder | absent | resolved to an absolute path; refused when it is the data folder, inside it, or contains it, compared as resolved paths; created at start with mode 0700 when missing; absent: the secret commands are off | [cli.ts:122-124](../src/cli.ts#L122-L124), [:132-133](../src/cli.ts#L132-L133), [serve.ts:90](../src/serve.ts#L90), [files.ts:158-160](../src/files.ts#L158-L160) |
 
 ### 3.2 `register`
 
 | Option | Value | Default | Code |
 |---|---|---|---|
-| `--scope` | `user` or `local` | `user` | [cli.ts:132-134](../src/cli.ts#L132-L134) |
-| `--data` | folder | `~/.simplex-mcp/NAME` | [cli.ts:135-137](../src/cli.ts#L135-L137) |
+| `--host` | `claude` or `opencode` | `claude` | [cli.ts:134-136](../src/cli.ts#L134-L136), [:197-200](../src/cli.ts#L197-L200) |
+| `--scope` | `user` or `local`, for `claude` | `user` | [cli.ts:137-139](../src/cli.ts#L137-L139) |
+| `--data` | folder | `~/.simplex-mcp/NAME` | [cli.ts:140-142](../src/cli.ts#L140-L142) |
+
+With `--host opencode`, `register` runs `opencode mcp add simplex-NAME --url http://127.0.0.1:PORT/mcp --header Authorization=Bearer {file:DATA/token}` in the home folder, and writes `opencode/simplex-secrets.ts` of the package, with DATA in place of `__SIMPLEX_MCP_DATA__`, to `simplex-NAME.ts` in `plugins/` of `$XDG_CONFIG_HOME/opencode`, or of `~/.config/opencode`. It prints `Added to opencode: server simplex-NAME, plugin PATH.` ([register.ts:53-63](../src/register.ts#L53-L63)). The plugin's `shell.env` hook adds the variables of [4.9](#49-secrets-proxy) to each shell command of opencode, from `DATA/proxy-env.json` and the names in `DATA/secrets.json`, while the agent has secrets ([simplex-secrets.ts](../opencode/simplex-secrets.ts)).
 
 Entry ([`registryEntry`](../src/register.ts#L46-L53)):
 
@@ -638,13 +641,15 @@ Server name: `simplex-NAME` ([register.ts:36](../src/register.ts#L36)).
 | 2 | `--stop-wait: seconds from 0 to 60 expected, got VALUE` | [cli.ts:108](../src/cli.ts#L108), [:209](../src/cli.ts#L209) |
 | 2 | `--port: a port from 1 to 65535 expected, got VALUE` | [cli.ts:117](../src/cli.ts#L117), [:209](../src/cli.ts#L209) |
 | 2 | `--reset-owners takes --owners without a list: member IDs change in a new agent control chat.` | [cli.ts:130](../src/cli.ts#L130) |
-| 2 | `--secrets-folder: a folder disjoint from the data folder expected, got DIR` | [cli.ts:133](../src/cli.ts#L133) |
+| 2 | `--host: claude or opencode expected, got VALUE` | [cli.ts:198](../src/cli.ts#L198) |
 | 2 | `--owners: member ENTRY is not in the agent control chat. Start with --reset-owners --owners, or use the IDs of current members.` | [control.ts:476](../src/control.ts#L476) |
 | 1 | `Another server uses DATA (PID N). If no server runs, remove DATA/lock.` | [files.ts:116-117](../src/files.ts#L116-L117), [:211-213](../src/files.ts#L211-L213) |
 | 1 | `Port PORT is in use. Start with --port N.` | [serve.ts:190](../src/serve.ts#L190) |
 | 1 | `Agent "NAME" was never started. Start it with: npx -y @simplex-chat/mcp serve NAME` | [register.ts:35](../src/register.ts#L35) |
 | 1 | `Add this entry under LOCATION in ~/.claude.json: {"simplex-NAME": ENTRY}` | [register.ts:55-58](../src/register.ts#L55-L58) |
 | 1 | `claude mcp add-json failed: STDERR` | [register.ts:42](../src/register.ts#L42) |
+| 1 | `opencode is not installed. Install it with: npm install -g --prefix ~/.local opencode-ai` | [register.ts:56](../src/register.ts#L56) |
+| 1 | `opencode mcp add failed: STDERR` | [register.ts:57](../src/register.ts#L57) |
 | 1 | `simplex-mcp: ERROR` for other errors, `stop: ERROR` for a failed stop | [cli.ts:257-258](../src/cli.ts#L257-L258), [serve.ts:54-57](../src/serve.ts#L54-L57) |
 
 LOCATION is `"mcpServers"` for scope `user`, and `"projects" > "PROJECT" > "mcpServers"` for scope `local` ([register.ts:56](../src/register.ts#L56)).
@@ -671,8 +676,10 @@ stdout ([log.ts:37-39](../src/log.ts#L37-L39)):
 | rejected | `Action N rejected by NAME.` | [actions.ts:272](../src/actions.ts#L272) |
 | expired | `Action N expired.` | [actions.ts:310](../src/actions.ts#L310) |
 | `/leave CHAT` | `Left KIND NAME (CHAT), requested by NAME.` or `Deleted ...` | [control.ts:359](../src/control.ts#L359) |
-| `/secret NAME VALUE` accepted | `Secret NAME set by NAME.`, without the value | [control.ts:429](../src/control.ts#L429) |
-| `/unsecret NAME` accepted | `Secret NAME removed by NAME.` | [control.ts:435](../src/control.ts#L435) |
+| `/secret NAME HOSTS VALUE` accepted | `Secret NAME for HOSTS set by NAME.`, without the value | [control.ts:439](../src/control.ts#L439) |
+| `/unsecret NAME` accepted | `Secret NAME removed by NAME.` | [control.ts:446](../src/control.ts#L446) |
+| a request refused by the proxy | `SimpleX proxy: refused a request to HOST: REASON`, as in [4.9](#49-secrets-proxy) | [proxy.ts:229](../src/proxy.ts#L229) |
+| a request through the proxy failed | `SimpleX proxy: a request to HOST failed: ERROR` | [proxy.ts:235](../src/proxy.ts#L235) |
 | refused file, file not sent | as in [2.3](#23-other-posts), names and paths on one line | [control.ts:209](../src/control.ts#L209), [:220](../src/control.ts#L220) |
 | stop | `Cancelled K action.` or `Cancelled K actions.` when K > 0<br>`Stopping: sending K cancelled card(s), up to S s. Ctrl-C to stop now.` when cards were edited or posted and S > 0<br>`Stopped.` | [serve.ts:150](../src/serve.ts#L150), [:163-177](../src/serve.ts#L163-L177), [:154](../src/serve.ts#L154) |
 | membership messages | see [2.4](#24-membership-messages) | |
@@ -733,7 +740,8 @@ Commands from any member, one line `/KEYWORD PARAMS` as in [2.1](#21-commands-an
 | `/join N` | no session N | `No session N. /sessions lists the sessions.` | [hub.ts:528](../src/hub.ts#L528) |
 | `/join N` | the sender is a member of its group | `You are a member of "N · NAME".` | [hub.ts:529-534](../src/hub.ts#L529-L534) |
 | `/join N` | otherwise: the sender is invited through the Main group, as `owner` when the sender is an owner of the Main group, else as `admin` | `Sent you an invitation to "N · NAME".` | [hub.ts:530](../src/hub.ts#L530), [:252-254](../src/hub.ts#L252-L254) |
-| other one-line `/` text | | `Unknown command.` | [main-group.ts:14](../src/main-group.ts#L14), [:114](../src/main-group.ts#L114) |
+| other one-line `/` text | | `Unknown command.` | [main-group.ts:14](../src/main-group.ts#L14), [:122](../src/main-group.ts#L122) |
+| any message whose first word is `/secret`, in any letter case | any sender | deleted for all members, then `Send /secret in the group of a session; the secret is set for all sessions on this computer.` as a new message; nothing is stored | [main-group.ts:19](../src/main-group.ts#L19), [:87-93](../src/main-group.ts#L87-L93) |
 
 Posts:
 
@@ -766,7 +774,7 @@ Commands and replies are those of [2.1](#21-commands-and-replies), from approver
 
 | Request | Condition | Reply | Code |
 |---|---|---|---|
-| any request | the sender is not an approver: a moderator, member, author or observer, or `User`. `Control` drops a request of `User` before this check. A moderator, member or author gets the reply of the last row instead | none, and nothing is performed | [control.ts:231](../src/control.ts#L231), [:261](../src/control.ts#L261) |
+| any request but `secret` | the sender is not an approver: a moderator, member, author or observer, or `User`. `Control` drops a request of `User` before this check. A moderator, member or author gets the reply of the last row instead | none, and nothing is performed | [control.ts:237-241](../src/control.ts#L237-L241), [:268](../src/control.ts#L268) |
 | `/give CHAT N` | CHAT is not a chat of this session | `No chat CHAT. /list shows the agent's chats.` | [control.ts:381](../src/control.ts#L381) |
 | `/give CHAT N` | no session N | `No session N. /sessions in the Main group lists the sessions.` | [control.ts:383](../src/control.ts#L383) |
 | `/give CHAT N` | accepted: CHAT's owner is set to session N, and the pending actions of CHAT with a card are rejected by the sender | `Gave KIND NAME (CHAT) to session N.` | [control.ts:384-389](../src/control.ts#L384-L389) |
@@ -777,7 +785,8 @@ Commands and replies are those of [2.1](#21-commands-and-replies), from approver
 | `/observer #G ID` | ID is Claude, the sender, a relay or a member pending approval or review | `NAME's role can't be changed.` | [control.ts:397-399](../src/control.ts#L397-L399) |
 | `/observer #G ID` | the sender's role is below admin or below the member's role, as SimpleX requires for a role change | `Your role does not let you change the role of NAME.` | [control.ts:400](../src/control.ts#L400), [:922-924](../src/control.ts#L922-L924) |
 | `/observer #G ID` | accepted: the member's role is set to `observer`, and the members are read again. The standing approvals that this member gave are kept in the chat's custom data, and are ignored until the member is an admin or owner again | `NAME is an observer and can't send messages.` | [control.ts:401-403](../src/control.ts#L401-L403), [:930-933](../src/control.ts#L930-L933), [:175-178](../src/control.ts#L175-L178) |
-| `secret NAME VALUE`, `unsecret NAME`, `secrets` | from an admin or owner: a one-line `/secret` is deleted first, as in [2.1](#21-commands-and-replies). A `/secret` of several lines is passed to Claude as a prompt, and a `/secret` of a moderator, member or author gets the reply of the last row; neither is deleted | `Secrets are off: the server runs without --secrets-folder.` | [control.ts:227-235](../src/control.ts#L227-L235), [:282-287](../src/control.ts#L282-L287), [hub.ts:157-159](../src/hub.ts#L157-L159) |
+| `secret NAME HOSTS VALUE`, `unsecret NAME`, `secrets` | from an admin or owner, as in [2.1](#21-commands-and-replies), with the secrets of the data root, shared by all sessions | as in [2.1](#21-commands-and-replies); the reply to `secret` has `, in all sessions on this computer` before its period | [control.ts:289-294](../src/control.ts#L289-L294), [:440-441](../src/control.ts#L440-L441), [hub.ts:115](../src/hub.ts#L115), [:123](../src/hub.ts#L123) |
+| any message whose first word is `/secret` | any sender. The session passes it to `Control` before any other check, also with several lines, and `Control` deletes it for all members first | from a moderator, member or author: `Only admins and owners of this group can send / commands.`, as a new message; from `User`: none | [hub.ts:177](../src/hub.ts#L177), [control.ts:237-242](../src/control.ts#L237-L242), [:268](../src/control.ts#L268) |
 | one-line `/` text outside the requests | an admin or owner | `Unknown command.` | [control.ts:23](../src/control.ts#L23), [:260](../src/control.ts#L260) |
 | any one-line `/` text | a moderator, member or author. The session replies before `Control`, and the text is passed to neither `Control` nor Claude | `Only admins and owners of this group can send / commands.`, quoting the message | [hub.ts:28](../src/hub.ts#L28), [:157](../src/hub.ts#L157), [:308-310](../src/hub.ts#L308-L310) |
 
@@ -1111,13 +1120,66 @@ A tool hook sends `step` with `tool_use_id` as `id` ([hook.ts:129-131](../src/ho
 
 At PreToolUse, `step` is `{id, text}`. At PostToolUse and PostToolUseFailure, it is `{id, text: "TEXT OUTCOME DURATION", end: true}`. OUTCOME is ✅ for PostToolUse, ⏹️ for PostToolUseFailure with `is_interrupt` true, and ❌ for another PostToolUseFailure. DURATION, from `duration_ms` rounded to whole milliseconds, is `N ms` below 1 s, and otherwise rounded down: `N.N s` below 10 s, `N s` below 1 min, `M min S s` below 1 h and `H h M min` from 1 h; without `duration_ms` it is left out with its space. The PostToolUse of a tool use whose `run_in_background` is true is `TEXT (in background)`: Claude Code ends such a tool use when it starts the command or the agent, and the completion is reported by a task notification. A tool hook without `tool_use_id` or `tool_name`, with `agent_id`, of a subagent, or of a tool whose name starts with `mcp__plugin_simplex_simplex__` sends nothing. The matcher of the tool hooks is `*`, and the hook skips the plugin's tools: Claude Code 2.1.322 tests a matcher as a JavaScript regular expression locally, and with another engine in a cloud session, which refuses some patterns with `This hook's matcher cannot be tested in a cloud session: it has to be rewritten.` (`uTr`, binary offset 291099155).
 
-SessionStart output ([hook.ts:92-123](../src/hook.ts#L92-L123)):
+SessionStart output ([hook.ts:95-121](../src/hook.ts#L95-L121)), always with `"hookSpecificOutput": {"hookEventName": "SessionStart", "watchPaths": ["DATA/secrets.json"]}`, so that the FileChanged hook runs when the secrets change. Claude Code watches a missing file through its folder. Before the output, when `CLAUDE_ENV_FILE` is set and secrets exist, the hook appends the variables of [4.9](#49-secrets-proxy) to that file as `export NAME='VALUE'` lines, and its `/title` has `proxy: true` ([hook.ts:128-135](../src/hook.ts#L128-L135)):
 
 | Case | Output |
 |---|---|
-| a run that is not interactive ([4.1](#41-tools-in-the-plugin)) | `{}`, after `/title` with `unattended` when `CLAUDE_CODE_SESSION_ATTENDED` is `0` and the entrypoint is an interactive one |
+| a run that is not interactive ([4.1](#41-tools-in-the-plugin)) | `{}`, after `/title` with `unattended` when `CLAUDE_CODE_SESSION_ATTENDED` is `0` and the entrypoint is an interactive one, or when the hook wrote the variables |
 | Node.js below 22 | `{"systemMessage": "SimpleX MCP needs Node.js 22 or later; found V."}` |
 | owners present, or no link | `{}` |
 | no owner, a link | `systemMessage`: `SimpleX MCP: scan this QR code with the SimpleX app and tap Join to supervise your agents in "MAIN":`, the `plain` QR code and the link |
 | service not running after the start | `{"systemMessage": "SimpleX MCP: The SimpleX service stopped; it starts again with the next tool call."}` |
 | other errors, invalid options included | `{"systemMessage": "SimpleX MCP: TEXT"}` |
+
+The FileChanged hook, `hook secrets-changed`, appends the variables again, to its own `CLAUDE_ENV_FILE`, and prints `{}` ([hook.ts:123-126](../src/hook.ts#L123-L126)).
+
+### 4.9 Secrets proxy
+
+The proxy serves `serve` on its HTTP port and the plugin's service on 127.0.0.1:5225, or on `SIMPLEX_MCP_PROXY_PORT` when it is a port from 1 to 65535 ([http.ts:22](../src/http.ts#L22), [:32](../src/http.ts#L32), [serve.ts:92](../src/serve.ts#L92), [service.ts:103](../src/service.ts#L103), [config.ts:24-31](../src/config.ts#L24-L31)). A request whose target starts with `http://` or `https://`, and a `CONNECT`, are proxy requests; `serve` takes them before the checks of `Host`, `Origin` and the token ([proxy.ts:292-294](../src/proxy.ts#L292-L294)). When the service's port is in use, the service logs `Port N is in use; secrets are not put into requests.` and runs without the proxy ([service.ts:484-492](../src/service.ts#L484-L492)).
+
+The variables of the agent's shell commands ([secrets.ts:55-73](../src/secrets.ts#L55-L73)); `serve` writes them, without the secret names, to `DATA/proxy-env.json` ([serve.ts:93](../src/serve.ts#L93)):
+
+| Variable | Value |
+|---|---|
+| `HTTPS_PROXY`, `HTTP_PROXY`, `https_proxy`, `http_proxy` | `http://127.0.0.1:PORT` |
+| `NO_PROXY`, `no_proxy` | `localhost,127.0.0.1,::1` |
+| `NODE_USE_ENV_PROXY` | `1` |
+| `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `AWS_CA_BUNDLE`, `CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE` | `DATA/proxy-ca-bundle.pem` |
+| `NODE_EXTRA_CA_CERTS` | `DATA/proxy-ca.pem` |
+| NAME of each secret | `simplex-secret-NAME` |
+
+Requests:
+
+| Request | Handling | Code |
+|---|---|---|
+| `CONNECT HOST:PORT` to a host that no secret binds | a tunnel to HOST:PORT; nothing is read; `502 Bad Gateway` when the connection fails | [proxy.ts:77](../src/proxy.ts#L77), [:105-115](../src/proxy.ts#L105-L115) |
+| `CONNECT HOST:PORT` to a bound host | `200`, then TLS with a certificate for HOST from the proxy's authority and ALPN `http/1.1`; each request inside is read | [proxy.ts:78-84](../src/proxy.ts#L78-L84), [:219-226](../src/proxy.ts#L219-L226) |
+| a request inside such a TLS | `Host` checked against HOST:PORT; a body of up to 8 MiB read; placeholders replaced; sent to HOST over TLS, with the certificate checked against the system's roots, and without the hop-by-hop headers | [proxy.ts:117-130](../src/proxy.ts#L117-L130), [:132-169](../src/proxy.ts#L132-L169) |
+| a request with an `http://` target | sent to the host unchanged when it has no placeholder in its target and headers | [proxy.ts:86-103](../src/proxy.ts#L86-L103) |
+
+A host is bound when one of a secret's hosts equals it, or is `*.` and a suffix of it, with the same port, 443 by default ([secrets.ts:42-49](../src/secrets.ts#L42-L49)). A placeholder is `simplex-secret-NAME` in the target, a header value, the decoded `Authorization: Basic` credentials, or a body that is not encoded and whose type is text, JSON, form, XML, JavaScript or GraphQL ([proxy.ts:22](../src/proxy.ts#L22), [:133-139](../src/proxy.ts#L133-L139)). In mode `value`, it is replaced by the value: URL-encoded in the target and in a form body, escaped in a JSON or XML body, as it is in the headers and other bodies; Basic credentials are encoded again ([proxy.ts:147-154](../src/proxy.ts#L147-L154), [:316-329](../src/proxy.ts#L316-L329)).
+
+Mode `gcp` ([proxy.ts:156-166](../src/proxy.ts#L156-L166), [gcp.ts](../src/gcp.ts)): the placeholder must be exactly `Authorization: Bearer simplex-secret-NAME`, and nowhere else. The proxy signs a JWT with RS256, `iss` the key's `client_email`, `scope` `https://www.googleapis.com/auth/cloud-platform`, `aud` the key's `token_uri`, for one hour, posts it to `token_uri` with the grant type `urn:ietf:params:oauth:grant-type:jwt-bearer`, and puts `Bearer ACCESS_TOKEN` in `Authorization`. A token is kept until 5 minutes before its `expires_in` ends.
+
+Mode `aws` ([proxy.ts:171-189](../src/proxy.ts#L171-L189), [sigv4.ts](../src/sigv4.ts)): `simplex-secret-AWS_ACCESS_KEY_ID` must be the key ID of the `Authorization` credential, and `simplex-secret-AWS_SESSION_TOKEN` the value of `X-Amz-Security-Token`. The proxy computes the request's Signature Version 4 with `simplex-secret-AWS_SECRET_ACCESS_KEY` as the key, with the path encoded once for `s3` and twice for other services, and then the other way. When one equals the request's signature, it signs the request, with the session token put in, again with the values of `AWS_SECRET_ACCESS_KEY` and `AWS_ACCESS_KEY_ID`, over the same signed headers, date and scope.
+
+Responses of a bound host: each value of the host's secrets, its `encodeURIComponent` form and its base64 and base64url forms at the three byte offsets, without the end characters that hold bits of other bytes, of 8 characters or more, are replaced by the placeholder; for mode `gcp`, so is the access token. The headers are replaced in, and so is a body of a text type, after gzip, deflate or Brotli is decoded; such a body is sent without `Content-Encoding` and `Content-Length`. A value split between chunks is replaced too ([proxy.ts:191-217](../src/proxy.ts#L191-L217), [:245-277](../src/proxy.ts#L245-L277), [secrets.ts:81-88](../src/secrets.ts#L81-L88)).
+
+Refusals: `403` with `SimpleX proxy: REASON`, logged as `SimpleX proxy: refused a request to HOST: REASON`; the request is not sent ([proxy.ts:228-231](../src/proxy.ts#L228-L231)):
+
+| REASON | Condition | Code |
+|---|---|---|
+| `the request's Host differs from HOST.` | `Host` names another host or port than the `CONNECT` | [proxy.ts:118](../src/proxy.ts#L118), [:336-340](../src/proxy.ts#L336-L340) |
+| `a request body over 8 MiB without Content-Length is not sent.` | a chunked body over 8 MiB | [proxy.ts:351](../src/proxy.ts#L351) |
+| `no secret NAME; list shows the secrets.` | a placeholder of no secret | [proxy.ts:144](../src/proxy.ts#L144) |
+| `secret NAME is for HOSTS, not HOST.` | a placeholder of a secret that does not bind HOST | [proxy.ts:145](../src/proxy.ts#L145) |
+| `secret NAME is used only to sign requests.` | a placeholder of mode `gcp` or `aws` in another place | [proxy.ts:158](../src/proxy.ts#L158), [:179](../src/proxy.ts#L179), [:181](../src/proxy.ts#L181) |
+| `secret NAME is not a Google service-account key.` | the value of a `gcp` secret is not a service-account key | [proxy.ts:160](../src/proxy.ts#L160) |
+| `Google refused secret NAME: ERROR` | `token_uri` answered without an access token; ERROR is its `error_description`, `error`, or `HTTP STATUS` | [proxy.ts:162](../src/proxy.ts#L162), [gcp.ts:62](../src/gcp.ts#L62) |
+| `secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are needed to sign this request.` | one of them does not bind HOST | [proxy.ts:173](../src/proxy.ts#L173) |
+| `this AWS request can't be signed with secret AWS_SECRET_ACCESS_KEY: FORM.` | FORM `presigned URL`, `SigV4A`, `streaming upload`, or `unrecognized signature` when no signature matches | [proxy.ts:187](../src/proxy.ts#L187), [sigv4.ts:39-56](../src/sigv4.ts#L39-L56) |
+| `secrets are sent only over HTTPS.` | a placeholder in an `http://` request | [proxy.ts:95](../src/proxy.ts#L95) |
+
+Other answers: `400` `SimpleX proxy: HTTPS requests are sent with CONNECT.` for an `https://` target; `400` `SimpleX proxy: a request in absolute form expected.` for a target that is not a URL; `502` `SimpleX proxy: HOST can't be reached.` when the connection or the certificate check fails; `502` `SimpleX proxy: the request to HOST failed.` for another error, logged as `SimpleX proxy: a request to HOST failed: ERROR` ([proxy.ts:91-93](../src/proxy.ts#L91-L93), [:101](../src/proxy.ts#L101), [:127](../src/proxy.ts#L127), [:233-237](../src/proxy.ts#L233-L237)).
+
+The certificate authority: an ECDSA P-256 key and a self-signed certificate valid for 10 years, made at the first start as `DATA/proxy-ca.key` and `DATA/proxy-ca.pem`; `DATA/proxy-ca-bundle.pem`, written at each start, is the system's bundle, or Node.js's root certificates without one, followed by `proxy-ca.pem`. All three have mode 0600. A host certificate has the proxy's one ECDSA P-256 host key, the host as its DNS or IP subject alternative name, `serverAuth`, and a validity of 7 days, from one day before its making; it is made again after 6 days ([proxy.ts:296-314](../src/proxy.ts#L296-L314), [certs.ts:24-49](../src/certs.ts#L24-L49)).

@@ -25,7 +25,7 @@ A tool call is held open by the server until the owner decides and, for `connect
 
 The server keeps actions and downloads in memory, and they are lost when the process exits. The action counter and the standing approvals are stored as custom data in the chat database. The token, the headers file for the host, the server record and the lock are files in the data folder; downloaded files are in its `files` folder, one folder per chat.
 
-With `--secrets-folder`, an approver sets a secret with `/secret NAME VALUE` in the control chat: the server deletes the message for all members and writes the value to a file of the secrets folder. `list` returns the folder and the names, and the agent uses a value in shell commands by its path. With the package's opencode plugin, the values are replaced in the requests that opencode sends to the model.
+An approver sets a secret with `/secret NAME HOSTS VALUE` in the control chat or in the group of a session: the server deletes the message for all members and writes the value to `_secrets/` of the data folder. `list` returns the name, hosts, mode and placeholder of each secret. A local HTTPS proxy of the server, on the HTTP port of `serve` or on port 5225 of the plugin's service, puts the value in place of the placeholder in the requests to the secret's hosts, signs AWS requests again and puts in Google access tokens. The plugin's hooks, and for `serve` the package's opencode plugin, give the agent's shell commands the proxy's variables.
 
 The package is also a Claude Code plugin. Each Claude Code session runs `simplex-mcp session`, a stdio MCP server. The session server forwards tool calls over a local socket to `simplex-mcp service`, one service per data root. Requests on the socket are HTTP/1.1 with a bearer token. The service runs two cores:
 - `Claude` is the profile that peers see. It holds the Main group, one group per session and the chats with peers. In a session's group it posts the answers and one line for each of Claude Code's own prompts.
@@ -70,6 +70,8 @@ graph TD
   serve --> messages
   serve --> log
   serve --> version["version.ts"]
+  serve --> proxy["proxy.ts"]
+  serve --> secrets["secrets.ts"]
   session --> client["client.ts"]
   session --> config["config.ts"]
   session --> tools
@@ -86,6 +88,7 @@ graph TD
   service --> protocol
   service --> log
   service --> version
+  service --> proxy
   service -.-> actions
   service -.-> tools
   service -.-> messages
@@ -114,6 +117,7 @@ graph TD
   hook --> files
   hook --> log
   hook --> version
+  hook --> secrets
   hook -.-> protocol
   owner --> client
   owner --> qr
@@ -132,11 +136,21 @@ graph TD
   control --> qr
   control --> log
   control --> files
+  control --> secrets
   control -.-> serve
   tools --> actions
   tools --> messages
   tools --> log
+  tools --> secrets
   tools -.-> files
+  proxy --> certs["certs.ts"]
+  proxy --> sigv4["sigv4.ts"]
+  proxy --> gcp["gcp.ts"]
+  proxy --> secrets
+  proxy --> files
+  proxy --> log
+  secrets --> gcp
+  secrets -.-> files
   actions --> messages
   actions --> log
   actions -.-> tools
@@ -149,6 +163,7 @@ graph TD
   files --> log
   files -.-> actions
   http --> log
+  http --> proxy
   socket --> log
   messages --> log
   serve --> sc["simplex-chat"]
@@ -173,14 +188,19 @@ graph TD
 |---|---|
 | [`cli.ts`](../src/cli.ts) | `simplex-mcp` entry point: commands, options, exit codes |
 | [`serve.ts`](../src/serve.ts) | `serve`: start sequence, event dispatch, stop sequence |
-| [`http.ts`](../src/http.ts) | `serve`: HTTP listener, token check, `/mcp` route, SDK handler |
-| [`register.ts`](../src/register.ts) | `register` command: Claude Code entry of a `serve` agent |
+| [`http.ts`](../src/http.ts) | `serve`: HTTP listener, token check, `/mcp` route, SDK handler, proxy requests to the secrets proxy |
+| [`register.ts`](../src/register.ts) | `register` command: Claude Code or opencode entry of a `serve` agent |
 | [`tools.ts`](../src/tools.ts) | tool schemas, descriptions, handlers, connect plans, perform steps, downloads, files to send, chat owners |
 | [`actions.ts`](../src/actions.ts) | action records, state machine, expiry timers, per-session limits, stop |
 | [`control.ts`](../src/control.ts) | agent control chat and session groups: link, owners, owner commands, cards, counter |
 | [`messages.ts`](../src/messages.ts) | message items and their files, item watch, waits, unread paging, display names |
 | [`core.ts`](../src/core.ts) | one SimpleX core: init, user, network config, temp folder, event buffer, profile update |
-| [`files.ts`](../src/files.ts) | data folders, lock, token, `headers.json`, `server.json`, session folders, socket path, service log, the secrets folder and `secrets.json` |
+| [`files.ts`](../src/files.ts) | data folders, lock, token, `headers.json`, `server.json`, session folders, socket path, service log, `_secrets/` and `secrets.json` |
+| [`secrets.ts`](../src/secrets.ts) | secret names, hosts and modes, placeholders, the variables of the agent's shell commands, the forms of a value |
+| [`proxy.ts`](../src/proxy.ts) | the secrets proxy: tunnels, TLS for bound hosts, values put into requests, refusals, values replaced in responses, its certificate authority |
+| [`certs.ts`](../src/certs.ts) | the proxy's certificate authority and host certificates, encoded in DER |
+| [`sigv4.ts`](../src/sigv4.ts) | AWS Signature Version 4: the client's signature checked, the request signed again |
+| [`gcp.ts`](../src/gcp.ts) | Google access tokens for a service-account key |
 | [`log.ts`](../src/log.ts) | log lines, error texts, shell quoting |
 | [`qr.ts`](../src/qr.ts) | QR code text: `small` and `large` for terminals, `plain` for the hook message |
 | [`version.ts`](../src/version.ts) | package version from `package.json` |
@@ -192,10 +212,10 @@ graph TD
 | [`hub.ts`](../src/hub.ts) | plugin: the profile `Claude`, the sessions, their groups, prompts, answers and tool-use cards |
 | [`main-group.ts`](../src/main-group.ts) | plugin: the Main group, its owners, `/sessions`, `/join`, owner reset |
 | [`user.ts`](../src/user.ts) | plugin: the profile `User` |
-| [`hook.ts`](../src/hook.ts) | plugin: `hook session-start` and `hook turn` |
+| [`hook.ts`](../src/hook.ts) | plugin: `hook session-start`, `hook turn` and `hook secrets-changed` |
 | [`owner.ts`](../src/owner.ts) | plugin: `link` and `reset-owners` |
 | [`config.ts`](../src/config.ts) | plugin: option variables to `Config`, validation |
-| [`opencode/simplex-secrets.ts`](../opencode/simplex-secrets.ts) | opencode plugin, outside the server: the values of the secrets replaced in model requests |
+| [`opencode/simplex-secrets.ts`](../opencode/simplex-secrets.ts) | opencode plugin, outside the server: the proxy's variables for opencode's shell commands |
 
 Claude Code uses these files of the plugin, described in [API 4.8](api.md#48-plugin-options-files-and-hook-output):
 - [`.claude-plugin/plugin.json`](../.claude-plugin/plugin.json)
@@ -212,7 +232,7 @@ Claude Code uses these files of the plugin, described in [API 4.8](api.md#48-plu
 | Document | Contents |
 |---|---|
 | [Architecture](architecture.md) | system diagram, modules and types, state, process lifecycle, approval model, security boundaries, limits. Section 8 covers the plugin. |
-| [Flows](flows.md) | sequence diagrams of the main flows with source locations. Flows 17-30 cover the plugin. |
+| [Flows](flows.md) | sequence diagrams of the main flows with source locations. Flows 17-32 cover the plugin, and flow 33 covers secrets. |
 | [API](api.md) | the six tools, the control chat commands, replies and cards, the CLI. Section 4 covers the plugin's tools, groups, channel, socket protocol, commands and files. |
 
 ---
@@ -221,31 +241,32 @@ Claude Code uses these files of the plugin, described in [API 4.8](api.md#48-plu
 
 | Component | File | Key symbol | Line |
 |---|---|---|---|
-| Binary `simplex-mcp` | [`src/cli.ts`](../src/cli.ts#L216) | `main` | [216](../src/cli.ts#L216) |
-| Argument parser | [`src/cli.ts`](../src/cli.ts#L61) | `parseCommand` | [61](../src/cli.ts#L61) |
-| Server start | [`src/serve.ts`](../src/serve.ts#L64) | `startServer` | [64](../src/serve.ts#L64) |
-| Agent wiring and event dispatch | [`src/serve.ts`](../src/serve.ts#L87) | `startAgent` | [87](../src/serve.ts#L87) |
-| HTTP listener | [`src/http.ts`](../src/http.ts#L14) | `startHttp` | [14](../src/http.ts#L14) |
-| Tool registration | [`src/tools.ts`](../src/tools.ts#L505) | `registerTools` | [505](../src/tools.ts#L505) |
-| Downloads | [`src/tools.ts`](../src/tools.ts#L594) | `AgentTools.downloadFile` | [594](../src/tools.ts#L594) |
+| Binary `simplex-mcp` | [`src/cli.ts`](../src/cli.ts#L226) | `main` | [226](../src/cli.ts#L226) |
+| Argument parser | [`src/cli.ts`](../src/cli.ts#L63) | `parseCommand` | [63](../src/cli.ts#L63) |
+| Server start | [`src/serve.ts`](../src/serve.ts#L66) | `startServer` | [66](../src/serve.ts#L66) |
+| Agent wiring and event dispatch | [`src/serve.ts`](../src/serve.ts#L89) | `startAgent` | [89](../src/serve.ts#L89) |
+| HTTP listener | [`src/http.ts`](../src/http.ts#L16) | `startHttp` | [16](../src/http.ts#L16) |
+| Tool registration | [`src/tools.ts`](../src/tools.ts#L522) | `registerTools` | [522](../src/tools.ts#L522) |
+| Downloads | [`src/tools.ts`](../src/tools.ts#L611) | `AgentTools.downloadFile` | [611](../src/tools.ts#L611) |
 | Action store | [`src/actions.ts`](../src/actions.ts#L147) | `Actions` | [147](../src/actions.ts#L147) |
-| Agent control chat and session groups | [`src/control.ts`](../src/control.ts#L93) | `Control` | [93](../src/control.ts#L93) |
-| Card text | [`src/control.ts`](../src/control.ts#L679) | `cardText` | [679](../src/control.ts#L679) |
+| Agent control chat and session groups | [`src/control.ts`](../src/control.ts#L107) | `Control` | [107](../src/control.ts#L107) |
+| Card text | [`src/control.ts`](../src/control.ts#L735) | `cardText` | [735](../src/control.ts#L735) |
 | Item watch | [`src/messages.ts`](../src/messages.ts#L98) | `ChatItemsWatch` | [98](../src/messages.ts#L98) |
-| Claude Code entry of `serve` | [`src/register.ts`](../src/register.ts#L33) | `register` | [33](../src/register.ts#L33) |
-| Data folder files | [`src/files.ts`](../src/files.ts#L107) | `createDataFolder`, `acquireLock` | [107](../src/files.ts#L107), [112](../src/files.ts#L112) |
-| Secrets folder | [`src/files.ts`](../src/files.ts#L157) | `Secrets` | [157](../src/files.ts#L157) |
-| opencode plugin | [`opencode/simplex-secrets.ts`](../opencode/simplex-secrets.ts#L12) | default export | [12](../opencode/simplex-secrets.ts#L12) |
+| Claude Code or opencode entry of `serve` | [`src/register.ts`](../src/register.ts#L39) | `register` | [39](../src/register.ts#L39) |
+| Data folder files | [`src/files.ts`](../src/files.ts#L115) | `createDataFolder`, `acquireLock` | [115](../src/files.ts#L115), [120](../src/files.ts#L120) |
+| Secrets | [`src/files.ts`](../src/files.ts#L175) | `Secrets` | [175](../src/files.ts#L175) |
+| Secrets proxy | [`src/proxy.ts`](../src/proxy.ts#L46) | `SecretsProxy`, `startProxy` | [46](../src/proxy.ts#L46), [279](../src/proxy.ts#L279) |
+| opencode plugin | [`opencode/simplex-secrets.ts`](../opencode/simplex-secrets.ts#L9) | default export | [9](../opencode/simplex-secrets.ts#L9) |
 | Session server | [`src/session.ts`](../src/session.ts#L40) | `startSession` | [40](../src/session.ts#L40) |
 | Session to service link | [`src/session.ts`](../src/session.ts#L69) | `ServiceLink` | [69](../src/session.ts#L69) |
 | Service start by a client | [`src/client.ts`](../src/client.ts#L40) | `ServiceClient.ensureService` | [40](../src/client.ts#L40) |
-| Service process | [`src/service.ts`](../src/service.ts#L432) | `runService` | [432](../src/service.ts#L432) |
-| Service routes | [`src/service.ts`](../src/service.ts#L138) | `Service.routes` | [138](../src/service.ts#L138) |
-| Hub | [`src/hub.ts`](../src/hub.ts#L458) | `Hub.open` | [458](../src/hub.ts#L458) |
-| Session and its group | [`src/hub.ts`](../src/hub.ts#L59) | `Session` | [59](../src/hub.ts#L59) |
-| Main group | [`src/main-group.ts`](../src/main-group.ts#L26) | `MainGroup` | [26](../src/main-group.ts#L26) |
+| Service process | [`src/service.ts`](../src/service.ts#L448) | `runService` | [448](../src/service.ts#L448) |
+| Service routes | [`src/service.ts`](../src/service.ts#L150) | `Service.routes` | [150](../src/service.ts#L150) |
+| Hub | [`src/hub.ts`](../src/hub.ts#L461) | `Hub.open` | [461](../src/hub.ts#L461) |
+| Session and its group | [`src/hub.ts`](../src/hub.ts#L58) | `Session` | [58](../src/hub.ts#L58) |
+| Main group | [`src/main-group.ts`](../src/main-group.ts#L27) | `MainGroup` | [27](../src/main-group.ts#L27) |
 | Profile `User` | [`src/user.ts`](../src/user.ts#L13) | `User` | [13](../src/user.ts#L13) |
-| Hooks | [`src/hook.ts`](../src/hook.ts#L92) | `sessionStart`, `turn` | [92](../src/hook.ts#L92), [125](../src/hook.ts#L125) |
+| Hooks | [`src/hook.ts`](../src/hook.ts#L95) | `sessionStart`, `secretsChanged`, `turn` | [95](../src/hook.ts#L95), [123](../src/hook.ts#L123), [149](../src/hook.ts#L149) |
 | `link`, `reset-owners` | [`src/owner.ts`](../src/owner.ts#L22) | `showLink`, `resetOwners` | [22](../src/owner.ts#L22), [28](../src/owner.ts#L28) |
 | SimpleX core | [`src/core.ts`](../src/core.ts#L19) | `openCore` | [19](../src/core.ts#L19) |
 | Package manifest | [`package.json`](../package.json) | `bin.simplex-mcp` | [6](../package.json#L6) |

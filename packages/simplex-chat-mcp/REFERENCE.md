@@ -262,7 +262,7 @@ Commands:
 | `/delete #9 files` | Cancels the running downloads from chat #9, which then fail, also those the core continues after a restart, and deletes the chat's files in the data folder, forwarded ones included, for a current or a left chat: `Deleted 3 files from #9, 2.1 MB.` or `No files from #9.` |
 | `/pending` | Lists pending actions. |
 | `/list` | Lists the agent's 100 most recent chats, one line each, and which of them are approved for all messages or all files: `, approved for this chat by NAME` and `, files approved by NAME`; a last line counts the older chats. |
-| `/secret NAME VALUE` | Saves a secret for the agent, with `--secrets-folder`; the server first deletes the message for all members ([Secrets](#secrets)). |
+| `/secret NAME HOSTS VALUE` | Saves a secret for the agent, bound to HOSTS; the server first deletes the message for all members ([Secrets](#secrets)). |
 | `/unsecret NAME` | Deletes the secret. |
 | `/secrets` | Lists the secrets, with the owner who set each one and when. |
 
@@ -305,7 +305,7 @@ Six tools:
 | `send` | Sends a message, with a file of this computer when asked, and returns every message received in that chat after it, until none arrives for `idle` seconds (30 by default). A directory bot's search results arrive this way. |
 | `receive` | Returns the chat's unread messages and those that arrive while it waits, waiting for one when asked. |
 | `download` | Downloads the file of a received message to the data folder and returns its full path. |
-| `list` | Lists the agent's chats with unread counts and `approved: true` for chats approved for all messages, and its actions without a result; with `--secrets-folder`, also the folder and the names of the secrets. |
+| `list` | Lists the agent's chats with unread counts and `approved: true` for chats approved for all messages, and its actions without a result; while secrets exist, also the name, hosts, mode and placeholder of each secret. |
 | `leave` | Deletes a contact, or leaves a group, business chat or channel, and deletes the chat; the contact or the members are notified. |
 
 A `send` to a chat that `list` shows with `connected: false` is refused before any card. A `send` is refused with `text: too long for its approval card; shorten it.` when its card, in its longest outcome form, would exceed 15000 bytes in the SimpleX message, which holds at most 15602; a text of many lines or multi-byte characters reaches it below 12000 characters.
@@ -324,7 +324,7 @@ A short voice message can arrive with its file already received. The server move
 
 An empty file is refused, and so is `as` without `file`. A message holds at most 15602 bytes with its text, the file's name and preview, the message `reply_to` quotes and the mentioned names. The quote is the quoted text when the message is an image or video; otherwise it is the quoted content, an image's preview included. A `send` over it is refused with `text: too long for a message with this image; shorten it.`, or without a file `text: too long for the message with its quote; shorten it.` An image's preview takes up to 14000 bytes, so its text has about 1 KB.
 
-The server checks the file by its real path, after symbolic links, and refuses files under `~/.ssh`, `~/.gnupg` and the secrets folder, files named `id_*`, `*.pem`, `*.key`, `*.p12` and `*.pfx`, and the files under its data folder and under `~/.simplex-mcp`, except those under `files/` of its own data folder; each folder is taken by its real path too. The card shows the real path. A file whose real path, size, inode or change time differs at the send from the request is not sent: the action fails.
+The server checks the file by its real path, after symbolic links, and refuses files under `~/.ssh`, `~/.gnupg` and `_secrets/` of its data folder, files named `id_*`, `*.pem`, `*.key`, `*.p12` and `*.pfx`, and the files under its data folder and under `~/.simplex-mcp`, except those under `files/` of its own data folder; each folder is taken by its real path too. The card shows the real path. A file whose real path, size, inode or change time differs at the send from the request is not sent: the action fails.
 
 Incognito: the core creates a random profile for that one chat, so peers of different chats can't link them. The tools' inputs, results and errors are in the [design record](../../plans/2026-10-19-mcp-server.md), section "What the agent sees: tools", and the call sequences of the scenarios in section "Sequence diagrams".
 
@@ -367,40 +367,55 @@ Add an entry with the URL `http://127.0.0.1:5226/mcp` and the header `Authorizat
 
 ## Secrets
 
-With `--secrets-folder DIR`, owners give the agent secrets, such as access tokens, in the agent control chat. The agent gets the folder and the names, and uses a value in shell commands by its path.
+Owners give the agent secrets, such as access tokens and API keys, in the agent control chat of `serve` or in the group of a Claude Code session. Each secret is bound to hosts. The agent uses a placeholder in its commands, and a local HTTPS proxy of the server puts the value into the requests to those hosts.
 
 ```
-npx -y @simplex-chat/mcp serve my-agent --secrets-folder /run/agent-secrets
+/secret GITHUB_TOKEN api.github.com,uploads.github.com ghp_...
 ```
 
-The server creates DIR with mode 0700 when it is missing; the mode of an existing folder is unchanged. DIR must be disjoint from the data folder: when it is the data folder, inside it or contains it, the server exits with code 2 and `--secrets-folder: a folder disjoint from the data folder expected, got DIR`.
+The agent then uses the variable named as the secret in a shell command:
+
+```
+curl -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/user
+```
+
+`$GITHUB_TOKEN` is `simplex-secret-GITHUB_TOKEN`. The proxy puts the value in place of the placeholder in the request to `api.github.com`, and the placeholder in place of the value in the response.
 
 ### Commands
 
 | Command | Effect | Reply |
 |---|---|---|
-| `/secret NAME VALUE` | Saves VALUE in `DIR/NAME`, readable only by the user, in place of an earlier value. | `Secret NAME is set. /unsecret NAME`, as a new message |
-| `/unsecret NAME` | Deletes `DIR/NAME`. | `Secret NAME is removed.`, or `No such secret. /secrets lists them.` |
-| `/secrets` | Lists the secrets, with the owner who set each one and when. | `GITHUB_TOKEN  set by Alice  2026-11-12 10:00 UTC`, one line per secret, or `No secrets.` |
+| `/secret NAME HOSTS VALUE` | Saves VALUE for HOSTS in `_secrets/NAME` of the data folder, readable only by the user, in place of an earlier value. | `Secret NAME is set for HOSTS. /unsecret NAME`, as a new message |
+| `/unsecret NAME` | Deletes the secret. | `Secret NAME is removed.`, or `No such secret. /secrets lists them.` |
+| `/secrets` | Lists the secrets, with their hosts, the owner who set each one and when. | `GITHUB_TOKEN  api.github.com, uploads.github.com  set by Alice  2026-11-13 10:00 UTC`, one line per secret, or `No secrets.` |
 
-- NAME: 1 to 64 capital letters, digits and `_`, starting with a letter.
-- VALUE: the rest of the line, without the spaces around it, 8 characters or more.
+- NAME: 1 to 64 capital letters, digits and `_`, starting with a letter. These names are reserved for the commands' own variables: `PATH`, `HOME`, `SHELL`, `USER`, `LOGNAME`, `PWD`, `TERM`, `LANG`, `TMPDIR`, `NO_PROXY`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `AWS_CA_BUNDLE`, and the names that start with `CLAUDE_`, `SIMPLEX_`, `LC_`, `NODE_` or `CLOUDSDK_`.
+- HOSTS: host names separated by commas, each with at least one dot, such as `api.github.com,github.com`. With `*.` before a name, its subdomains are bound: `*.amazonaws.com` binds `s3.us-east-1.amazonaws.com`, not `amazonaws.com`. With `:PORT` after a name, that port is bound; without it, port 443. Capital letters are changed to small ones.
+- VALUE: the rest of the line, without the spaces around it, 8 characters or more, without control characters.
 - `/secrets` is in the command menu. The commands work in both approval modes.
+
+The mode of a secret is set by its name and value:
+
+| Mode | Secrets | What the proxy does |
+|---|---|---|
+| `value` | all others | Puts the value in place of the placeholder in the URL, the headers, the user and password of `Authorization: Basic`, and a text body: URL-encoded in the URL and in a form body, escaped in a JSON or XML body. |
+| `aws` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN` | Checks the request's Signature Version 4, which the AWS CLI or SDK computed with the placeholders, and signs the request again with the values. It puts the session token in `X-Amz-Security-Token`. |
+| `gcp` | a Google service-account key: JSON with `type` `service_account`, `client_email`, `private_key` and `token_uri` | Puts a Google access token in place of `Authorization: Bearer simplex-secret-NAME`. It gets the token from `token_uri` with a JWT signed by the key, for the scope `cloud-platform`, and uses it until 5 minutes before it expires. |
 
 Replies to `/secret`, first match:
 
-1. a message of several lines, from any member: `Usage: /secret NAME VALUE on one line. NAME: capital letters, digits and _, starting with a letter, up to 64 characters. VALUE: 8 characters or more.`
+1. a message of several lines, from any member: `Usage: /secret NAME HOSTS VALUE on one line. NAME: capital letters, digits and _, starting with a letter, up to 64 characters. HOSTS: host names separated by commas, such as api.github.com,github.com. VALUE: 8 characters or more.`
 2. a sender who is not an approver: `Only owners approve actions.`, or with `--owners` `Only the owners listed in --owners approve actions.`
-3. a server without `--secrets-folder`: `Secrets are off: the server runs without --secrets-folder.`
-4. an invalid NAME or VALUE: the usage reply of 1.
-5. otherwise: `Secret NAME is set. /unsecret NAME`.
+3. an invalid NAME, HOSTS or VALUE: the usage reply of 1.
+4. a reserved NAME: `NAME is reserved; choose another name.`
+5. otherwise: `Secret NAME is set for HOSTS. /unsecret NAME`. Mode `aws` adds ` It signs AWS requests, with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY set for the same hosts.`, and mode `gcp` adds ` It is a Google service-account key: $NAME stands for its access token.`
 
 `/Secret` and other letter cases are deleted too, and get the list of commands; the value is not saved.
 
-`/unsecret` and `/secrets` get the replies of 2 and 3 in the same way.
+`/unsecret` and `/secrets` get the reply of 2 in the same way.
 
 - A secret stays until `/unsecret`, also when the owner who set it is no longer an owner.
-- The terminal prints `Secret GITHUB_TOKEN set by Alice.` and `Secret GITHUB_TOKEN removed by Alice.`, without the value. `secrets.json` in the data folder records who set each secret and when.
+- The terminal prints `Secret GITHUB_TOKEN for api.github.com, uploads.github.com set by Alice.` and `Secret GITHUB_TOKEN removed by Alice.`, without the value. `secrets.json` in the data folder records the hosts and the mode of each secret, who set it and when.
 
 ### Deletion of `/secret` messages
 
@@ -414,57 +429,79 @@ The server deletes every message whose first word is `/secret`, in any letter ca
 
 ### Use by the agent
 
-`list` returns `"secrets": {"folder": "/run/agent-secrets", "names": ["GITHUB_TOKEN"]}`, without the values. The `list` description states the use of a secret: only inside a shell command, as `"$(cat /run/agent-secrets/GITHUB_TOKEN)"`, never by its value. For example:
+`list` returns each secret without its value:
 
-```
-curl -H "Authorization: Bearer $(cat /run/agent-secrets/GITHUB_TOKEN)" https://example.com/api
-```
-
-`send` refuses the files of the folder, as private keys: `file: PATH is refused: private keys and the server's own files are not sent.`
-
-The agent's commands read `DIR/NAME` at the path that `list` returns. When they run in a sandbox, such as a container:
-
-- mount DIR in the sandbox at the same path;
-- run the sandbox with the server's user ID: the files have mode 0600, and a folder that the server creates has mode 0700.
-
-### Redaction
-
-A value that a command prints becomes part of the conversation, which the MCP host sends to the model provider.
-
-- Claude Code sends values as printed, without redaction.
-- With the plugin `opencode/simplex-secrets.ts` of this package, opencode replaces each value with `[secret NAME]` before it sends the conversation.
-
-Install the plugin as the user who runs opencode:
-
-```
-npm pack @simplex-chat/mcp
-tar -xzf simplex-chat-mcp-*.tgz package/opencode/simplex-secrets.ts
-mkdir -p ~/.config/opencode/plugins
-mv package/opencode/simplex-secrets.ts ~/.config/opencode/plugins/
+```json
+"secrets": [{"name": "GITHUB_TOKEN", "hosts": ["api.github.com", "uploads.github.com"], "mode": "value", "placeholder": "simplex-secret-GITHUB_TOKEN"}]
 ```
 
-opencode loads the `.ts` and `.js` files of `plugins/` in `~/.config/opencode` (`$XDG_CONFIG_HOME/opencode` when it is set) and in `.opencode` of the project. Start opencode with the folder of the secrets in `SIMPLEX_MCP_SECRETS`:
+`secrets` is absent while there are none. The `list` description tells the agent to use the placeholder, or the variable named as the secret, in an HTTPS request to one of the secret's hosts.
+
+The agent's shell commands get these variables:
+
+| Variable | Value |
+|---|---|
+| `HTTPS_PROXY`, `HTTP_PROXY`, `https_proxy`, `http_proxy` | `http://127.0.0.1:PORT`, the proxy |
+| `NO_PROXY`, `no_proxy` | `localhost,127.0.0.1,::1` |
+| `NODE_USE_ENV_PROXY` | `1`, so that `fetch` and `https` of Node.js use the proxy |
+| `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `AWS_CA_BUNDLE`, `CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE` | `proxy-ca-bundle.pem` of the data folder: the system's root certificates and the proxy's certificate authority |
+| `NODE_EXTRA_CA_CERTS` | `proxy-ca.pem` of the data folder, the proxy's certificate authority |
+| NAME of each secret | `simplex-secret-NAME` |
+
+With the Claude Code plugin, its SessionStart hook writes them to the file in `CLAUDE_ENV_FILE` when secrets exist, and Claude Code applies that file to each Bash command of the session, a subagent's included. A FileChanged hook watches `secrets.json` and writes them again when a secret is set or removed. In opencode, the plugin of [opencode](#opencode) adds them for an agent of `serve`. An agent of `serve` in Claude Code gets no variables; the agent names the proxy and the certificates in its commands, such as `curl --proxy http://127.0.0.1:5226 --cacert DATA/proxy-ca-bundle.pem -H "Authorization: Bearer simplex-secret-GITHUB_TOKEN" https://api.github.com/user`, with the values of `proxy-env.json` in the agent's data folder.
+
+`send` refuses the files of `_secrets/`, as the server's own files: `file: PATH is refused: private keys and the server's own files are not sent.`
+
+### The proxy
+
+The proxy of `serve` listens on its HTTP port, 5226 by default, beside the MCP server: it takes `CONNECT` requests and requests with an absolute URL, without the token. The plugin's service runs the proxy on 127.0.0.1:5225, or on the port in `SIMPLEX_MCP_PROXY_PORT`. When that port is in use, the service logs `Port N is in use; secrets are not put into requests.` and runs without the proxy.
+
+- A `CONNECT` to a host bound to no secret is a tunnel: the proxy reads nothing, and a placeholder in it is sent to that host as text, without the value.
+- A `CONNECT` to a bound host is answered with TLS and a certificate of the proxy's certificate authority for that host. The proxy reads the requests inside it and sends each one to the host over its own TLS connection, which checks the host's certificate against the system's roots. It offers HTTP/1.1 only.
+- A request body of up to 8 MiB is read for placeholders. A larger body with `Content-Length` is sent unchanged.
+- A request over plain HTTP is sent unchanged when it has no placeholder.
+- The certificate authority is made at the first start, as `proxy-ca.key`, readable only by the user, and `proxy-ca.pem`, with an ECDSA P-256 key, valid for 10 years. `proxy-ca-bundle.pem` is written at each start. Each host certificate is valid for 7 days and is made again after 6 days.
+
+In the responses of a bound host, the proxy puts the placeholder in place of each value of the host's secrets, also in the value's URL encoding and its base64 and base64url encodings, and for mode `gcp` in place of the access token. It does so in the headers and in text bodies (types `text/*`, JSON, XML, form, JavaScript and GraphQL), also compressed with gzip, deflate or Brotli; it sends such a body uncompressed.
+
+The proxy refuses a request with `403` and the text `SimpleX proxy: REASON`, and logs `SimpleX proxy: refused a request to HOST: REASON`, without values. The request is not sent to the host. REASON, first match:
+
+| REASON | Request |
+|---|---|
+| `the request's Host differs from HOST.` | its `Host` header names another host than its `CONNECT` |
+| `a request body over 8 MiB without Content-Length is not sent.` | a chunked body over 8 MiB |
+| `no secret NAME; list shows the secrets.` | a placeholder of no secret |
+| `secret NAME is for HOSTS, not HOST.` | a placeholder of a secret bound to other hosts |
+| `secret NAME is used only to sign requests.` | a placeholder of mode `aws` outside the credential of `Authorization` and the header `X-Amz-Security-Token`, or of mode `gcp` other than `Authorization: Bearer simplex-secret-NAME` |
+| `secret NAME is not a Google service-account key.` | a key of mode `gcp` that is no longer a service-account key |
+| `Google refused secret NAME: ERROR` | an error of `token_uri`, with its `error_description` |
+| `secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are needed to sign this request.` | mode `aws` without both secrets bound to the host |
+| `this AWS request can't be signed with secret AWS_SECRET_ACCESS_KEY: FORM.` | FORM: `streaming upload`, `presigned URL`, `SigV4A`, or `unrecognized signature` for a signature that the placeholder key does not match |
+| `secrets are sent only over HTTPS.` | a placeholder in a request over plain HTTP |
+
+Other answers: `400` with `SimpleX proxy: HTTPS requests are sent with CONNECT.` for a request with an `https:` URL, `502` with `SimpleX proxy: HOST can't be reached.` when the host can't be reached or its certificate fails the check, and `502` with `SimpleX proxy: the request to HOST failed.` for another error, which is logged.
+
+These programs don't get the values through the proxy:
+
+- programs that ignore `HTTPS_PROXY`, or that connect without a proxy: their requests are sent to the host with the placeholder;
+- programs that trust only their own certificates, or pin the host's certificate: their requests to a bound host fail;
+- programs that use HTTP/2 only: their requests to a bound host fail;
+- AWS uploads with a streaming payload, as the AWS CLI makes for some uploads: refused, as above.
+
+### opencode
+
+`register NAME --host opencode` adds an agent of `serve` to opencode:
 
 ```
-SIMPLEX_MCP_SECRETS=/run/agent-secrets opencode
+npm install -g --prefix ~/.local opencode-ai
+npx -y @simplex-chat/mcp serve my-agent
+npx -y @simplex-chat/mcp register my-agent --host opencode
+opencode --model opencode/deepseek-v4.1-flash-free
 ```
 
-Before each request to the model, and before the request for a compaction summary, opencode passes the messages of the session to the plugin. In every text of their parts, such as texts, tool inputs, outputs, errors and metadata, each value of the folder is replaced, also:
+`register` runs `opencode mcp add simplex-NAME --url http://127.0.0.1:PORT/mcp --header "Authorization=Bearer {file:DATA/token}"` in the home folder. opencode reads the token from the agent's `token` file at its start, so the token is absent from its configuration and from the command. `register` also writes the plugin `simplex-NAME.ts` with the agent's data folder to `plugins/` of `~/.config/opencode`, or of `$XDG_CONFIG_HOME/opencode` when it is set. Before each shell command, the plugin adds the variables of [Use by the agent](#use-by-the-agent), from `proxy-env.json` and `secrets.json` of the data folder, while the agent has secrets.
 
-- its URL encoding, as `encodeURIComponent` makes it;
-- its base64 and base64url encodings at any byte position, as in `Authorization: Basic ...`, except at most one character at each end, which holds at most 4 bits of the value.
-
-The values are read from the folder at each request. Values read earlier, also of removed or replaced secrets, are replaced until opencode restarts. The values remain in the session that opencode stores; only the copies sent to the model are changed.
-
-These are sent to the model provider as they are:
-
-- the first user message of a session, in the request for its title, which opencode sends before the plugin runs;
-- system text: agent prompts, instruction files such as `AGENTS.md`, MCP server instructions and skills;
-- values in other forms: hex, other percent-encodings, `+` for spaces, escaped, split, partial or otherwise transformed by a command;
-- values removed or replaced before an opencode restart, in earlier outputs;
-- tool results of workflow models, which opencode returns to the provider without the plugin.
-
-The plugin fails closed: when `SIMPLEX_MCP_SECRETS` is unset, when the folder or one of its files can't be read, or when a value has fewer than 8 characters, it throws, and opencode sends no request to the model for that step. The hook it uses, `experimental.chat.messages.transform`, is experimental in opencode. This section describes opencode 1.19.5.
+opencode refuses to start while `DATA/token` is missing. After the agent's data folder is deleted, remove `simplex-NAME` from `mcp` in `~/.config/opencode/opencode.jsonc`, and the plugin file. This section describes opencode 1.19.5.
 
 ## Recovery
 
@@ -488,11 +525,12 @@ The plugin fails closed: when `SIMPLEX_MCP_SECRETS` is unset, when the folder or
 ```
 Usage:
   simplex-mcp serve NAME [options]     run agent NAME
-  simplex-mcp register NAME [options]  add agent NAME to Claude Code
+  simplex-mcp register NAME [options]  add agent NAME to Claude Code or opencode
   simplex-mcp session                  MCP server of one Claude Code session (run by the plugin)
   simplex-mcp service                  the shared SimpleX service of the plugin (started on demand)
   simplex-mcp hook session-start       Claude Code SessionStart hook (run by the plugin)
   simplex-mcp hook turn                Claude Code hooks of prompts, answers, model changes and tool uses (run by the plugin)
+  simplex-mcp hook secrets-changed     Claude Code hook of changed secrets (run by the plugin)
   simplex-mcp link                     show the Main group link, or its owners
   simplex-mcp reset-owners             replace the Main group and its owners
 
@@ -519,11 +557,10 @@ serve options:
   --new-token            replace the access token
   --port N               HTTP port on 127.0.0.1 (default: 5226)
   --qr-code SIZE         QR code of the link: small (default) or large
-  --secrets-folder DIR   folder of the secrets that owners set with /secret,
-                         one file per name; disjoint from the data folder
 
 register options:
-  --scope SCOPE          user (default) or local
+  --host HOST            claude (default) or opencode
+  --scope SCOPE          user (default) or local, for claude
   --data DIR             data folder (default: ~/.simplex-mcp/NAME)
 
 --reset-owners takes --owners without a list.
@@ -539,7 +576,12 @@ register options:
   headers.json       the token as the Authorization header for Claude Code, readable only by the user
   server.json        name, port and expiry of the server, read by register
   lock               PID of the running server
-  secrets.json       with --secrets-folder: who set each secret and when, readable only by the user
+  _secrets/          the values of the secrets, one file per name, readable only by the user
+  secrets.json       the hosts and the mode of each secret, who set it and when, readable only by the user
+  proxy-ca.key       the key of the proxy's certificate authority
+  proxy-ca.pem       the certificate of the proxy's certificate authority
+  proxy-ca-bundle.pem the system's root certificates and proxy-ca.pem
+  proxy-env.json     the variables of the agent's commands, read by the opencode plugin; these four readable only by the user
   tmp/               the SimpleX core's work folder for files in transfer
   files/group-3/     files downloaded from chat #3, and files received there without a download, each named by its file ID
                      and the extension of its name, such as 12.pdf; files/contact-4/ for contact @4
@@ -568,7 +610,7 @@ One server runs per data folder: a second one exits, because two processes on on
 - With `--owners`, only the listed owners approve.
 - After `/approve #N all`, the agent sends to that chat without asking, files included; `/revoke #N` ends it.
 - The server refuses to send private keys, its own files, the secrets and the files under `~/.simplex-mcp`, where agents keep their data, except the files under `files/` of its own data folder; other files the agent can read are sent after approval.
-- With secrets, values are protected from accidental exposure to the model provider: the server deletes `/secret` messages for all members, and the agent gets the names, not the values. A prompt injection can make the agent send a value away by reference, for example in a command that reads the file of a secret into a request to another host; this is out of scope.
+- The server deletes `/secret` messages for all members. The proxy puts the value of a secret only into HTTPS requests to the secret's hosts, checked by their certificates, and puts the placeholder in place of the value in their responses.
 - Every process of the server's user can read the secrets, and `send` and `connect` texts are not checked for their values: the approval cards show the texts.
 - The agent forwards the messages of its control chat to members as an owner: a copy of a forwarded `/secret` message can remain with its delivery job in `simplex_chat.db` of the data folder until the job is done and 7 days old.
 - After `/receive #N 7 all`, the agent's later downloads from that chat, of files on its XFTP servers, run without asking; `/receive #N off` ends it. A file on other servers is downloaded only by `/receive` or `/forward` of the card that names them; any other download of it fails, unless the IP address is protected.
@@ -604,7 +646,8 @@ The plugin adds:
 | Part | What it does |
 |---|---|
 | MCP server `simplex` | Runs `simplex-mcp session` for each session. It provides the tools, such as `mcp__plugin_simplex_simplex__connect`, and the channel. |
-| SessionStart hook | Checks the Node.js version and starts the service. It opens the session and its group, and shows the Main group link while the Main group has no owner. |
+| SessionStart hook | Checks the Node.js version and starts the service. It opens the session and its group, and shows the Main group link while the Main group has no owner. With secrets, it gives Bash commands the variables of the proxy, see [Use by the agent](#use-by-the-agent). |
+| FileChanged hook of `secrets.json` | Gives Bash commands the variables again when a secret is set or removed. |
 | PreToolUse hook of the plugin's tools | Lets the plugin's tools run without a Claude Code prompt, because you approve them in the SimpleX app. |
 | UserPromptSubmit, Stop and PostModelSwitch hooks | Post your terminal prompts and Claude's answers in the session's group, and keep the model and effort in its description. They run in the background. |
 | PreToolUse, PostToolUse and PostToolUseFailure hooks of every tool | Post a line for each step of Claude's work when it starts, and complete it when it ends. They run in the background. |
@@ -707,7 +750,7 @@ VERSION is the plugin's version, as in `npx -y @simplex-chat/mcp@0.3.0 link`. Th
 - When someone joins or their role changes, Claude posts their rights. For an admin the post is `Bob is an admin and can send prompts to Claude and the group's commands, and approve tool use. You can change role to observer to stop it: /'observer #G ID'`, with the group's and the member's IDs. For a moderator, member or author it is `NAME is a ROLE and can send prompts to Claude; the group's commands and approvals need the role admin or owner.`, followed by the same command. The posts for an owner and for an observer have no command: `NAME is an owner and can send prompts to Claude and the group's commands, and approve tool use.` and `NAME is an observer and can't send messages.` Claude posts nothing for `User`.
 - `/observer #G ID` makes that member an observer, and Claude replies `NAME is an observer and can't send messages.` Admins and owners can use it on a member whose role isn't above their own. Standing approvals that the observer gave, of all messages to a chat or all files from it, stop counting while they aren't an admin or owner, and count again if they become one. For a member who was invited and hasn't joined yet, Claude replies `No member ID in this group.` That member joins with the role of the invitation, which can be changed after the join.
 - The group's description is `The Claude Code session N. Members send it prompts; admins and owners also send the group's commands and approve tool use.`, set when the group is created. Its short description shows the model and effort, see [Model and effort](#model-and-effort).
-- The group has the commands of the agent control chat of `serve` (see [What the owner sees](#what-the-owner-sees)), without a session prefix, such as `/approve 7`, `/receive @3 9` and `/leave #2`. It also has `/give CHAT N` and `/observer #G ID`. `/secret`, `/unsecret` and `/secrets` get `Secrets are off: the server runs without --secrets-folder.`, and a one-line `/secret` of an admin or owner is deleted for all members first.
+- The group has the commands of the agent control chat of `serve` (see [What the owner sees](#what-the-owner-sees)), without a session prefix, such as `/approve 7`, `/receive @3 9` and `/leave #2`. It also has `/give CHAT N` and `/observer #G ID`. `/secret`, `/unsecret` and `/secrets` work as in [Secrets](#secrets), for all sessions on this computer: the reply to `/secret` is `Secret NAME is set for HOSTS, in all sessions on this computer.`, followed by the sentence of its mode and `/unsecret NAME`. Every `/secret` is deleted for all members first. A moderator, member or author gets `Only admins and owners of this group can send / commands.`, and `User` gets no reply. The Main group deletes `/secret` too, and answers `Send /secret in the group of a session; the secret is set for all sessions on this computer.`
 - A chat belongs to the session that connected it, even when the other side accepts after `connect` returned. The tools of other sessions don't show it. Their `connect` to its address returns `The chat of LINK belongs to another session; an admin or owner of that session's group can give it to this session with /give.` For example, `/give @3 2` in the group of the session that owns chat @3 gives it to session 2.
 - `/list` and `/revoke` also work in the group of a closed session. A `/revoke` sent while the service is stopped applies when the service starts again.
 - `claude --resume` and `claude --continue` reopen a session with its group and chats. `/clear` keeps the session's group, because the service links the new session IDs of a Claude Code process to that process's session. A fork made with `claude --resume ID --fork-session` continues in the group of the resumed session. After `/resume` of another session inside a running one, prompts and answers go to the running session's group. A later `claude --resume` of that other session reopens its own group and chats.
@@ -796,6 +839,8 @@ Set in `/plugin` > Installed > simplex > Configure options:
 
 A changed option applies from the next session start, and so does a changed `SIMPLEX_MCP_MACHINE`. The service renames the Main group to the new name. An invalid value is shown at the session start, and every tool call of that session returns the same text, for example `Plugin option expire_hours: hours from 1 to 23 expected, got 48. Change it in /plugin > Installed > simplex > Configure options.` or `SIMPLEX_MCP_MACHINE: a valid SimpleX name, such as mylaptop expected, got my.laptop. Change it in the environment of this machine.` A value of `approve` other than `requests` and `host` can come only from a hand edit of the settings. It is shown only at the session start, and the session's tools run in mode `requests`.
 
+`SIMPLEX_MCP_PROXY_PORT` in the environment sets the port of the proxy, 5225 by default; a value that is not a port from 1 to 65535 is ignored. Set it in the environment of Claude Code: the hooks and the service read it from there.
+
 In mode `host`, a session asks in its group to run in that mode: `I want to run in mode host: Claude Code asks you before each of my actions, and they are performed without approval here.`, with `/approve N or /reject N`. It asks at its start, or when the group gets its first admin or owner other than Claude, by a join or a role change. The session runs in mode `host` after an admin or owner approves, and keeps the mode across restarts, in the custom data of its group in the chat database. After a rejection, it asks again only after a session start with `requests`. A change back to `requests` applies at the next session start without a card, and a pending card then gets `Ended.`
 
 ### Plugin data folder
@@ -809,6 +854,8 @@ In mode `host`, a session asks in its group to run in that mode: `I want to run 
 | `service.sock` | The service's Unix socket. On Windows it is the named pipe `\\.\pipe\simplex-mcp-<hash>`. For a path over 103 bytes, it is `simplex-mcp-<hash>.sock` in the system temporary folder. |
 | `service.log` | The service's log, emptied when it is over 10 MB, at a service start and every hour. |
 | `titles.json` | The titles of new sessions whose session server had not registered when the service stopped. The next start reads and removes it. |
+| `_secrets/`, `secrets.json` | The secrets of all sessions, see [Secrets](#secrets). |
+| `proxy-ca.key`, `proxy-ca.pem`, `proxy-ca-bundle.pem` | The certificate authority of the proxy, see [The proxy](#the-proxy). |
 | `_hub/` | The databases of the profile `Claude`: the Main group, the session groups and the chats with peers. |
 | `_user/` | The databases of the profile `User`. |
 | `_sessions/<session ID>/` | `session.json` with the session's number, name, project folder, group, a rejected mode `host`, model, effort level and other session IDs. `files/` holds the files of its chats and of its group. |

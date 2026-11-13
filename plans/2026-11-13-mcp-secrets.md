@@ -1,6 +1,6 @@
 # SimpleX MCP: secrets bound to hosts, put into requests by the plugin's proxy
 
-Status: rewritten on 2026-11-13 to the user's design, which replaces the redaction of the model's requests in the earlier version of this plan. Answered by the user on 2026-11-13: Q2 A, Q3 A, Q4 A, Q5 A, with opencode support as part of this work, and Q6 A on the plans page, the plugin's own proxy. Q1 is open; the implementation proceeds with the parts that both of its options need.
+Status: rewritten on 2026-11-13 to the user's design, which replaces the redaction of the model's requests in the earlier version of this plan. Answered by the user on 2026-11-13: Q2 A, Q3 A, Q4 A, Q5 A, with opencode support as part of this work, and Q6 A on the plans page, the plugin's own proxy. Q1 is open. Implemented on `ep/mcp-secrets` without the docs that depend on Q1; section 12 lists where the implementation differs from this plan.
 
 It completes #8151 (https://github.com/simplex-chat/simplex-chat/pull/8151, "mcp server: give the agent secrets without exposing them to the model"), whose head is `cc45d339b`. Code references: #8151 at `cc45d339b` and master `8fda06295`, by file and function. Claude Code references: the 2.1.322 binary at the byte offsets given, and the official docs, quoted. Runs R1 to R3 used Claude Code 2.1.323 with `claude -p`, a scratch `HOME` and `CLAUDE_CONFIG_DIR`, a fake token, a local server that answers model requests with canned tool calls, a test plugin loaded with `--plugin-dir`, and a local proxy that terminates TLS for `api.anthropic.com` with a test CA:
 
@@ -507,3 +507,49 @@ The user's steps, after the implementation is published:
 Then send `/secret GITHUB_TOKEN api.github.com <token>` in the agent control chat, and ask opencode: `Show my GitHub login with the GITHUB_TOKEN secret.`
 
 Before the publication, the agent gives the commands of steps 2 and 3 for the branch's build.
+
+## 12. Implementation
+
+Where the code differs from sections 2 to 7:
+
+```
+#   plan                                         code                                          reason
+D1  values in ROOT/secrets/NAME (decision 22)    ROOT/_secrets/NAME                            agent folders of serve can be named
+                                                                                               secrets; names with _ can't collide
+D2  src/redaction.ts with #8151's replacements   secrets.ts valueForms, proxy.ts Scrubber      one module of the proxy
+D3  variables in every session (decision 21)     only while secrets exist; FileChanged         a session without secrets keeps its
+                                                 writes them when the first one is set         network unchanged
+D4  aws note: It signs AWS requests with         It signs AWS requests, with                   each aws secret gets it; copy for
+    AWS_ACCESS_KEY_ID. once both keys are set    AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY   approval
+                                                 set for the same hosts.
+D5  gcp note: Claude uses $NAME as a Google      It is a Google service-account key: $NAME     copy for approval
+    access token.                                stands for its access token.
+D6  list description: ... a request to another   ... a request to another host contains the    a tunnel sends the placeholder as
+    host gets no value.                          placeholder, not the value.                   text (decision 18)
+D7  hosts as written                             each host has a dot                           a value with spaces lost its first
+                                                                                               word to HOSTS; NO_PROXY keeps
+                                                                                               localhost off the proxy
+D8  reserved names of section 2                  also LOGNAME, ALL_PROXY, SSL_CERT_DIR and     the variables of decision 21
+                                                 CLOUDSDK_
+D9  the refusals of section 2                    also: the Host differs, a chunked body over   checks of decisions 14 and 17
+                                                 8 MiB, a gcp value that is no key, aws
+                                                 without both keys, unrecognized signature
+D10 list: secrets always                         absent while there are none                   tools of a session without secrets
+                                                                                               are unchanged
+D11 opencode header Authorization=TOKEN          Authorization=Bearer {file:DATA/token}        the token stays out of the command
+    (decision 37)                                                                              and of opencode.jsonc, as for Claude
+                                                                                               Code; opencode refuses to start
+                                                                                               while that file is missing
+D12 the hook makes secrets.json for watchPaths   no file made                                  Claude Code's chokidar watches a
+                                                                                               missing path through its folder
+D13 e2e: curl through the service's proxy        unit tests with local HTTPS servers, the      a bound host needs a certificate
+                                                 serve scenario of e2e, and a curl run to      that the system trusts
+                                                 httpbin.org through the build
+```
+
+Open:
+
+- O1. Tunnels connect directly, and the proxy's own HTTPS requests use the person's proxy only with `NODE_USE_ENV_PROXY=1` in the service's environment. Behind a person's own HTTPS proxy, commands that had used it lose their way out while secrets exist. A fix chains `CONNECT` to the proxy of the service's environment: about 40 lines and a test.
+- O2. An agent of `serve` in Claude Code gets no variables, as no hook of `serve` runs there; the agent names the proxy in its commands. A fix: `register` adds a SessionStart hook, or `list` returns the proxy's URL.
+- O3. The FileChanged matcher `secrets.json` also makes Claude Code watch `secrets.json` of the session's folder (`ne`, 295488859), and a change there writes the variables again.
+- O4. The docs of Q1: the limits of the plugin variant and the stronger setups.

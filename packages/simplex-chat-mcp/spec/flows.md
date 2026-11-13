@@ -116,7 +116,7 @@ Notes:
 - With `--qr-code small`, the line `If the QR code does not scan, ...` is printed after the link ([control.ts:532](../src/control.ts#L532)).
 - Events that arrive before the HTTP listener starts are buffered and handled in order ([core.ts:61-75](../src/core.ts#L61-L75)).
 - The server runs `ownerJoined` for every `joinedGroupMember` event of a human without `--owners`, and the link is deleted in that handler ([control.ts:246-247](../src/control.ts#L246-L247), [:491-498](../src/control.ts#L491-L498)).
-- With `--secrets-folder`, the folder is created before the user is read, when missing ([serve.ts:90](../src/serve.ts#L90)).
+- Before the user is read, `DATA/_secrets/` is created when missing, the proxy's certificate authority is read or made, and `DATA/proxy-env.json` is written ([serve.ts:91-93](../src/serve.ts#L91-L93)).
 
 Source: [cli.ts:216-249](../src/cli.ts#L216-L249), [serve.ts:64-122](../src/serve.ts#L64-L122), [core.ts:37-81](../src/core.ts#L37-L81), [files.ts:103-146](../src/files.ts#L103-L146), [http.ts:14-46](../src/http.ts#L14-L46), [control.ts:115-148](../src/control.ts#L115-L148), [:421-425](../src/control.ts#L421-L425), [:486-505](../src/control.ts#L486-L505), [:605-630](../src/control.ts#L605-L630).
 

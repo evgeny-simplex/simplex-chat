@@ -108,23 +108,36 @@ Stop and restart:
 
 ## Secrets
 
-1. `node dist/cli.js serve my-agent --display-name "My Agent" --secrets-folder ~/.simplex-mcp/my-agent/secrets` exits with `--secrets-folder: a folder disjoint from the data folder expected, got /home/alice/.simplex-mcp/my-agent/secrets`.
-2. Restart with `--secrets-folder ~/agent-secrets`: `~/agent-secrets` is created with mode 0700. `/mcp reconnect all` in Claude Code.
-3. In "My Agent", send `/secret GITHUB_TOKEN test-token-1234`. The app shows the message as `moderated by My Agent`, and the agent posts `Secret GITHUB_TOKEN is set. /unsecret GITHUB_TOKEN`, not as a reply. The terminal prints `Secret GITHUB_TOKEN set by Alice.`; `~/agent-secrets/GITHUB_TOKEN` holds `test-token-1234`, mode 0600.
-4. Send `/secret GITHUB_TOKEN short`: moderated, and the usage reply; the file keeps `test-token-1234`. Send `/Secret GITHUB_TOKEN test-token-5678`: moderated, and the list of commands.
-5. Tap `/secrets` in the command menu: the reply `GITHUB_TOKEN  set by Alice  YYYY-MM-DD HH:MM UTC`.
-6. `List your chats.` `list` returns `secrets` with `folder: "/home/alice/agent-secrets"` and `names: ["GITHUB_TOKEN"]`.
-7. `Send a request to https://example.com with the GITHUB_TOKEN secret as a bearer token, and show the HTTP status.` The command has `"$(cat /home/alice/agent-secrets/GITHUB_TOKEN)"`, and the conversation lacks `test-token-1234`.
-8. `Send /home/alice/agent-secrets/GITHUB_TOKEN to <a chat>.` The call returns `file: /home/alice/agent-secrets/GITHUB_TOKEN is refused: private keys and the server's own files are not sent.`, and the agent control chat gets the refusal.
-9. Tap `/unsecret GITHUB_TOKEN` in the reply of step 3: `Secret GITHUB_TOKEN is removed.`, and the file is deleted. Again: `No such secret. /secrets lists them.`
-10. Restart without `--secrets-folder`, and send `/secret GITHUB_TOKEN test-token-1234`: moderated, and `Secrets are off: the server runs without --secrets-folder.`
+httpbin.org checks a password in its path against Basic credentials, so it shows whether the proxy put the value in. The value `test-pass-1234` is a test value.
 
-The opencode plugin, with the server of step 2 and a secret set as in step 3:
+1. Start `node dist/cli.js serve my-agent --display-name "My Agent"`. The data folder has `_secrets/`, mode 0700, and `proxy-ca.key`, `proxy-ca.pem`, `proxy-ca-bundle.pem` and `proxy-env.json`, mode 0600. `/mcp reconnect all` in Claude Code.
+2. In "My Agent", send `/secret HTTPBIN_PASSWORD httpbin.org test-pass-1234`. The app shows the message as `moderated by My Agent`, and the agent posts `Secret HTTPBIN_PASSWORD is set for httpbin.org. /unsecret HTTPBIN_PASSWORD`, not as a reply. The terminal prints `Secret HTTPBIN_PASSWORD for httpbin.org set by Alice.`; `_secrets/HTTPBIN_PASSWORD` holds `test-pass-1234`, mode 0600.
+3. Send `/secret HTTPBIN_PASSWORD test-pass-1234`, without hosts: moderated, and the usage reply. Send `/secret PATH httpbin.org test-pass-1234`: `PATH is reserved; choose another name.` Send `/Secret HTTPBIN_PASSWORD httpbin.org test-pass-5678`: moderated, and the list of commands. The file keeps `test-pass-1234`.
+4. Tap `/secrets` in the command menu: the reply `HTTPBIN_PASSWORD  httpbin.org  set by Alice  YYYY-MM-DD HH:MM UTC`.
+5. `List your chats.` `list` returns `secrets` with `[{name: "HTTPBIN_PASSWORD", hosts: ["httpbin.org"], mode: "value", placeholder: "simplex-secret-HTTPBIN_PASSWORD"}]`.
+6. In a terminal, with `D=~/.simplex-mcp/my-agent`:
+   - `curl -s --proxy http://127.0.0.1:5226 --cacert $D/proxy-ca-bundle.pem -u user:simplex-secret-HTTPBIN_PASSWORD https://httpbin.org/basic-auth/user/simplex-secret-HTTPBIN_PASSWORD` prints `"authenticated": true`.
+   - `curl -s --proxy http://127.0.0.1:5226 --cacert $D/proxy-ca-bundle.pem -H "X-Token: simplex-secret-HTTPBIN_PASSWORD" https://httpbin.org/headers` prints `"X-Token": "simplex-secret-HTTPBIN_PASSWORD"`: httpbin.org got the value, and the proxy replaced it in the response.
+   - The same request to `https://postman-echo.com/headers` prints `simplex-secret-HTTPBIN_PASSWORD`: the tunnel sends the placeholder as text.
+   - `curl -s --proxy http://127.0.0.1:5226 "http://httpbin.org/get?k=simplex-secret-HTTPBIN_PASSWORD"` prints `SimpleX proxy: secrets are sent only over HTTPS.`, and the terminal of `serve` prints `SimpleX proxy: refused a request to httpbin.org: secrets are sent only over HTTPS.`
 
-1. Copy `opencode/simplex-secrets.ts` of the package to `~/.config/opencode/plugins/`. After a publication, the steps of [REFERENCE.md](REFERENCE.md#redaction) do the same.
-2. In a test folder, `SIMPLEX_MCP_SECRETS=/home/alice/agent-secrets opencode`, and ask: `Run cat /home/alice/agent-secrets/GITHUB_TOKEN, then repeat its output exactly.` opencode shows `test-token-1234` in the command's output; the model's answer has `[secret GITHUB_TOKEN]`.
-3. `Run printf %s "$(cat /home/alice/agent-secrets/GITHUB_TOKEN)" | base64, then repeat its output exactly.` The answer has `[secret GITHUB_TOKEN]`.
-4. Start opencode without `SIMPLEX_MCP_SECRETS` and send a prompt: no answer arrives, because opencode sends no request to the model.
+   The first three checks passed on 2026-11-13 against a proxy started from the build with `startProxy`.
+7. `Send <the data folder>/_secrets/HTTPBIN_PASSWORD to <a chat>.` The call returns `file: ... is refused: private keys and the server's own files are not sent.`, and the agent control chat gets the refusal.
+8. Tap `/unsecret HTTPBIN_PASSWORD` in the reply of step 2: `Secret HTTPBIN_PASSWORD is removed.`, and the file is deleted. Again: `No such secret. /secrets lists them.`
+
+opencode, with the server of step 1 and the secret of step 2:
+
+1. `npm install -g --prefix ~/.local opencode-ai`, then `node dist/cli.js register my-agent --host opencode`. It prints `Added to opencode: server simplex-my-agent, plugin <home>/.config/opencode/plugins/simplex-my-agent.ts.` `~/.config/opencode/opencode.jsonc` has `"Authorization": "Bearer {file:<data folder>/token}"`, without the token.
+2. `opencode --model opencode/deepseek-v4.1-flash-free` in a test folder, and ask: `Run curl -s -u user:$HTTPBIN_PASSWORD https://httpbin.org/basic-auth/user/$HTTPBIN_PASSWORD and show the output.` The output has `"authenticated": true`.
+3. `Run echo $HTTPBIN_PASSWORD.` The output is `simplex-secret-HTTPBIN_PASSWORD`.
+4. `List the SimpleX chats.` The `list` tool of `simplex-my-agent` returns the secret as in step 5.
+
+The plugin, in a Claude Code session:
+
+1. In the group of the session, send `/secret HTTPBIN_PASSWORD httpbin.org test-pass-1234`: moderated, and `Secret HTTPBIN_PASSWORD is set for httpbin.org, in all sessions on this computer. /unsecret HTTPBIN_PASSWORD`. A member's `/secret` is moderated and gets `Only admins and owners of this group can send / commands.` In the Main group, `/secret` is moderated and gets `Send /secret in the group of a session; the secret is set for all sessions on this computer.`
+2. Ask in the terminal: `Run curl -s -u user:$HTTPBIN_PASSWORD https://httpbin.org/basic-auth/user/$HTTPBIN_PASSWORD and show the output.` The output has `"authenticated": true`, also in this session, which started before the secret was set.
+3. `Run echo $HTTPBIN_PASSWORD, and env | grep -c test-pass-1234.` The output is `simplex-secret-HTTPBIN_PASSWORD` and `0`.
+4. A new session in another project: step 2 gives the same output.
 
 ## Claude Code checks
 
@@ -171,7 +184,8 @@ The MCP server and the SessionStart, UserPromptSubmit, Stop, PostModelSwitch, Po
   - the service;
   - the hub with its Main group, the sessions' groups and the tool-use cards;
   - the hooks;
-  - the plugin files.
+  - the plugin files;
+  - the secrets proxy with local HTTPS servers and a test certificate authority, its certificates, the signing of AWS requests, checked with AWS's published examples, and Google access tokens.
 
   In these tests, the Stop hook reads the model of its answer from the end of a sparse 3 GiB transcript. It finds the model even when the answer's entry is written after the hook started. The UserPromptSubmit hook marks a prompt as typed only when its record has the origin `human`. Task notifications, messages of other sessions and channel prompts are not marked. A typed prompt is marked also when the transcript is created with its entry 30 reads after the hook started, as after a user's own prompt hook of 3 s. The hook sends the one-line note of each kind of Claude Code's own prompt, a teammate's message included, also when idle notifications precede it in its prompt, and none for a typed or a channel prompt or idle notifications only. A note stays on one line when the sender's name has a line break or a control character. A prompt that reaches a running turn is found by its queued command or its own later entry, and it is marked mid-turn, also when the turn's first entry is out of the tail and only its tool results are in it. Its record is taken by its text, past a meta entry with the same prompt ID; a prompt with the text of the turn's own prompt waits while it is queued. A typed prompt still queued after the reads is typed and mid-turn. The hook sends the note of Claude Code's own prompt also when a later prompt with its text is still queued after the reads, as a repeated monitor event. The hub posts the note as Claude, without a quote. A mid-turn prompt ends no tool-use card and keeps the turn's quote; an owner's prompt added to the turn adds a turn record, and the answer quotes it. The tool hooks send a step at the start of each tool use of the main conversation, with its text from the tool's input and paths relative to the session's folder, and at its end with ✅, ❌ or ⏹️ and the duration, or with `(in background)` for a launch in the background; Grep and Glob show the pattern, then the path; a tool use of a subagent or of this plugin, or without its ID or tool, sends nothing. The hub posts the start of a step as a silent live line, updates it at the step's end with live off, also while the start's send is in flight, and posts an end that arrives before its start as a silent line, and nothing for that start. Steps without an end are completed with their own text at an answer, at a prompt that starts a turn, at the last detach and at the hub's stop, not at a prompt added to the running turn, and the hub posts nothing for their later ends. A line still live 23 hours after its start is completed with its text, and the later end is posted as a new silent line. When the wall clock moves 23 hours on while the timers stand still, as in a sleep, the line is completed at the next check of the minute or at its step's end. The hub's stop waits for the updates that the last detach started. A refused step gets one refusal post, `Claude's note was not posted: ...`, as a refused note does; a failed send or update is logged, and nothing more is posted. A note and the parts of an answer but the last are silent, and the last part of an answer is important. The records follow sessions recorded with Claude Code 2.1.322 on 2026-11-12. The hooks, the session server and the service are tested with the environments of two `claude -p` runs, recorded with Claude Code 2.1.319 in `test/unit/claude-p-runs.jsonl`. One run has the entrypoint `claude-vscode` of a VS Code session, and the other is a plain `claude -p` run. The session server must answer `server/discover` with `Method not found` and negotiate the revision 2025-11-25. Claude Code 2.1.319 registers no channel for a server in the modern MCP era, 2026-07-28, so this test fails after an SDK upgrade that turns that era on.
 - `npm run test:e2e`, file `test/e2e/launch.test.ts`, installs a copy of the package with `npm ci` and packs it, as `build.yml` publishes it. The test checks these facts:

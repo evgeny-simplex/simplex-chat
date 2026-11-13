@@ -98,7 +98,7 @@ export class SecretsProxy {
       res.writeHead(response.statusCode ?? 502, forwardedHeaders(response.headers))
       pipeline(response, res, () => undefined)
     })
-    upstream.on("error", () => plain(res, 502, "SimpleX proxy: the host can't be reached."))
+    upstream.on("error", () => plain(res, 502, `SimpleX proxy: ${url.hostname} can't be reached.`))
     pipeline(req, upstream, () => undefined)
   }
 
