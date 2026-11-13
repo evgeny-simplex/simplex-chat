@@ -29,11 +29,11 @@ import GHC.Conc (ThreadStatus (..), threadStatus)
 import Simplex.Chat.AppSettings (defaultAppSettings)
 import qualified Simplex.Chat.AppSettings as AS
 import Simplex.Chat.Call
-import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatEvent (CEvtCallInvitation, CEvtChatItemsDeleted, CEvtNewChatItems, CEvtReceivedGroupInvitation), PresetServers (..))
+import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatEvent (CEvtCallInvitation, CEvtCallOffer, CEvtChatItemsDeleted, CEvtNewChatItems, CEvtReceivedGroupInvitation), PresetServers (..))
 import Simplex.Chat.Messages (AChatItem (..), CIMeta (CIMeta, itemText), ChatItem (ChatItem, meta), ChatItemId)
 import Simplex.Chat.Options
-import Simplex.Chat.Protocol (supportedChatVRange)
-import Simplex.Chat.Types (ContactId, VersionRangeChat, authErrDisableCount, sameVerificationCode, verificationCode, pattern VersionChat)
+import Simplex.Chat.Protocol (ChatMessage (ChatMessage), ChatMsgEvent (XMsgNew), MsgContent (MCText), chatMsgToBody, mcSimple, supportedChatVRange)
+import Simplex.Chat.Types (ContactId, SharedMsgId (..), VersionRangeChat, authErrDisableCount, sameVerificationCode, verificationCode, pattern VersionChat)
 import Simplex.Messaging.Agent.Env.SQLite
 import Simplex.Messaging.Agent.RetryInterval
 import qualified Simplex.Messaging.Agent.Store.DB as DB
@@ -82,8 +82,11 @@ chatDirectTests = do
   describe "repeated delivery after chat stop" $ do
     it "show received message once" testRepeatedMessage
     it "delete message once" testRepeatedMessageDelete
+    it "fully delete message once" testRepeatedMessageFullDelete
+    it "show parse error once" testRepeatedParseError
     it "show group invitation once" testRepeatedGroupInvitation
     it "show call invitation once" testRepeatedCallInvitation
+    it "process call offer once" testRepeatedCallOffer
   describe "batch send messages" $ do
     it "send multiple messages api" testSendMulti
     it "send multiple timed messages" testSendMultiTimed
@@ -1475,6 +1478,44 @@ testRepeatedMessageDelete ps = do
       bob <# "alice> hi"
       bob #$> ("/_get chat @2 count=2", chat, [(0, "hello [marked deleted]"), (0, "hi")])
 
+testRepeatedMessageFullDelete :: HasCallStack => TestParams -> IO ()
+testRepeatedMessageFullDelete ps = do
+  (deleted, cfg) <- blockFirstEventCfg (\e -> case e of CEvtChatItemsDeleted {} -> True; _ -> False)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice #> "@bob hello"
+      bob <# "alice> hello"
+      bob ##> "/set delete @alice always"
+      bob <## "you updated preferences for alice:"
+      bob <## "Full deletion: enabled for contact (you allow: always, contact allows: no)"
+      alice <## "bob updated preferences for you:"
+      alice <## "Full deletion: enabled for you (you allow: default (no), contact allows: always)"
+      alice #$> ("/_delete item @2 " <> itemId 1 <> " broadcast", id, "message deleted")
+      readMVar deleted
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob #$> ("/_get chat @2 count=2", chat, [(1, "Full deletion: enabled for contact"), (0, "hi")])
+
+testRepeatedParseError :: HasCallStack => TestParams -> IO ()
+testRepeatedParseError ps = do
+  (received, cfg) <- blockFirstEventCfg rcvHelloItem
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      connId <- contactAgentConnId alice "bob"
+      let hello = ChatMessage supportedChatVRange (Just $ SharedMsgId "repeated_msg_1") (XMsgNew $ mcSimple $ MCText "hello")
+      agentSendBody alice connId $ "[{\"invalid\":true}," <> chatMsgToBody hello <> "]"
+      _ <- getTermLine bob
+      readMVar received
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      items <- chat <$> (bob ##> "/_get chat @2 count=3" >> getTermLine bob)
+      map snd (drop 1 items) `shouldBe` ["hello", "hi"]
+      map (("message error: " `isPrefixOf`) . snd) (take 1 items) `shouldBe` [True]
+
 testRepeatedGroupInvitation :: HasCallStack => TestParams -> IO ()
 testRepeatedGroupInvitation ps = do
   (invited, cfg) <- blockFirstEventCfg (\e -> case e of CEvtReceivedGroupInvitation {} -> True; _ -> False)
@@ -1511,9 +1552,29 @@ testRepeatedCallInvitation ps = do
       bob <# "alice> hi"
       bob #$> ("/_get chat @2 count=2", chat, [(0, "incoming call: calling..."), (0, "hi")])
 
+testRepeatedCallOffer :: HasCallStack => TestParams -> IO ()
+testRepeatedCallOffer ps = do
+  (offered, cfg) <- blockFirstEventCfg (\e -> case e of CEvtCallOffer {} -> True; _ -> False)
+  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      inviteToCall alice bob
+      bob ##> ("/_call offer @2 " <> serialize testWebRTCCallOffer)
+      bob <## "ok"
+      readMVar offered
+      stopStartChat alice
+      bob #> "@alice hi"
+      alice <# "bob> hi"
+
 rcvHelloItem :: ChatEvent -> Bool
 rcvHelloItem (CEvtNewChatItems _ [AChatItem _ _ _ ChatItem {meta = CIMeta {itemText}}]) = itemText == "hello"
 rcvHelloItem _ = False
+
+contactAgentConnId :: TestCC -> T.Text -> IO B.ByteString
+contactAgentConnId cc name = do
+  [Only connId] <- withCCTransaction cc $ \db ->
+    DB.query db "SELECT c.agent_conn_id FROM connections c JOIN contacts ct ON ct.contact_id = c.contact_id WHERE ct.local_display_name = ?" (Only name)
+  pure connId
 
 stopStartChat :: HasCallStack => TestCC -> IO ()
 stopStartChat cc = do
