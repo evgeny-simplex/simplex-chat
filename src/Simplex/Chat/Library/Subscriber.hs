@@ -2756,8 +2756,8 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       MsgError e -> createInternalChatItem user cd (CIRcvIntegrityError e) (Just brokerTs)
 
     rcvMsgRepeated :: Connection -> MsgMeta -> CM Bool
-    rcvMsgRepeated Connection {connId} MsgMeta {recipient = (agentMsgId, _)} =
-      withStore' $ \db -> checkMsgDeliveryExists db connId agentMsgId
+    rcvMsgRepeated Connection {connId} msgMeta@MsgMeta {recipient = (agentMsgId, _)} =
+      ifM (mayBeRepeated msgMeta) (withStore' $ \db -> checkMsgDeliveryExists db connId agentMsgId) (pure False)
 
     xInfo :: Contact -> Profile -> CM ()
     xInfo c p' = void $ processContactProfileUpdate c p' True
