@@ -39,6 +39,7 @@ import Simplex.Chat.Types.Preferences
 import Simplex.Chat.Types.Shared
 import Simplex.Chat.Types.UITheme (ChatLayout)
 import Simplex.FileTransfer.Description (FileSize (..))
+import Simplex.Messaging.Agent (sendMessages, vrValue)
 import Simplex.Messaging.Agent.Client (agentClientStore)
 import Simplex.Messaging.Agent.Store.AgentStore (maybeFirstRow, withTransaction)
 import qualified Simplex.Messaging.Agent.Store.DB as DB
@@ -46,6 +47,7 @@ import qualified Simplex.Messaging.Crypto as C
 import Simplex.Messaging.Crypto.BBS (BBSPresHeader (..))
 import Simplex.Messaging.Crypto.Ratchet (PQEncryption (..), PQSupport, pattern PQEncOff, pattern PQEncOn, pattern PQSupportOff)
 import Simplex.Messaging.Encoding.String
+import Simplex.Messaging.Protocol (MsgFlags (MsgFlags))
 import Simplex.Messaging.Version
 import System.Directory (doesFileExist)
 import System.Environment (lookupEnv)
@@ -982,6 +984,11 @@ setRelativePaths cc filesFolder tempFolder = do
   cc #$> ("/_temp_folder " <> tempFolder, id, "ok")
   cc ##> "/_start"
   cc <## "chat started"
+
+agentSendBody :: TestCC -> ByteString -> ByteString -> IO ()
+agentSendBody cc connId body = do
+  let ChatController {smpAgent} = chatController cc
+  runExceptT (sendMessages smpAgent [(connId, PQEncOff, MsgFlags False, vrValue body)]) >>= either (fail . show) (const $ pure ())
 
 blockFirstEventCfg :: (ChatEvent -> Bool) -> IO (MVar (), ChatConfig)
 blockFirstEventCfg blocks = do
