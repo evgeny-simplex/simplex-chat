@@ -65,6 +65,7 @@ module Simplex.Chat.Store.Files
     getRcvFilesToReceive,
     setRcvFTAgentDeleted,
     updateRcvFileStatus,
+    setAcceptedRcvFileConnected,
     createRcvFileChunk,
     updatedRcvFileChunkStored,
     deleteRcvFileChunks,
@@ -594,6 +595,7 @@ appendRcvFD db userId fileId fd@FileDescr {fileDescrText, fileDescrPartNo, fileD
           "UPDATE rcv_files SET file_descr_id = ?, updated_at = ? WHERE file_id = ?"
           (fileDescrId, currentTs, fileId)
       pure rfd
+    Just rfd@RcvFileDescr {fileDescrPartNo = rfdPNo} | fileDescrPartNo <= rfdPNo -> pure rfd
     Just
       RcvFileDescr
         { fileDescrId,
@@ -835,6 +837,13 @@ updateRcvFileStatus :: DB.Connection -> FileTransferId -> FileStatus -> IO ()
 updateRcvFileStatus db fileId status = do
   currentTs <- getCurrentTime
   DB.execute db "UPDATE rcv_files SET file_status = ?, updated_at = ? WHERE file_id = ?" (status, currentTs, fileId)
+
+setAcceptedRcvFileConnected :: DB.Connection -> FileTransferId -> IO Bool
+setAcceptedRcvFileConnected db fileId = do
+  currentTs <- getCurrentTime
+  not . null <$> (DB.query db q (FSConnected, currentTs, fileId, FSAccepted) :: IO [Only FileTransferId])
+  where
+    q = "UPDATE rcv_files SET file_status = ?, updated_at = ? WHERE file_id = ? AND file_status = ? RETURNING file_id"
 
 createRcvFileChunk :: DB.Connection -> RcvFileTransfer -> Integer -> AgentMsgId -> IO RcvChunkStatus
 createRcvFileChunk db RcvFileTransfer {fileId, fileInvitation = FileInvitation {fileSize}, chunkSize} chunkNo msgId = do

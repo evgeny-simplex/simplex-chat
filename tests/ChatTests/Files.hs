@@ -9,9 +9,10 @@ import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Profiles (addTestBadge, futureDate, issueTestBadge, issueTestBadgeType, testBadgeKeys)
 import ChatTests.Utils
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (MVar, newEmptyMVar, readMVar, threadDelay, tryPutMVar)
 import Control.Concurrent.Async (concurrently_)
 import Control.Logger.Simple
+import Control.Monad (forever, when)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (runReaderT)
 import qualified Data.Aeson as J
@@ -22,7 +23,7 @@ import qualified Data.Text as T
 import Network.HTTP.Types.URI (urlEncode)
 import Data.Time.Clock (addUTCTime, getCurrentTime, nominalDay)
 import Simplex.Chat.Badges (BadgeProof, BadgeStatus (..), BadgeType (..), FileSizeLimits (..), ProofPresHeader (..), badgeProof, defaultFileSizeLimits)
-import Simplex.Chat.Controller (ChatCommand (APIGetChat), ChatConfig (..), ChatPagination (CPLast), ChatResponse (CRApiChat, CRNewChatItems))
+import Simplex.Chat.Controller (ChatCommand (APIGetChat), ChatConfig (..), ChatEvent (CEvtRcvFileDescrReady), ChatHooks (..), ChatPagination (CPLast), ChatResponse (CRApiChat, CRNewChatItems), defaultChatHooks)
 import Simplex.Chat.Core (sendChatCmdStr)
 import Simplex.Chat.Library.Commands (execChatCommand')
 import Simplex.Chat.Library.Internal (badgeProofStatus, roundedFDCount)
@@ -69,6 +70,8 @@ chatFileTests = do
     it "with relative paths: send and receive file" testXFTPWithRelativePaths
     it "continue receiving file after restart" testXFTPContinueRcv
     it "receive file marked to receive on chat start" testXFTPMarkToReceive
+    it "receive file marked to receive after chat stopped while saving its description" testXFTPMarkToReceiveDescrStopped
+    it "receive accepted file after chat stopped while saving its description" testXFTPAcceptDescrStopped
     it "error receiving file" testXFTPRcvError
     it "cancel receiving file, repeat receive" testXFTPCancelRcvRepeat
     it "should accept file automatically with CLI option" testAutoAcceptFile
@@ -1196,6 +1199,80 @@ testXFTPMarkToReceive = do
       src <- B.readFile "./tests/fixtures/test.pdf"
       dest <- B.readFile (tmpFile bob "bob_files/test.pdf")
       dest `shouldBe` src
+
+testXFTPMarkToReceiveDescrStopped :: HasCallStack => TestParams -> IO ()
+testXFTPMarkToReceiveDescrStopped ps = do
+  (descrSaved, cfg) <- blockFirstFileDescrCfg
+  withXFTPServer ps $
+    withNewTestChat ps "alice" aliceProfile $ \alice ->
+      withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+        connectUsers alice bob
+        alice #> "/f @bob ./tests/fixtures/test.pdf"
+        alice <## "use /fc 1 to cancel sending"
+        bob <# "alice> sends file test.pdf (266.0 KiB / 272376 bytes)"
+        bob <## "use /fr 1 [<dir>/ | <path>] to receive it"
+        alice <## "completed uploading file 1 (test.pdf) for bob"
+        readMVar descrSaved
+        bob #$> ("/_set_file_to_receive 1", id, "ok")
+        bob ##> "/_stop"
+        bob <## "chat stopped"
+        bob #$> ("/_files_folder " <> tmpFile ps "bob_files", id, "ok")
+        bob ##> "/_start"
+        bob
+          <### [ "chat started",
+                 "subscribed 1 connections on server localhost",
+                 "started receiving file 1 (test.pdf) from alice",
+                 "saving file 1 from alice to test.pdf"
+               ]
+        bob <## "completed receiving file 1 (test.pdf) from alice"
+        alice #> "@bob hi"
+        bob <# "alice> hi"
+        src <- B.readFile "./tests/fixtures/test.pdf"
+        dest <- B.readFile (tmpFile ps "bob_files/test.pdf")
+        dest `shouldBe` src
+
+testXFTPAcceptDescrStopped :: HasCallStack => TestParams -> IO ()
+testXFTPAcceptDescrStopped ps = do
+  (descrSaved, cfg) <- blockFirstFileDescrCfg
+  withXFTPServer ps $
+    withNewTestChat ps "alice" aliceProfile $ \alice ->
+      withNewTestChatCfgOpts ps cfg opts "bob" bobProfile $ \bob -> do
+        connectUsers alice bob
+        bob #$> ("/_files_folder " <> tmpFile ps "bob_files", id, "ok")
+        alice #> "/f @bob ./tests/fixtures/test.pdf"
+        alice <## "use /fc 1 to cancel sending"
+        bob <# "alice> sends file test.pdf (266.0 KiB / 272376 bytes)"
+        bob <## "use /fr 1 [<dir>/ | <path>] to receive it"
+        bob <## "saving file 1 from alice to test.pdf"
+        alice <## "completed uploading file 1 (test.pdf) for bob"
+        readMVar descrSaved
+        bob ##> "/_stop"
+        bob <## "chat stopped"
+        bob ##> "/_start"
+        bob
+          <### [ "chat started",
+                 "subscribed 1 connections on server localhost",
+                 "started receiving file 1 (test.pdf) from alice"
+               ]
+        bob <## "completed receiving file 1 (test.pdf) from alice"
+        alice #> "@bob hi"
+        bob <# "alice> hi"
+        src <- B.readFile "./tests/fixtures/test.pdf"
+        dest <- B.readFile (tmpFile ps "bob_files/test.pdf")
+        dest `shouldBe` src
+  where
+    opts = (testOpts :: ChatOpts) {autoAcceptFileSize = 300000}
+
+blockFirstFileDescrCfg :: IO (MVar (), ChatConfig)
+blockFirstFileDescrCfg = do
+  descrSaved <- newEmptyMVar
+  let hook _ ev = case ev of
+        Right CEvtRcvFileDescrReady {} -> do
+          isFirst <- tryPutMVar descrSaved ()
+          when isFirst $ forever $ threadDelay 1000000
+          pure ev
+        _ -> pure ev
+  pure (descrSaved, testCfg {chatHooks = defaultChatHooks {eventHook = Just hook}})
 
 testXFTPRcvError :: HasCallStack => TestParams -> IO ()
 testXFTPRcvError ps = do
