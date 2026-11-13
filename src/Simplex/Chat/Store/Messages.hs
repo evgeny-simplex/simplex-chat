@@ -29,6 +29,7 @@ module Simplex.Chat.Store.Messages
     createSndMsgDelivery,
     createNewMessageAndRcvMsgDelivery,
     getLastRcvMsgInfo,
+    checkMsgDeliveryExists,
     createNewRcvMessage,
     updateSndMsgDeliveryStatus,
     createPendingGroupMessage,
@@ -45,6 +46,7 @@ module Simplex.Chat.Store.Messages
     createNewChatItem_,
     getChatPreviews,
     checkContactHasItems,
+    checkDirectItemExists,
     getChatContentTypes,
     getDirectChat,
     getGroupChat,
@@ -304,6 +306,14 @@ getLastRcvMsgInfo db connId =
   where
     rcvMsgInfo (msgId, msgDeliveryId, msgDeliveryStatus, agentMsgId, agentMsgMeta) =
       RcvMsgInfo {msgId, msgDeliveryId, msgDeliveryStatus, agentMsgId, agentMsgMeta}
+
+checkMsgDeliveryExists :: DB.Connection -> Int64 -> AgentMsgId -> IO Bool
+checkMsgDeliveryExists db connId agentMsgId =
+  fromOnly . head
+    <$> DB.query
+      db
+      "SELECT EXISTS (SELECT 1 FROM msg_deliveries WHERE connection_id = ? AND agent_msg_id = ?)"
+      (connId, agentMsgId)
 
 createNewRcvMessage :: forall e. MsgEncodingI e => DB.Connection -> ConnOrGroupId -> NewRcvMessage e -> Maybe SharedMsgId -> Maybe GroupMemberId -> Maybe GroupMemberId -> ExceptT StoreError IO RcvMessage
 createNewRcvMessage db connOrGroupId NewRcvMessage {chatMsgEvent, verifiedMsg, brokerTs} sharedMsgId_ authorMember forwardedByMember =
@@ -810,7 +820,7 @@ findDirectChatPreviews_ db User {userId} pagination clq =
             SELECT chat_item_id
             FROM chat_items ci
             WHERE ci.user_id = ? AND ci.contact_id = ct.contact_id
-            ORDER BY ci.created_at DESC
+            ORDER BY ci.created_at DESC, ci.chat_item_id DESC
             LIMIT 1
           ) AS chat_item_id,
           COALESCE(ChatStats.UnreadCount, 0),
@@ -912,7 +922,7 @@ findGroupChatPreviews_ db User {userId} pagination clq =
             SELECT chat_item_id
             FROM chat_items ci
             WHERE ci.user_id = ? AND ci.group_id = g.group_id AND ci.group_scope_tag IS NULL AND ci.group_scope_group_member_id IS NULL
-            ORDER BY ci.item_ts DESC
+            ORDER BY ci.item_ts DESC, ci.chat_item_id DESC
             LIMIT 1
           ) AS chat_item_id,
           COALESCE(ChatStats.UnreadCount, 0),
@@ -1023,7 +1033,7 @@ findLocalChatPreviews_ db User {userId} pagination clq =
             SELECT chat_item_id
             FROM chat_items ci
             WHERE ci.user_id = ? AND ci.note_folder_id = nf.note_folder_id
-            ORDER BY ci.created_at DESC
+            ORDER BY ci.created_at DESC, ci.chat_item_id DESC
             LIMIT 1
           ) AS chat_item_id,
           COALESCE(ChatStats.UnreadCount, 0),
@@ -1222,6 +1232,14 @@ checkContactHasItems db User {userId} Contact {contactId} =
       db
       "SELECT EXISTS (SELECT 1 FROM chat_items WHERE user_id = ? AND contact_id = ?)"
       (userId, contactId)
+
+checkDirectItemExists :: DB.Connection -> User -> Contact -> SharedMsgId -> IO Bool
+checkDirectItemExists db User {userId} Contact {contactId} sharedMsgId =
+  fromOnly . head
+    <$> DB.query
+      db
+      "SELECT EXISTS (SELECT 1 FROM chat_items WHERE user_id = ? AND contact_id = ? AND shared_msg_id = ?)"
+      (userId, contactId, sharedMsgId)
 
 getChatContentTypes :: DB.Connection -> User -> ChatRef -> ExceptT StoreError IO [MsgContentTag]
 getChatContentTypes db User {userId} (ChatRef cType chatId chatScope_) = case cType of

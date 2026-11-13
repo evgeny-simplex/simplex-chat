@@ -16,7 +16,7 @@ import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Profiles (addTestBadge, futureDate, issueTestBadge, testBadgeKeys)
 import ChatTests.Utils
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Concurrent.STM (TVar, atomically, modifyTVar', newTVarIO, readTVarIO, writeTVar)
 import Control.Monad (forM_, void, when)
@@ -202,6 +202,7 @@ chatGroupTests = do
     it "deduplicate forwarded messages" testGroupMsgForwardDeduplicate
     it "report duplicate when forwarded copy is received after direct copy" testGroupMsgForwardDuplicateEvent
     it "report duplicate when direct copy is received after forwarded copy" testGroupMsgDirectDuplicateEvent
+    it "show parse error of message repeated after chat stop once" testGroupRepeatedParseError
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
@@ -6115,6 +6116,24 @@ testGroupMsgDirectDuplicateEvent ps = do
         cath <##. "duplicate group message, group id: 1"
         readTVarIO dups `shouldReturn` ["bob"]
 
+testGroupRepeatedParseError :: HasCallStack => TestParams -> IO ()
+testGroupRepeatedParseError ps = do
+  (received, cfg) <- blockFirstEventCfg $ newItemText "hello"
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      createGroup2 "team" alice bob
+      connId <- relayConnIdToMember alice "bob"
+      let hello = ChatMessage supportedChatVRange (Just $ SharedMsgId "repeated_msg_1") (XMsgNew $ mcSimple $ MCText "hello")
+      agentSendBody alice connId $ "[{\"invalid\":true}," <> chatMsgToBody hello <> "]"
+      _ <- getTermLine bob
+      readMVar received
+      bob ##> "/_stop"
+      bob <## "chat stopped"
+      bob ##> "/_start"
+      bob <### ["chat started", "subscribed 2 connections on server localhost", StartsWith "duplicate group message, group id: 1"]
+      alice #> "#team hi"
+      bob <# "#team alice> hi"
+
 testGroupMsgForwardEdit :: HasCallStack => TestParams -> IO ()
 testGroupMsgForwardEdit =
   testChat3 aliceProfile bobProfile cathProfile $
@@ -8218,7 +8237,7 @@ testBlockForAllLeftRemoved =
 testGroupMemberInactive :: HasCallStack => TestParams -> IO ()
 testGroupMemberInactive ps = do
   withSmpServer' serverCfg' $ do
-    withNewTestChatCfgOpts ps cfg' opts' "alice" aliceProfile $ \alice -> do
+    withNewTestChatCfgOpts ps cfg' testOpts "alice" aliceProfile $ \alice -> do
       withNewTestChatCfgOpts ps cfg' opts' "bob" bobProfile $ \bob -> do
         createGroup2 "team" alice bob
 

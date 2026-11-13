@@ -14,9 +14,10 @@ module ChatTests.Direct where
 import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Utils
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_, poll, wait)
 import Control.Monad (forM_, void, (>=>))
+import Control.Monad.Except (runExceptT)
 import Data.Aeson (ToJSON)
 import qualified Data.Aeson as J
 import qualified Data.ByteString.Char8 as B
@@ -29,18 +30,21 @@ import GHC.Conc (ThreadStatus (..), threadStatus)
 import Simplex.Chat.AppSettings (defaultAppSettings)
 import qualified Simplex.Chat.AppSettings as AS
 import Simplex.Chat.Call
-import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), PresetServers (..))
+import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatEvent (CEvtCallInvitation, CEvtCallOffer, CEvtChatItemsDeleted, CEvtReceivedGroupInvitation), PresetServers (..))
 import Simplex.Chat.Messages (ChatItemId)
 import Simplex.Chat.Options
-import Simplex.Chat.Protocol (supportedChatVRange)
-import Simplex.Chat.Types (ContactId, VersionRangeChat, authErrDisableCount, sameVerificationCode, verificationCode, pattern VersionChat)
+import Simplex.Chat.Protocol (ChatMessage (ChatMessage), ChatMsgEvent (XMsgNew), MsgContent (MCText), chatMsgToBody, mcSimple, supportedChatVRange)
+import Simplex.Chat.Types (ContactId, SharedMsgId (..), VersionRangeChat, authErrDisableCount, sameVerificationCode, verificationCode, pattern VersionChat)
+import Simplex.Messaging.Agent (sendMessages, vrValue)
 import Simplex.Messaging.Agent.Env.SQLite
 import Simplex.Messaging.Agent.RetryInterval
 import qualified Simplex.Messaging.Agent.Store.DB as DB
 import Simplex.Messaging.Client (NetworkTimeout (..))
 import Control.Concurrent.STM (atomically, readTVarIO)
 import qualified Simplex.Messaging.Crypto as C
+import Simplex.Messaging.Crypto.Ratchet (pattern PQEncOn)
 import Simplex.Messaging.Encoding.String (strEncode)
+import Simplex.Messaging.Protocol (MsgFlags (MsgFlags))
 import Simplex.Messaging.Server.Env.STM hiding (subscriptions)
 import Simplex.Messaging.Transport
 import Simplex.Messaging.Util (safeDecodeUtf8)
@@ -79,6 +83,14 @@ chatDirectTests = do
     it "should send multiline message" testMultilineMessage
     it "send large message" testLargeMessage
     it "initial chat pagination" testChatPaginationInitial
+  describe "repeated delivery after chat stop" $ do
+    it "show received message once" testRepeatedMessage
+    it "delete message once" testRepeatedMessageDelete
+    it "fully delete message once" testRepeatedMessageFullDelete
+    it "show parse error once" testRepeatedParseError
+    it "show group invitation once" testRepeatedGroupInvitation
+    it "show call invitation once" testRepeatedCallInvitation
+    it "process call offer once" testRepeatedCallOffer
   describe "batch send messages" $ do
     it "send multiple messages api" testSendMulti
     it "send multiple timed messages" testSendMultiTimed
@@ -302,20 +314,21 @@ testRetryConnectingClientTimeout ps = do
   inv <- withSmpServer' serverCfg' $ do
     withNewTestChatCfgOpts ps cfg' opts' "alice" aliceProfile $ \alice -> do
       alice ##> "/_connect 1"
-      inv <- getInvitation alice
+      (shortInv, inv) <- getInvitations alice
 
-      withNewTestChatCfgOpts ps cfgZeroTimeout opts' "bob" bobProfile $ \bob -> do
-        bob ##> ("/_connect plan 1 " <> inv)
+      withNewTestChatCfgOpts ps cfg' opts' "bob" bobProfile $ \bob -> do
+        bob ##> ("/_connect plan 1 " <> shortInv)
         bob <## "invitation link: ok to connect"
-        _sLinkData <- getTermLine bob
+        void $ getTermLine bob
+
+      withTestChatCfgOpts ps cfgZeroTimeout opts' "bob" $ \bob -> do
         bob ##> ("/_connect 1 " <> inv)
         bob <## ("smp agent error: BROKER {brokerAddress = \"smp://" <> testServerKeyHash <> "@localhost:" <> smpTestPort2 ps <> "\", brokerErr = TIMEOUT}")
 
       pure inv
 
-  -- TODO enable with slow_servers SMP response delay, the client may drop SKEY before sending
-  -- logFile <- readFile $ tmp <> "/smp-server-store.log"
-  -- logFile `shouldContain` "SECURE"
+  logFile <- readFile $ tmp <> "/smp-server-store.log"
+  logFile `shouldContain` "SECURE"
 
   withSmpServer' serverCfg' $ do
     withTestChatCfgOpts ps cfg' opts' "alice" $ \alice -> do
@@ -361,7 +374,7 @@ testRetryConnectingClientTimeout ps = do
               { quotaExceededTimeout = 1,
                 messageRetryInterval = RetryInterval2 {riFast = fastRetryInterval, riSlow = fastRetryInterval}
               },
-          presetServers = presetSrvs {netCfg = (netCfg :: NetworkConfig) {tcpTimeout = NetworkTimeout 10 10}}
+          presetServers = presetSrvs {netCfg = (netCfg :: NetworkConfig) {tcpTimeout = NetworkTimeout 0 0}}
         }
     opts' =
       testOpts
@@ -980,17 +993,18 @@ testRepeatAuthErrorsDisableContact =
     threadDelay 500000
     bob ##> "/_delete @2 notify=off"
     bob <## "alice: contact is deleted"
-    forM_ [1 .. authErrDisableCount] $ \_ -> sendAuth alice
-    alice <## "[bob] connection is disabled, to enable: /enable bob, to delete: /d bob"
+    (withCCAgentTransaction bob $ \db -> DB.query_ db "SELECT count(1) FROM connections" :: IO [[Int]]) `shouldEventuallyReturn` [[0]]
+    forM_ [1 .. authErrDisableCount - 1] $ \_ -> sendAuth alice []
+    sendAuth alice ["[bob] connection is disabled, to enable: /enable bob, to delete: /d bob"]
     alice ##> "@bob hey"
     alice <## "bob: disabled, to enable: /enable bob, to delete: /d bob"
     alice ##> "/enable bob"
     alice <## "ok"
-    sendAuth alice
+    sendAuth alice []
   where
-    sendAuth alice = do
-      alice #> "@bob hey"
-      alice <## "[bob, contactId: 2, connId: 1] error: connection authorization failed - this could happen if connection was deleted, secured with different credentials, or due to a bug - please re-create the connection"
+    sendAuth alice disabled = do
+      alice `send` "@bob hey"
+      alice <### (WithTime "@bob hey" : "[bob, contactId: 2, connId: 1] error: connection authorization failed - this could happen if connection was deleted, secured with different credentials, or due to a bug - please re-create the connection" : disabled)
 
 testMultilineMessage :: HasCallStack => TestParams -> IO ()
 testMultilineMessage = testChat3 aliceProfile bobProfile cathProfile $ \alice bob cath -> do
@@ -1441,6 +1455,137 @@ testExpireCallInvitation ps =
       M.member 2 <$> readTVarIO (currentCalls $ chatController bob) `shouldReturn` False
       callRowCount bob `shouldReturn` 0
       bob #$> ("/_get chat @2 count=100", chat, chatFeatures <> [(0, "incoming call: missed")])
+
+testRepeatedMessage :: HasCallStack => TestParams -> IO ()
+testRepeatedMessage ps = do
+  (received, cfg) <- blockFirstEventCfg $ newItemText "hello"
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice #> "@bob hello"
+      readMVar received
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob #$> ("/_get chat @2 count=2", chat, [(0, "hello"), (0, "hi")])
+
+testRepeatedMessageDelete :: HasCallStack => TestParams -> IO ()
+testRepeatedMessageDelete ps = do
+  (deleted, cfg) <- blockFirstEventCfg (\e -> case e of CEvtChatItemsDeleted {} -> True; _ -> False)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice #> "@bob hello"
+      bob <# "alice> hello"
+      alice #$> ("/_delete item @2 " <> itemId 1 <> " broadcast", id, "message marked deleted")
+      readMVar deleted
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob #$> ("/_get chat @2 count=2", chat, [(0, "hello [marked deleted]"), (0, "hi")])
+
+testRepeatedMessageFullDelete :: HasCallStack => TestParams -> IO ()
+testRepeatedMessageFullDelete ps = do
+  (deleted, cfg) <- blockFirstEventCfg (\e -> case e of CEvtChatItemsDeleted {} -> True; _ -> False)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice #> "@bob hello"
+      bob <# "alice> hello"
+      bob ##> "/set delete @alice always"
+      bob <## "you updated preferences for alice:"
+      bob <## "Full deletion: enabled for contact (you allow: always, contact allows: no)"
+      alice <## "bob updated preferences for you:"
+      alice <## "Full deletion: enabled for you (you allow: default (no), contact allows: always)"
+      alice #$> ("/_delete item @2 " <> itemId 1 <> " broadcast", id, "message deleted")
+      readMVar deleted
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob #$> ("/_get chat @2 count=2", chat, [(1, "Full deletion: enabled for contact"), (0, "hi")])
+
+testRepeatedParseError :: HasCallStack => TestParams -> IO ()
+testRepeatedParseError ps = do
+  (received, cfg) <- blockFirstEventCfg $ newItemText "hello"
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      connId <- contactAgentConnId alice "bob"
+      let hello = ChatMessage supportedChatVRange (Just $ SharedMsgId "repeated_msg_1") (XMsgNew $ mcSimple $ MCText "hello")
+          body = "[{\"invalid\":true}," <> chatMsgToBody hello <> "]"
+          ChatController {smpAgent} = chatController alice
+      Right _ <- runExceptT $ sendMessages smpAgent [(connId, PQEncOn, MsgFlags False, vrValue body)]
+      _ <- getTermLine bob
+      readMVar received
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      items <- chat <$> (bob ##> "/_get chat @2 count=3" >> getTermLine bob)
+      map snd (drop 1 items) `shouldBe` ["hello", "hi"]
+      map (("message error: " `isPrefixOf`) . snd) (take 1 items) `shouldBe` [True]
+
+testRepeatedGroupInvitation :: HasCallStack => TestParams -> IO ()
+testRepeatedGroupInvitation ps = do
+  (invited, cfg) <- blockFirstEventCfg (\e -> case e of CEvtReceivedGroupInvitation {} -> True; _ -> False)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice ##> "/g team"
+      alice <## "group #team is created"
+      alice <## "to add members use /a team <name> or /create link #team"
+      alice ##> "/a team bob"
+      alice <## "invitation to join the group #team sent to bob"
+      readMVar invited
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob ##> "/j team"
+      concurrently_
+        (alice <## "#team: bob joined the group")
+        (bob <## "#team: you joined the group")
+      alice #> "#team hello"
+      bob <# "#team alice> hello"
+
+testRepeatedCallInvitation :: HasCallStack => TestParams -> IO ()
+testRepeatedCallInvitation ps = do
+  (invited, cfg) <- blockFirstEventCfg (\e -> case e of CEvtCallInvitation {} -> True; _ -> False)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice ##> ("/_call invite @2 " <> serialize testCallType)
+      alice <## "ok"
+      readMVar invited
+      stopStartChat bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob #$> ("/_get chat @2 count=2", chat, [(0, "incoming call: calling..."), (0, "hi")])
+
+testRepeatedCallOffer :: HasCallStack => TestParams -> IO ()
+testRepeatedCallOffer ps = do
+  (offered, cfg) <- blockFirstEventCfg (\e -> case e of CEvtCallOffer {} -> True; _ -> False)
+  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      inviteToCall alice bob
+      bob ##> ("/_call offer @2 " <> serialize testWebRTCCallOffer)
+      bob <## "ok"
+      readMVar offered
+      stopStartChat alice
+      bob #> "@alice hi"
+      alice <# "bob> hi"
+
+contactAgentConnId :: TestCC -> T.Text -> IO B.ByteString
+contactAgentConnId cc name = do
+  [Only connId] <- withCCTransaction cc $ \db ->
+    DB.query db "SELECT c.agent_conn_id FROM connections c JOIN contacts ct ON ct.contact_id = c.contact_id WHERE ct.local_display_name = ?" (Only name)
+  pure connId
+
+stopStartChat :: HasCallStack => TestCC -> IO ()
+stopStartChat cc = do
+  cc ##> "/_stop"
+  cc <## "chat stopped"
+  cc ##> "/_start"
+  cc <### ["chat started", "subscribed 1 connections on server localhost"]
 
 testStopStartChat :: HasCallStack => TestParams -> IO ()
 testStopStartChat ps =

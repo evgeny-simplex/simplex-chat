@@ -562,22 +562,26 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           tags <- newTVarIO []
           withAckMessage "contact msg" agentConnId msgMeta True (Just tags) $ \eInfo -> do
             let MsgMeta {pqEncryption} = msgMeta
+            repeated <- rcvMsgRepeated conn msgMeta
             (ct', conn') <- updateContactPQRcv user ct conn pqEncryption
-            checkIntegrityCreateItem (CDDirectRcv ct') msgMeta `catchAllErrors` \_ -> pure ()
+            unless repeated $ checkIntegrityCreateItem (CDDirectRcv ct') msgMeta `catchAllErrors` \_ -> pure ()
             forM_ aChatMsgs $ \case
-              Right (APMsg _ (ParsedMsg _ _ chatMsg)) ->
-                processEvent ct' conn' tags eInfo chatMsg `catchAllErrors` \e -> eToView e
+              Right (APMsg _ (ParsedMsg _ _ chatMsg@ChatMessage {msgId = sharedMsgId_})) ->
+                unlessM (if repeated then maybe (pure False) itemSaved sharedMsgId_ else pure False) (processEvent ct' conn' repeated tags eInfo chatMsg) `catchAllErrors` \e -> eToView e
               Left e -> do
                 atomically $ modifyTVar' tags ("error" :)
                 logInfo $ "contact msg=error " <> eInfo <> " " <> tshow e
-                createInternalChatItem user (CDDirectRcv ct') (CIRcvMsgError $ RMEParseError $ T.pack e) Nothing
-                  `catchAllErrors` \_ -> pure ()
+                unless repeated $
+                  createInternalChatItem user (CDDirectRcv ct') (CIRcvMsgError $ RMEParseError $ T.pack e) Nothing
+                    `catchAllErrors` \_ -> pure ()
             withRcpt <- checkSendRcpt ct' $ rights aChatMsgs -- not crucial to use ct'' from processEvent
             pure (withRcpt, False)
           where
             aChatMsgs = parseChatMessages msgBody
-            processEvent :: Contact -> Connection -> TVar [Text] -> Text -> MsgEncodingI e => ChatMessage e -> CM ()
-            processEvent ct' conn' tags eInfo chatMsg@ChatMessage {chatMsgEvent} = do
+            itemSaved :: SharedMsgId -> CM Bool
+            itemSaved sharedMsgId = withStore' $ \db -> checkDirectItemExists db user ct sharedMsgId
+            processEvent :: Contact -> Connection -> Bool -> TVar [Text] -> Text -> MsgEncodingI e => ChatMessage e -> CM ()
+            processEvent ct' conn' repeated tags eInfo chatMsg@ChatMessage {chatMsgEvent} = do
               let tag = toCMEventTag chatMsgEvent
               atomically $ modifyTVar' tags (tshow tag :)
               logInfo $ "contact msg=" <> tshow tag <> " " <> eInfo
@@ -587,7 +591,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                 XMsgNew mc -> newContentMessage ct'' mc msg msgMeta
                 XMsgFileDescr sharedMsgId fileDescr fileExpires fileBadge -> messageFileDescription ct'' sharedMsgId fileDescr fileExpires fileBadge
                 XMsgUpdate sharedMsgId mContent _ ttl live _msgScope _ -> messageUpdate ct'' sharedMsgId mContent msg msgMeta ttl live
-                XMsgDel sharedMsgId _ _ _ -> messageDelete ct'' sharedMsgId msg msgMeta
+                XMsgDel sharedMsgId _ _ _ -> messageDelete ct'' repeated sharedMsgId msg msgMeta
                 XMsgReact sharedMsgId _ _ reaction add -> directMsgReaction ct'' sharedMsgId reaction add msg msgMeta
                 -- TODO discontinue XFile
                 XFile fInv -> processFileInvitation' ct'' fInv msg msgMeta
@@ -600,9 +604,9 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                 XInfoProbeCheck probeHash -> xInfoProbeCheck (COMContact ct'') probeHash
                 XInfoProbeOk probe -> xInfoProbeOk (COMContact ct'') probe
                 XCallInv callId invitation -> xCallInv ct'' callId invitation msg msgMeta
-                XCallOffer callId offer -> xCallOffer ct'' callId offer msg
-                XCallAnswer callId answer -> xCallAnswer ct'' callId answer msg
-                XCallExtra callId extraInfo -> xCallExtra ct'' callId extraInfo msg
+                XCallOffer callId offer -> unless repeated $ xCallOffer ct'' callId offer msg
+                XCallAnswer callId answer -> unless repeated $ xCallAnswer ct'' callId answer msg
+                XCallExtra callId extraInfo -> unless repeated $ xCallExtra ct'' callId extraInfo msg
                 XCallEnd callId -> xCallEnd ct'' callId msg
                 BFileChunk sharedMsgId chunk -> bFileChunk ct'' sharedMsgId chunk msgMeta
                 _ -> messageError $ "unsupported message: " <> T.pack (show event)
@@ -1016,8 +1020,9 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
         withAckMessage "group msg" agentConnId msgMeta True (Just tags) $ \eInfo -> do
           -- possible improvement is to choose scope based on event (some events specify scope)
           (gInfo', m', scopeInfo) <- mkGroupChatScope gInfo m
-          checkIntegrityCreateItem (CDGroupRcv gInfo' scopeInfo m') msgMeta `catchAllErrors` \_ -> pure ()
-          newDeliveryTasks <- reverse <$> foldM (processAChatMsg gInfo' scopeInfo m' tags eInfo) [] aChatMsgs
+          repeated <- if integrity /= MsgOk || any isLeft aChatMsgs then rcvMsgRepeated conn msgMeta else pure False
+          unless repeated $ checkIntegrityCreateItem (CDGroupRcv gInfo' scopeInfo m') msgMeta `catchAllErrors` \_ -> pure ()
+          newDeliveryTasks <- reverse <$> foldM (processAChatMsg gInfo' scopeInfo m' repeated tags eInfo) [] aChatMsgs
           shouldDelConns <-
             if isUserGrpFwdRelay gInfo' && not (blockedByAdmin m)
               then
@@ -1031,16 +1036,18 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
         where
           aChatMsgs = parseChatMessages msgBody
           brokerTs = metaBrokerTs msgMeta
+          MsgMeta {integrity} = msgMeta
           processAChatMsg ::
             GroupInfo ->
             Maybe GroupChatScopeInfo ->
             GroupMember ->
+            Bool ->
             TVar [Text] ->
             Text ->
             [NewMessageDeliveryTask] ->
             Either String AParsedMsg ->
             CM [NewMessageDeliveryTask]
-          processAChatMsg gInfo' scopeInfo m' tags eInfo newDeliveryTasks = \case
+          processAChatMsg gInfo' scopeInfo m' repeated tags eInfo newDeliveryTasks = \case
             Right (APMsg enc (parsedMsg@(ParsedMsg fwd_ _ ChatMessage {chatMsgEvent}))) -> do
               let tag = toCMEventTag chatMsgEvent
               atomically $ modifyTVar' tags (tshow tag :)
@@ -1059,12 +1066,13 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
             Left e -> do
               atomically $ modifyTVar' tags ("error" :)
               logInfo $ "group msg=error " <> eInfo <> " " <> tshow e
-              if isRelay membership
-                then
-                  eToView (ChatError . CEException $ "error parsing chat message: " <> e)
-                else
-                  createInternalChatItem user (CDGroupRcv gInfo' scopeInfo m') (CIRcvMsgError $ RMEParseError $ T.pack e) Nothing
-                    `catchAllErrors` \_ -> pure ()
+              unless repeated $
+                if isRelay membership
+                  then
+                    eToView (ChatError . CEException $ "error parsing chat message: " <> e)
+                  else
+                    createInternalChatItem user (CDGroupRcv gInfo' scopeInfo m') (CIRcvMsgError $ RMEParseError $ T.pack e) Nothing
+                      `catchAllErrors` \_ -> pure ()
               pure newDeliveryTasks
           processEvent :: forall e. MsgEncodingI e => GroupInfo -> GroupMember -> VerifiedMsg e -> CM (Maybe NewMessageDeliveryTask)
           processEvent gInfo' m' verifiedMsg = do
@@ -1997,7 +2005,10 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     processFDMessage :: Maybe ByteString -> FileTransferId -> AChatItem -> FileDescr -> Maybe UTCTime -> Maybe BadgeProof -> CM ()
     processFDMessage binding_ fileId aci fileDescr fileExpires fileBadge = do
       ft <- withStore $ \db -> getRcvFileTransfer db user fileId
-      unless (rcvFileCompleteOrCancelled ft) $ do
+      let started = case ft of
+            RcvFileTransfer {fileStatus = RFSConnected _} -> True
+            _ -> False
+      unless (rcvFileCompleteOrCancelled ft || started) $ do
         (rfd@RcvFileDescr {fileDescrComplete}, ft'@RcvFileTransfer {fileStatus, xftpRcvFile, cryptoArgs, fileProhibited, fileInvitation = FileInvitation {fileSize}}) <- withStore $ \db -> do
           rfd <- appendRcvFD db userId fileId fileDescr
           forM_ fileExpires $ liftIO . setFileExpiration db user fileId
@@ -2108,15 +2119,16 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                     else toView $ CEvtChatItemNotChanged user (AChatItem SCTDirect SMDRcv (DirectChat ct) ci)
             _ -> messageError "x.msg.update: contact attempted invalid message update"
 
-    messageDelete :: Contact -> SharedMsgId -> RcvMessage -> MsgMeta -> CM ()
-    messageDelete ct@Contact {contactId} sharedMsgId _rcvMessage msgMeta = do
-      deleteRcvChatItem `catchCINotFound` (toView . CEvtChatItemDeletedNotFound user ct)
+    messageDelete :: Contact -> Bool -> SharedMsgId -> RcvMessage -> MsgMeta -> CM ()
+    messageDelete ct@Contact {contactId} repeated sharedMsgId _rcvMessage msgMeta = do
+      deleteRcvChatItem `catchCINotFound` (unless repeated . toView . CEvtChatItemDeletedNotFound user ct)
       where
         brokerTs = metaBrokerTs msgMeta
         deleteRcvChatItem = do
-          cci@(CChatItem msgDir ci) <- withStore $ \db -> getDirectChatItemBySharedMsgId db user contactId sharedMsgId
+          cci@(CChatItem msgDir ci@ChatItem {meta = CIMeta {itemDeleted}}) <- withStore $ \db -> getDirectChatItemBySharedMsgId db user contactId sharedMsgId
           case msgDir of
             SMDRcv
+              | repeated, isJust itemDeleted -> pure ()
               | rcvItemDeletable ci brokerTs -> do
                   deletions <-
                     if featureAllowed SCFFullDelete forContact ct
@@ -2742,6 +2754,10 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     checkIntegrityCreateItem cd MsgMeta {integrity, broker = (_, brokerTs)} = case integrity of
       MsgOk -> pure ()
       MsgError e -> createInternalChatItem user cd (CIRcvIntegrityError e) (Just brokerTs)
+
+    rcvMsgRepeated :: Connection -> MsgMeta -> CM Bool
+    rcvMsgRepeated Connection {connId} MsgMeta {recipient = (agentMsgId, _)} =
+      withStore' $ \db -> checkMsgDeliveryExists db connId agentMsgId
 
     xInfo :: Contact -> Profile -> CM ()
     xInfo c p' = void $ processContactProfileUpdate c p' True
