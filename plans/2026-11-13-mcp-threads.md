@@ -1,6 +1,6 @@
 # Threads, channel comments and sessions as topics, from how agents use them
 
-Status: fifth revision, 2026-11-13. The user's answers: Q1 B, Q2 A with a staged release, Q3 replaced by Claude's own use of threads, Q4 by a note (all work in this session, threads and sessions together, vertically), Q5 A, Q6 B, Q7 by a note (access to a session by role only), Q8 B for now, Q9 B (a member's role in Claude Control carries into sessions), Q10 A. No question is open. Section 6 maps Claude Code sessions and subagents onto sessions and threads, for the user's later decision.
+Status: fifth revision, 2026-11-13. The user's answers: Q1 B, Q2 A with a staged release, Q3 replaced by Claude's own use of threads, Q4 by a note (all work in this session, threads and sessions together, vertically), Q5 A, Q6 B, Q7 by a note (access to a session by role only), Q8 B for now, Q9 B (a member's initial role in a session is their role in Claude Control; rights in a session follow the role in the session), Q10 A. No question is open. Section 6 maps Claude Code sessions and subagents onto sessions and threads, for the user's later decision.
 
 Precondition: execution starts after the release of the current items: activity, silent messages, flat layout, agent profile, replies, reactions, allow-tool, session list, session usage, context summary and live answers.
 
@@ -74,7 +74,8 @@ Claude Code starts session 7    a group "7 · website", an invitation for    a s
 the owner opens it              the group, from the chat list               the card, or the group's list of sessions
 Claude works                    prompts, steps, cards, answers in the       the same posts in the session
                                 session's group
-rights in a session             admin by /join N, owners as owners          the member's role in Claude Control (Q9 B)
+role in a session               admin by /join N, owners as owners          starts as the member's role in Claude Control;
+                                                                            rights follow the role in the session (Q9 B)
 the session's state             the list message of the session list plan   the same list message (Q8 B, for now)
 model, effort, usage            the group's description, a line per turn    the card's second line; the line per turn in the session
 Claude Code ends                the group stays                             the session stays, listed as not running
@@ -88,26 +89,20 @@ The card of a session, edited by Claude:
 opus · effort high
 ```
 
-Claude Control's texts follow the roles (Q9 B). Before, in `main-group.ts`, and after:
+Claude Control's texts follow the roles (Q9 B). They replace the texts of `main-group.ts`:
 ```
-text                 before                                                      after
-greeting             I'm Claude. Each Claude Code session has its own group,     I'm Claude. Each Claude Code session is a session of this
-                     and you get its invitation here. /sessions lists the        group: open it from its card or from the group's list of
-                     sessions; /join N joins the group of session N.             sessions. /join N joins a session that has a group of its own.
-welcome              Everyone in this group can join the groups of your Claude   Every member of this group works in your Claude Code
-                     Code sessions, prompt Claude and approve what it does.      sessions with their role here: members prompt Claude;
-                     Invite only people you trust with that.                     admins and owners also send its commands and approve what
-                                                                                 it does. Invite only people you trust with that.
-short description    Everyone in this group can join the groups of your Claude   Every member of this group works in your Claude Code
-                     Code sessions, prompt Claude and approve what it does.      sessions with their role here.
-join post            NAME joined. They can join the group of any Claude Code     NAME joined as ROLE. and the rights of the role:
-                     session here, prompt Claude and approve its actions.
-                       owner, admin                                              They prompt Claude in every session, send its commands
-                                                                                 and approve its actions.
-                       moderator, member, author                                 They prompt Claude in every session; commands and
-                                                                                 approvals need the role admin or owner.
-                       observer                                                  They read every session and can't send.
+text                 after
+greeting             I'm Claude. Each Claude Code session is a session of this group: open it from its card or from the group's
+                     list of sessions. /join N joins a session that has a group of its own.
+welcome              Members of this group start in your Claude Code sessions with their role here: members prompt Claude;
+                     admins and owners also send its commands and approve its actions. Invite only people you trust with that.
+short description    Members of this group start in your Claude Code sessions with their role here.
+join post, owner     NAME joined as an owner. They prompt Claude, send its commands and approve its actions.
+join post, admin     NAME joined as an admin. They prompt Claude, send its commands and approve its actions.
+join post, member    NAME joined as a member. They prompt Claude; commands and approvals need an admin or owner.
+join post, observer  NAME joined as an observer. They read the sessions and can't send.
 ```
+A moderator's and an author's join posts read as a member's, with their role.
 
 The group's list of sessions, in its info and above its main chat, with each session's new messages:
 ```
@@ -260,7 +255,7 @@ Answered on 2026-11-13:
 - Q7, the user's note: access to a session is by role only, with no list of members per session (decision 35).
 - Q8 B for now: the session list message stays, and the cards show the titles; the user decides later, with section 6.
 
-- Q9 B: a member's role in Claude Control is their role in its sessions, and in the groups of sessions they join (decision 55). The user's note: "I think it's reasonable to keep roles in the hub for sessions - e.g., if I added somebody to hub as member, he would join to sessions as member. If as admin - as admin. etc. Role is decided by inviter, so there is no problem carrying it over."
+- Q9 B: a member's initial role in a session is their role in Claude Control; rights in a session follow the member's role in that session (decision 55). The user's note: "I think it's reasonable to keep roles in the hub for sessions - e.g., if I added somebody to hub as member, he would join to sessions as member. If as admin - as admin. etc. Role is decided by inviter, so there is no problem carrying it over."
 - Q10 A: a member below a session's minimum role sees neither its card nor the session in the list (decision 35).
 
 No question is open.
@@ -343,7 +338,7 @@ Choices, the plugin, on master after the release:
 52. Claude Control gets `sessions` on, with the role owner, and `comments` on. A new Claude Code session is a session of Claude Control (`APICreateGroupSession`, title `N · NAME`, minimum role `member`). The plugin creates a session when every human member's app has the version of decision 37; otherwise a group, as 0.3.0, and Claude posts once in the main chat: `NAME's app shows no sessions; update SimpleX to see them.`
 53. A session that already has a group, by `session.json`, keeps it, also after `claude --resume`. The plugin moves no existing group.
 54. The hub binds a `Session` to Claude Control and its session's scope: its posts, `Control` and the turn's routing use the chat reference with the scope. Per-session data moves to the session's custom data (`APISetGroupSessionCustomData`), as `SessionGroupData` is in the group's custom data today.
-55. Rights in a session follow the member's role in Claude Control, as its inviter set it (Q9 B; 0.3.0 premise 1 and rules 3 to 5): admins and owners prompt, send commands and approve; moderators, members and authors prompt; observers read. Owner invitations at a session's start and `/join N` are not used for sessions of Claude Control. A session with a group of its own (decisions 52, 53, 56) gets its owners invited as owners at its start, and `/join N` invites a member with their role in Claude Control. This replaces the role admin of 0.3.0 decision 85 and rule 6 of its trust model. Claude Control's texts are those of section 2.2.
+55. A member's initial role in a session is their role in Claude Control, as its inviter set it; rights in a session follow the member's role in that session (Q9 B; 0.3.0 premise 1 and rules 3 to 5): admins and owners prompt, send commands and approve; moderators, members and authors prompt; observers read. A session inside Claude Control has no member list of its own (Q7), so the member's role there is their one role in the group, and a role change in Claude Control applies to its sessions. A session with a group of its own (decisions 52, 53, 56) gets its owners invited as owners at its start; `/join N` invites a member with their role in Claude Control, and an admin or owner of that group changes it there. Owner invitations at a session's start and `/join N` are not used for sessions of Claude Control. This replaces the role admin of 0.3.0 decision 85 and rule 6 of its trust model. Claude Control's texts are those of section 2.2.
 56. A person outside Claude Control joins one Claude Code session through a group of its own (0.3.0 rule 7): sessions with groups keep them (decision 53), and `/group` from an admin or owner in a session moves it to a new group (section 2.4). `/group` is a command of the session's `Control`, answered only to admins and owners, as the other commands (0.3.0 decision 91).
 57. Q8 B for now: the hub keeps the session list message of the session list plan, and the card shows the title and the description line (model, effort) of `ep/mcp-session-usage`.
 58. Threads are Claude's tasks: Claude decides when a task gets a thread, by the channel instructions of section 2.3. The hub creates no thread by itself.
