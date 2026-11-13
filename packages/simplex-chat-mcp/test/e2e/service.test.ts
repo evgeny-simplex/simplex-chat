@@ -459,7 +459,7 @@ test("a session keeps its group for hooks with a new ID from its process, relays
   const card = (text: string): Promise<T.AChatItem> => received(alice.chat, inGroup(groupId, textStarts(text)))
   const ownerSends = (text: string) => alice.chat.apiSendTextMessage([T.ChatType.Group, groupId], text)
 
-  expect(await sessionStart(JSON.stringify({session_id: two, cwd: "/p", source: "clear"}), env, {client, nodeVersion: process.versions.node})).toEqual({})
+  expect(await sessionStart(JSON.stringify({session_id: two, cwd: "/p", source: "clear"}), env, {client, nodeVersion: process.versions.node})).toEqual({hookSpecificOutput: {hookEventName: "SessionStart", watchPaths: [join(root, "secrets.json")]}})
   const cleared = received(alice.chat, inGroup(groupId, ({chatItem}) => chatItem.meta.itemText === "Cleared." && chatItem.chatDir.type === "groupRcv" && chatItem.chatDir.groupMember.memberProfile.displayName === "Claude"))
   await turn(JSON.stringify({session_id: two, hook_event_name: "Stop", last_assistant_message: "Cleared."}), env, client)
   await cleared
@@ -766,7 +766,7 @@ test("a session start that Claude Code ends with its descendants, as at its exit
   const output = await sessionStart(JSON.stringify({session_id: four, cwd: "/p/four"}), {SIMPLEX_MCP_HOME: root}, {client, nodeVersion: process.versions.node})
   expect(servicePid(root)).toBe(service)
   const {link} = await client.request<OwnerState>("GET", "/link")
-  expect(output).toEqual({systemMessage: `SimpleX MCP: scan this QR code with the SimpleX app and tap Join to supervise your agents in "Claude Control":\n${qrCodeText(link!, "plain")}\n${link}`})
+  expect(output).toEqual({systemMessage: `SimpleX MCP: scan this QR code with the SimpleX app and tap Join to supervise your agents in "Claude Control":\n${qrCodeText(link!, "plain")}\n${link}`, hookSpecificOutput: {hookEventName: "SessionStart", watchPaths: [join(root, "secrets.json")]}})
 }, 600_000)
 
 test("the service renames a Main group named SimpleX MCP to Claude Control", async () => {
