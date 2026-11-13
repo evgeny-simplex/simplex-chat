@@ -1,7 +1,7 @@
 import {spawnSync} from "child_process"
 import * as fs from "fs"
 import {chmodSync, closeSync, existsSync, fstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync} from "fs"
-import {tmpdir} from "os"
+import {homedir, tmpdir} from "os"
 import {join} from "path"
 import {LockedError, SecretRecord, Secrets, acquireLock, createDataFolder, dataRoot, hubFolder, logFile, openLog, readServerFile, readSessionFile, releaseLock, serverToken, sessionFolder, socketPath, storedSessions, writeHeadersFile, writeServerFile, writeSessionFile} from "../../src/files"
 import {ExitError} from "../../src/log"
@@ -218,6 +218,11 @@ describe("data root", () => {
     expect(dataRoot({}, "/home/u")).toBe("/home/u/.simplex-mcp")
     expect(dataRoot({SIMPLEX_MCP_HOME: "/data/mcp"}, "/home/u")).toBe("/data/mcp")
     expect(dataRoot({SIMPLEX_MCP_HOME: ""}, "/home/u")).toBe("/home/u/.simplex-mcp")
+  })
+
+  it("is in a temporary home in the unit tests, so that no test uses the data folder of this computer's plugin", () => {
+    expect(homedir().startsWith(join(tmpdir(), "simplex-mcp-home-"))).toBe(true)
+    expect(dataRoot()).toBe(join(homedir(), ".simplex-mcp"))
   })
 
   it("keeps the hub and the sessions in folders 0.1 agent names can't take", () => {

@@ -1082,7 +1082,11 @@ describe("runService", () => {
     const exit = jest.spyOn(process, "exit").mockImplementation(() => {
       throw exited
     })
-    await expect(runService({SIMPLEX_MCP_HOME: root, CLAUDE_PLUGIN_OPTION_APPROVE: "always"})).rejects.toBe(exited)
+    const free = createServer().listen(0, "127.0.0.1")
+    await once(free, "listening")
+    const proxyPort = String((free.address() as AddressInfo).port)
+    await new Promise(resolve => free.close(resolve))
+    await expect(runService({SIMPLEX_MCP_HOME: root, SIMPLEX_MCP_PROXY_PORT: proxyPort, CLAUDE_PLUGIN_OPTION_APPROVE: "always"})).rejects.toBe(exited)
     expect(exit).toHaveBeenCalledWith(1)
     expect(write.mock.calls).toEqual([["error: Plugin option approve: requests or host expected, got always. Change it in /plugin > Installed > simplex > Configure options.\n"]])
     expect(existsSync(lockFile())).toBe(false)
