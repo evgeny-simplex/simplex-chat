@@ -2,7 +2,7 @@
 import {homedir} from "os"
 import {join, resolve} from "path"
 import {Mode} from "./actions"
-import {secretsChanged, sessionStart, turn} from "./hook"
+import {agentSecretsChanged, agentSessionStart, secretsChanged, sessionStart, turn} from "./hook"
 import {ExitError, log, logError} from "./log"
 import {validName} from "./messages"
 import {resetOwners, showLink} from "./owner"
@@ -18,6 +18,10 @@ export const helpText = `Usage:
   simplex-mcp hook session-start       Claude Code SessionStart hook (run by the plugin)
   simplex-mcp hook turn                Claude Code hooks of prompts, answers, model changes and tool uses (run by the plugin)
   simplex-mcp hook secrets-changed     Claude Code hook of changed secrets (run by the plugin)
+  simplex-mcp hook agent-session-start DATA
+  simplex-mcp hook agent-secrets-changed DATA
+                                       Claude Code hooks of the agent with data folder DATA
+                                       (added by register)
   simplex-mcp link                     show the Main group link, or its owners
   simplex-mcp reset-owners             replace the Main group and its owners
 
@@ -55,6 +59,8 @@ register options:
 
 // spec: spec/architecture.md#cli-plugincommands
 const pluginCommands = ["session", "service", "hook session-start", "hook turn", "hook secrets-changed", "link", "reset-owners"] as const
+// spec: spec/architecture.md#cli-plugincommands
+const agentHookCommands = ["hook agent-session-start", "hook agent-secrets-changed"] as const
 
 // spec: spec/architecture.md#cli-command
 export type Command =
@@ -62,6 +68,7 @@ export type Command =
   | {command: "serve"; options: ServeOptions}
   | {command: "register"; options: RegisterOptions}
   | {command: (typeof pluginCommands)[number]}
+  | {command: (typeof agentHookCommands)[number]; data: string}
 
 // spec: spec/architecture.md#cli-parsecommand
 export function parseCommand(args: string[], home: string = homedir()): Command {
@@ -69,6 +76,8 @@ export function parseCommand(args: string[], home: string = homedir()): Command 
   if (command === "--help") return {command: "help"}
   const plugin = pluginCommands.find(words => words === args.join(" "))
   if (plugin !== undefined) return {command: plugin}
+  const agentHook = agentHookCommands.find(words => args.length === 3 && words === args.slice(0, 2).join(" "))
+  if (agentHook !== undefined) return {command: agentHook, data: resolve(args[2])}
   if (command !== "serve" && command !== "register") throw usageError("Usage: simplex-mcp serve NAME [options] or simplex-mcp register NAME [options]. Run simplex-mcp --help.")
   if (name === undefined || !validAgentName(name)) throw usageError("NAME: 1 to 32 lowercase letters, digits and single hyphens, starting with a letter or digit.")
   const options = new OptionReader(rest)
@@ -264,6 +273,12 @@ async function main(args: string[]): Promise<void> {
       return
     case "hook secrets-changed":
       process.stdout.write(`${JSON.stringify(await secretsChanged())}\n`)
+      return
+    case "hook agent-session-start":
+      process.stdout.write(`${JSON.stringify(agentSessionStart(command.data))}\n`)
+      return
+    case "hook agent-secrets-changed":
+      process.stdout.write(`${JSON.stringify(agentSecretsChanged(command.data))}\n`)
       return
     case "link":
       process.stdout.write(`${await showLink()}\n`)

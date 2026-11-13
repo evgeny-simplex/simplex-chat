@@ -587,9 +587,11 @@ Binary: `simplex-mcp`, compiled `dist/cli.js` ([`bin`](../package.json)). Help t
 simplex-mcp --help
 simplex-mcp serve NAME [options]
 simplex-mcp register NAME [options]
+simplex-mcp hook agent-session-start DATA
+simplex-mcp hook agent-secrets-changed DATA
 ```
 
-The plugin's commands are in [4.7](#47-plugin-commands).
+The plugin's commands are in [4.7](#47-plugin-commands), and the agent's hooks in [3.2](#32-register).
 
 NAME: 1 to 32 characters of `[a-z0-9]` and single hyphens, starting with a letter or digit ([`validAgentName`](../src/cli.ts)).
 
@@ -631,6 +633,17 @@ Entry ([`registryEntry`](../src/register.ts)):
 
 Server name: `simplex-NAME` ([`register`](../src/register.ts)).
 
+With `--host claude`, `register` first adds the agent's hooks to the settings file of the scope: `settings.json` of `CLAUDE_CONFIG_DIR`, or of `~/.claude`, for `user`, and `.claude/settings.local.json` of the project folder for `local`: the git repository root, the main repository of a worktree, or the current folder outside a repository ([`projectRoot`](../src/register.ts)). It removes the hooks whose command ends with the same hook and DATA, keeps the other settings and hooks, and adds these groups after them ([`settingsFile`, `addAgentHooks`, `otherHooks`](../src/register.ts)):
+
+| Event | Matcher | Command |
+|---|---|---|
+| `SessionStart` | | `node CLI hook agent-session-start DATA` |
+| `FileChanged` | `secrets.json` | `node CLI hook agent-secrets-changed DATA` |
+
+CLI is `dist/cli.js` of the package that runs `register`. CLI and DATA are quoted by `shellWord`: a path with characters other than letters, digits, `_`, `.`, `/` and `-` is put in single quotes, and on Windows in double quotes, for Git Bash and PowerShell. `register` then prints `Added to Claude Code: scope SCOPE, server simplex-NAME, hooks in FILE.`
+
+`hook agent-session-start DATA` appends the variables of [4.9](#49-secrets-proxy), with the port of `DATA/server.json`, to the file of `CLAUDE_ENV_FILE` as `export NAME='VALUE'` lines, when that variable is set, `DATA/secrets.json` names secrets and the PID of `DATA/lock` runs. It prints `{"hookSpecificOutput": {"hookEventName": "SessionStart", "watchPaths": ["DATA/secrets.json"]}}`. `hook agent-secrets-changed DATA` appends the variables under the same conditions and prints `{}` ([`agentSessionStart`, `agentSecretsChanged`](../src/hook.ts), [`lockHeld`](../src/files.ts)).
+
 ### 3.3 Exit codes and messages
 
 <a id="exit-codes"></a>
@@ -657,6 +670,7 @@ Server name: `simplex-NAME` ([`register`](../src/register.ts)).
 | 1 | `Port PORT is in use. Start with --port N.` | [`listen`](../src/serve.ts) |
 | 1 | `Agent "NAME" was never started. Start it with: npx -y @simplex-chat/mcp serve NAME` | [`register`](../src/register.ts) |
 | 1 | `Add this entry under LOCATION in ~/.claude.json: {"simplex-NAME": ENTRY}` | [`manualEntryText`](../src/register.ts) |
+| 1 | `FILE is not a JSON object. Correct it, then run register again.`, before any change | [`readSettings`](../src/register.ts) |
 | 1 | `claude mcp add-json failed: STDERR` | [`register`](../src/register.ts) |
 | 1 | `opencode is not installed. Install it with: npm install -g --prefix ~/.local opencode-ai` | [`registerOpencode`](../src/register.ts) |
 | 1 | `opencode mcp add failed: STDERR` | [`registerOpencode`](../src/register.ts) |

@@ -1,6 +1,6 @@
 # SimpleX MCP: secrets bound to hosts, put into requests by the plugin's proxy
 
-Status: rewritten on 2026-11-13 to the user's design, which replaces the redaction of the model's requests in the earlier version of this plan. Answered by the user on 2026-11-13: Q2 A, Q3 A, Q4 A, Q5 A, with opencode support as part of this work, and Q6 A on the plans page, the plugin's own proxy. Then Q1 B, Q7 A, Q8 B and Q9 A; section 13 proposes the setups of Q1 B and the storage of the values. Implemented on `ep/mcp-secrets` without the docs that depend on Q1; section 12 lists where the implementation differs from this plan.
+Status: rewritten on 2026-11-13 to the user's design, which replaces the redaction of the model's requests in the earlier version of this plan. Answered by the user on 2026-11-13: Q2 A, Q3 A, Q4 A, Q5 A, with opencode support as part of this work, and Q6 A on the plans page, the plugin's own proxy. Then Q1 B, Q7 A, Q8 B and Q9 A; section 13 proposes the setups of Q1 B and the storage of the values. Q9 A is implemented (section 12). Implemented on `ep/mcp-secrets` without the docs that depend on Q1; section 12 lists where the implementation differs from this plan.
 
 It completes #8151 (https://github.com/simplex-chat/simplex-chat/pull/8151, "mcp server: give the agent secrets without exposing them to the model"), whose head is `cc45d339b`. Code references: #8151 at `cc45d339b` and master `8fda06295`, by file and function. Claude Code references: the 2.1.322 binary at the byte offsets given, and the official docs, quoted. Runs R1 to R3 used Claude Code 2.1.323 with `claude -p`, a scratch `HOME` and `CLAUDE_CONFIG_DIR`, a fake token, a local server that answers model requests with canned tool calls, a test plugin loaded with `--plugin-dir`, and a local proxy that terminates TLS for `api.anthropic.com` with a test CA:
 
@@ -368,6 +368,8 @@ flowchart LR
   CT --> ST[(ROOT/secrets and secrets.json)]
   HK[SessionStart and FileChanged hooks] -->|GET /status| SV[service: proxyPort while the proxy runs]
   HK -->|variables with proxyPort| EF[CLAUDE_ENV_FILE]
+  RG[register of an agent of serve] -->|SessionStart and FileChanged hooks in settings.json| AH[agent hooks: DATA/lock running?]
+  AH -->|variables with the port of DATA/server.json| EF
   EF --> BC[Bash commands]
   BC -->|CONNECT| PX[proxy]
   ST --> PX
@@ -557,9 +559,15 @@ Added: the unit tests run with `HOME` in a temporary folder, the `globalSetup` o
 
 Added: the proxy connects to hosts through the HTTPS proxy of its own environment (`https_proxy`, then `HTTPS_PROXY`) with `CONNECT` and `Proxy-Authorization` from the URL's credentials, and sends plain HTTP through `http_proxy` or `HTTP_PROXY`. `no_proxy` or `NO_PROXY` hosts are connected directly. A proxy on `localhost`, `127.0.0.1` or `::1` at the proxy's own port is left out. The service's environment is Claude Code's, without the variables of `CLAUDE_ENV_FILE`. The post to `token_uri` uses the same connections in place of `fetch`. The proxy's requests use agents of their own, so `NODE_USE_ENV_PROXY` in the environment doesn't change them.
 
+Added for Q9 A, an agent of `serve` in Claude Code:
+- `register` writes two hooks before it runs `claude`: to `settings.json` of `CLAUDE_CONFIG_DIR` or `~/.claude`, or with `--scope local` to `.claude/settings.local.json` of the folder of `projectRoot`. They replace the hooks of an earlier `register` of the same data folder.
+- SessionStart: `node CLI hook agent-session-start DATA`; FileChanged, matcher `secrets.json`: `node CLI hook agent-secrets-changed DATA`. CLI is `dist/cli.js` of the package that runs `register`.
+- The hooks write the variables with the port of `DATA/server.json` while DATA has secrets and the PID of `DATA/lock` runs. SessionStart returns `watchPaths` with `DATA/secrets.json`.
+- A session uses one proxy: the hook that writes last sets `HTTPS_PROXY`.
+- Claude Code 2.1.323 keeps local settings in the session's folder on Windows, and when the repository root is the home folder or is owned by another user (`uBo`, `sUa`, offset 299546503). There, `--scope local` run in a subfolder writes a file that Claude Code does not read.
+
 Open:
 
-- O2. An agent of `serve` in Claude Code gets no variables, as no hook of `serve` runs there; the agent names the proxy in its commands. Q9 A: `register` adds a SessionStart hook.
 - O3. The FileChanged matcher `secrets.json` also makes Claude Code watch `secrets.json` of the session's folder (`ne`, 295488859), and a change there writes the variables again. A matcher can't name the data root's file: Claude Code matches an event by the file's name alone, and the data root depends on `SIMPLEX_MCP_HOME`, while `hooks.json` is fixed. Documented in REFERENCE and api 4.8; left as is.
 - O4. Q1 B: secrets only while Claude's commands can't read the values; proposal in section 13.
 - O5. README.md "## Secrets" still has #8151's text: `--secrets-folder`, `/secret` without hosts, `$(cat …)`. Q8 B: one or two sentences with a link to REFERENCE's Secrets section replace it, in the wording the user approves.

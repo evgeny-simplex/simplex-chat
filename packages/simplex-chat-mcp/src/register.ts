@@ -3,12 +3,14 @@ import {existsSync, mkdirSync, readFileSync, writeFileSync} from "fs"
 import {homedir} from "os"
 import {basename, dirname, join, resolve} from "path"
 import {headersFile, readServerFile} from "./files"
-import {ExitError, shellPath} from "./log"
+import {ExitError, shellPath, shellWord} from "./log"
 
 const cmdNotFound = 9009
 const cmdMetaChars = /([()\][%!^"`<>&|;, *?])/g
 const opencodePlugin = join(__dirname, "..", "opencode", "simplex-secrets.ts")
 const dataMark = "__SIMPLEX_MCP_DATA__"
+const cli = join(__dirname, "cli.js")
+const plainHookWord = /^[A-Za-z0-9_./-]+$/
 
 export type Scope = "user" | "local"
 
@@ -36,6 +38,20 @@ export interface Entry {
   timeout: number
 }
 
+interface HookCommand {
+  type: string
+  command?: string
+}
+
+interface HookGroup {
+  matcher?: string
+  hooks: HookCommand[]
+}
+
+interface Settings {
+  hooks?: {[event: string]: HookGroup[] | undefined}
+}
+
 // spec: spec/architecture.md#register-register
 export function register({name, data, scope, host}: RegisterOptions, run: Run = runCommand, projectFolder: () => string = projectRoot, env: NodeJS.ProcessEnv = process.env): string {
   const server = readServerFile(data)
@@ -43,12 +59,54 @@ export function register({name, data, scope, host}: RegisterOptions, run: Run = 
   if (host === "opencode") return registerOpencode(name, data, server.port, run, env)
   const serverName = `simplex-${name}`
   const entry = JSON.stringify(registryEntry(server.port, data, server.expireHours))
+  const settings = settingsFile(scope, projectFolder, env)
+  addAgentHooks(settings, data)
   const removed = run("claude", ["mcp", "remove", "--scope", scope, serverName])
   if (removed.missing) throw new ExitError(manualEntryText(scope, serverName, entry, projectFolder), 1)
   const added = run("claude", ["mcp", "add-json", "--scope", scope, serverName, entry])
   if (added.missing) throw new ExitError(manualEntryText(scope, serverName, entry, projectFolder), 1)
   if (added.status !== 0) throw new ExitError(`claude mcp add-json failed: ${added.stderr.trim()}`, 1)
-  return `Added to Claude Code: scope ${scope}, server ${serverName}.`
+  return `Added to Claude Code: scope ${scope}, server ${serverName}, hooks in ${settings}.`
+}
+
+// spec: spec/architecture.md#register-settingsfile
+function settingsFile(scope: Scope, projectFolder: () => string, env: NodeJS.ProcessEnv): string {
+  if (scope === "local") return join(projectFolder(), ".claude", "settings.local.json")
+  return join(env.CLAUDE_CONFIG_DIR || join(env.HOME ?? homedir(), ".claude"), "settings.json")
+}
+
+// spec: spec/architecture.md#register-addagenthooks
+function addAgentHooks(file: string, data: string): void {
+  const settings = readSettings(file)
+  const hooks = settings.hooks ?? {}
+  const folder = shellWord(data, plainHookWord)
+  const start = ` hook agent-session-start ${folder}`
+  const changed = ` hook agent-secrets-changed ${folder}`
+  const command = (words: string): HookCommand => ({type: "command", command: `node ${shellWord(cli, plainHookWord)}${words}`})
+  settings.hooks = {
+    ...hooks,
+    SessionStart: [...otherHooks(start, hooks.SessionStart), {hooks: [command(start)]}],
+    FileChanged: [...otherHooks(changed, hooks.FileChanged), {matcher: "secrets.json", hooks: [command(changed)]}],
+  }
+  mkdirSync(dirname(file), {recursive: true})
+  writeFileSync(file, `${JSON.stringify(settings, null, 2)}\n`)
+}
+
+// spec: spec/architecture.md#register-addagenthooks
+function readSettings(file: string): Settings {
+  if (!existsSync(file)) return {}
+  try {
+    const settings: unknown = JSON.parse(readFileSync(file, "utf8"))
+    if (typeof settings === "object" && settings !== null && !Array.isArray(settings)) return settings
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+  }
+  throw new ExitError(`${file} is not a JSON object. Correct it, then run register again.`, 1)
+}
+
+// spec: spec/architecture.md#register-addagenthooks
+function otherHooks(ending: string, groups: HookGroup[] = []): HookGroup[] {
+  return groups.map(group => ({...group, hooks: group.hooks.filter(hook => !hook.command?.endsWith(ending))})).filter(group => group.hooks.length > 0)
 }
 
 // spec: spec/architecture.md#register-registeropencode

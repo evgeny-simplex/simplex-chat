@@ -153,6 +153,17 @@ export function releaseLock(dir: string, name = "lock"): void {
   }
 }
 
+// spec: spec/architecture.md#files-acquirelock
+export function lockHeld(dir: string): boolean {
+  try {
+    const pid = lockPid(join(dir, "lock"))
+    return pid !== undefined && isRunning(pid)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false
+    throw error
+  }
+}
+
 // spec: spec/architecture.md#files-servertoken
 export function serverToken(dir: string, renew = false, name = "token"): string {
   const file = join(dir, name)

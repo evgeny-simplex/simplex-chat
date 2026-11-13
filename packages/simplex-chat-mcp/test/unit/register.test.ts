@@ -1,15 +1,17 @@
 import * as childProcess from "child_process"
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from "fs"
-import {tmpdir} from "os"
+import {homedir, tmpdir} from "os"
 import {join} from "path"
 import {createDataFolder, serverToken, writeServerFile} from "../../src/files"
 import {ExitError} from "../../src/log"
 import {RunResult, cmdArgument, projectRoot, register, registryEntry} from "../../src/register"
 
 let dir: string
+let home: string
 
 beforeEach(() => {
   dir = join(mkdtempSync(join(tmpdir(), "simplex-mcp-register-")), "agent")
+  home = join(dir, "..", "home")
   createDataFolder(dir)
 })
 
@@ -51,7 +53,9 @@ describe("register", () => {
     writeServerFile(dir, {name: "agent", port: 5227, expireHours: 2})
     const token = serverToken(dir, false)
     const {calls, run} = recorder([{missing: false, status: 1, stderr: "not found"}, ok])
-    expect(register({name: "agent", data: dir, scope: "user", host: "claude"}, run)).toBe("Added to Claude Code: scope user, server simplex-agent.")
+    expect(register({name: "agent", data: dir, scope: "user", host: "claude"}, run, undefined, {HOME: home})).toBe(
+      `Added to Claude Code: scope user, server simplex-agent, hooks in ${join(home, ".claude", "settings.json")}.`,
+    )
     const entry = JSON.stringify({type: "http", url: "http://127.0.0.1:5227/mcp", headersHelper: `cat ${join(dir, "headers.json")}`, timeout: 26 * 3_600_000 + 600_000})
     expect(calls).toEqual([
       ["claude", "mcp", "remove", "--scope", "user", "simplex-agent"],
@@ -74,28 +78,105 @@ describe("register", () => {
     writeServerFile(dir, {name: "agent", port: 5226, expireHours: 23})
     const entry = JSON.stringify(registryEntry(5226, dir, 23))
     const missing = {missing: true, status: null, stderr: ""}
-    expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"}, recorder([missing]).run)).toThrow(
+    const project = join(dir, "..", "project")
+    expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"}, recorder([missing]).run, undefined, {HOME: home})).toThrow(
       new ExitError(`Add this entry under "mcpServers" in ~/.claude.json: {"simplex-agent": ${entry}}`, 1),
     )
-    expect(() => register({name: "agent", data: dir, scope: "local", host: "claude"}, recorder([missing]).run, () => "/work/project")).toThrow(
-      new ExitError(`Add this entry under "projects" > "/work/project" > "mcpServers" in ~/.claude.json: {"simplex-agent": ${entry}}`, 1),
+    expect(() => register({name: "agent", data: dir, scope: "local", host: "claude"}, recorder([missing]).run, () => project, {HOME: home})).toThrow(
+      new ExitError(`Add this entry under "projects" > "${project}" > "mcpServers" in ~/.claude.json: {"simplex-agent": ${entry}}`, 1),
     )
   })
 
   it("reports a failed add", () => {
     writeServerFile(dir, {name: "agent", port: 5226, expireHours: 23})
-    expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"}, recorder([ok, {missing: false, status: 1, stderr: "bad scope\n"}]).run)).toThrow(
+    expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"}, recorder([ok, {missing: false, status: 1, stderr: "bad scope\n"}]).run, undefined, {HOME: home})).toThrow(
       new ExitError("claude mcp add-json failed: bad scope", 1),
     )
   })
 
-  describe("to opencode", () => {
-    let home: string
-
-    beforeEach(() => {
-      home = join(dir, "..", "home")
-      writeServerFile(dir, {name: "agent", port: 5227, expireHours: 2})
+  describe("hooks", () => {
+    const cli = join(__dirname, "..", "..", "src", "cli.js")
+    const settingsOf = (file: string): unknown => JSON.parse(readFileSync(file, "utf8"))
+    const agentHooks = (data: string, folder = data) => ({
+      SessionStart: {hooks: [{type: "command", command: `node ${cli} hook agent-session-start ${folder}`}]},
+      FileChanged: {matcher: "secrets.json", hooks: [{type: "command", command: `node ${cli} hook agent-secrets-changed ${folder}`}]},
     })
+
+    beforeEach(() => writeServerFile(dir, {name: "agent", port: 5226, expireHours: 23}))
+
+    it("runs in a temporary home without CLAUDE_CONFIG_DIR, so that no test writes the settings of this computer's Claude Code", () => {
+      expect(process.env.CLAUDE_CONFIG_DIR).toBeUndefined()
+      expect(homedir().startsWith(join(tmpdir(), "simplex-mcp-home-"))).toBe(true)
+    })
+
+    it("adds the agent's SessionStart and FileChanged hooks to the user's settings after the hooks there, and replaces only its own at a new register", () => {
+      const file = join(home, ".claude", "settings.json")
+      const other = agentHooks(join(dir, "..", "other"))
+      const own = agentHooks(dir)
+      const echo = {hooks: [{type: "command", command: "echo hi"}]}
+      const envrc = {matcher: ".envrc", hooks: [{type: "command", command: "direnv export bash"}]}
+      const older = {hooks: [{type: "command", command: `node /old/dist/cli.js hook agent-session-start ${dir}`}, {type: "command", command: "date"}]}
+      mkdirSync(join(home, ".claude"), {recursive: true})
+      writeFileSync(file, JSON.stringify({model: "opus", hooks: {SessionStart: [echo, other.SessionStart, older], FileChanged: [envrc, other.FileChanged], Stop: [echo]}}))
+      register({name: "agent", data: dir, scope: "user", host: "claude"}, () => ok, undefined, {HOME: home})
+      const expected = {
+        model: "opus",
+        hooks: {
+          SessionStart: [echo, other.SessionStart, {hooks: [{type: "command", command: "date"}]}, own.SessionStart],
+          FileChanged: [envrc, other.FileChanged, own.FileChanged],
+          Stop: [echo],
+        },
+      }
+      expect(readFileSync(file, "utf8")).toBe(`${JSON.stringify(expected, null, 2)}\n`)
+      register({name: "agent", data: dir, scope: "user", host: "claude"}, () => ok, undefined, {HOME: home})
+      expect(settingsOf(file)).toEqual(expected)
+    })
+
+    it("writes the settings of CLAUDE_CONFIG_DIR, or the project's local settings for --scope local, creating the folder", () => {
+      const config = join(dir, "..", "config")
+      const project = join(dir, "..", "project")
+      const own = agentHooks(dir)
+      const hooks = {SessionStart: [own.SessionStart], FileChanged: [own.FileChanged]}
+      expect(register({name: "agent", data: dir, scope: "user", host: "claude"}, () => ok, undefined, {HOME: home, CLAUDE_CONFIG_DIR: config})).toBe(
+        `Added to Claude Code: scope user, server simplex-agent, hooks in ${join(config, "settings.json")}.`,
+      )
+      expect(settingsOf(join(config, "settings.json"))).toEqual({hooks})
+      register({name: "agent", data: dir, scope: "local", host: "claude"}, () => ok, () => project, {HOME: home})
+      expect(settingsOf(join(project, ".claude", "settings.local.json"))).toEqual({hooks})
+      expect(existsSync(join(home, ".claude"))).toBe(false)
+    })
+
+    it("quotes the data folder for the shell of the hooks: bash, or Git Bash and PowerShell on Windows", () => {
+      const spaced = join(dir, "..", "my agent's")
+      createDataFolder(spaced)
+      writeServerFile(spaced, {name: "agent", port: 5226, expireHours: 23})
+      const file = join(home, ".claude", "settings.json")
+      register({name: "agent", data: spaced, scope: "user", host: "claude"}, () => ok, undefined, {HOME: home})
+      const quoted = agentHooks(spaced, `'${spaced.replace(/'/g, "'\\''")}'`)
+      expect(settingsOf(file)).toEqual({hooks: {SessionStart: [quoted.SessionStart], FileChanged: [quoted.FileChanged]}})
+      onPlatform("win32")
+      register({name: "agent", data: spaced, scope: "user", host: "claude"}, () => ok, undefined, {HOME: home})
+      const windows = agentHooks(spaced, `"${spaced}"`)
+      expect(settingsOf(file)).toEqual({hooks: {SessionStart: [quoted.SessionStart, windows.SessionStart], FileChanged: [quoted.FileChanged, windows.FileChanged]}})
+    })
+
+    it("refuses settings that are not a JSON object before it changes the Claude Code entry", () => {
+      const file = join(home, ".claude", "settings.json")
+      mkdirSync(join(home, ".claude"), {recursive: true})
+      for (const text of ['{"model": "opus",', "[]", "null"]) {
+        writeFileSync(file, text)
+        const {calls, run} = recorder([])
+        expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"}, run, undefined, {HOME: home})).toThrow(
+          new ExitError(`${file} is not a JSON object. Correct it, then run register again.`, 1),
+        )
+        expect(calls).toEqual([])
+        expect(readFileSync(file, "utf8")).toBe(text)
+      }
+    })
+  })
+
+  describe("to opencode", () => {
+    beforeEach(() => writeServerFile(dir, {name: "agent", port: 5227, expireHours: 2}))
 
     it("adds the server with the token file in its header from the home folder, and the plugin with the agent's data folder", () => {
       const token = serverToken(dir, false)
@@ -133,7 +214,9 @@ describe("register", () => {
     it("runs it through cmd.exe on Windows, with the arguments quoted for cmd.exe", () => {
       onPlatform("win32")
       const spawn = spawnClaude(0)
-      expect(register({name: "agent", data: dir, scope: "user", host: "claude"})).toBe("Added to Claude Code: scope user, server simplex-agent.")
+      expect(register({name: "agent", data: dir, scope: "user", host: "claude"}, undefined, undefined, {HOME: home})).toBe(
+        `Added to Claude Code: scope user, server simplex-agent, hooks in ${join(home, ".claude", "settings.json")}.`,
+      )
       const words = (args: string[]): string => ["claude", ...args.map(cmdArgument)].join(" ")
       expect(spawn.mock.calls).toEqual([
         ["claude", ["mcp", "remove", "--scope", "user", "simplex-agent"], {encoding: "utf8"}],
@@ -146,14 +229,14 @@ describe("register", () => {
     it("prints the entry on Windows when cmd.exe does not find it either", () => {
       onPlatform("win32")
       const spawn = spawnClaude(9009)
-      expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"})).toThrow(manualEntry())
+      expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"}, undefined, undefined, {HOME: home})).toThrow(manualEntry())
       expect(spawn).toHaveBeenCalledTimes(2)
     })
 
     it("prints the entry on other platforms without a shell", () => {
       onPlatform("linux")
       const spawn = spawnClaude(0)
-      expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"})).toThrow(manualEntry())
+      expect(() => register({name: "agent", data: dir, scope: "user", host: "claude"}, undefined, undefined, {HOME: home})).toThrow(manualEntry())
       expect(spawn).toHaveBeenCalledTimes(1)
     })
   })

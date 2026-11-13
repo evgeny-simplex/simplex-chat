@@ -1,11 +1,13 @@
+import {spawnSync} from "child_process"
 import {appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync} from "fs"
 import {tmpdir} from "os"
 import {join} from "path"
 import {ServiceClient} from "../../src/client"
-import {SecretRecord, Secrets} from "../../src/files"
-import {HookDeps, secretsChanged, sessionStart, turn} from "../../src/hook"
+import {SecretRecord, Secrets, acquireLock, releaseLock, writeServerFile} from "../../src/files"
+import {HookDeps, agentSecretsChanged, agentSessionStart, secretsChanged, sessionStart, turn} from "../../src/hook"
 import {linkText, resetOwners, resetOwnersText, showLink} from "../../src/owner"
 import {qrCodeText} from "../../src/qr"
+import {proxyFiles, proxyVariables, shellExports} from "../../src/secrets"
 import {SocketError} from "../../src/socket"
 import {version} from "../../src/version"
 import {recordedRun} from "./fixtures"
@@ -204,6 +206,44 @@ describe("SessionStart hook", () => {
       expect(readFileSync(changed, "utf8")).toMatch(/^export HTTPS_PROXY='http:\/\/127\.0\.0\.1:5225'\n[\s\S]*export OPENAI_API_KEY='simplex-secret-OPENAI_API_KEY'\n$/)
       expect(requests.at(-1)).toEqual({method: "GET", route: "/status", body: undefined})
     })
+  })
+})
+
+describe("agent hooks", () => {
+  let data: string
+  let envFile: string
+  const record: SecretRecord = {hosts: ["api.github.com"], mode: "value", setBy: "Alice", setById: 3, setAt: "2026-11-13T10:00:00.000Z"}
+  const watching = () => ({hookSpecificOutput: {hookEventName: "SessionStart", watchPaths: [join(data, "secrets.json")]}})
+
+  beforeEach(() => {
+    data = mkdtempSync(join(tmpdir(), "simplex-mcp-agent-"))
+    envFile = join(data, "sessionstart-hook-0.sh")
+    writeServerFile(data, {name: "agent", port: 5227, expireHours: 23})
+  })
+
+  afterEach(() => rmSync(data, {recursive: true, force: true}))
+
+  it("write the proxy at the port of serve, its certificates and a placeholder for each secret while serve runs, and watch the secrets", () => {
+    new Secrets(data).set("GITHUB_TOKEN", "ghp_real_token_value", record)
+    acquireLock(data)
+    expect(agentSessionStart(data, {CLAUDE_ENV_FILE: envFile, SIMPLEX_MCP_HOME: join(data, "plugin")})).toEqual(watching())
+    expect(readFileSync(envFile, "utf8")).toBe(shellExports(proxyVariables(proxyFiles(data, 5227), ["GITHUB_TOKEN"])))
+    truncateSync(envFile)
+    new Secrets(data).set("OPENAI_API_KEY", "sk-real-key-value", record)
+    expect(agentSecretsChanged(data, {CLAUDE_ENV_FILE: envFile})).toEqual({})
+    expect(readFileSync(envFile, "utf8")).toBe(shellExports(proxyVariables(proxyFiles(data, 5227), ["GITHUB_TOKEN", "OPENAI_API_KEY"])))
+  })
+
+  it("write nothing without secrets, without CLAUDE_ENV_FILE, or while serve is stopped, and still watch the secrets", () => {
+    acquireLock(data)
+    expect(agentSessionStart(data, {CLAUDE_ENV_FILE: envFile})).toEqual(watching())
+    new Secrets(data).set("GITHUB_TOKEN", "ghp_real_token_value", record)
+    expect(agentSessionStart(data, {})).toEqual(watching())
+    releaseLock(data)
+    expect(agentSessionStart(data, {CLAUDE_ENV_FILE: envFile})).toEqual(watching())
+    writeFileSync(join(data, "lock"), `${spawnSync(process.execPath, ["-e", ""]).pid}\n`)
+    expect(agentSecretsChanged(data, {CLAUDE_ENV_FILE: envFile})).toEqual({})
+    expect(existsSync(envFile)).toBe(false)
   })
 })
 

@@ -129,14 +129,21 @@ Source: [`main`, `readStdin`](../src/cli.ts), [`startServer`, `startAgent`](../s
 sequenceDiagram
   participant P as Person
   participant R as register.ts
+  participant S as settings.json
   participant L as claude CLI
   participant CC as Claude Code
   participant H as HTTP
+  participant HK as hook.ts
   P->>R: simplex-mcp register my-agent [--scope local] [--data DIR]
   R->>R: read DATA/server.json
   alt server.json missing
     R->>P: Agent "my-agent" was never started. Start it with: ... (exit 1)
   end
+  R->>S: read
+  alt not a JSON object
+    R->>P: FILE is not a JSON object. Correct it, then run register again. (exit 1)
+  end
+  R->>S: earlier hooks of DATA removed, SessionStart: node CLI hook agent-session-start DATA, FileChanged secrets.json: node CLI hook agent-secrets-changed DATA
   R->>L: claude mcp remove --scope user simplex-my-agent
   R->>L: claude mcp add-json --scope user simplex-my-agent {"type":"http","url":"http://127.0.0.1:5226/mcp","headersHelper":"cat DATA/headers.json","timeout":169800000}
   alt claude not found
@@ -144,9 +151,14 @@ sequenceDiagram
   else add-json exit status other than 0
     R->>P: claude mcp add-json failed: STDERR (exit 1)
   end
-  R->>P: Added to Claude Code: scope user, server simplex-my-agent.
+  R->>P: Added to Claude Code: scope user, server simplex-my-agent, hooks in ~/.claude/settings.json.
   CC->>CC: headersHelper: cat DATA/headers.json
   CC->>H: POST /mcp with Authorization: Bearer TOKEN
+  CC->>HK: SessionStart: hook agent-session-start DATA
+  alt CLAUDE_ENV_FILE set, secrets in DATA/secrets.json, PID of DATA/lock running
+    HK->>CC: export lines of the proxy at the port of server.json, appended to CLAUDE_ENV_FILE
+  end
+  HK->>CC: watchPaths: DATA/secrets.json
 ```
 
 Notes:
@@ -154,9 +166,10 @@ Notes:
 - `simplex-mcp` ignores the exit status of `claude mcp remove` and stops at that step only when the `claude` binary is missing ([`register`](../src/register.ts)).
 - On Windows, a missing `claude` is run again through `cmd.exe`, with each argument quoted for it ([`runCommand`, `runInCmd`, `cmdArgument`](../src/register.ts)).
 - `timeout` is `(expireHours + 24) × 3600000 + 600000` ms from `server.json` ([`registryEntry`](../src/register.ts)).
-- With `--scope local`, the project folder in the manual entry is the git repository root, the main repository of a worktree, or the current folder outside a repository ([`manualEntryText`, `projectRoot`, `gitRoot`, `repositoryRoot`](../src/register.ts)).
+- With `--scope local`, the project folder in the manual entry is the git repository root, the main repository of a worktree, or the current folder outside a repository ([`manualEntryText`, `projectRoot`, `gitRoot`, `repositoryRoot`](../src/register.ts)). The hooks are written to `.claude/settings.local.json` of that folder ([`settingsFile`](../src/register.ts)).
+- The hooks are written before `claude` runs, so a missing `claude` or a failed add leaves them in place. A FileChanged event of `secrets.json` runs `hook agent-secrets-changed DATA`, which appends the variables again under the same conditions ([`agentSecretsChanged`](../src/hook.ts)).
 
-Source: [`registerOptions`, `main`](../src/cli.ts), [`register`, `registryEntry`, `manualEntryText`](../src/register.ts), [`readServerFile`](../src/files.ts).
+Source: [`registerOptions`, `main`](../src/cli.ts), [`register`, `registryEntry`, `manualEntryText`, `settingsFile`, `addAgentHooks`](../src/register.ts), [`readServerFile`, `lockHeld`](../src/files.ts), [`agentSessionStart`, `agentSecretsChanged`](../src/hook.ts).
 
 ---
 
@@ -1591,10 +1604,10 @@ Notes:
 - With full deletion on, the message is replaced by a moderated item in the agent's database and at each member; a member who receives the message after the deletion stores it as moderated ([`delGroupChatItems`](../../../src/Simplex/Chat/Library/Commands.hs), [`newGroupContentMessage`, `groupMessageDelete`](../../../src/Simplex/Chat/Library/Subscriber.hs)).
 - In the plugin, the group of a session passes every `/secret` to its `Control` before any other check ([`Session.onMessage`](../src/hub.ts)). Admins and owners set secrets for all sessions on this computer; the reply of a member's `/secret` is `Only admins and owners of this group can send / commands.`, and User's `/secret` gets no reply. The Main group deletes `/secret` and answers `Send /secret in the group of a session; the secret is set for all sessions on this computer.` ([`MainGroup.onMessage`](../src/main-group.ts)).
 - The mode is `aws` for `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`, `gcp` for a Google service-account key, and `value` otherwise ([`Control.setSecret`](../src/control.ts), [`secretMode`](../src/secrets.ts)).
-- The command's variables come from the SessionStart and FileChanged hooks, which write them to `CLAUDE_ENV_FILE` with the `proxyPort` of `GET /status`, only while the service runs the proxy ([`sessionStart`, `secretsChanged`, `writeSecretVariables`](../src/hook.ts)), or from the opencode plugin's `shell.env` hook. The proxy is the service's port, 5225 by default, in the plugin, and the HTTP port of `serve`.
+- The command's variables come from the SessionStart and FileChanged hooks, which write them to `CLAUDE_ENV_FILE` with the `proxyPort` of `GET /status`, only while the service runs the proxy ([`sessionStart`, `secretsChanged`, `writeSecretVariables`](../src/hook.ts)). For an agent of `serve` in Claude Code, they come from the hooks that `register` adds, which write them with the port of `DATA/server.json`, only while the PID of `DATA/lock` runs ([`agentSessionStart`, `agentSecretsChanged`](../src/hook.ts)); in opencode, from the opencode plugin's `shell.env` hook. The proxy is the service's port, 5225 by default, in the plugin, and the HTTP port of `serve`.
 - A `CONNECT` to a host bound to no secret is a tunnel: the proxy reads nothing, and a placeholder is sent to that host as text ([`SecretsProxy.connect`, `tunnel`](../src/proxy.ts)).
 - The proxy reaches a host, also `api.github.com` above, through the HTTPS proxy of its own environment with `CONNECT`, unless that environment has none or its `no_proxy` names the host ([`SecretsProxy.open`, `chained`, `upstreamProxies`, `bypassed`](../src/proxy.ts)).
 - The proxy answers 403 with `SimpleX proxy: ...` for a placeholder of a secret bound to other hosts, an unknown placeholder, a `Host` that differs from the `CONNECT` host, and a placeholder over plain HTTP ([`SecretsProxy.forward`, `withSecrets`, `request`](../src/proxy.ts)). In mode `aws` it checks the command's signature with the placeholder key and signs the request again with the real key; in mode `gcp` it puts in a Google access token for the bearer placeholder ([`SecretsProxy.signedForAws`](../src/proxy.ts), [`resign`](../src/sigv4.ts), [`GcpTokens`](../src/gcp.ts)).
 - The value is absent from the log lines, the reply, the `list` result and the responses of a bound host ([`Control.setSecret`](../src/control.ts), [`AgentTools.listChats`](../src/tools.ts), [`SecretsProxy.respond`, `Scrubber`](../src/proxy.ts)).
 
-Source: [`Control.onMessage`, `setSecret`, `removeSecret`, `secretsText`](../src/control.ts), [`Secrets`](../src/files.ts), [`AgentTools.listChats`](../src/tools.ts), [`SecretsProxy`](../src/proxy.ts), [`sessionStart`, `secretsChanged`, `writeSecretVariables`](../src/hook.ts).
+Source: [`Control.onMessage`, `setSecret`, `removeSecret`, `secretsText`](../src/control.ts), [`Secrets`](../src/files.ts), [`AgentTools.listChats`](../src/tools.ts), [`SecretsProxy`](../src/proxy.ts), [`sessionStart`, `secretsChanged`, `agentSessionStart`, `agentSecretsChanged`, `writeSecretVariables`](../src/hook.ts).

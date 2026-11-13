@@ -3,7 +3,7 @@ import {open} from "fs/promises"
 import {isAbsolute, relative} from "path"
 import {ServiceClient} from "./client"
 import {interactive, interactiveEntrypoint, readConfig} from "./config"
-import {dataRoot, secretNames, secretsIndex} from "./files"
+import {dataRoot, lockHeld, readServerFile, secretNames, secretsIndex} from "./files"
 import {errorText, logError, oneLine} from "./log"
 import {StatusReply, Step, TitleReply} from "./protocol"
 import {qrCodeText} from "./qr"
@@ -149,11 +149,23 @@ export async function secretsChanged(env: NodeJS.ProcessEnv = process.env, clien
   return {}
 }
 
+// spec: spec/architecture.md#hook-agentsessionstart
+export function agentSessionStart(data: string, env: NodeJS.ProcessEnv = process.env): HookOutput {
+  return {...agentSecretsChanged(data, env), hookSpecificOutput: {hookEventName: "SessionStart", watchPaths: [secretsIndex(data)]}}
+}
+
+// spec: spec/architecture.md#hook-agentsessionstart
+export function agentSecretsChanged(data: string, env: NodeJS.ProcessEnv = process.env): HookOutput {
+  const secrets = secretVariables(env, data)
+  const server = readServerFile(data)
+  if (secrets !== undefined && server !== undefined && lockHeld(data)) writeSecretVariables(secrets, server.port)
+  return {}
+}
+
 // spec: spec/architecture.md#hook-secretschanged
-function secretVariables(env: NodeJS.ProcessEnv): SecretVariables | undefined {
+function secretVariables(env: NodeJS.ProcessEnv, root = dataRoot(env)): SecretVariables | undefined {
   const file = env.CLAUDE_ENV_FILE
   if (!file) return undefined
-  const root = dataRoot(env)
   const names = secretNames(root)
   return names.length === 0 ? undefined : {file, root, names}
 }

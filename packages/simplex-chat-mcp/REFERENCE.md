@@ -159,11 +159,22 @@ npx -y @simplex-chat/mcp register my-agent                  # all Claude Code pr
 npx -y @simplex-chat/mcp register my-agent --scope local    # the current project only
 ```
 
-`register NAME` reads the agent's port from its data folder, runs `claude mcp remove --scope SCOPE simplex-NAME` (SCOPE: `user`, or the `--scope` value), ignoring a missing entry, and then, for `register my-agent`:
+`register NAME` reads the agent's port from its data folder, adds the agent's hooks to the settings of Claude Code, runs `claude mcp remove --scope SCOPE simplex-NAME` (SCOPE: `user`, or the `--scope` value), ignoring a missing entry, and then, for `register my-agent`:
 
 ```
 claude mcp add-json --scope user simplex-my-agent '{"type":"http","url":"http://127.0.0.1:5226/mcp","headersHelper":"cat /home/alice/.simplex-mcp/my-agent/headers.json","timeout":169800000}'
 ```
+
+It prints `Added to Claude Code: scope user, server simplex-my-agent, hooks in /home/alice/.claude/settings.json.`
+
+With these hooks, the agent's shell commands get the variables of [Use by the agent](#use-by-the-agent). `register` writes them to `settings.json` of `~/.claude`, or of `CLAUDE_CONFIG_DIR` when it is set, and with `--scope local` to `.claude/settings.local.json` of the project. The hooks of an earlier `register` of the same data folder are replaced; other settings and hooks are kept:
+
+```json
+"SessionStart": [{"hooks": [{"type": "command", "command": "node PACKAGE/dist/cli.js hook agent-session-start /home/alice/.simplex-mcp/my-agent"}]}],
+"FileChanged": [{"matcher": "secrets.json", "hooks": [{"type": "command", "command": "node PACKAGE/dist/cli.js hook agent-secrets-changed /home/alice/.simplex-mcp/my-agent"}]}]
+```
+
+PACKAGE is the folder of the package that ran `register`, such as `~/.npm/_npx/HASH/node_modules/@simplex-chat/mcp` for `npx`.
 
 - NAME: 1 to 32 lowercase letters, digits and single hyphens, starting with a letter or digit.
 - The entry has no token. At every connection Claude Code runs the `headersHelper` command and sends the header it prints from `headers.json` in the data folder; on Windows the command is `type "<folder>\headers.json"`. With `--scope local`, Claude Code runs it only in a folder whose trust dialog was accepted.
@@ -176,9 +187,12 @@ Errors:
 ```
 situation                  message
 never started              Agent "my-agent" was never started. Start it with: npx -y @simplex-chat/mcp serve my-agent
+settings not JSON          /home/alice/.claude/settings.json is not a JSON object. Correct it, then run register again.
 claude not on PATH         Add this entry under "mcpServers" in ~/.claude.json: {"simplex-my-agent": {...}}
                            (--scope local: under "projects" > "<project folder>" > "mcpServers")
 ```
+
+`register` changes nothing when the settings are not a JSON object. When `claude` is not on PATH, or `claude mcp add-json` fails, the hooks are already written.
 
 The token is created at the agent's first start and saved in its data folder; every start writes it to `headers.json`. `serve my-agent --new-token` replaces it, and Claude Code sends the new token from its next connection, without a new `register`.
 
@@ -450,7 +464,11 @@ The agent's shell commands get these variables:
 | `NODE_EXTRA_CA_CERTS` | `proxy-ca.pem` of the data folder, the proxy's certificate authority |
 | NAME of each secret | `simplex-secret-NAME` |
 
-With the Claude Code plugin, its SessionStart hook writes them to the file in `CLAUDE_ENV_FILE` when secrets exist and the service runs the proxy, with the port of the service's proxy. Claude Code applies that file to each Bash command of the session, a subagent's included. A FileChanged hook watches `secrets.json` and writes them again when a secret is set or removed. Claude Code also runs it for a `secrets.json` in the session's folder, which writes the same variables again. In opencode, the plugin of [opencode](#opencode) adds them for an agent of `serve`. An agent of `serve` in Claude Code gets no variables; the agent names the proxy and the certificates in its commands, such as `curl --proxy http://127.0.0.1:5226 --cacert DATA/proxy-ca-bundle.pem -H "Authorization: Bearer simplex-secret-GITHUB_TOKEN" https://api.github.com/user`, with the values of `proxy-env.json` in the agent's data folder.
+With the Claude Code plugin, its SessionStart hook writes them to the file in `CLAUDE_ENV_FILE` when secrets exist and the service runs the proxy, with the port of the service's proxy. Claude Code applies that file to each Bash command of the session, a subagent's included. A FileChanged hook watches `secrets.json` and writes them again when a secret is set or removed. Claude Code also runs it for a `secrets.json` in the session's folder, which writes the same variables again. In opencode, the plugin of [opencode](#opencode) adds them for an agent of `serve`.
+
+For an agent of `serve` in Claude Code, the hooks that `register` adds ([Add the agent to Claude Code](#add-the-agent-to-claude-code)) write them in the same way, with the port of `serve`, while the agent has secrets and its server runs. A session started while the server was stopped gets them at the next change of the secrets. After the server stops, the HTTPS requests of sessions that got them fail until it starts again.
+
+A session uses one proxy. With secrets of the plugin and of an agent, or of two agents, its commands get the proxy whose variables were written last, and the secrets of the other proxy are not put into requests.
 
 `send` refuses the files of `_secrets/`, as the server's own files: `file: PATH is refused: private keys and the server's own files are not sent.`
 
@@ -518,6 +536,7 @@ opencode refuses to start while `DATA/token` is missing. After the agent's data 
 | The QR code does not scan | Start with `--qr-code large`, or paste the link into the app. |
 | The wrong person joined by the link | Start with `--reset-owners`. |
 | The token leaked | Start with `--new-token`; Claude Code reads the new token at its next connection. |
+| The package folder in the agent's hooks was deleted, as by clearing the cache of `npx` | The hooks fail, and the agent's commands get no variables. Run `register` again. |
 
 `--reset-owners` deletes the agent control chat for all its members, creates a new one and prints a new link. Member IDs change in the new chat, so `--reset-owners` takes `--owners` without a list.
 
@@ -534,6 +553,10 @@ Usage:
   simplex-mcp hook session-start       Claude Code SessionStart hook (run by the plugin)
   simplex-mcp hook turn                Claude Code hooks of prompts, answers, model changes and tool uses (run by the plugin)
   simplex-mcp hook secrets-changed     Claude Code hook of changed secrets (run by the plugin)
+  simplex-mcp hook agent-session-start DATA
+  simplex-mcp hook agent-secrets-changed DATA
+                                       Claude Code hooks of the agent with data folder DATA
+                                       (added by register)
   simplex-mcp link                     show the Main group link, or its owners
   simplex-mcp reset-owners             replace the Main group and its owners
 
@@ -577,8 +600,8 @@ register options:
   simplex_agent.db   SimpleX agent database: connections and keys
   token              access token, readable only by the user
   headers.json       the token as the Authorization header for Claude Code, readable only by the user
-  server.json        name, port and expiry of the server, read by register
-  lock               PID of the running server
+  server.json        name, port and expiry of the server, read by register and the agent's hooks
+  lock               PID of the running server, read by the agent's hooks
   _secrets/          the values of the secrets, one file per name, readable only by the user
   secrets.json       the hosts and the mode of each secret, who set it and when, readable only by the user
   proxy-ca.key       the key of the proxy's certificate authority

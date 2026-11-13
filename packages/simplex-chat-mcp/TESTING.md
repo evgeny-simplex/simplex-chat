@@ -43,7 +43,7 @@ node node_modules/jest/bin/jest.js test/unit test/e2e/scenarios.test.ts test/e2e
 
 1. `node dist/cli.js serve my-agent --display-name "My Agent"`. NAME, here `my-agent`, names the data folder and the Claude Code entry; `--display-name` is the name people see in SimpleX. It prints the data folder (`~/.simplex-mcp/my-agent`), creates the agent control chat "My Agent", and prints a QR code and a link that works once. For a short link the QR code has 33 modules and takes 37 columns × 19 lines; `--qr-code large` prints it at 74 × 37. Keep it running; Ctrl-C stops it. `node dist/cli.js --help` lists the options.
 2. In the SimpleX app, scan the QR code, or paste the link into "Connect via link". If the code does not scan, restart with `--qr-code large`. The chat "My Agent" appears with `I'm your agent. I ask here before I connect, send, download a file or leave a chat.` The terminal prints `Alice joined (member N) and is now an owner. The link is deleted.` and the register hint.
-3. `node dist/cli.js register my-agent`. It prints `Added to Claude Code: scope user, server simplex-my-agent.` Run it in a terminal with the same `CLAUDE_CONFIG_DIR` as the one where `claude` runs: `claude mcp add-json` writes to the config of its own environment.
+3. `node dist/cli.js register my-agent`. It prints `Added to Claude Code: scope user, server simplex-my-agent, hooks in <home>/.claude/settings.json.` Run it in a terminal with the same `CLAUDE_CONFIG_DIR` as the one where `claude` runs: `claude mcp add-json` writes to the config of its own environment.
 4. Add `"mcp__simplex-my-agent"` to `permissions.allow` in `~/.claude/settings.json`, so Claude Code does not prompt for each call; approval happens in the SimpleX app.
 5. Start `claude`. `/mcp` shows `simplex-my-agent` connected with 6 tools. A session started before `register` does not load the entry; start a new one.
 
@@ -132,6 +132,16 @@ opencode, with the server of step 1 and the secret of step 2:
 3. `Run echo $HTTPBIN_PASSWORD.` The output is `simplex-secret-HTTPBIN_PASSWORD`.
 4. `List the SimpleX chats.` The `list` tool of `simplex-my-agent` returns the secret as in step 5.
 
+The agent of `serve` in Claude Code, with the server of step 1 and the secret of step 2:
+
+1. `node dist/cli.js register my-agent`. `~/.claude/settings.json` has the SessionStart hook `node <this folder>/dist/cli.js hook agent-session-start <data folder>` and the FileChanged hook with matcher `secrets.json`.
+2. Start `claude` in a test folder, and ask: `Run curl -s -u user:$HTTPBIN_PASSWORD https://httpbin.org/basic-auth/user/$HTTPBIN_PASSWORD and show the output.` The output has `"authenticated": true`.
+3. `Run echo $HTTPBIN_PASSWORD.` The output is `simplex-secret-HTTPBIN_PASSWORD`.
+4. Send `/secret HTTPBIN_TOKEN httpbin.org test-token-5678` in "My Agent", then ask: `Run curl -s -H "Authorization: Bearer $HTTPBIN_TOKEN" https://httpbin.org/bearer.` The output has `"authenticated": true`: the FileChanged hook wrote the new variable.
+5. Stop the server, and start a new session: `Run echo $HTTPBIN_PASSWORD.` The output is empty.
+
+Checked on 2026-11-13 with Claude Code 2.1.323, a scratch configuration folder and a local stand-in for the model API: Claude Code ran the SessionStart hook that `register` wrote to `settings.json`, with `CLAUDE_ENV_FILE`, and a Bash command of the session had `HTTPS_PROXY` at the port of `server.json` and the certificates of the data folder.
+
 The plugin, in a Claude Code session:
 
 1. In the group of the session, send `/secret HTTPBIN_PASSWORD httpbin.org test-pass-1234`: moderated, and `Secret HTTPBIN_PASSWORD is set for httpbin.org, in all sessions on this computer. /unsecret HTTPBIN_PASSWORD`. A member's `/secret` is moderated and gets `Only admins and owners of this group can send / commands.` In the Main group, `/secret` is moderated and gets `Send /secret in the group of a session; the secret is set for all sessions on this computer.`
@@ -148,7 +158,7 @@ The plugin, in a Claude Code session:
    Each run shows the chats, with the preset contact "Ask SimpleX Team".
 2. C3, subagent: `Use a subagent to send "trail shoes" to the directory.` While the card waits, the subagent's call stays in the foreground, with no background task; it returns after `/approve`.
 3. C4, reconnect: restart `serve my-agent`; in the running session, `/mcp reconnect all`; `list` returns the chats.
-4. C5, register again: `node dist/cli.js register my-agent` prints `Added to Claude Code: scope user, server simplex-my-agent.`; `claude mcp list` shows one `simplex-my-agent`.
+4. C5, register again: `node dist/cli.js register my-agent` prints `Added to Claude Code: scope user, server simplex-my-agent, hooks in <home>/.claude/settings.json.`; `claude mcp list` shows one `simplex-my-agent`, and the settings have one SessionStart and one FileChanged hook of `my-agent`.
 5. C6, Esc: ask for a send, and press Esc while its card waits; `List your pending actions.` shows the action with `open: false`; the same request again attaches to it, and `/approve` returns the result to that call.
 6. Host mode: restart with `node dist/cli.js serve my-agent --approve host`, then `/mcp reconnect all`. `Send /help to the directory.` makes Claude Code prompt, despite the allow rule; so does `leave`. After you allow it, the agent control chat gets `I sent a message to bot SimpleX Directory:`, `` `/help` `` and `Performed without approval (mode host).` A `connect` to a link not yet joined gets the same prompt and an outcome card; a target already joined returns `status: known`, with no card.
 
