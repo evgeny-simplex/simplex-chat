@@ -18,7 +18,6 @@ import Bots.DirectoryTests
 import ChatClient
 import ChatTests
 import ChatTests.DBUtils
-import ChatTests.Utils (xdescribe'')
 import Control.Logger.Simple
 import Data.Time.Clock.System
 import BadgeTests
