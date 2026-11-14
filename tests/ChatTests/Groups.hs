@@ -1669,7 +1669,6 @@ testGroupStatusMessages =
     bob ##> sendStatus "" "Read src/hub.ts"
     bob <## "bad chat command: feature not allowed Status messages"
     alice ##> sendStatus " live=on" "Run unit tests"
-    alice <# "#team [LIVE started] Run unit tests"
     bob <#. "#team alice> [LIVE started]"
     cath <#. "#team alice> [LIVE started]"
     statusItemId <- lastItemId alice

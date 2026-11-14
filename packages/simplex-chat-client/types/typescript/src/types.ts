@@ -3598,7 +3598,17 @@ export type MsgContent =
   | MsgContent.Unknown
 
 export namespace MsgContent {
-  export type Tag = "text" | "link" | "image" | "video" | "voice" | "file" | "report" | "chat" | "status" | "unknown"
+  export type Tag =
+    | "text"
+    | "link"
+    | "image"
+    | "video"
+    | "voice"
+    | "file"
+    | "report"
+    | "chat"
+    | "status"
+    | "unknown"
 
   interface Interface {
     type: Tag
