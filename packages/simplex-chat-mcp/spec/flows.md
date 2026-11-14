@@ -1794,8 +1794,9 @@ sequenceDiagram
   S->>F: at each start: import of its own dist/status-line.js, through status-line.js.tmp
   Note over CC: statusLine: node "${SIMPLEX_MCP_HOME:-$HOME/.simplex-mcp}/status-line.js"
   CC->>SL: the input on stdin, after a response, a change of the effort level or the reset of a window
-  SL->>CC: Opus 5.5 · effort high · 67% context · 5 h: 34% · week: 61%
-  SL->>S: POST /turn {id, pid, at, effort, limits, statusLine: true}, waiting at most 1 s
+  SL->>SL: available memory, and statfs of ROOT or its nearest existing parent
+  SL->>CC: Opus 5.5 · effort high · 67% context · 5 h: 34% · week: 61% · RAM 12 GB free · disk 7.3 GB free
+  SL->>S: POST /turn {id, pid, at, effort, limits, statusLine: true}, waiting at most 1 s, without the memory and disk
   S->>N: turn
   N->>N: statusLineReports = true, and limits kept when at is not older than that of the limits kept
   opt a known effort level changed
@@ -1809,6 +1810,7 @@ Notes:
 
 - Claude Code passes the plan's usage only to the status line command of the person's settings, which a plugin can't set, and it refuses `${CLAUDE_PLUGIN_ROOT}` in a command that belongs to no plugin. The shell expands `${SIMPLEX_MCP_HOME:-$HOME/.simplex-mcp}` to the data folder of the machine or container, and the service of each version writes `status-line.js` there at its start, so one setting serves every container and every version ([`writeStatusLine`](../src/files.ts), [`Service.start`, `productionDeps`](../src/service.ts)).
 - The command loads only Node modules, `paths.ts` and `service-request.ts`. It prints its line first, sends nothing without an effort level and a window, starts no service and makes no retry ([`statusLine`, `runStatusLine`](../src/status-line.ts), [`postToService`](../src/service-request.ts)).
+- The line ends with the machine's available memory and the free disk of the data folder's volume, each marked ⚠️ when low: memory below 10% of the total, which a container's limit caps, or disk below 5 GB. They show only in the terminal ([`machineState`, `machineParts`](../src/status-line.ts)).
 - The hub keeps the limits in memory. A window whose `resetsAt` has passed is left out of the end line, as Claude Code leaves it out of the input. Without the setting, the end line has no plan's usage, and an effort change shows at the next tool step or the end of the next turn ([`Session.turn`, `endLine`](../src/hub.ts), [`limitParts`](../src/status-line.ts)).
 - The hooks send the level of the turn, which is `xhigh` after `ultrathink` and can be a skill's or the prompt's own level, while the command sends the session's level. After the first request of the command, the hub takes the effort level only from the command, so the level of one turn posts no line ([`Session.turn`](../src/hub.ts)).
 - Claude Code runs `status-line.js` also when no service could start in the data folder, so that folder must be writable only by the user.

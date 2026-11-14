@@ -747,8 +747,9 @@ Claude Code passes the plan's usage only to the status line command of your sett
 
 - The shell expands the command to the plugin's data folder of each machine or container, so one setting serves all of them when they share `~/.claude`.
 - The service writes `status-line.js` there at each start, pointing to its own version, so the setting stays the same across updates.
-- Claude Code shows the status line in the terminal, such as `Opus 5.5 · effort xhigh · 67% context · 5 h: 34% · week: 61%`: the model, the effort level, the share of the context window in use and the plan's usage, each when Claude Code passes it.
-- The command also sends the effort level and the plan's usage to the service, so an effort change shows at once. It waits at most 1 second for the service, and starts none.
+- Claude Code shows the status line in the terminal, such as `Opus 5.5 · effort xhigh · 67% context · 5 h: 34% · week: 61% · RAM 12 GB free · disk 7.3 GB free`: the model, the effort level, the share of the context window in use and the plan's usage, each when Claude Code passes it, and the machine's memory and disk.
+- `RAM` is the memory available to processes, within the limit of a container. `disk` is the free space of the volume with the data folder, or with its nearest existing parent folder. Sizes are in decimal units, rounded down: `850 MB`, `7.3 GB`, `12 GB`, `1.2 TB`. A part starts with ⚠️ when less than 10% of the memory or less than 5 GB of disk is free.
+- The command also sends the effort level and the plan's usage to the service, so an effort change shows at once. The memory and the disk show only in the terminal. It waits at most 1 second for the service, and starts none.
 - The setting replaces a status line command of your own. On Windows, it needs Git Bash as the shell of commands.
 - Claude Code runs `status-line.js` of the data folder also when no service could start there, so the data folder, `~/.simplex-mcp` or `SIMPLEX_MCP_HOME`, must be writable only by you.
 
