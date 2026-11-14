@@ -856,6 +856,7 @@ row or element                           placement
 later rows of one sender                 the message column, without an avatar
 events, feature and E2EE items           the message column, as on master
 deleted, moderated and error cards       the message column
+corners of cards and pills               18 × the roundness setting, as media, without a tail (user)
 date separators                          centred on the row, unchanged
 chats without avatars (direct, notes)    unchanged: text at 12, right padding 12
 selection checkbox and offset            unchanged

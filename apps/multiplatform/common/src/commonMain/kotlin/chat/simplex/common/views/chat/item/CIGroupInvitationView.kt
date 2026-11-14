@@ -91,7 +91,7 @@ fun CIGroupInvitationView(
         inProgress.value = true
         joinGroup(groupInvitation.groupId) { inProgress.value = false }
       }) else Modifier),
-      shape = RoundedCornerShape(18.dp),
+      shape = if (inlineMeta == null) terminalCardShape() else RoundedCornerShape(18.dp),
       color = if (sent) sentColor else receivedColor,
       contentColor = LocalContentColor.current
     ) {

@@ -1259,6 +1259,9 @@ fun Modifier.clipChatItem(chatItem: ChatItem? = null, tailVisible: Boolean = fal
   }
 }
 
+@Composable
+fun terminalCardShape(): Shape = RoundedCornerShape(msgRectMaxRadius * remember { appPreferences.chatItemRoundness.state }.value.coerceIn(0f, 1f))
+
 private fun chatItemShape(roundness: Float, density: Density, tailVisible: Boolean, sent: Boolean = false): GenericShape = GenericShape { size, _ ->
   val (msgTailWidth, msgBubbleMaxRadius) = with(density) { Pair(msgTailWidthDp.toPx(), msgBubbleMaxRadius.toPx()) }
   val width = size.width

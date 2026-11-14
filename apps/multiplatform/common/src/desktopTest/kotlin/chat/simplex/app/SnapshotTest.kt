@@ -49,7 +49,7 @@ private const val PREVIEW_QR_LINK = "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoK
 
 private val chatItemFontScales = listOf(1f, 1.4f, 1.5f)
 
-private class SnapshotScene(val name: String, val fontScales: List<Float> = listOf(1f), val content: @Composable () -> Unit)
+private class SnapshotScene(val name: String, val fontScales: List<Float> = listOf(1f), val roundness: Float = 0.75f, val content: @Composable () -> Unit)
 
 @Serializable
 private class Snapshot(val scene: String, val theme: String, val fontScale: Float, val file: String, val width: Int, val height: Int)
@@ -139,6 +139,10 @@ private val avatarScenes = listOf(
   SnapshotScene("Avatars.ChannelMembers") { AvatarChannelMembers() },
 )
 
+private val roundnessScenes = listOf(
+  SnapshotScene("Roundness.TerminalDefects", roundness = 0.3f) { PreviewGroupChatLayoutTerminalDefects() },
+)
+
 private val previewsCallingCore = listOf(
   "AddChannelView.PreviewAddChannelView",
   "AddGroupView.PreviewAddGroupLayout",
@@ -181,7 +185,6 @@ class SnapshotTest {
       appPrefs.densityScale.set(1f)
       appPrefs.oneHandUI.set(true)
       appPrefs.chatBottomBar.set(true)
-      appPrefs.chatItemRoundness.set(0.75f)
       appPrefs.chatItemTail.set(true)
       appPrefs.privacyMediaBlurRadius.set(0)
       appPrefs.appearanceBarsBlurRadius.set(if (appPrefs.deviceSupportsBlur) 50 else 0)
@@ -190,7 +193,8 @@ class SnapshotTest {
       for (base in listOf(DefaultTheme.LIGHT, DefaultTheme.DARK)) {
         ThemeManager.applyTheme(base.themeName)
         val themeName = base.name.lowercase()
-        for (scene in previewScenes + avatarScenes) {
+        for (scene in previewScenes + avatarScenes + roundnessScenes) {
+          appPrefs.chatItemRoundness.set(scene.roundness)
           for (scale in scene.fontScales) {
             appPrefs.fontScale.set(scale)
             ChatModel.terminalItems.value = listOf()

@@ -1,7 +1,6 @@
 package chat.simplex.common.views.chat.item
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -44,7 +43,7 @@ fun ItemTextCard(ci: ChatItem, firstLineFontSize: TextUnit, inlineMeta: (@Compos
       }
     }
   } else {
-    Surface(Modifier.padding(start = CHAT_ITEM_TEXT_PADDING).then(modifier).messageCard(), shape = RoundedCornerShape(18.dp), color = color, contentColor = LocalContentColor.current) {
+    Surface(Modifier.padding(start = CHAT_ITEM_TEXT_PADDING).then(modifier).messageCard(), shape = terminalCardShape(), color = color, contentColor = LocalContentColor.current) {
       Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
         text()
       }

@@ -470,6 +470,8 @@ events                terminalEventPadding: chatItemTextPadding at the sides, 0 
                       feature and preference icons without height; merged feature icons one event line high
 cards                 DeletedItemView, MarkedDeletedItemView, CIMsgError, CIRcvDecryptionError, CIGroupInvitationView:
                       ChatItemClipped(tailVisible: false), chatItemTextPadding before the card, time beside the card
+                      shape in terminal rows: msgRectMaxRadius × roundness, without a tail, as the clip of media (user);
+                      square at 0
 ```
 
 ### Time and Status

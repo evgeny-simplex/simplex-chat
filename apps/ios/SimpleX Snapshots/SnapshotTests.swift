@@ -370,6 +370,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(SupportSimpleXBanner_Previews.self),
         SnapshotScene(TerminalAvatars_Previews.self, allSizes: true),
         SnapshotScene(TerminalDeleted_Previews.self),
+        SnapshotScene(TerminalDeletedRoundness_Previews.self),
         SnapshotScene(TerminalMedia_Previews.self),
         SnapshotScene(TerminalNames_Previews.self, allSizes: true),
         SnapshotScene(TerminalOverviewChannel_Previews.self),
@@ -494,6 +495,15 @@ struct TerminalMedia_Previews: PreviewProvider {
 struct TerminalDeleted_Previews: PreviewProvider {
     static var previews: some View {
         SnapshotFixtures().deleted(terminal: true)
+    }
+}
+
+struct TerminalDeletedRoundness_Previews: PreviewProvider {
+    static var previews: some View {
+        let defaults = UserDefaults(suiteName: "snapshots.roundness")!
+        defaults.register(defaults: appDefaults)
+        defaults.set(0.3, forKey: DEFAULT_CHAT_ITEM_ROUNDNESS)
+        return SnapshotFixtures().deleted(terminal: true).defaultAppStorage(defaults)
     }
 }
 
