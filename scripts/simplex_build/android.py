@@ -3,6 +3,7 @@
 import contextlib
 import enum
 import os
+import re
 import shutil
 import tempfile
 import zipfile
@@ -67,6 +68,18 @@ ANDROID_LOCAL_PROPERTIES = {
 }
 
 
+ANDROID_GRADLE_PROPERTIES = "apps/multiplatform/gradle.properties"
+
+
+DEV_APP_ID = "chat.simplex.app.dev"
+
+
+DEV_APP_NAME = "SimpleX dev"
+
+
+DEV_APP_INIT_SCRIPT = "scripts/android/dev-app.gradle"
+
+
 def android_build_tag(tag: str, existing_tags: Sequence[str], arch: Arch) -> str:
     """Releases before armv7a was built from master have it in a separate <tag>-armv7a tag."""
     if arch == Arch.ARMV7A and f"{tag}-armv7a" in existing_tags:
@@ -75,10 +88,22 @@ def android_build_tag(tag: str, existing_tags: Sequence[str], arch: Arch) -> str
 
 
 def android_vercode(source: Path) -> str:
-    for line in (source / "apps/multiplatform/gradle.properties").read_text().splitlines():
+    for line in (source / ANDROID_GRADLE_PROPERTIES).read_text().splitlines():
         if line.startswith("android.version_code="):
             return line.split("=", 1)[1].strip()
-    raise BuildError("android.version_code not found in apps/multiplatform/gradle.properties")
+    raise BuildError(f"android.version_code not found in {ANDROID_GRADLE_PROPERTIES}")
+
+
+def set_ota_version(source: Path, build: int) -> str:
+    properties = source / ANDROID_GRADLE_PROPERTIES
+    text = properties.read_text()
+    version = re.search(r"^android\.version_name=(.+)$", text, re.MULTILINE)
+    if version is None:
+        raise BuildError(f"android.version_name not found in {ANDROID_GRADLE_PROPERTIES}")
+    name = f"{version.group(1).strip()}-ota.{build}"
+    text = re.sub(r"^android\.version_code=.*$", f"android.version_code={build}", text, flags=re.MULTILINE)
+    properties.write_text(re.sub(r"^android\.version_name=.*$", f"android.version_name={name}", text, flags=re.MULTILINE))
+    return name
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +204,25 @@ def build_apk(
     if keep_libs:
         for lib in ANDROID_LIBS:
             container.copy_out(f"{PROJECT}/result-{arch}-{lib}/pkg-{arch}-android-{lib}.zip", out)
+
+
+def build_dev_apk(
+    container: Container, source: Path, arch: Arch, out: Path, nix_cache: bool, build: int, signing: AndroidSigning | None = None
+) -> None:
+    version_name = set_ota_version(source, build)
+    # Gradle runs the init scripts of ~/.gradle/init.d in each build, build-android.sh's included
+    install = 'mkdir -p "$HOME/.gradle/init.d" && cat > "$HOME/.gradle/init.d/dev-app.gradle"'
+    container.run(Step(("sh", "-c", install), input=(source / DEV_APP_INIT_SCRIPT).read_text()))
+    out_name = f"simplex-dev-{arch}.apk"
+    build_apk(container, source, arch, out, out_name, nix_cache, keep_libs=True, signing=signing)
+    aapt2 = 'exec "$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n 1)" dump badging "$1"'
+    badging = container.run(Step(("sh", "-c", aapt2, "sh", f"{OUT}/{out_name}")), capture=True).splitlines()
+    package = f"package: name='{DEV_APP_ID}' versionCode='{build}' versionName='{version_name}'"
+    label = f"application-label:'{DEV_APP_NAME}'"
+    if label not in badging or not any(line.startswith(package) for line in badging):
+        found = [line for line in badging if line.startswith(("package:", "application-label:"))]
+        raise BuildError(f"{out_name} is not {DEV_APP_NAME} {version_name} ({build}): {found}")
+    log(f"{out_name}: {DEV_APP_ID} {version_name} ({build})")
 
 
 def build_bundle(container: Container, source: Path, libs: Path, out: Path, signing: AndroidSigning | None = None) -> None:

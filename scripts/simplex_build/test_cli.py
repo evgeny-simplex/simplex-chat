@@ -85,6 +85,19 @@ class ParseArgsTest(unittest.TestCase):
             build_script.BuildIosArchive(pathlib.Path("a"), out, here, True),
         )
 
+    def test_build_commands_of_an_ota_build(self):
+        out, here = pathlib.Path("o"), pathlib.Path(".")
+        self.assertEqual(
+            build_script.parse_args(["build", "apk", "aarch64", "--out", "o", "--ota", "12"]),
+            build_script.BuildApk(Arch.AARCH64, out, here, False, 12),
+        )
+        self.assertEqual(
+            build_script.parse_args(["build", "xcarchive", "--out", "o", "--ota", "12"]),
+            build_script.BuildIosArchive(None, out, here, False, 12),
+        )
+        with mock.patch("sys.stderr"), self.assertRaises(SystemExit):
+            build_script.parse_args(["build", "apk", "aarch64", "--out", "o", "--ota", "pr"])
+
     def test_build_commands_reject_missing_or_unknown_arguments(self):
         self.assertIsNone(build_script.parse_args(["build", "xcarchive", "--out", "o"]).art)
         for argv in (

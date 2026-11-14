@@ -330,7 +330,7 @@ def pin_build_machine(products: Path) -> None:
             info.write_bytes(plistlib.dumps(data, fmt=fmt))
 
 
-def build_ios_archive(source: Path, art: Path | None, out: Path, install: bool) -> None:
+def build_ios_archive(source: Path, art: Path | None, out: Path, install: bool, ota: int | None = None) -> None:
     """The archive and the Nix core package it links, with the brand assets of art, the simplex-chat-art checkout, or
     else with the default icons."""
     if art is None:
@@ -365,8 +365,9 @@ def build_ios_archive(source: Path, art: Path | None, out: Path, install: bool) 
 
         xcode = ["-project", IOS_PROJECT, "-scheme", IOS_SCHEME, "-configuration", "Release"]
         settings_output = run(["xcodebuild", "-showBuildSettings", *xcode], cwd=root.source, capture=True).stdout
-        settings = build_settings(settings_output, ["DEVELOPMENT_TEAM", "IPHONEOS_DEPLOYMENT_TARGET"])
+        settings = build_settings(settings_output, ["DEVELOPMENT_TEAM", "IPHONEOS_DEPLOYMENT_TARGET", "CURRENT_PROJECT_VERSION"])
         team = settings["DEVELOPMENT_TEAM"]
+        build_number = [] if ota is None else [f"CURRENT_PROJECT_VERSION={settings['CURRENT_PROJECT_VERSION']}.{ota}"]
         check_minimum_versions(root.source, settings["IPHONEOS_DEPLOYMENT_TARGET"])
         epoch = commit_epoch(root.source)
         # the modules that Swift embeds in the dSYMs record the modification time of the bridging header
@@ -386,6 +387,7 @@ def build_ios_archive(source: Path, art: Path | None, out: Path, install: bool) 
                 "-skipPackagePluginValidation",
                 "-skipMacroValidation",
                 "CODE_SIGNING_ALLOWED=NO",
+                *build_number,
             ],
             root.source,
         )
