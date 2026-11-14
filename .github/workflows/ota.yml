@@ -17,6 +17,18 @@ on:
         description: Build the iOS archive
         type: boolean
         default: true
+      linux:
+        description: Build the Linux AppImage
+        type: boolean
+        default: true
+      macos:
+        description: Build the macOS dmg
+        type: boolean
+        default: true
+      windows:
+        description: Build the Windows msi
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -41,6 +53,9 @@ jobs:
       sha: ${{ steps.commit.outputs.sha }}
       run-android: ${{ steps.jobs.outputs.android }}
       run-ios: ${{ steps.jobs.outputs.ios }}
+      run-linux: ${{ steps.jobs.outputs.linux }}
+      run-macos: ${{ steps.jobs.outputs.macos }}
+      run-windows: ${{ steps.jobs.outputs.windows }}
       android-core: ${{ steps.names.outputs.android-core }}
       android-core-run: ${{ steps.android-core.outputs.run-id }}
       android-core-armv7a: ${{ steps.names.outputs.android-core-armv7a }}
@@ -48,6 +63,12 @@ jobs:
       android-cores: ${{ steps.android-cores.outputs.build }}
       ios-core: ${{ steps.names.outputs.ios-core }}
       ios-core-run: ${{ steps.ios-core.outputs.run-id }}
+      linux-core: ${{ steps.names.outputs.linux-core }}
+      linux-core-run: ${{ steps.linux-core.outputs.run-id }}
+      macos-core: ${{ steps.names.outputs.macos-core }}
+      macos-core-run: ${{ steps.macos-core.outputs.run-id }}
+      windows-core: ${{ steps.names.outputs.windows-core }}
+      windows-core-run: ${{ steps.windows-core.outputs.run-id }}
     steps:
       - name: Choose jobs
         id: jobs
@@ -55,6 +76,9 @@ jobs:
           PR: ${{ inputs.pr }}
           ANDROID: ${{ inputs.android }}
           IOS: ${{ inputs.ios }}
+          LINUX: ${{ inputs.linux }}
+          MACOS: ${{ inputs.macos }}
+          WINDOWS: ${{ inputs.windows }}
         run: |
           if [ -n "$PR" ] && ! [[ "$PR" =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::pr must be a pull request number, not '$PR'"
@@ -62,6 +86,9 @@ jobs:
           fi
           echo "android=$ANDROID" | tee -a "$GITHUB_OUTPUT"
           echo "ios=$IOS" | tee -a "$GITHUB_OUTPUT"
+          echo "linux=$LINUX" | tee -a "$GITHUB_OUTPUT"
+          echo "macos=$MACOS" | tee -a "$GITHUB_OUTPUT"
+          echo "windows=$WINDOWS" | tee -a "$GITHUB_OUTPUT"
 
       - name: Checkout code
         uses: actions/checkout@v6
@@ -81,9 +108,13 @@ jobs:
       - name: Artifact names
         id: names
         run: |
-          echo "android-core=android-core-${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'PRIVACY.md', 'flake.nix', 'flake.lock', 'scripts/nix/**', 'scripts/ci/android/build-core.sh') }}" >> "$GITHUB_OUTPUT"
-          echo "android-core-armv7a=android-core-armv7a-${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'PRIVACY.md', 'flake.nix', 'flake.lock', 'scripts/nix/**', 'scripts/ci/android/build-core.sh') }}" >> "$GITHUB_OUTPUT"
+          android=${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'PRIVACY.md', 'flake.nix', 'flake.lock', 'scripts/nix/**', 'scripts/ci/android/build-core.sh') }}
+          echo "android-core=android-core-$android" >> "$GITHUB_OUTPUT"
+          echo "android-core-armv7a=android-core-armv7a-$android" >> "$GITHUB_OUTPUT"
           echo "ios-core=ios-sim-core-${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'scripts/ci/ios-sim/build-core.sh') }}" >> "$GITHUB_OUTPUT"
+          echo "linux-core=desktop-linux-core-${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'PRIVACY.md', 'scripts/desktop/build-lib-linux.sh', 'scripts/ci/desktop-linux/build-core.sh') }}" >> "$GITHUB_OUTPUT"
+          echo "macos-core=desktop-macos-core-${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'PRIVACY.md', 'scripts/desktop/build-lib-mac.sh', 'scripts/ci/desktop-linux/build-core.sh') }}" >> "$GITHUB_OUTPUT"
+          echo "windows-core=desktop-windows-core-${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'PRIVACY.md', 'libsimplex.dll.def', 'scripts/desktop/build-lib-windows.sh', 'scripts/desktop/prepare-openssl-windows.sh', 'scripts/ci/desktop-linux/build-core.sh') }}" >> "$GITHUB_OUTPUT"
 
       - name: Find Android core library
         id: android-core
@@ -119,6 +150,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.ios-core }}"
+
+      - name: Find Linux core library
+        id: linux-core
+        if: steps.jobs.outputs.linux == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.linux-core }}"
+
+      - name: Find macOS core library
+        id: macos-core
+        if: steps.jobs.outputs.macos == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.macos-core }}"
+
+      - name: Find Windows core library
+        id: windows-core
+        if: steps.jobs.outputs.windows == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.windows-core }}"
 
   android-core:
     name: core library for Android ${{ matrix.abi }}
@@ -313,6 +365,8 @@ jobs:
 
       - name: Archive app
         run: |
+          build=$(sed -n 's/.*CURRENT_PROJECT_VERSION = \([0-9]*\);/\1/p' apps/ios/SimpleX.xcodeproj/project.pbxproj | sort -u).$GITHUB_RUN_NUMBER
+          echo "build $build"
           xcodebuild archive -quiet \
             -project apps/ios/SimpleX.xcodeproj \
             -scheme "SimpleX (iOS)" \
@@ -323,16 +377,26 @@ jobs:
             -onlyUsePackageVersionsFromResolvedFile \
             -skipPackagePluginValidation \
             -skipMacroValidation \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            PROVISIONING_PROFILE_SPECIFIER= \
+            CURRENT_PROJECT_VERSION="$build"
 
       - name: Check archive
         run: |
           archive=$RUNNER_TEMP/SimpleX.xcarchive
           app=$archive/Products/Applications/SimpleX.app
           ls "$archive" "$archive/dSYMs" "$app/PlugIns" "$app/Frameworks"
-          for bundle in "$app" "$app/PlugIns/SimpleX NSE.appex" "$app/PlugIns/SimpleX SE.appex" "$app/Frameworks/SimpleXChat.framework"; do
+          plutil -extract ApplicationProperties xml1 -o - "$archive/Info.plist"
+          for bundle in "$app/Frameworks/SimpleXChat.framework" "$app/PlugIns/SimpleX NSE.appex" "$app/PlugIns/SimpleX SE.appex" "$app"; do
             echo "$bundle: $(plutil -extract CFBundleIdentifier raw "$bundle/Info.plist") $(plutil -extract CFBundleShortVersionString raw "$bundle/Info.plist") ($(plutil -extract CFBundleVersion raw "$bundle/Info.plist"))"
-            codesign -d --entitlements - "$bundle" 2>&1 || true
+            codesign -dv "$bundle" 2>&1 | grep -E '^(Identifier|Signature|TeamIdentifier)='
+          done
+          for bundle in "$app/PlugIns/SimpleX NSE.appex" "$app/PlugIns/SimpleX SE.appex" "$app"; do
+            codesign -d --entitlements - --xml "$bundle" > "$RUNNER_TEMP/entitlements.plist"
+            plutil -p "$RUNNER_TEMP/entitlements.plist"
+            plutil -extract keychain-access-groups.0 raw "$RUNNER_TEMP/entitlements.plist" | grep -qx 5NN7GUYB6T.chat.simplex.app
           done
           du -sh "$archive"
 
@@ -344,6 +408,281 @@ jobs:
         with:
           name: ota-ios
           path: ${{ runner.temp }}/SimpleX.xcarchive.tar.gz
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+
+  linux:
+    name: Linux AppImage
+    needs: plan
+    if: needs.plan.outputs.run-linux == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      BUILD_CORE: ${{ needs.plan.outputs.linux-core-run == '' }}
+      CORE_PKG: desktop-core-linux-x86_64.tar.gz
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          submodules: recursive
+
+      - name: Show runner
+        run: |
+          lsb_release -ds
+          nproc
+          free -h
+          df -h /
+
+      - name: Setup Haskell
+        if: env.BUILD_CORE == 'true'
+        uses: simplex-chat/setup-haskell-action@v2
+        with:
+          ghc-version: ${{ env.GHC_VER }}
+          cabal-version: ${{ env.CABAL_VER }}
+
+      - name: Install libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libffi-dev libgmp-dev libnuma-dev libssl-dev zlib1g-dev patchelf strip-nondeterminism
+
+      - name: Build core library
+        if: env.BUILD_CORE == 'true'
+        run: scripts/ci/desktop-linux/build-core.sh ~/core/${{ env.CORE_PKG }}
+
+      - name: Upload core library
+        if: env.BUILD_CORE == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ needs.plan.outputs.linux-core }}
+          path: ~/core/${{ env.CORE_PKG }}
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Download core library
+        if: env.BUILD_CORE != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.plan.outputs.linux-core }}
+          path: ~/core
+          run-id: ${{ needs.plan.outputs.linux-core-run }}
+          github-token: ${{ github.token }}
+
+      - name: Install core library and VLC
+        run: |
+          scripts/ci/desktop-linux/install-core.sh ~/core/${{ env.CORE_PKG }}
+          scripts/desktop/prepare-vlc-linux.sh
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: ${{ env.JAVA_VER }}
+
+      - name: Build AppImage
+        env:
+          ASSETS_DIR: ../../assets
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          scripts/desktop/make-appimage-linux.sh
+          ls -la apps/multiplatform/release/main
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v7
+        with:
+          name: ota-linux
+          path: apps/multiplatform/release/main/*.AppImage
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+
+  macos:
+    name: macOS dmg
+    needs: plan
+    if: needs.plan.outputs.run-macos == 'true'
+    runs-on: macos-26
+    timeout-minutes: 180
+    env:
+      BUILD_CORE: ${{ needs.plan.outputs.macos-core-run == '' }}
+      CORE_PKG: desktop-core-mac-aarch64.tar.gz
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          submodules: recursive
+
+      - name: Show runner
+        run: |
+          sw_vers
+          sysctl -n hw.ncpu hw.memsize
+          df -h /
+          xcodebuild -version
+          ls /Library/Developer/CommandLineTools/SDKs || true
+
+      - name: Use the macOS 26 SDK
+        run: scripts/ci/ios-sim/use-macos26-sdk.sh
+
+      - name: Setup Haskell
+        if: env.BUILD_CORE == 'true'
+        uses: simplex-chat/setup-haskell-action@v2
+        with:
+          ghc-version: ${{ env.GHC_VER }}
+          cabal-version: ${{ env.CABAL_VER }}
+
+      - name: Install libraries
+        if: env.BUILD_CORE == 'true'
+        run: brew install openssl@3.0
+
+      - name: Build core library
+        if: env.BUILD_CORE == 'true'
+        run: scripts/ci/desktop-linux/build-core.sh ~/core/${{ env.CORE_PKG }} mac
+
+      - name: Upload core library
+        if: env.BUILD_CORE == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ needs.plan.outputs.macos-core }}
+          path: ~/core/${{ env.CORE_PKG }}
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Download core library
+        if: env.BUILD_CORE != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.plan.outputs.macos-core }}
+          path: ~/core
+          run-id: ${{ needs.plan.outputs.macos-core-run }}
+          github-token: ${{ github.token }}
+
+      - name: Install core library and VLC
+        run: |
+          scripts/ci/desktop-linux/install-core.sh ~/core/${{ env.CORE_PKG }} mac
+          scripts/desktop/prepare-vlc-mac.sh
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: ${{ env.JAVA_VER }}
+
+      - name: Build dmg
+        working-directory: apps/multiplatform
+        run: |
+          ./gradlew --no-daemon --console=plain -Psimplex.assets.dir=../../assets packageDmg
+          ls -la release/main/dmg
+
+      - name: Upload dmg
+        uses: actions/upload-artifact@v7
+        with:
+          name: ota-macos
+          path: apps/multiplatform/release/main/dmg/*.dmg
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+
+  windows:
+    name: Windows msi
+    needs: plan
+    if: needs.plan.outputs.run-windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 180
+    env:
+      BUILD_CORE: ${{ needs.plan.outputs.windows-core-run == '' }}
+      CORE_PKG: desktop-core-windows-x86_64.tar.gz
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          submodules: recursive
+
+      - name: Setup Haskell
+        if: env.BUILD_CORE == 'true'
+        uses: simplex-chat/setup-haskell-action@v2
+        with:
+          ghc-version: ${{ env.GHC_VER }}
+          cabal-version: ${{ env.CABAL_VER }}
+
+      - name: Configure pagefile
+        if: env.BUILD_CORE == 'true'
+        uses: simplex-chat/configure-pagefile-action@v1.4
+        with:
+          minimum-size: 16GB
+          maximum-size: 16GB
+          disk-root: "C:"
+
+      - name: Setup MSYS2
+        uses: simplex-chat/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: >-
+            git
+            perl
+            make
+            zip
+          pacboy: >-
+            toolchain:p
+            cmake:p
+
+      - name: Build core library
+        if: env.BUILD_CORE == 'true'
+        run: |
+          export PATH=$PATH:/c/ghcup/bin:$(echo /c/tools/ghc-*/bin || echo)
+          scripts/ci/desktop-linux/build-core.sh "$(cygpath -u "$RUNNER_TEMP")/core/$CORE_PKG" windows
+
+      - name: Upload core library
+        if: env.BUILD_CORE == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ needs.plan.outputs.windows-core }}
+          path: ${{ runner.temp }}/core/${{ env.CORE_PKG }}
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Download core library
+        if: env.BUILD_CORE != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.plan.outputs.windows-core }}
+          path: ${{ runner.temp }}/core
+          run-id: ${{ needs.plan.outputs.windows-core-run }}
+          github-token: ${{ github.token }}
+
+      - name: Install VLC and core library
+        run: |
+          scripts/desktop/prepare-vlc-windows.sh
+          scripts/ci/desktop-linux/install-core.sh "$(cygpath -u "$RUNNER_TEMP")/core/$CORE_PKG" windows
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: ${{ env.JAVA_VER }}
+
+      - name: Build msi
+        working-directory: apps/multiplatform
+        run: |
+          ./gradlew --no-daemon --console=plain -Psimplex.assets.dir=../../assets packageMsi
+          ls -la release/main/msi
+
+      - name: Upload msi
+        uses: actions/upload-artifact@v7
+        with:
+          name: ota-windows
+          path: apps/multiplatform/release/main/msi/*.msi
           compression-level: 0
           retention-days: 14
           if-no-files-found: error

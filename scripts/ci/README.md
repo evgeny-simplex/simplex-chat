@@ -224,3 +224,44 @@ Each run uploads the app it built, for manual tests, as an artifact kept 14 days
 ## The Claude job
 
 It needs the GitHub environment `app-sim-claude` with the secret `CLAUDE_CODE_OAUTH_TOKEN`, a Claude subscription token. The environment's branch rule alone decides which branches may use it: on a branch it doesn't allow, a run that asks for Claude fails at the Claude job's environment check, and the scripted test runs as usual. Each run spends the subscription's usage limits; the job summary gives its tokens and cost estimated at API prices.
+
+## Over-the-air builds
+
+`ota.yml` builds the apps of a pull request or a branch for the team's devices, without any key or secret: unsigned Android APKs, an iOS archive and unsigned desktop packages, uploaded as artifacts for a signer outside this workflow, which holds the keys and runs no pull request code. A run is started by hand:
+
+```sh
+gh workflow run ota.yml --ref master -f pr=<number>
+gh workflow run ota.yml --ref <branch>
+gh workflow run ota.yml --ref master -f pr=<number> -f ios=false -f macos=false
+```
+
+| Input | Default | Value |
+|---|---|---|
+| `pr` | empty | the pull request whose head commit is built; empty builds the commit of the branch the run starts on |
+| `android` | true | the Android APKs |
+| `ios` | true | the iOS archive |
+| `linux` | true | the Linux AppImage |
+| `macos` | true | the macOS dmg |
+| `windows` | true | the Windows msi |
+
+The branch the run starts on gives the workflow; the commit built gives the scripts, so a commit that predates `ota.yml` fails in `plan` until master is merged into it. A newer run for the same branch and pull request cancels the older one.
+
+| Job | Runner | Does | Artifacts |
+|---|---|---|---|
+| `plan` | ubuntu-24.04 | checks `pr`, finds the commit and the earlier core builds | — |
+| `android-core` | ubuntu-24.04 | `build-core.sh` for arm64-v8a and for armeabi-v7a, each when not reused | `android-core-<hash>`, android-emu's, and `android-core-armv7a-<hash>`, 30 days |
+| `android` | ubuntu-24.04 | `:android:assembleFossRelease` with the init script `scripts/ci/android/dev-app.gradle`, then checks each APK's id, name, version and ABI | `ota-android`: `android-foss-arm64-v8a-release-unsigned.apk` and `android-foss-armeabi-v7a-release-unsigned.apk`, 14 days |
+| `ios` | macos-26 | ios-sim's `build-core.sh` when not reused, `prepare-libs.sh ios`, then `xcodebuild archive` of "SimpleX (iOS)" for `generic/platform=iOS`, Release, signed ad hoc | `ios-sim-core-<hash>`, ios-sim's, 30 days; `ota-ios`: `SimpleX.xcarchive.tar.gz`, 14 days |
+| `linux` | ubuntu-24.04 | desktop-linux's `build-core.sh` when not reused, VLC, then `make-appimage-linux.sh` | `desktop-linux-core-<hash>`, desktop-linux's, 30 days; `ota-linux`: the AppImage, 14 days |
+| `macos` | macos-26 | `build-core.sh <out> mac` when not reused, VLC, then `:desktop:packageDmg` | `desktop-macos-core-<hash>`, 30 days; `ota-macos`: the dmg, 14 days |
+| `windows` | windows-latest | `build-core.sh <out> windows` in MSYS2 when not reused, VLC, then `:desktop:packageMsi` | `desktop-windows-core-<hash>`, 30 days; `ota-windows`: the msi, 14 days |
+
+The Android app is the release variant of the foss flavor as "SimpleX dev": `dev-app.gradle` gives it the id `chat.simplex.app.dev`, that name and the file provider `chat.simplex.app.dev.provider`, so it installs beside the released app, with its own data. Its version code is the run number, its version name `<android.version_name>-ota.<run number>`.
+
+The iOS archive is signed ad hoc (`CODE_SIGN_IDENTITY=-`, `AD_HOC_CODE_SIGNING_ALLOWED=YES`), so each bundle keeps its entitlements for the export that signs it for App Store Connect: an unsigned archive has none to keep. The job checks that the app and both extensions have `5NN7GUYB6T.chat.simplex.app` as their first keychain access group. The version is the project's, and the build number the project's followed by the run number, such as `371.12`.
+
+The desktop packages are built as the release's, from the desktop core library that `scripts/desktop/build-lib-<linux|mac|windows>.sh` builds, without signing; they are the released app, with its id and data directory, and the project's version.
+
+The core libraries are reused as in android-emu and ios-sim, by `earlier-run.sh`. A run for a pull request, named `ota pull request #<number>`, builds code other than its branch's, so `earlier-run.sh` uses its artifacts only in runs for the same pull request.
+
+The workflow creates no release or tag: the desktop app's updater reads the releases of simplex-chat/simplex-chat.
