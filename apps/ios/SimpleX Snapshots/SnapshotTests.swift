@@ -383,7 +383,7 @@ private func renderScene(_ scene: SnapshotScene, _ theme: AppTheme, dark: Bool, 
     window.endEditing(true)
     removeAnimations(window.layer)
     let format = UIGraphicsImageRendererFormat.default()
-    format.scale = 1
+    format.scale = scene.name == "ChatPreviewView" || scene.name == "ChatItemView" ? 3 : 1
     format.preferredRange = .standard
     format.opaque = true
     let image = UIGraphicsImageRenderer(bounds: window.bounds, format: format).image { _ in

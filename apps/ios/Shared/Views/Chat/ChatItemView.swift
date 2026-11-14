@@ -305,6 +305,14 @@ struct ChatItemView_Previews: PreviewProvider {
     static var previews: some View {
         let im = ItemsModel.shared
         Group{
+            let b1 = ChatItem.getSample(2, .directRcv, previewDate, "Tests passed: 211", .rcvRead)
+            ChatItemView(chat: Chat.sampleData, im: im, chatItem: b1, scrollToItem: { _ in }, scrollToItemId: Binding.constant(nil)).modifier(ChatItemClipped(b1, tailVisible: true))
+            let b2 = ChatItem.getSample(1, .directSnd, previewDate, "Deployed to staging", .sndSent(sndProgress: .complete))
+            ChatItemView(chat: Chat.sampleData, im: im, chatItem: b2, scrollToItem: { _ in }, scrollToItemId: Binding.constant(nil)).modifier(ChatItemClipped(b2, tailVisible: true))
+            let h1 = high(ChatItem.getSample(2, .directRcv, previewDate, "Tests passed: 211", .rcvRead))
+            ChatItemView(chat: Chat.sampleData, im: im, chatItem: h1, scrollToItem: { _ in }, scrollToItemId: Binding.constant(nil)).modifier(ChatItemClipped(h1, tailVisible: true))
+            let h2 = high(ChatItem.getSample(1, .directSnd, previewDate, "Deployed to staging", .sndSent(sndProgress: .complete)))
+            ChatItemView(chat: Chat.sampleData, im: im, chatItem: h2, scrollToItem: { _ in }, scrollToItemId: Binding.constant(nil)).modifier(ChatItemClipped(h2, tailVisible: true))
             let ci1 = ChatItem.getSample(1, .directSnd, previewDate, "hello")
             ChatItemView(chat: Chat.sampleData, im: im, chatItem: ci1, scrollToItem: { _ in }, scrollToItemId: Binding.constant(nil)).modifier(ChatItemClipped(ci1, tailVisible: true))
             let ci2 = ChatItem.getSample(2, .directRcv, previewDate, "hello there too")
@@ -327,6 +335,12 @@ struct ChatItemView_Previews: PreviewProvider {
         .environment(\.revealed, false)
         .previewLayout(.fixed(width: 360, height: 70))
         .environmentObject(Chat.sampleData)
+    }
+
+    private static func high(_ ci: ChatItem) -> ChatItem {
+        var c = ci
+        c.meta.priority = 1
+        return c
     }
 }
 

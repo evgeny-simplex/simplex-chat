@@ -572,34 +572,51 @@ private struct ActiveContentPreview: Equatable {
 struct ChatPreviewView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            ChatPreviewView(chat: Chat(
-                chatInfo: ChatInfo.sampleData.direct,
-                chatItems: []
-            ), progressByTimeout: Binding.constant(false))
-            ChatPreviewView(chat: Chat(
-                chatInfo: ChatInfo.sampleData.direct,
-                chatItems: [ChatItem.getSample(1, .directSnd, previewDate, "hello", .sndSent(sndProgress: .complete))]
-            ), progressByTimeout: Binding.constant(false))
-            ChatPreviewView(chat: Chat(
-                chatInfo: ChatInfo.sampleData.direct,
-                chatItems: [ChatItem.getSample(1, .directSnd, previewDate, "hello", .sndSent(sndProgress: .complete))],
-                chatStats: ChatStats(unreadCount: 11, minUnreadItemId: 0)
-            ), progressByTimeout: Binding.constant(false))
-            ChatPreviewView(chat: Chat(
-                chatInfo: ChatInfo.sampleData.direct,
-                chatItems: [ChatItem.getSample(1, .directSnd, previewDate, "hello", .sndSent(sndProgress: .complete), itemDeleted: .deleted(deletedTs: previewDate))]
-            ), progressByTimeout: Binding.constant(false))
-            ChatPreviewView(chat: Chat(
-                chatInfo: ChatInfo.sampleData.direct,
-                chatItems: [ChatItem.getSample(1, .directSnd, previewDate, "hello", .sndSent(sndProgress: .complete))],
-                chatStats: ChatStats(unreadCount: 3, minUnreadItemId: 0)
-            ), progressByTimeout: Binding.constant(false))
-            ChatPreviewView(chat: Chat(
-                chatInfo: ChatInfo.sampleData.group,
-                chatItems: [ChatItem.getSample(1, .directSnd, previewDate, "Lorem ipsum dolor sit amet, d. consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.")],
-                chatStats: ChatStats(unreadCount: 11, minUnreadItemId: 0)
-            ), progressByTimeout: Binding.constant(false))
+            TagsView(parentSheet: Binding.constant(nil), searchText: Binding.constant(""))
+                .environmentObject(tagsModel(high: false))
+                .padding(.horizontal)
+            row(group("2 normal, 1 sent with priority 1"), ChatStats(unreadCount: 3, minUnreadItemId: 0))
+            row(group("1 sent with priority 1"), ChatStats(unreadCount: 1, minUnreadItemId: 0))
+            row(group("Mentions mode: 1 with priority 1", .mentions), ChatStats(unreadCount: 3, minUnreadItemId: 0))
+            row(group("Muted: 1 with priority 1", .none), ChatStats(unreadCount: 3, minUnreadItemId: 0))
+            row(group("1 mention"), ChatStats(unreadCount: 3, unreadMentions: 1, minUnreadItemId: 0))
+            TagsView(parentSheet: Binding.constant(nil), searchText: Binding.constant(""))
+                .environmentObject(tagsModel(high: true))
+                .padding(.horizontal)
+            row(group("2 normal, 1 high priority"), ChatStats(unreadCount: 3, unreadMentions: 1, unreadHighPriority: 1, minUnreadItemId: 0))
+            row(group("1 high priority"), ChatStats(unreadCount: 1, unreadMentions: 1, unreadHighPriority: 1, minUnreadItemId: 0))
+            row(group("Mentions mode: 1 high priority", .mentions), ChatStats(unreadCount: 3, unreadMentions: 1, unreadHighPriority: 1, minUnreadItemId: 0))
+            row(group("Muted: 1 high priority", .none), ChatStats(unreadCount: 3, unreadMentions: 1, unreadHighPriority: 1, minUnreadItemId: 0))
+            row(group("1 mention"), ChatStats(unreadCount: 3, unreadMentions: 1, minUnreadItemId: 0))
         }
         .previewLayout(.fixed(width: 360, height: 78))
+    }
+
+    private static func row(_ chatInfo: ChatInfo, _ stats: ChatStats) -> ChatPreviewView {
+        ChatPreviewView(chat: Chat(
+            chatInfo: chatInfo,
+            chatItems: [ChatItem.getSample(1, .directSnd, previewDate, "Tests passed: 211", .sndSent(sndProgress: .complete))],
+            chatStats: stats
+        ), progressByTimeout: Binding.constant(false))
+    }
+
+    private static func group(_ name: String, _ ntfs: MsgFilter = .all) -> ChatInfo {
+        var groupInfo = GroupInfo.sampleData
+        groupInfo.localAlias = name
+        groupInfo.chatSettings.enableNtfs = ntfs
+        return ChatInfo.group(groupInfo: groupInfo, groupChatScope: nil)
+    }
+
+    private static func tagsModel(high: Bool) -> ChatTagsModel {
+        let m = ChatTagsModel()
+        m.userTags = [
+            ChatTag(chatTagId: 1, chatTagText: "Team", chatTagEmoji: nil),
+            ChatTag(chatTagId: 2, chatTagText: "Agents", chatTagEmoji: nil),
+            ChatTag(chatTagId: 3, chatTagText: "Read", chatTagEmoji: nil)
+        ]
+        m.unreadTags = [1: 1]
+        m.priorityTags = high ? [1: 1] : [:]
+        m.silentTags = [2: 1]
+        return m
     }
 }
