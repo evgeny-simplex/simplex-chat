@@ -1497,27 +1497,22 @@ sequenceDiagram
   C->>O: Claude: 💻 Run the tests, live, silent
   CC->>HK: PostToolUse {tool_use_id, duration_ms: 2018}
   HK->>D: POST /turn {step: {id, text: "💻 Run the tests", end: true, ms: 2018}}
-  D->>N: turn, steps -= id, the group's ms += 2018
-  N->>C: apiUpdateChatItem #35;G item, "💻 Run the tests !- 2.0 s!", live
-  CC->>HK: PreToolUse of a second Bash use
-  HK->>D: POST /turn {step: {id: id2, text: "💻 Run the linter"}}
-  D->>N: turn, the same emoji: the step joins the group
-  N->>C: apiUpdateChatItem #35;G item, "💻 Run the linter !- 2 calls 2.0 s!", live
+  D->>N: turn, steps -= id
+  N->>C: apiUpdateChatItem #35;G item, "💻 Run the tests !- 2.0 s!", live off
+  C->>O: the line updated, without an edited mark
   CC->>D: Stop hook: POST /turn {answer}
-  N->>N: endSteps(at): id2 leaves the group and enters finished, and the group ends
-  N->>C: apiUpdateChatItem #35;G item, "💻 Run the linter !- 2 calls 2.0 s!", live off
-  C->>O: the line completed, without an edited mark
+  N->>N: endSteps(at), each step started before at and still without an end
+  N->>C: apiUpdateChatItem #35;G item, the step's own text, live off
   N->>C: apiSendMessages #35;G the answer's parts, the last ending with "!- Done in DURATION!" with priority 1, the others with priority -1, unless a text of Claude streamed it (flow 37)
 ```
 
 Notes:
 
 - The tool hooks send a step for each tool use of the main conversation, with the text of [API 4.8](api.md#48-plugin-options-files-and-hook-output), and nothing for a tool use of a subagent or of this plugin, or without `tool_use_id` or `tool_name` ([`turn`, `stepOf`, `stepText`, `displayPath`](../src/hook.ts), [`duration`](../src/messages.ts)). The hook processes load only the hook's modules: the CLI imports the server, the service and the session server when it runs them ([`main`](../src/cli.ts)).
-- A step whose emoji is the emoji of the turn's last step line joins that line's group: the line shows the newest step's text and, in small print, the number of steps and the total time of those that ended. Edit and Write share ✏️, and Grep, Glob and WebSearch share 🔍. A step with another emoji, the first batch of a text of Claude's, an answer or a prompt that is not mid-turn ends the group, and its line is completed, live off, once none of its steps runs. Parallel tool uses send their starts before their ends, so each start counts once, and each end adds its time ([`Session.startStep`, `endStep`, `showGroup`, `endGroup`, `stepLine`](../src/hub.ts)).
 - The hooks run in parallel processes, so the end of a step can arrive before its start: in a recorded `claude -p` run, the two hooks of `false` started 58 ms apart. The hub posts an end without a known step as a silent message and keeps its ID among the finished IDs. For the start that arrives later, the hub finds the ID there, removes it and posts nothing ([`Session.step`](../src/hub.ts)).
-- Claude Code runs no end hook for a tool use refused at approval. At an answer or a prompt that is not mid-turn, each step still without an end whose hook started before that request's hook leaves its group, and the hub keeps its ID among the finished IDs and completes the group's line, live off; at the last detach and at the hub's stop, it does so for every step. The hub then posts nothing for the step's later end. A prompt added to the running turn leaves the lines live ([`Session.turn`, `endSteps`, `Hub.stop`](../src/hub.ts), [`Service.onAttach`](../src/service.ts)).
+- Claude Code runs no end hook for a tool use refused at approval. At an answer or a prompt that is not mid-turn, the hub updates each line still live whose hook started before that request's hook, with its own text and live off, and keeps its ID among the finished IDs; at the last detach and at the hub's stop, it updates every line still live. The hub then posts nothing for the step's later end. A prompt added to the running turn leaves the lines live ([`Session.turn`, `endSteps`, `Hub.stop`](../src/hub.ts), [`Service.onAttach`](../src/service.ts)).
 - The hub keeps the IDs of the last 100 finished steps, the oldest dropped first ([`maxFinished`, `Session.remember`](../src/hub.ts)).
-- SimpleX allows edits of a message for 24 hours, and a step can wait longer, as for an approval. So 23 hours after the send of its first step, by the wall clock, the hub completes a line still live, live off, without keeping its steps' IDs among the finished IDs; a step's later end is posted as a new silent line. For a line that fills the turn's opening message, that send is the opening message's. Timers run on the monotonic clock, which stops while the computer sleeps, so the hub checks the ages every minute while a step, an opening message or a text is live, and before each step. A computer that sleeps through the whole hour from 23 to 24 hours after a start leaves that line live ([`liveLineMs`, `stepCheckMs`, `Session.step`, `endStep`, `expireLive`, `watchLive`](../src/hub.ts)).
+- SimpleX allows edits of a message for 24 hours, and a step can wait longer, as for an approval. So 23 hours after the send of its start, by the wall clock, the hub updates a line still live with its own text and live off, without keeping its ID among the finished IDs; the step's later end is posted as a new silent line. For a line that fills the turn's opening message, that send is the opening message's. Timers run on the monotonic clock, which stops while the computer sleeps, so the hub checks the ages every minute while a step, an opening message or a text is live, and before each step. A computer that sleeps through the whole hour from 23 to 24 hours after a start leaves that line live ([`liveLineMs`, `stepCheckMs`, `Session.step`, `endStep`, `expireLive`, `watchLive`](../src/hub.ts)).
 - A start that a group preference refuses is replaced by `Claude's note was not posted: ` and the preference's text, once, and the hub posts nothing at its end. A start that fails for another reason is logged, and the hub posts nothing at its end. A failed update of a line is logged, and the hub posts nothing more for that step ([`Session.startLine`, `endStep`](../src/hub.ts)).
 - The hub keeps every started update of a line in one promise, so its stop waits for the updates that the end of the steps at the last detach started before the core closes ([`Session.finalizing`, `endSteps`, `endStep`](../src/hub.ts)).
 - The steps and the finished IDs are kept in memory. When the service stops during a step, the hub's stop updates its line with its own text; after a crash, the line stays live. The step's end reaches the next service and is posted as a new silent line ([`Hub.stop`](../src/hub.ts)).

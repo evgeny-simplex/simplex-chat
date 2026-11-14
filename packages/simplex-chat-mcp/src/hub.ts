@@ -93,19 +93,9 @@ interface Part {
 
 interface LiveStep {
   at: number
-  sentAt: number
-  group?: StepGroup
-}
-
-interface StepGroup {
-  icon: string
   text: string
   item: Promise<number | undefined>
   sentAt: number
-  count: number
-  open: number
-  ms?: number
-  marks: Set<string>
 }
 
 interface LiveText {
@@ -166,7 +156,6 @@ export class Session {
   private delivery: Promise<unknown> = Promise.resolve()
   private readonly refusedReactions = new Set<string>()
   private readonly steps = new Map<string, LiveStep>()
-  private stepGroup?: StepGroup
   private readonly finished = new Set<string>()
   private finalizing: Promise<void> = Promise.resolve()
   private expiry?: NodeJS.Timeout
@@ -408,15 +397,13 @@ export class Session {
 
   // spec: spec/architecture.md#hub-session-endpermissions
   endSteps(before = Infinity): Promise<void> {
-    return this.queueLive(async () => {
-      for (const [id, step] of this.steps) {
-        if (step.at < before) {
-          this.remember(id)
-          this.dropStep(id, step)
-        }
+    for (const [id, step] of this.steps) {
+      if (step.at < before) {
+        this.remember(id)
+        this.endStep(id, step, step.text)
       }
-      this.endGroup()
-    }).then(() => this.finalizing)
+    }
+    return this.finalizing
   }
 
   // spec: spec/architecture.md#hub-session-endtoolapprovals
@@ -553,70 +540,25 @@ export class Session {
   }
 
   // spec: spec/architecture.md#hub-session-step
-  private async step(request: Step, at: number): Promise<void> {
-    this.expireLive()
-    const sentAt = this.openingFor(at)?.sentAt ?? Date.now()
-    await this.queueLive(() => this.applyStep(request, at, sentAt))
-  }
-
-  // spec: spec/architecture.md#hub-session-step
-  private async applyStep({id, text, end, ms, mark}: Step, at: number, sentAt: number): Promise<void> {
+  private async step({id, text, end, ms, mark}: Step, at: number): Promise<void> {
     if (this.finished.delete(id)) return
+    this.expireLive()
     const started = this.steps.get(id)
     if (end !== true) {
-      const step: LiveStep = {at, sentAt}
-      this.steps.set(id, step)
+      const sentAt = this.openingFor(at)?.sentAt ?? Date.now()
+      const item = this.queueLive(async () => {
+        await this.endComplete()
+        return this.startLine(text, at, stepLines)
+      })
+      this.steps.set(id, {at, text, item, sentAt})
       this.watchLive()
-      await this.startStep(step, text, at)
+      await item
     } else if (started === undefined) {
       this.remember(id)
-      await this.post([{text: stepLine(text, 1, ms, mark === undefined ? [] : [mark]), priority: -1}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
+      await this.post([{text: stepLine(text, ms, mark), priority: -1}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
     } else {
-      await this.endStep(id, started, ms, mark)
+      await this.endStep(id, started, stepLine(text, ms, mark))
     }
-  }
-
-  // spec: spec/architecture.md#hub-session-step
-  private async startStep(step: LiveStep, text: string, at: number): Promise<void> {
-    await this.endComplete()
-    const icon = text.split(" ")[0]
-    const current = this.stepGroup
-    if (current?.icon === icon && (await current.item) !== undefined) {
-      current.text = text
-      current.count++
-      current.open++
-      step.group = current
-      return this.showGroup(current)
-    }
-    this.endGroup()
-    const group: StepGroup = {icon, text, item: this.startLine(text, at, stepLines), sentAt: step.sentAt, count: 1, open: 1, marks: new Set()}
-    this.stepGroup = group
-    step.group = group
-    await group.item
-  }
-
-  // spec: spec/architecture.md#hub-session-step
-  private showGroup(group: StepGroup): Promise<void> {
-    const line = stepLine(group.text, group.count, group.ms, group.marks)
-    if (group !== this.stepGroup && group.open === 0) return this.finalize(group.item, line, stepLines)
-    return group.item.then(itemId => (itemId === undefined ? undefined : this.updateItem(itemId, line, true))).then(() => undefined, error => logError(`steps of session ${this.number}`, error))
-  }
-
-  // spec: spec/architecture.md#hub-session-step
-  private endGroup(): void {
-    const group = this.stepGroup
-    this.stepGroup = undefined
-    this.watchLive()
-    if (group !== undefined && group.open === 0) void this.showGroup(group)
-  }
-
-  // spec: spec/architecture.md#hub-session-step
-  private dropStep(id: string, {group}: LiveStep): void {
-    this.steps.delete(id)
-    this.watchLive()
-    if (group === undefined) return
-    group.open--
-    if (group !== this.stepGroup && group.open === 0) void this.showGroup(group)
   }
 
   // spec: spec/architecture.md#hub-session-step
@@ -721,10 +663,7 @@ export class Session {
     if (this.endedTexts.has(message)) return
     const known = this.texts.get(message)
     if (known === undefined && at < answeredAt) return keepLast(this.endedTexts, message)
-    if (known === undefined) {
-      await this.endComplete()
-      this.endGroup()
-    }
+    if (known === undefined) await this.endComplete()
     const text = known ?? {id: message, at, batches: [], next: 0, done: "", part: "", sent: "", sentAt: 0}
     this.texts.set(message, text)
     text.batches[index] = delta
@@ -875,14 +814,10 @@ export class Session {
   }
 
   // spec: spec/architecture.md#hub-session-step
-  private async endStep(id: string, {group}: LiveStep, ms?: number, mark?: string): Promise<void> {
+  private endStep(id: string, {item}: LiveStep, text: string): Promise<void> {
     this.steps.delete(id)
     this.watchLive()
-    if (group === undefined) return
-    group.open--
-    if (ms !== undefined) group.ms = (group.ms ?? 0) + ms
-    if (mark !== undefined) group.marks.add(mark)
-    await this.showGroup(group)
+    return this.finalize(item, text, stepLines)
   }
 
   // spec: spec/architecture.md#hub-session-step
@@ -897,10 +832,11 @@ export class Session {
   // spec: spec/architecture.md#hub-session-step
   private expireLive(): void {
     const before = Date.now() - liveLineMs
+    for (const [id, step] of this.steps) {
+      if (step.sentAt <= before) this.endStep(id, step, step.text)
+    }
     this.closeOpenings(({sentAt}) => sentAt <= before)
     void this.queueLive(async () => {
-      if (this.stepGroup !== undefined && this.stepGroup.sentAt <= before) this.endGroup()
-      for (const [id, step] of this.steps) if ((step.group?.sentAt ?? step.sentAt) <= before) this.dropStep(id, step)
       for (const text of [...this.texts.values()]) if (text.liveAt !== undefined && text.liveAt <= before) await this.endText(text, text.part)
       this.watchLive()
     })
@@ -908,7 +844,7 @@ export class Session {
 
   // spec: spec/architecture.md#hub-session-step
   private watchLive(): void {
-    if (this.steps.size > 0 || this.stepGroup !== undefined || this.texts.size > 0 || this.openings.length > 0) {
+    if (this.steps.size > 0 || this.texts.size > 0 || this.openings.length > 0) {
       this.expiry ??= setInterval(() => this.expireLive(), stepCheckMs).unref()
     } else {
       clearInterval(this.expiry)
@@ -1309,16 +1245,15 @@ function withLine(parts: string[], line: string | undefined, quote?: Parameters<
   return [...parts.slice(0, -1), chars.slice(0, keep).join(""), `${chars.slice(keep).join("")}\n${line}`]
 }
 
-// spec: spec/architecture.md#hub-session-step
-function stepLine(text: string, count: number, ms: number | undefined, marks: Iterable<string>): string {
-  const time = [...(count > 1 ? [`${count} calls`] : []), ...(ms === undefined ? [] : [duration(ms)])].join(" ")
-  const shown = [text, ...marks].join(" ")
-  return time === "" ? shown : `${shown} ${small(time)}`
-}
-
 // spec: spec/architecture.md#hub-quoteof
 function small(text: string): string {
   return text.includes("!") ? text : `!- ${text}!`
+}
+
+// spec: spec/architecture.md#hub-session-step
+function stepLine(text: string, ms: number | undefined, mark: string | undefined): string {
+  const shown = mark === undefined ? text : `${text} ${mark}`
+  return ms === undefined ? shown : `${shown} ${small(duration(ms))}`
 }
 
 // spec: spec/architecture.md#hub-quoteof
