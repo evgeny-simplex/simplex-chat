@@ -17,6 +17,26 @@ on:
         description: Over-the-air build of the branch, as of a pull request
         type: boolean
         default: false
+      android:
+        description: Build the Android APKs
+        type: boolean
+        default: true
+      ios:
+        description: Build the iOS archive
+        type: boolean
+        default: true
+      linux:
+        description: Build the Linux CLI and desktop apps
+        type: boolean
+        default: true
+      macos:
+        description: Build the macOS CLI and desktop apps
+        type: boolean
+        default: true
+      windows:
+        description: Build the Windows CLI and desktop app
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -104,6 +124,7 @@ jobs:
   android:
     name: Android ${{ matrix.arch }} APK
     needs: plan
+    if: inputs.android
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -256,6 +277,7 @@ jobs:
   ios:
     name: iOS archive
     needs: plan
+    if: inputs.ios
     runs-on: macos-26
     timeout-minutes: 360
     env:
@@ -385,6 +407,7 @@ jobs:
   desktop-linux:
     name: Desktop Ubuntu ${{ matrix.ubuntu }} ${{ matrix.arch }}
     needs: [plan, old-database]
+    if: inputs.linux
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
     strategy:
@@ -468,6 +491,7 @@ jobs:
   desktop-macos:
     name: Desktop macOS ${{ matrix.arch }}
     needs: [plan, old-database]
+    if: inputs.macos
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
     strategy:
@@ -545,6 +569,7 @@ jobs:
   desktop-windows:
     name: Desktop Windows
     needs: [plan, old-database]
+    if: inputs.windows
     runs-on: windows-latest
     timeout-minutes: 240
     defaults:
