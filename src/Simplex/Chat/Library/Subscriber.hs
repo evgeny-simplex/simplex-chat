@@ -560,7 +560,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           toView $ CEvtContactRequestRejected user ct' (either (const Nothing) Just $ strDecode reason)
         MSG msgMeta _msgFlags msgBody -> do
           tags <- newTVarIO []
-          withAckMessage "contact msg" agentConnId msgMeta True (Just tags) $ \eInfo -> do
+          withAckMessage "contact msg" agentConnId msgMeta True (Just tags) $ \eInfo -> ifM (rcvMsgRepeated conn msgMeta) ((,False) <$> checkSendRcpt ct (rights aChatMsgs)) $ do
             let MsgMeta {pqEncryption} = msgMeta
             (ct', conn') <- updateContactPQRcv user ct conn pqEncryption
             checkIntegrityCreateItem (CDDirectRcv ct') msgMeta `catchAllErrors` \_ -> pure ()
@@ -1013,7 +1013,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               || not (relayServesGroup gInfo)
       MSG msgMeta _msgFlags msgBody -> do
         tags <- newTVarIO []
-        withAckMessage "group msg" agentConnId msgMeta True (Just tags) $ \eInfo -> do
+        withAckMessage "group msg" agentConnId msgMeta True (Just tags) $ \eInfo -> ifM (rcvMsgRepeated conn msgMeta) ((,False) <$> checkSendRcpt (rights aChatMsgs)) $ do
           -- possible improvement is to choose scope based on event (some events specify scope)
           (gInfo', m', scopeInfo) <- mkGroupChatScope gInfo m
           checkIntegrityCreateItem (CDGroupRcv gInfo' scopeInfo m') msgMeta `catchAllErrors` \_ -> pure ()
@@ -2742,6 +2742,11 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     checkIntegrityCreateItem cd MsgMeta {integrity, broker = (_, brokerTs)} = case integrity of
       MsgOk -> pure ()
       MsgError e -> createInternalChatItem user cd (CIRcvIntegrityError e) (Just brokerTs)
+
+    rcvMsgRepeated :: Connection -> MsgMeta -> CM Bool
+    rcvMsgRepeated Connection {connId} MsgMeta {recipient = (agentMsgId, _), redelivered}
+      | redelivered = withStore' $ \db -> checkMsgDeliveryExists db connId agentMsgId
+      | otherwise = pure False
 
     xInfo :: Contact -> Profile -> CM ()
     xInfo c p' = void $ processContactProfileUpdate c p' True
