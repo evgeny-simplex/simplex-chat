@@ -205,6 +205,8 @@ final class SnapshotTests: XCTestCase {
         XCTAssertEqual(terminalColumn(30), 38)
         XCTAssertEqual(terminalColumn(0), 0)
         XCTAssertEqual(terminalMediaWidth(402 - terminalColumn(30)), 340)
+        XCTAssertEqual(terminalPillStart(terminalColumn(30)), 0)
+        XCTAssertEqual(terminalPillStart(terminalColumn(0)), 12)
         XCTAssertEqual(scaledMemberImageSize(.large, terminalMemberImageBaseSize), 30)
     }
 

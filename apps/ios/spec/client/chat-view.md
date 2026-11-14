@@ -355,15 +355,14 @@ unknown values                              skipped
 
 ### Rows
 
-[`ChatItemWithMenu.terminalItemRow`](../../Shared/Views/Chat/ChatView.swift#L2155) wraps `chatItemWithMenu` in [`TerminalChatItemRow`](../../Shared/Views/Chat/ChatItem/TerminalItemView.swift#L408). Gaps follow the paragraph unit `terminalParagraphGap` (user, terminal spacing mockup):
+[`ChatItemWithMenu.terminalItemRow`](../../Shared/Views/Chat/ChatView.swift#L2155) wraps `chatItemWithMenu` in [`TerminalChatItemRow`](../../Shared/Views/Chat/ChatItem/TerminalItemView.swift#L405). Gaps follow the paragraph unit `terminalParagraphGap` (user, terminal spacing mockup):
 
 ```
-row padding        top: topGap; with an avatar topGap + terminalHeadingBottomGap, so the avatar is that far below the row above
-avatarBelowNameLine the avatar's part above and below the name line: (avatarSize − the body line height) / 2,
-                   negative when the name line is taller; 0 in a row without an avatar
-sender row         HStack, centred: the avatar column and the name; as tall as the taller of the two
-  avatar column    groups and channels: avatarSize wide at chatItemTextPadding − terminalAvatarOvershoot (10pt), 2pt into
-                   the screen padding, as round glyphs pass flat ones (user); other chats: none (avatarSize 0)
+row padding        top: topGap, as on master (user: "no changes in text layout")
+sender row         the name, as tall as its line; the avatar is its overlay
+  avatar column    groups and channels: the avatar at chatItemTextPadding − terminalAvatarOvershoot (10pt), 2pt into
+                   the screen padding, as round glyphs pass flat ones (user); centred on the name line, reaching into
+                   the gap above and the content below without taking height; other chats: none (avatarSize 0)
                    one 12pt padding (user, I26): screen edge to the text in chats without avatars, time to the screen edge
   avatar           avatarSize: scaledMemberImageSize(font, terminalMemberImageBaseSize), 30pt × chat list profileImageSize ÷ 63
                    (dynamicSize at the text size, at most 75), centred on the name line
@@ -372,11 +371,10 @@ sender row         HStack, centred: the avatar column and the name; as tall as t
                    classic sender name: memberImageSize + 10pt after the avatar's start, on the bubble edge (user, I23)
   name             name and badge in the body text style, semibold (primary for own items, secondary otherwise)
                    role label in the body text style, medium, secondary, 15pt after the name; line box of the body font
-                   start padding terminalAvatarGap (10pt) after the avatar, at the text start (50pt); without an avatar
-                   chatItemTextPadding
+                   start padding terminalColumn(avatarSize) + chatItemTextPadding: terminalAvatarGap (10pt) after the
+                   avatar, at the text start (50pt); without an avatar chatItemTextPadding
   below            terminalParagraphGap when the content starts with a card (contentStartsWithCard:
-                   terminalItemStartsWithCard), otherwise 0, below the name line, less the avatar's part below it (at
-                   least 0), as the bottom padding
+                   terminalItemStartsWithCard), otherwise 0, as the bottom padding
 content            below the name line, after terminalColumn(avatarSize): avatarSize + terminalAvatarGap −
                    terminalAvatarOvershoot (38pt), so its 12pt text edge is at 50pt; every row of a group, with or without
                    a sender row; 0 in other chats
@@ -469,9 +467,14 @@ files                 CIFileView: 0 above, icon without top padding; FramedItemV
 events                terminalEventPadding: chatItemTextPadding at the sides, 0 above and below; line box, line limit removed
                       feature and preference icons without height; merged feature icons one event line high
 cards                 DeletedItemView, MarkedDeletedItemView, CIMsgError, CIRcvDecryptionError, CIGroupInvitationView:
-                      ChatItemClipped(tailVisible: false), chatItemTextPadding before the card, time beside the card
+                      ChatItemClipped(tailVisible: false), time beside the card
                       shape in terminal rows: msgRectMaxRadius × roundness, without a tail, as the clip of media (user);
                       square at 0
+  start               CIGroupInvitationView: chatItemTextPadding before the card
+                      the others, text 12pt inside the card: terminalPillStart(terminalMessageColumn), chatItemTextPadding
+                      less the column (environment, set by TerminalChatItemRow), at least 0; in groups the card starts
+                      at the column and its text is on the text edge of the messages, as on master (user); in chats
+                      without avatars the card starts at the text edge
 ```
 
 ### Time and Status

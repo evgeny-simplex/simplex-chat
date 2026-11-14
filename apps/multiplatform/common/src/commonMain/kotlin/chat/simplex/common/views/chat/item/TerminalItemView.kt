@@ -414,7 +414,6 @@ fun TerminalChatItemRow(
   content: @Composable () -> Unit
 ) {
   val cardGap = TERMINAL_PARAGRAPH_GAP.toDp()
-  val avatarGap = if (sender?.image != null) TERMINAL_HEADING_BOTTOM_GAP.toDp() else 0.dp
   Layout(
     content = {
       Box {
@@ -428,7 +427,7 @@ fun TerminalChatItemRow(
         }
       }
       Box {
-        content()
+        CompositionLocalProvider(LocalTerminalGutter provides gutter, content = content)
       }
     },
     modifier.fillMaxWidth()
@@ -439,9 +438,8 @@ fun TerminalChatItemRow(
     val avatar = measurables[0].measure(looseConstraints)
     val name = measurables[1].measure(columnConstraints)
     val message = measurables[2].measure(columnConstraints)
-    val avatarOffset = (name.height - avatar.height) / 2
-    val nameTop = (topGap + avatarGap).roundToPx() + max(0, -avatarOffset)
-    val avatarTop = nameTop + avatarOffset
+    val nameTop = topGap.roundToPx()
+    val avatarTop = nameTop + (name.height - avatar.height) / 2
     val messageTop = nameTop + name.height + if (sender != null && message[CardTop] == 0) cardGap.roundToPx() else 0
     layout(constraints.maxWidth, max(messageTop + message.height, avatarTop + avatar.height)) {
       avatar.placeRelative((CHAT_ITEM_TEXT_PADDING - TERMINAL_AVATAR_OVERSHOOT).roundToPx(), avatarTop)
@@ -450,3 +448,8 @@ fun TerminalChatItemRow(
     }
   }
 }
+
+val LocalTerminalGutter = staticCompositionLocalOf { 0.dp }
+
+@Composable
+fun terminalPillStart(): Dp = (CHAT_ITEM_TEXT_PADDING - LocalTerminalGutter.current).coerceAtLeast(0.dp)

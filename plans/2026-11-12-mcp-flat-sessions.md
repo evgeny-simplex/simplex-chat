@@ -370,7 +370,7 @@ Done when:
 Tests that fail on master and pass after the change:
 - `test/unit/sessions.test.ts`, "are created at the session start, ...": `chat.newGroups` holds `chatLayout: "terminal"`.
 - `TerminalChatItemRowTest`, `messagesStartAtRowStartBelowNameLine`: with gutter 39 and a 27 px avatar, the message is at x 0 and at the bottom of the name line. On master it is at x 39.
-- `FlatPillTest`, `pillsStartAtTextEdge`: the cards of deleted, marked deleted and integrity-error items in a flat row start at x 12. On master they start at x 0.
+- `FlatPillTest`, `pillsStartAtTextEdgeWithoutAvatars`: the cards of deleted, marked deleted and integrity-error items in a flat row without a gutter start at x 12. On master they start at x 0. `pillTextInMessageColumn`: with a gutter of 35 they start at x 35, their text on the text start.
 - The snapshot references recorded on the branch: master renders differ, and `snapshots-compare.py` fails.
 
 Media widths, unit tests of the new functions:
@@ -391,7 +391,7 @@ Android and desktop, `apps/multiplatform/common/src/desktopTest/kotlin/chat/simp
 - `textWithoutAvatarTakesNoGap`: a sender row without an avatar, as in a direct chat, keeps the text right below the name, 22 px at density 1.
 - The three existing tests pass unchanged.
 
-Android and desktop, a new `apps/multiplatform/common/src/desktopTest/kotlin/chat/simplex/app/FlatPillTest.kt`: `DeletedItemView`, `MarkedDeletedItemView` and `IntegrityErrorItemView` in a flat row; the first column that differs from the white background is 12.
+Android and desktop, a new `apps/multiplatform/common/src/desktopTest/kotlin/chat/simplex/app/FlatPillTest.kt`: `DeletedItemView`, `MarkedDeletedItemView` and `IntegrityErrorItemView` in `TerminalChatItemRow` on a black background; the first column brighter than half is 12 without a gutter and 35 with a gutter of 35.
 
 Android and desktop, a new `apps/multiplatform/common/src/desktopTest/kotlin/chat/simplex/app/FlatAvatarTest.kt`: a 27 dp placeholder and a round photo drawn to the edge cover pixel columns 0 to 26 of their box across its middle row; drawn as now, they stay within columns 2 to 24. The test sets `profileImageCornerRadius` to 50 while it renders and restores it.
 
@@ -834,8 +834,8 @@ text width at 402        343 / 340                        378                   
 Text keeps its layout: font, line height, paragraph gaps, 0 between close one-line messages of one sender, the time's placement and the name line.
 
 ```
-avatar        centred on the name line; TERMINAL_HEADING_BOTTOM_GAP above a sender row with an avatar, as now
-name          at the text start, in the message column
+avatar        centred on the name line, reaching into the gap above; no gap of its own
+name          at the text start, in the message column; topGap below the row top, as on master
 message top   the bottom of the name line; TERMINAL_PARAGRAPH_GAP lower when the item starts with a card (A of D1)
 row height    the lower of the message bottom and the avatar bottom
 ```
@@ -855,7 +855,8 @@ flowchart LR
 row or element                           placement
 later rows of one sender                 the message column, without an avatar
 events, feature and E2EE items           the message column, as on master
-deleted, moderated and error cards       the message column
+deleted, moderated and error cards       the card at the column, its text on the text start, as on master (user);
+                                         without avatars the card at 12
 corners of cards and pills               18 × the roundness setting, as media, without a tail (user)
 date separators                          centred on the row, unchanged
 chats without avatars (direct, notes)    unchanged: text at 12, right padding 12

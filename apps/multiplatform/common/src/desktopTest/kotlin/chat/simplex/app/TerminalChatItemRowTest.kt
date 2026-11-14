@@ -22,7 +22,6 @@ import kotlin.test.assertTrue
 class TerminalChatItemRowTest {
   private val density = Density(1f)
   private val cardGap = with(density) { TERMINAL_PARAGRAPH_GAP.roundToPx() }
-  private val avatarGap = with(density) { TERMINAL_HEADING_BOTTOM_GAP.roundToPx() }
   private val alice = ChatItemSender("alice", null, null, own = false, image = null)
   private val placed = mutableMapOf<String, Placed>()
   private val aliceWithAvatar = ChatItemSender("alice", null, null, own = false) { Box(Modifier.size(27.dp).record(placed, "avatar")) }
@@ -71,7 +70,7 @@ class TerminalChatItemRowTest {
     val nameLine = messageTop(alice) { Box(it.fixed(100, 22, 17)) }
     val message = messagePlaced(aliceWithAvatar, gutter = column) { Box(it.fixed(100, 22, 17)) }
     assertEquals(35, message.x)
-    assertEquals(avatarGap + (27 - nameLine) / 2 + nameLine, message.y)
+    assertEquals(nameLine, message.y)
   }
 
   @Test
@@ -97,11 +96,14 @@ class TerminalChatItemRowTest {
   }
 
   @Test
-  fun avatarTopIsHalfStepBelowGapAboveRow() {
-    messagePlaced(aliceWithAvatar, gutter = column, topGap = 20.dp) { Box(it.fixed(100, 22, 17)) }
-    assertEquals(with(density) { (20.dp + TERMINAL_HEADING_BOTTOM_GAP.toDp()).roundToPx() }, avatar().y)
+  fun avatarOverhangsGapAboveRow() {
+    val nameLine = messageTop(alice) { Box(it.fixed(100, 22, 17)) }
+    assertTrue(nameLine < 27, "name line $nameLine")
+    val message = messagePlaced(aliceWithAvatar, gutter = column, topGap = 20.dp) { Box(it.fixed(100, 22, 17)) }
+    assertEquals(20 + nameLine, message.y)
+    assertEquals(20 + (nameLine - 27) / 2, avatar().y)
     messagePlaced(aliceWithAvatar, gutter = column, topGap = 0.dp) { Box(it.fixed(100, 22, 17)) }
-    assertEquals(avatarGap, avatar().y)
+    assertEquals((nameLine - 27) / 2, avatar().y)
   }
 
   @Test
@@ -115,7 +117,7 @@ class TerminalChatItemRowTest {
     val nameLine = messagePlaced(alice, fontScale = 2f) { Box(it.fixed(100, 44, 34)) }.y
     val message = messagePlaced(aliceWithAvatar, gutter = column, fontScale = 2f) { Box(it.fixed(100, 44, 34)) }
     assertTrue(nameLine > 27, "name line $nameLine")
-    assertEquals(with(Density(1f, 2f)) { TERMINAL_HEADING_BOTTOM_GAP.roundToPx() } + nameLine, message.y)
+    assertEquals(nameLine, message.y)
   }
 
   @Test

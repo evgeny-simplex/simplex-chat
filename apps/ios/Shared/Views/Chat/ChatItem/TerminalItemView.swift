@@ -413,27 +413,20 @@ struct TerminalChatItemRow<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let sender {
-                HStack(spacing: 0) {
-                    if avatarSize > 0 {
-                        ZStack(alignment: .topLeading) {
-                            Color.clear.frame(width: avatarSize, height: 0)
-                            sender.image
+                senderNameAndRole(sender)
+                    .padding(.leading, terminalColumn(avatarSize) + chatItemTextPadding)
+                    .overlay(alignment: .leading) {
+                        if avatarSize > 0, let image = sender.image {
+                            image.padding(.leading, chatItemTextPadding - terminalAvatarOvershoot)
                         }
-                        .padding(.leading, chatItemTextPadding - terminalAvatarOvershoot)
                     }
-                    senderNameAndRole(sender)
-                        .padding(.leading, avatarSize > 0 ? terminalAvatarGap : chatItemTextPadding)
-                }
-                .padding(.bottom, (contentStartsWithCard ? terminalParagraphGap : 0) - max(0, avatarBelowNameLine))
+                    .padding(.bottom, contentStartsWithCard ? terminalParagraphGap : 0)
             }
             content()
+                .environment(\.terminalMessageColumn, terminalColumn(avatarSize))
                 .padding(.leading, terminalColumn(avatarSize))
         }
-        .padding(.top, topGap + (sender?.image == nil ? 0 : terminalHeadingBottomGap))
-    }
-
-    private var avatarBelowNameLine: CGFloat {
-        sender?.image == nil ? 0 : (avatarSize - terminalLineHeight(UIFont.preferredFont(forTextStyle: .body), nil, theme)) / 2
+        .padding(.top, topGap)
     }
 
     private func senderNameAndRole(_ sender: ChatItemSender) -> some View {
@@ -451,4 +444,19 @@ struct TerminalChatItemRow<Content: View>: View {
         }
         .modifier(terminalLineBox(UIFont.preferredFont(forTextStyle: .body), nil, theme))
     }
+}
+
+extension EnvironmentValues {
+    struct TerminalMessageColumn: EnvironmentKey {
+        static let defaultValue: CGFloat = 0
+    }
+
+    var terminalMessageColumn: CGFloat {
+        get { self[TerminalMessageColumn.self] }
+        set { self[TerminalMessageColumn.self] = newValue }
+    }
+}
+
+func terminalPillStart(_ column: CGFloat) -> CGFloat {
+    max(0, chatItemTextPadding - column)
 }
