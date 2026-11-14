@@ -3731,7 +3731,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       msg@RcvMessage {msgSigned}
       brokerTs
         | membershipMemId == memId = pure Nothing -- ignore - XGrpMemRestrict can be sent to restricted member for efficiency
-        | senderRole < GRModerator = insufficientPermissions
+        | senderRole < GRModerator = messageError "x.grp.mem.restrict with insufficient member permissions" $> Nothing
         | otherwise = do
             unknownRole <- unknownMemberRole gInfo
             withStore (\db -> getCreateUnknownGMByMemberId db cxt user gInfo memId "" unknownRole True) >>= \case
@@ -3740,7 +3740,8 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                 let GroupMember {groupMemberId = bmId, memberRole, blockedByAdmin, memberProfile = bmp} = bm
                 if
                   | blockedByAdmin == mrsBlocked restriction -> pure Nothing
-                  | senderRole < memberRole -> insufficientPermissions
+                  | senderRole < GRModerator || senderRole < memberRole ->
+                      messageError "x.grp.mem.restrict with insufficient member permissions" $> Nothing
                   | otherwise -> do
                       bm' <- setMemberBlocked bm
                       toggleNtf bm' (not blocked)
@@ -3752,7 +3753,6 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                       toView CEvtMemberBlockedForAll {user, groupInfo = gInfo', byMember = m', member = bm', blocked, msgSigned}
                       pure $ memberEventDeliveryScope bm
         where
-          insufficientPermissions = messageError "x.grp.mem.restrict with insufficient member permissions" $> Nothing
           setMemberBlocked bm = withStore' $ \db -> updateGroupMemberBlocked db user gInfo restriction bm
           blocked = mrsBlocked restriction
 
