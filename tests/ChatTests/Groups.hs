@@ -44,7 +44,7 @@ import Simplex.Chat.Types
 import Simplex.Chat.Types.MemberRelations (MemberRelation (..), getRelation, setRelation)
 import Simplex.Chat.Types.Shared (GroupMemberRole (..), GroupAcceptance (..))
 import Simplex.Chat.Types.UITheme (ChatLayout (..))
-import Simplex.Chat.Protocol (ChatMsgEvent (XGrpDirectInv, XGrpInv, XGrpLinkAcpt, XGrpLinkInv, XGrpMemRestrict), MsgScope (MSMember))
+import Simplex.Chat.Protocol (ChatMsgEvent (XGrpDirectInv, XGrpInv, XGrpLinkAcpt, XGrpLinkInv, XGrpLinkReject, XGrpMemRestrict), MsgScope (MSMember))
 import Simplex.Chat.Store.Groups (getMemberInvitation)
 import Simplex.Messaging.Agent (createConnection, joinConnection, prepareConnectionToJoin, sendMessages, vrValue)
 import Simplex.Messaging.Agent.Env.SQLite
@@ -189,7 +189,7 @@ chatGroupTests = do
     it "manually accept contact with group member incognito" testMemberContactAcceptIncognito
   describe "group roles and membership on receipt" $ do
     it "reject group link invitation in reply to member contact invitation" testMemberContactGroupLinkInvRejected
-    it "reject group link invitation in reply to one-time invitation" testInvitationGroupLinkInvRejected
+    it "reject group link invitation and rejection in reply to one-time invitation" testInvitationGroupLinkInvRejected
     it "reject repeated invitation to joined group" testGroupInvitationRepeatJoinedRejected
     it "join via group link ID automatically only once" testGroupLinkIdAutoJoinOnce
     it "accept only pending members" testGroupLinkAcceptNotPendingRejected
@@ -1841,7 +1841,7 @@ testMemberContactGroupLinkInvRejected =
       cath <## "to accept: /accept_member_contact @bob"
       cath <## "to reject: /delete @bob (the sender will NOT be notified)"
       Contact {groupDirectInv = Just GroupDirectInvitation {groupDirectInvLink}} <- getTestCCContact cath 3
-      joinWithGroupLinkInv cath groupDirectInvLink
+      joinWithGroupLinkReply cath groupDirectInvLink $ Right groupLinkInv
       bob <##. "chat message error: x.grp.link.inv: connection not requested via address"
       bob ##> "/ms team"
       bob
@@ -1858,32 +1858,39 @@ testInvitationGroupLinkInvRejected :: HasCallStack => TestParams -> IO ()
 testInvitationGroupLinkInvRejected =
   testChat2 aliceProfile bobProfile $
     \alice bob -> do
-      alice ##> "/c"
-      inv <- getInvitation alice
-      cReq <- either fail pure $ strDecode (B.pack inv)
-      joinWithGroupLinkInv bob cReq
+      replyToInvitation alice bob $ Right groupLinkInv
       alice <##. "chat message error: x.grp.link.inv: connection not requested via address"
+      replyToInvitation alice bob $ Left GroupLinkRejection {fromMember = MemberIdRole (MemberId "host") GROwner, invitedMember = MemberIdRole (MemberId "invited") GRMember, groupProfile = groupProfileNamed "club", rejectionReason = GRRBlockedName}
+      alice <##. "chat message error: x.grp.link.reject: connection not requested via address"
       alice ##> "/gs"
       alice <## "you have no groups!"
       alice <## "to create: /g <name>"
+  where
+    replyToInvitation cc cc' reply = do
+      cc ##> "/c"
+      inv <- getInvitation cc
+      cReq <- either fail pure $ strDecode (B.pack inv)
+      joinWithGroupLinkReply cc' cReq reply
 
-joinWithGroupLinkInv :: TestCC -> ConnReqInvitation -> IO ()
-joinWithGroupLinkInv cc cReq =
+groupLinkInv :: GroupLinkInvitation
+groupLinkInv =
+  GroupLinkInvitation
+    { fromMember = MemberIdRole (MemberId "host") GROwner,
+      fromMemberName = "host",
+      fromMemberKey = Nothing,
+      invitedMember = MemberIdRole (MemberId "invited") GRMember,
+      groupProfile = groupProfileNamed "club",
+      accepted = Just GAAccepted,
+      business = Nothing,
+      groupSize = Nothing
+    }
+
+joinWithGroupLinkReply :: TestCC -> ConnReqInvitation -> Either GroupLinkRejection GroupLinkInvitation -> IO ()
+joinWithGroupLinkReply cc cReq reply =
   withCCUser cc $ \user -> do
-    let glInv =
-          GroupLinkInvitation
-            { fromMember = MemberIdRole (MemberId "host") GROwner,
-              fromMemberName = "host",
-              fromMemberKey = Nothing,
-              invitedMember = MemberIdRole (MemberId "invited") GRMember,
-              groupProfile = groupProfileNamed "club",
-              accepted = Just GAAccepted,
-              business = Nothing,
-              groupSize = Nothing
-            }
-        joinInv = do
+    let joinInv = do
           (connId, _) <- withAgent $ \a -> prepareConnectionToJoin a (aUserId user) True cReq PQSupportOff
-          dm <- encodeConnInfo $ XGrpLinkInv glInv
+          dm <- encodeConnInfo $ either XGrpLinkReject XGrpLinkInv reply
           withAgent $ \a -> joinConnection a NRMInteractive (aUserId user) connId True cReq dm PQSupportOff SMSubscribe
     runExceptT joinInv `runReaderT` chatController cc >>= either (fail . show) (\_ -> pure ())
 
