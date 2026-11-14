@@ -295,8 +295,10 @@ private fun Modifier.profileIconShape(size: Dp, blurred: Boolean): Modifier {
       clip(CircleShape)
     r <= 0 ->
       insetTo(squareToCircleRatio)
-    else ->
-      insetTo(squareToCircleRatio + r * radiusFactor).clip(RoundedCornerShape(CornerSize(r)))
+    else -> {
+      val ratio = squareToCircleRatio + r * radiusFactor
+      insetTo(ratio).clip(RoundedCornerShape(size = size * ratio * r / 100))
+    }
   }
   return if (blurred) m1.blur(size / 4) else m1
 }
