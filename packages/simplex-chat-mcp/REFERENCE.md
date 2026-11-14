@@ -635,10 +635,11 @@ VERSION is the plugin's version, as in `npx -y @simplex-chat/mcp@0.3.0 link`. Th
 
 - Each agent that Claude starts with a name, as a teammate of an agent team or a named background agent, joins the session's group with its own profile. The profile has the agent's name, the agent placeholder of the peer type `agent`, and the agent's task as its short description, up to 160 characters.
 - A teammate's messages to Claude, and its final report, appear whole under its profile, silent and in normal print, in place of Claude's small-print line `✉️ Message from NAME: ...` or `📋 Report from subagent NAME: ...`.
+- Each step of a teammate's work appears under its profile as one line, as Claude's steps do: in small print, live while it runs, and completed with its outcome and duration when it ends. Its messages and its report get no step line.
 - A teammate is a member of the group. Its messages are never prompts, commands or approvals, and Claude posts no rights for it.
 - A teammate leaves the group when it ends, and when the session ends or closes. Its profile is then deleted, and its messages stay in the group. A teammate left in a group by a service that was killed is removed when the service starts again.
-- A session has at most 20 teammates with profiles at once. For a later one, Claude posts `Teammate NAME has no profile: this group has 20 teammates.` in small print, and its messages keep Claude's lines.
-- An agent without a name, as a short subagent, gets no profile; its report keeps Claude's line.
+- A session has at most 20 teammates with profiles at once. For a later one, Claude posts `Teammate NAME has no profile: this group has 20 teammates.` in small print, and its messages keep Claude's lines; its steps are not shown.
+- An agent without a name, as a short subagent, gets no profile; its report keeps Claude's line, and its steps are not shown.
 
 ### Prompts and answers
 

@@ -1838,6 +1838,12 @@ sequenceDiagram
   C->>TC: receivedGroupInvitation
   TM->>TC: apiJoinGroup as the teammate, userJoinedGroup
   C->>O: reviewer joined, no rights post
+  R->>N: PreToolUse Bash, step {teammate: "reviewer", text: "!- 💻 Run the tests!"}
+  N->>TM: step("reviewer", step)
+  TM->>TC: apiSendMessages as the teammate, live, priority -1
+  TC->>O: reviewer: Run the tests, in small print, live
+  R->>N: PostToolUse Bash, step {teammate: "reviewer", text: "!- 💻 Run the tests 2.0 s!", end: true}
+  TM->>TC: apiUpdateChatItem as the teammate, live off
   R->>L: SendMessage "The diff has no defect."
   R->>N: PostToolUse SendMessage to team-lead, teammates [message, id "message TOOL_USE_ID", with the note "✉️ Message from reviewer: ..."]
   opt Claude Code runs UserPromptSubmit for it
@@ -1849,6 +1855,7 @@ sequenceDiagram
   C->>N: newChatItems from the teammate's member, dropped
   R->>N: PostToolUse SubagentHandback, teammates [report]
   N->>TM: post, then end("reviewer")
+  TM->>TC: apiUpdateChatItem of each open step line with its own text, live off
   TM->>TC: apiLeaveGroup as the teammate
   C->>TM: leftMember within 30 s, else apiRemoveMembers by Claude
   TM->>TC: apiDeleteUser as the core's own user
@@ -1859,7 +1866,8 @@ Notes:
 
 - A teammate is an `Agent` call of the lead with a `name`. A subagent without a name keeps Claude's `📋 Report from subagent NAME` note ([`agentCall`](../src/hook.ts)).
 - One core holds the profiles of all teammates of a session, one user each, in the session's folder `agents`. Its commands run one at a time, and a command of a teammate first makes its user active ([`Teammates.asUser`, `serialize`](../src/teammates.ts)). The folder is removed when the hub opens the session, when the core opens and after it closes, so each open starts empty. Overlapping closes, as at SessionEnd and the service's stop, share one close, and a teammate started during a close joins after it ([`Hub.session`](../src/hub.ts), [`Teammates.opened`, `close`, `shutDown`](../src/teammates.ts)).
-- Messages that arrive while the teammate joins wait, and are posted after the join, in order. When the join fails, each of them is Claude's note instead, and Claude deletes its pending invitation when the teammate never connected ([`Teammates.post`, `join`, `failed`, `leave`](../src/teammates.ts), [`Session.teammate`](../src/hub.ts)).
+- A teammate's tool use is its step line, made by the hook as Claude's: the whole line in small print, the outcome ❌ or ⏹️, and the duration. The teammate posts it live at the start and completes it at the end, live off; an end before its start is posted as a line, and that start posts nothing. Its `SendMessage` and `SubagentHandback` get no line, because their message or report is posted. A teammate without a profile posts no lines ([`stepOf`, `agentStep`](../src/hook.ts), [`Teammates.step`, `stepLine`, `endLines`](../src/teammates.ts)).
+- Messages and steps that arrive while the teammate joins wait, and are posted after the join, in order. When the join fails, each of them is Claude's note instead, and Claude deletes its pending invitation when the teammate never connected ([`Teammates.post`, `join`, `failed`, `leave`](../src/teammates.ts), [`Session.teammate`](../src/hub.ts)).
 - The teammate's own hooks carry its messages: Claude Code 2.1.325 ran no UserPromptSubmit hook for a teammate's message on 2026-11-14. Its tool hooks carry its `agent_id`, and `agent_type` is its name. The hub posts each message once by its identity: the `tool_use_id` of its `SendMessage`, and the agent's ID for a report. The lead's prompt has no such identity for a message, so the hub drops the lead's copy from an agent of the session, whatever its timing, and posts a repeated text with a new identity again ([`agentPost`, `agentName`, `teammateEvents`](../src/hook.ts), [`Session.teammate`](../src/hub.ts)).
 - Claude Code runs the hooks one process each, so a report can reach the service after the subagent's SubagentStop. SubagentStop of a finished agent ends its teammate 10 s later, and a report that arrives meanwhile is still posted under its profile. A teammate of an agent team gets SubagentStop at the end of each of its turns, and its record has no `finished`; it ends when it approves a shutdown ([`endedAgent`](../src/hook.ts), [`teammateEndWait`, `Session.teammate`](../src/hub.ts)).
 - A teammate's member stays known after its end, so its messages that arrive late are dropped, as `User`'s are ([`Teammates.isMember`](../src/teammates.ts), [`Session.isOwnProfile`](../src/hub.ts)).

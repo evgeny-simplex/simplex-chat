@@ -11,7 +11,7 @@ import {SessionFile, createDataFolder, readSessionFile, sessionFolder, writeSess
 import {Hub, Session} from "../../src/hub"
 import {createMainGroup} from "../../src/main-group"
 import {Collected} from "../../src/messages"
-import {AttachLine, TeammateEvent} from "../../src/protocol"
+import {AttachLine, Step, TeammateEvent} from "../../src/protocol"
 import * as tools from "../../src/tools"
 import {User} from "../../src/user"
 import {version} from "../../src/version"
@@ -2123,6 +2123,22 @@ describe("session channel", () => {
         {text: "✉️ Message from tester: Tests pass.", priority: -1},
         {text: "📋 Report from subagent general-purpose: Done.", priority: -1},
       ])
+    })
+
+    it("passes a teammate's step to its profile and posts no line of Claude for it", async () => {
+      const chat = new FakeChat()
+      const {session} = await channel(chat)
+      const steps: [string, Step][] = []
+      jest.spyOn(session.teammates, "step").mockImplementation(async (name, step) => (steps.push([name, step]), true))
+      await session.turn({id: id1, at: 1, step: {id: "toolu_1", text: "!- 💻 Run the tests!", teammate: "reviewer"}})
+      await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "!- 💻 Run the tests 2.0 s!", end: true, teammate: "reviewer"}})
+      await session.turn({id: id1, at: 3, step: {id: "toolu_2", text: "!- 📖 Read README.md!"}})
+      expect(steps).toEqual([
+        ["reviewer", {id: "toolu_1", text: "!- 💻 Run the tests!", teammate: "reviewer"}],
+        ["reviewer", {id: "toolu_1", text: "!- 💻 Run the tests 2.0 s!", end: true, teammate: "reviewer"}],
+      ])
+      expect(sentTo(chat, 20)).toEqual(["!- 📖 Read README.md!"])
+      expect(chat.updates).toEqual([])
     })
 
     it("ends the session's teammates at the session's end and when the hub stops", async () => {

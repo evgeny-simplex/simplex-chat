@@ -816,7 +816,7 @@ test("a data folder of 0.3.0 starts with User as a person, and an owner sees Cla
   expect(members.find(({memberProfile}) => memberProfile.displayName === "User")?.memberProfile.peerType).toBe(T.ChatPeerType.Human)
 }, 600_000)
 
-test("a teammate started by the lead joins the session's group with its own agent profile, posts its message to the lead there once, also when the lead's prompt carries it too, and leaves after it approves its shutdown, with its contact deleted", async () => {
+test("a teammate started by the lead joins the session's group with its own agent profile, posts its message to the lead there once, also when the lead's prompt carries it too, posts its steps as live lines completed at their ends, completes an open line and leaves after it approves its shutdown, with its contact deleted", async () => {
   const root = join(dir, "teammates", "root")
   await prepareRoot(smpServer.address, root)
   const alice = await personIn("teammates", "Alice")
@@ -851,12 +851,28 @@ test("a teammate started by the lead joins the session's group with its own agen
   const prompt = 'Another Claude session sent a message:\n<teammate-message teammate_id="reviewer" summary="No defect">\nThe diff has no defect.\n</teammate-message>'
   writeFileSync(transcript, `${JSON.stringify({type: "user", promptId: "p1", message: {role: "user", content: prompt}})}\n`)
   await hook({hook_event_name: "UserPromptSubmit", transcript_path: transcript, prompt_id: "p1", prompt})
+  await until(async () => (await alice.chat.apiListMembers(groupId)).some(member => member.memberProfile.displayName === "reviewer" && isActive(member)))
   const reviewer = (await alice.chat.apiListMembers(groupId)).find(({memberProfile}) => memberProfile.displayName === "reviewer")!
   expect(reviewer.memberRole).toBe(T.GroupMemberRole.Member)
   expect(reviewer.memberProfile).toMatchObject({peerType: T.ChatPeerType.Agent, shortDescr: "Review the diff of #8204"})
 
+  const bash = {agent_id: "areviewer-1", agent_type: "reviewer", cwd: "/p", tool_name: "Bash", tool_input: {command: "npm test", description: "Run the tests"}, tool_use_id: "toolu_3"}
+  const started = received(alice.chat, fromReviewer("!- 💻 Run the tests!"))
+  await hook({hook_event_name: "PreToolUse", ...bash})
+  expect((await started).chatItem.meta.itemLive).toBe(true)
+  const ended = updated(alice.chat, fromReviewer("!- 💻 Run the tests 2.0 s!"))
+  await hook({hook_event_name: "PostToolUse", ...bash, tool_response: {stdout: "ok"}, duration_ms: 2018})
+  const {meta: finalized} = (await ended).chatItem
+  expect([finalized.itemLive, finalized.itemEdited]).toEqual([false, false])
+  const read = {agent_id: "areviewer-1", agent_type: "reviewer", cwd: "/p", tool_name: "Read", tool_input: {file_path: "/p/README.md"}, tool_use_id: "toolu_4"}
+  const reading = received(alice.chat, fromReviewer("!- 📖 Read README.md!"))
+  await hook({hook_event_name: "PreToolUse", ...read})
+  expect((await reading).chatItem.meta.itemLive).toBe(true)
+  const completed = updated(alice.chat, fromReviewer("!- 📖 Read README.md!"))
+
   const left = alice.chat.wait("leftMember", ({groupInfo, member}) => groupInfo.groupId === groupId && member.memberProfile.displayName === "reviewer", 120_000)
   await hook({hook_event_name: "PostToolUse", ...teammateTool, tool_input: {to: "team-lead", message: {type: "shutdown_response", approve: true}, type: "shutdown_response", approve: true}})
+  expect((await completed).chatItem.meta.itemLive).toBe(false)
   expect(await left).toBeDefined()
   await until(async () => !(await hub.chat.apiListContacts(hub.profile.userId)).some(({customData}) => (customData as {simplexMcpTeammate?: object} | undefined)?.simplexMcpTeammate !== undefined))
   const texts = (await alice.chat.apiGetChat(T.ChatType.Group, groupId, 50)).chatItems.map(({meta}) => meta.itemText)

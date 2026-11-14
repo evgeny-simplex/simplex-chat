@@ -10,7 +10,7 @@ import {openCore} from "./core"
 import {SessionFile, hubFolder, readSessionFile, sessionFolder, writeSessionFile} from "./files"
 import {chatErrorOf, errorText, log, logError, oneLine} from "./log"
 import {MainGroup, SessionGroups, createMainGroup, findMainGroup} from "./main-group"
-import {Changes, ChatItemsWatch, ReplyTo, ToolCall, duration, getChat, nextChange, quoteLine, storedName, toReplyTo, validName} from "./messages"
+import {Changes, ChatItemsWatch, ReplyTo, ToolCall, duration, getChat, keepLast, nextChange, quoteLine, storedName, toReplyTo, validName} from "./messages"
 import {AttachLine, LimitWindow, Limits, OwnerState, PermissionRequest, ResetReply, Step, TeammateEvent, TextBatch, TurnRequest} from "./protocol"
 import {waitForCancelledCards} from "./serve"
 import {limitParts} from "./status-line"
@@ -45,7 +45,6 @@ const reactionEmoji = ["👍", "👎", "😀", "😂", "😢", "❤", "🚀", "�
 // spec: spec/architecture.md#hub-constants
 const unsupportedReaction = "This reaction is not supported."
 const noteRefused = "Claude's note was not posted"
-const maxFinished = 100
 // spec: spec/api.md#session-groups
 const liveLineMs = 23 * 3_600_000
 // spec: spec/api.md#session-groups
@@ -382,7 +381,8 @@ export class Session {
     try {
       if (switches.length > 0) await this.post(switches).catch(error => this.postRefusal(error, noteRefused, featureOff))
       if (text !== undefined) this.text(text, at ?? Date.now())
-      if (step !== undefined) await this.step(step, at ?? Date.now())
+      if (step?.teammate !== undefined) await this.teammates.step(step.teammate, step)
+      else if (step !== undefined) await this.step(step, at ?? Date.now())
       if (note !== undefined) await this.post([{text: note, priority: -1}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
       for (const event of teammates ?? []) await this.teammate(event)
       if (sessionEnd === true) void this.endTeammates()
@@ -1284,13 +1284,6 @@ function withLine(parts: string[], line: string | undefined, quote?: Parameters<
 // spec: spec/architecture.md#hub-quoteof
 function small(text: string): string {
   return text.includes("!") ? text : `!- ${text}!`
-}
-
-// spec: spec/architecture.md#hub-quoteof
-function keepLast(ids: Set<string>, id: string): void {
-  ids.add(id)
-  const [oldest] = ids
-  if (ids.size > maxFinished) ids.delete(oldest)
 }
 
 // spec: spec/architecture.md#hub-isrefusedquote

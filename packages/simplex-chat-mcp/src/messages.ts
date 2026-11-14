@@ -420,6 +420,13 @@ export function duration(exact: number): string {
   return `${Math.floor(seconds / 3600)} h ${Math.floor(seconds / 60) % 60} min`
 }
 
+// spec: spec/architecture.md#messages-keeplast
+export function keepLast(ids: Set<string>, id: string, max = 100): void {
+  ids.add(id)
+  const [oldest] = ids
+  if (ids.size > max) ids.delete(oldest)
+}
+
 // spec: spec/architecture.md#messages-validname
 export function validName(name: string): string {
   const chars: string[] = []
