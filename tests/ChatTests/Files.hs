@@ -25,14 +25,14 @@ import Simplex.Chat.Badges (BadgeProof, BadgeStatus (..), BadgeType (..), FileSi
 import Simplex.Chat.Controller (ChatCommand (APIGetChat), ChatConfig (..), ChatPagination (CPLast), ChatResponse (CRApiChat, CRNewChatItems))
 import Simplex.Chat.Core (sendChatCmdStr)
 import Simplex.Chat.Library.Commands (execChatCommand')
-import Simplex.Chat.Library.Internal (badgeProofStatus, roundedFDCount)
+import Simplex.Chat.Library.Internal (badgeProofStatus, roundedFDCount, sendDirectContactMessage)
 import Simplex.Chat.Markdown (parseMaybeMarkdownList)
-import Simplex.Chat.Messages (AChat (..), AChatItem (..), CChatItem (..), CIQuote (CIQuote, content, formattedText), Chat (..), ChatItem (..), ChatRef (..), ChatType (..))
+import Simplex.Chat.Messages (AChat (..), AChatItem (..), CChatItem (..), CIQuote (CIQuote, content, formattedText), Chat (..), ChatItem (..), ChatRef (..), ChatType (..), SndMessage (..))
 import Simplex.Chat.Messages.CIContent (ciMsgContent)
 import Simplex.Chat.Mobile.File
 import Simplex.Chat.Options (ChatOpts (..))
-import Simplex.Chat.Protocol (MsgContent (MCImage, MCText))
-import Simplex.Chat.Types (ImageData (..))
+import Simplex.Chat.Protocol (ChatMsgEvent (BFileChunk, XMsgNew), FileChunk (..), MsgContainer (file), MsgContent (MCImage, MCText, MCVoice), mcSimple)
+import Simplex.Chat.Types (FileInvitation (..), ImageData (..), InlineFileMode (..), SharedMsgId)
 import Simplex.FileTransfer.Server.Env (XFTPServerConfig (..), XFTPStoreConfig (..))
 import Simplex.Messaging.Crypto.BBS (BBSPublicKey, bbsKeyGen)
 import Simplex.Messaging.Crypto.File (CryptoFile (..), CryptoFileArgs (..))
@@ -58,6 +58,9 @@ chatFileTests = do
   describe "batch send messages with files" $ do
     it "with files folder: send multiple files to contact" testSendMultiFilesDirect
     it "with files folder: send multiple files to group" testSendMultiFilesGroup
+  describe "inline file transfer" $ do
+    it "received file is closed between chunks sent without acceptance" testInlineFileSentChunks
+    it "received file is closed between chunks after acceptance" testInlineFileAcceptedChunks
   describe "file transfer over XFTP" $ do
     it "round file description count" $ const testXFTPRoundFDCount
     it "send and receive file" testXFTPFileTransfer
@@ -709,6 +712,63 @@ testSendMultiFilesGroup =
       alice #$> ("/_get chat #1 count=3", chatF, [((1, "message without file"), Nothing), ((1, "sending file 1"), Just "test.jpg"), ((1, "sending file 2"), Just "test.pdf")])
       bob #$> ("/_get chat #1 count=3", chatF, [((0, "message without file"), Nothing), ((0, "sending file 1"), Just "test.jpg"), ((0, "sending file 2"), Just "test.pdf")])
       cath #$> ("/_get chat #1 count=3", chatF, [((0, "message without file"), Nothing), ((0, "sending file 1"), Just "test.jpg"), ((0, "sending file 2"), Just "test.pdf")])
+
+testInlineFileSentChunks :: HasCallStack => TestParams -> IO ()
+testInlineFileSentChunks =
+  testChatCfg2 (testCfg {fileChunkSize = 30}) aliceProfile bobProfile $
+    \alice bob -> do
+      connectUsers alice bob
+      alice #$> ("/_files_folder " <> tmpFile alice "alice_app_files", id, "ok")
+      smId <- sendInlineVoice bob IFMSent
+      alice <# "bob> voice message (00:01)"
+      alice <# "bob> sends file voice.m4a (40 bytes / 40 bytes)"
+      receiveInlineChunks alice bob smId
+
+testInlineFileAcceptedChunks :: HasCallStack => TestParams -> IO ()
+testInlineFileAcceptedChunks =
+  testChatCfg2 (testCfg {fileChunkSize = 30}) aliceProfile bobProfile $
+    \alice bob -> do
+      connectUsers alice bob
+      alice #$> ("/_files_folder " <> tmpFile alice "alice_app_files", id, "ok")
+      smId <- sendInlineVoice bob IFMOffer
+      alice <# "bob> voice message (00:01)"
+      alice <# "bob> sends file voice.m4a (40 bytes / 40 bytes)"
+      alice <## "use /fr 1 [<dir>/ | <path>] to receive it"
+      alice ##> "/fr 1"
+      alice <## "saving file 1 from bob to voice.m4a"
+      receiveInlineChunks alice bob smId
+
+sendInlineVoice :: TestCC -> InlineFileMode -> IO SharedMsgId
+sendInlineVoice cc fileMode = do
+  ct <- getTestCCContact cc 2
+  withCCUser cc $ \user ->
+    runExceptT (sendDirectContactMessage user ct $ XMsgNew voiceMsg) `runReaderT` chatController cc
+      >>= either (fail . show) (\(SndMessage {sharedMsgId = smId}, _) -> pure smId)
+  where
+    voiceMsg :: MsgContainer
+    voiceMsg = (mcSimple $ MCVoice "" 1) {file = Just fInv}
+    fInv = FileInvitation {fileName = "voice.m4a", fileSize = 40, fileDigest = Nothing, fileConnReq = Nothing, fileInline = Just fileMode, fileDescr = Nothing, fileBadge = Nothing}
+
+sendFileChunk :: TestCC -> SharedMsgId -> FileChunk -> IO ()
+sendFileChunk cc smId chunk = do
+  ct <- getTestCCContact cc 2
+  withCCUser cc $ \user ->
+    runExceptT (sendDirectContactMessage user ct $ BFileChunk smId chunk) `runReaderT` chatController cc
+      >>= either (fail . show) (\_ -> pure ())
+
+receiveInlineChunks :: HasCallStack => TestCC -> TestCC -> SharedMsgId -> IO ()
+receiveInlineChunks alice bob smId = do
+  let voicePath = tmpFile alice "alice_app_files" </> "voice.m4a"
+      (chunk1, chunk2) = B.splitAt 30 $ B.replicate 40 'v'
+  B.readFile voicePath `shouldReturn` ""
+  sendFileChunk bob smId $ FileChunk 1 chunk1
+  alice <## "started receiving file 1 (voice.m4a) from bob"
+  bob #> "@alice hi"
+  alice <# "bob> hi"
+  B.readFile voicePath `shouldReturn` chunk1
+  sendFileChunk bob smId $ FileChunk 2 chunk2
+  alice <## "completed receiving file 1 (voice.m4a) from bob"
+  B.readFile voicePath `shouldReturn` (chunk1 <> chunk2)
 
 testXFTPRoundFDCount :: Expectation
 testXFTPRoundFDCount = do

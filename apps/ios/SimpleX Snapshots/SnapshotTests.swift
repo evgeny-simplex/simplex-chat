@@ -161,6 +161,11 @@ final class SnapshotTests: XCTestCase {
         XCTAssertNotEqual(rowHash(items[3]), rowHash(unreacted))
     }
 
+    func testSkippedMessagesText() {
+        XCTAssertEqual(ChatItem.getIntegrityErrorSample(fromMsgId: 2, toMsgId: 9).text, "8 skipped message(s)")
+        XCTAssertTrue(ChatItem.getIntegrityErrorSample(fromMsgId: Int64.min + 1, toMsgId: 99).text.hasSuffix(" skipped message(s)"))
+    }
+
     func testVoiceMessageTimeFormatting() {
         XCTAssertEqual(voiceMessageTime(90), "01:30")
         XCTAssertEqual(voiceMessageTime(3600), "01:00:00")
