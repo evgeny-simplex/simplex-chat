@@ -16,7 +16,7 @@ import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Profiles (addTestBadge, futureDate, issueTestBadge, testBadgeKeys)
 import ChatTests.Utils
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Concurrent.STM (TVar, atomically, modifyTVar', newTVarIO, readTVarIO, writeTVar)
 import Control.Monad (forM_, void, when)
@@ -202,6 +202,7 @@ chatGroupTests = do
     it "deduplicate forwarded messages" testGroupMsgForwardDeduplicate
     it "report duplicate when forwarded copy is received after direct copy" testGroupMsgForwardDuplicateEvent
     it "report duplicate when direct copy is received after forwarded copy" testGroupMsgDirectDuplicateEvent
+    it "show message redelivered after chat stop once" testGroupRedeliveredMessage
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
@@ -236,6 +237,7 @@ chatGroupTests = do
     it "member contact is active" testMembershipProfileUpdateContactActive
     it "member contact is deleted" testMembershipProfileUpdateContactDeleted
     it "member contact is deleted, peer type is updated" testMembershipProfileUpdateContactDeletedPeerType
+    it "change of peer type alone is sent on next message" testMembershipProfileUpdatePeerTypeOnly
     it "member contact is deleted silently, then considered disabled" testMembershipProfileUpdateContactDisabled
     it "profile update without change is ignored" testMembershipProfileUpdateNoChangeIgnored
     it "change of profile contact link is ignored" testMembershipProfileUpdateContactLinkIgnored
@@ -6115,6 +6117,22 @@ testGroupMsgDirectDuplicateEvent ps = do
         cath <##. "duplicate group message, group id: 1"
         readTVarIO dups `shouldReturn` ["bob"]
 
+testGroupRedeliveredMessage :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredMessage ps = do
+  (received, cfg) <- blockFirstEventCfg $ newItemText "hello"
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      createGroup2 "team" alice bob
+      alice #> "#team hello"
+      readMVar received
+      bob ##> "/_stop"
+      bob <## "chat stopped"
+      bob ##> "/_start"
+      bob <### ["chat started", "subscribed 2 connections on server localhost"]
+      alice #> "#team hi"
+      bob <# "#team alice> hi"
+      bob #$> ("/_get chat #1 count=2", chat, [(0, "hello"), (0, "hi")])
+
 testGroupMsgForwardEdit :: HasCallStack => TestParams -> IO ()
 testGroupMsgForwardEdit =
   testChat3 aliceProfile bobProfile cathProfile $
@@ -7594,6 +7612,30 @@ testMembershipProfileUpdateContactDeletedPeerType =
       bob <# "#team alisa> hello"
 
       memberAddressPeerType bob "alisa" `shouldReturn` [(Nothing, Just CPTBot)]
+
+testMembershipProfileUpdatePeerTypeOnly :: HasCallStack => TestParams -> IO ()
+testMembershipProfileUpdatePeerTypeOnly =
+  testChat2 aliceProfile bobProfile $
+    \alice bob -> do
+      createGroup2 "team" alice bob
+
+      alice ##> "/d bob"
+      alice <## "bob: contact is deleted"
+      bob <## "alice (Alice) deleted contact with you"
+
+      alice ##> "/_profile 1 {\"displayName\": \"alice\", \"fullName\": \"\", \"shortDescr\": \"Alice\", \"peerType\": \"agent\"}"
+
+      alice #> "#team hello"
+      bob <# "#team alice> hello"
+
+      memberAddressPeerType bob "alice" `shouldReturn` [(Nothing, Just CPTAgent)]
+
+      alice #> "#team hello again"
+      bob <# "#team alice> hello again"
+
+      bob ##> "/_get chat #1 count=100"
+      r <- chat <$> getTermLine bob
+      filter (== (0, "updated profile (signed)")) r `shouldBe` [(0, "updated profile (signed)")]
 
 testMembershipProfileUpdateContactDisabled :: HasCallStack => TestParams -> IO ()
 testMembershipProfileUpdateContactDisabled =
