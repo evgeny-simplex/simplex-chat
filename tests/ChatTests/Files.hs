@@ -69,6 +69,7 @@ chatFileTests = do
     it "with relative paths: send and receive file" testXFTPWithRelativePaths
     it "continue receiving file after restart" testXFTPContinueRcv
     it "receive file marked to receive on chat start" testXFTPMarkToReceive
+    mapM_ (\i -> it ("receive file marked to receive on chat start, copy " <> show i) testXFTPMarkToReceive) [1 .. 80 :: Int]
     it "error receiving file" testXFTPRcvError
     it "cancel receiving file, repeat receive" testXFTPCancelRcvRepeat
     it "should accept file automatically with CLI option" testAutoAcceptFile
