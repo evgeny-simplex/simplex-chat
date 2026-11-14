@@ -3197,7 +3197,7 @@ sealed class GroupMemberRole: Comparable<GroupMemberRole> {
   @Serializable @SerialName("unknown") data class Unknown(val role: String): GroupMemberRole()
 
   companion object {
-    val selectableRoles: List<GroupMemberRole> = listOf(Observer, Member, Moderator, Admin, Owner)
+    val selectableRoles: List<GroupMemberRole> by lazy { listOf(Observer, Member, Moderator, Admin, Owner) }
 
     fun fromString(role: String): GroupMemberRole = when (role) {
       "relay" -> Relay
