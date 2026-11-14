@@ -49,7 +49,7 @@ gh workflow run build-apps.yml --ref master -f ota=true
 
 ## Core libraries built before
 
-Each run, a release build too, reuses the Nix core packages of an earlier run of the same branch when their sources are unchanged: `plan` names them after a hash of `src/**`, `cabal.project`, `simplex-chat.cabal`, `PRIVACY.md`, the Nix files and the build tool, as android-emu does, and finds them with `earlier-run.sh`.
+Each run, a release build too, reuses the Nix core packages of an earlier run of the same branch or of master when their sources are unchanged: `plan` names them after a hash of `src/**`, `cabal.project`, `simplex-chat.cabal`, `PRIVACY.md`, the Nix files and the build tool, as android-emu does, and finds them with `earlier-run.sh`.
 
 | Artifact | Made by | Used by |
 |---|---|---|
@@ -58,6 +58,8 @@ Each run, a release build too, reuses the Nix core packages of an earlier run of
 | `ios-core-<hash>`: `pkg-ios-aarch64-swift-json.zip` | the iOS archive job when it builds it | `build xcarchive --core <zip>` |
 
 With `--libs`, `build-android.sh` unpacks the packages of `LIBS_DIR` in place of building them with Nix; with `--core`, the archive links that package in place of the Nix build's. Either way the packages are the outputs of the same `flake.nix` jobs.
+
+One set of the three takes about 160 MB (40, 47 and 75 MB), kept 30 days. They are artifacts, not Actions caches: a run for a pull request runs under master's name, so a cache that its code saved would be one of master's, while `earlier-run.sh` tells such a run's artifacts apart by the run's name.
 
 ## Android: signing reproducibly
 

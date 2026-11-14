@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Finds the newest run of this branch in this repository that uploaded an unexpired artifact with this name,
+# Finds the newest run of this branch or of master in this repository that uploaded an unexpired artifact with this name,
 # and writes its id as run-id to GITHUB_OUTPUT. Needs GH_TOKEN with actions: read.
 # Usage: scripts/ci/desktop-linux/earlier-run.sh <artifact name>
 # Artifacts from forks and other branches are not used: their workflows could upload anything under this name.
@@ -12,7 +12,7 @@ name=$1
 own_title=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .display_title)
 run_ids=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" | jq -r --arg branch "$GITHUB_REF_NAME" '
   [.artifacts[]
-    | select((.expired | not) and .workflow_run.head_branch == $branch and .workflow_run.head_repository_id == .workflow_run.repository_id)]
+    | select((.expired | not) and (.workflow_run.head_branch | IN($branch, "master")) and .workflow_run.head_repository_id == .workflow_run.repository_id)]
   | sort_by(.created_at) | reverse | .[].workflow_run.id')
 for run_id in $run_ids; do
   if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" | jq -e --arg own "$own_title" \
