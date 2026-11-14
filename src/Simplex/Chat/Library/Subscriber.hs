@@ -3568,7 +3568,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     rosterCompletion g@(GIK gInfo _) RcvFileTransfer {fileId, fileStatus} =
       withStore' (\db -> getRosterTransfer db fileId) >>= \case
         -- defensive: the file always has its transfer (created together, deleted together)
-        Nothing -> lift (closeFileHandle fileId rcvFiles) >> forM_ (rosterFilePath fileStatus) removeFsFile
+        Nothing -> forM_ (rosterFilePath fileStatus) removeFsFile
         Just RcvRosterTransfer {rosterTransferId = transferId, rosterTransferVersion = pendingVer, rosterTransferDigest = pendingDigest, rosterTransferOwnerGMId = ownerGMId, rosterTransferBrokerTs = rosterBrokerTs, rosterTransferHeader = header_} -> do
           owner_ <- withStore' $ \db -> eitherToMaybe <$> runExceptT (getGroupMemberById db cxt user ownerGMId)
           blob <- readAssembledRoster
