@@ -603,10 +603,10 @@ describe("turn hooks", () => {
       {id: "toolu_Bash", text: "💻 git status"},
       {id: "toolu_Read", text: "📖 Read src/hook.ts"},
       {id: "toolu_Edit", text: "✏️ Edit /etc/hosts"},
-      {id: "toolu_Write", text: "📝 Write rfcs/2026-09-11-proof-of-work.md"},
+      {id: "toolu_Write", text: "✏️ Write rfcs/2026-09-11-proof-of-work.md"},
       {id: "toolu_Read", text: "📖 Read /p/app-old/src/hook.ts"},
       {id: "toolu_WebFetch", text: "🌐 Fetch https://spec.torproject.org/hspow-spec/common-protocol.html"},
-      {id: "toolu_WebSearch", text: '🔎 Search "hs_pow.c" tor source'},
+      {id: "toolu_WebSearch", text: '🔍 Search "hs_pow.c" tor source'},
       {id: "toolu_Agent", text: "🤖 Agent: Review pass 6 usage stats"},
       {id: "toolu_ToolSearch", text: "🔧 ToolSearch: select:Monitor"},
       {id: "toolu_Glob", text: "🔍 Glob **/*.ts in src"},
@@ -618,7 +618,7 @@ describe("turn hooks", () => {
     ])
   })
 
-  it("send a step at the end of each tool use with its outcome and duration, or in background for a launch, and nothing for a tool use of a subagent or of this plugin, or without its ID or tool", async () => {
+  it("send a step at the end of each tool use with its duration and a mark for a failure, an interruption or a launch in the background, and nothing for a tool use of a subagent or of this plugin, or without its ID or tool", async () => {
     const {client, requests, ensured} = turnClient()
     const bash = {command: "npm test", description: "Run the tests"}
     const ended = (event: string, extra: object, tool = "Bash", input: object = bash) => turn(toolUse(event, tool, input, extra), {}, client, 0, 1)
@@ -640,17 +640,17 @@ describe("turn hooks", () => {
     await turn(JSON.stringify({session_id: id, hook_event_name: "PreToolUse", tool_input: bash, tool_use_id: "toolu_1"}), {}, client, 0, 1)
     await turn(JSON.stringify({session_id: id, hook_event_name: "PostToolUse", tool_name: "Bash", tool_input: bash, duration_ms: 5}), {}, client, 0, 1)
     expect(steps(requests)).toEqual([
-      {id: "toolu_Bash", text: "💻 Run the tests ✅ 2.0 s", end: true},
-      {id: "toolu_Bash", text: "💻 Run the tests ❌ 39 ms", end: true},
-      {id: "toolu_Bash", text: "💻 Run the tests ⏹️ 4 min 12 s", end: true},
-      {id: "toolu_Bash", text: "💻 Run the tests ✅ 42 s", end: true},
-      {id: "toolu_Bash", text: "💻 Run the tests ✅ 1 h 5 min", end: true},
-      {id: "toolu_Bash", text: "💻 Run the tests ✅", end: true},
-      {id: "toolu_Bash", text: "💻 Run the tests ✅ 42 ms", end: true},
-      {id: "toolu_Bash", text: "💻 Run the tests ✅ 2.0 s", end: true},
-      {id: "toolu_Bash", text: "💻 Run the tests (in background)", end: true},
-      {id: "toolu_Agent", text: "🤖 Agent: Review (in background)", end: true},
-      {id: "toolu_Bash", text: "💻 Run the tests ❌ 12 ms", end: true},
+      {id: "toolu_Bash", text: "💻 Run the tests", end: true, ms: 2018},
+      {id: "toolu_Bash", text: "💻 Run the tests", end: true, ms: 39, mark: "❌"},
+      {id: "toolu_Bash", text: "💻 Run the tests", end: true, ms: 252_000, mark: "⏹️"},
+      {id: "toolu_Bash", text: "💻 Run the tests", end: true, ms: 42_500},
+      {id: "toolu_Bash", text: "💻 Run the tests", end: true, ms: 3_900_000},
+      {id: "toolu_Bash", text: "💻 Run the tests", end: true},
+      {id: "toolu_Bash", text: "💻 Run the tests", end: true, ms: 41.6},
+      {id: "toolu_Bash", text: "💻 Run the tests", end: true, ms: 1999.6},
+      {id: "toolu_Bash", text: "💻 Run the tests", end: true, mark: "(in background)"},
+      {id: "toolu_Agent", text: "🤖 Agent: Review", end: true, mark: "(in background)"},
+      {id: "toolu_Bash", text: "💻 Run the tests", end: true, ms: 12, mark: "❌"},
     ])
     expect(ensured()).toBe(11)
   })

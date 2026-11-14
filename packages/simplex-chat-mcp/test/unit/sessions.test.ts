@@ -1106,19 +1106,70 @@ describe("session channel", () => {
 
   const priorities = (chat: FakeChat) => chat.sent.filter(({chat: [, groupId]}) => groupId === 20).map(({messages}) => messages.map(message => (message as {priority?: number}).priority))
 
-  it("posts the start of a step as a silent live line and updates it with the step's end, and posts the end that arrives before its start as a silent line, and nothing for that start", async () => {
+  it("posts the start of a step as a silent live line, adds its duration in small print at its end while the line stays live, and posts the end that arrives before its start as a silent line, and nothing for that start", async () => {
     const chat = new FakeChat()
     const {session} = await channel(chat)
     const posted = () => chat.sent.filter(({chat: [, groupId]}) => groupId === 20)
     const line = chat.nextItemId
     await session.turn({id: id1, at: 1, step: {id: "toolu_1", text: "💻 Run the tests"}})
     expect(posted()).toEqual([{chat: [T.ChatType.Group, 20], messages: [{msgContent: {type: "text", text: "💻 Run the tests"}, mentions: {}, priority: -1}], live: true}])
-    await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests ✅ 2.0 s", end: true}})
-    expect(chat.updates).toEqual([{chatId: 20, itemId: line, text: "💻 Run the tests ✅ 2.0 s"}])
-    await session.turn({id: id1, at: 4, step: {id: "toolu_2", text: "📖 Read src/hook.ts ✅ 41 ms", end: true}})
+    await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests", end: true, ms: 2018}})
+    expect(chat.updates).toEqual([{chatId: 20, itemId: line, text: "💻 Run the tests !- 2.0 s!", live: true}])
+    await session.turn({id: id1, at: 4, step: {id: "toolu_2", text: "📖 Read src/hook.ts", end: true, ms: 41}})
     await session.turn({id: id1, at: 3, step: {id: "toolu_2", text: "📖 Read src/hook.ts"}})
-    expect(posted().slice(1)).toEqual([{chat: [T.ChatType.Group, 20], messages: [{msgContent: {type: "text", text: "📖 Read src/hook.ts ✅ 41 ms"}, mentions: {}, priority: -1}]}])
+    expect(posted().slice(1)).toEqual([{chat: [T.ChatType.Group, 20], messages: [{msgContent: {type: "text", text: "📖 Read src/hook.ts !- 41 ms!"}, mentions: {}, priority: -1}]}])
     expect(chat.updates).toHaveLength(1)
+  })
+
+  it("shows a step's time in small print, keeps ❌ for a failure, ⏹️ for an interruption and (in background) for a launch, and drops ✅", async () => {
+    const chat = new FakeChat()
+    const {session} = await channel(chat)
+    const ends: [number | undefined, string | undefined][] = [[2018, undefined], [39, "❌"], [252_000, "⏹️"], [42_500, undefined], [3_900_000, undefined], [undefined, undefined], [41.6, undefined], [1999.6, undefined], [undefined, "(in background)"]]
+    for (const [i, [ms, mark]] of ends.entries()) await session.turn({id: id1, at: i + 1, step: {id: `toolu_${i}`, text: "💻 Run the tests", end: true, ...(ms === undefined ? {} : {ms}), ...(mark === undefined ? {} : {mark})}})
+    expect(sentTo(chat, 20)).toEqual([
+      "💻 Run the tests !- 2.0 s!",
+      "💻 Run the tests ❌ !- 39 ms!",
+      "💻 Run the tests ⏹️ !- 4 min 12 s!",
+      "💻 Run the tests !- 42 s!",
+      "💻 Run the tests !- 1 h 5 min!",
+      "💻 Run the tests",
+      "💻 Run the tests !- 42 ms!",
+      "💻 Run the tests !- 2.0 s!",
+      "💻 Run the tests (in background)",
+    ])
+  })
+
+  it("groups the steps of one icon in one live line with the newest step's text, the count and the total time of the ended calls, until a step with another icon, a text of Claude's or the answer", async () => {
+    const chat = new FakeChat()
+    const {session} = await channel(chat)
+    const lines = chat.nextItemId
+    await session.turn({id: id1, at: 1, step: {id: "toolu_1", text: "💻 Run the tests"}})
+    await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests", end: true, ms: 1200}})
+    await session.turn({id: id1, at: 3, step: {id: "toolu_2", text: "💻 Run the linter"}})
+    await session.turn({id: id1, at: 4, step: {id: "toolu_3", text: "💻 Build the package"}})
+    await session.turn({id: id1, at: 5, step: {id: "toolu_2", text: "💻 Run the linter", end: true, ms: 300}})
+    await session.turn({id: id1, at: 6, step: {id: "toolu_3", text: "💻 Build the package", end: true, ms: 500, mark: "❌"}})
+    await session.turn({id: id1, at: 7, step: {id: "toolu_4", text: "✏️ Edit src/hub.ts"}})
+    await session.turn({id: id1, at: 8, step: {id: "toolu_4", text: "✏️ Edit src/hub.ts", end: true, ms: 40}})
+    await session.turn({id: id1, at: 9, step: {id: "toolu_5", text: "✏️ Write src/steps.ts"}})
+    await session.turn({id: id1, at: 10, step: {id: "toolu_5", text: "✏️ Write src/steps.ts", end: true, ms: 60}})
+    await session.turn({id: id1, at: 11, text: {message: "m1", index: 0, final: true, delta: "Fixed one more."}})
+    await session.turn({id: id1, at: 12, step: {id: "toolu_6", text: "✏️ Edit src/hook.ts"}})
+    await session.turn({id: id1, at: 13, step: {id: "toolu_6", text: "✏️ Edit src/hook.ts", end: true, ms: 30}})
+    await session.turn({id: id1, at: 14, answer: "Fixed one more."})
+    await session["finalizing"]
+    expect(sentTo(chat, 20)).toEqual(["💻 Run the tests", "✏️ Edit src/hub.ts", "Fixed one more.", "✏️ Edit src/hook.ts"])
+    const last = (itemId: number) => chat.updates.filter(update => update.itemId === itemId).at(-1)
+    expect(chat.updates.filter(({itemId}) => itemId === lines)).toEqual([
+      {chatId: 20, itemId: lines, text: "💻 Run the tests !- 1.2 s!", live: true},
+      {chatId: 20, itemId: lines, text: "💻 Run the linter !- 2 calls 1.2 s!", live: true},
+      {chatId: 20, itemId: lines, text: "💻 Build the package !- 3 calls 1.2 s!", live: true},
+      {chatId: 20, itemId: lines, text: "💻 Build the package !- 3 calls 1.5 s!", live: true},
+      {chatId: 20, itemId: lines, text: "💻 Build the package ❌ !- 3 calls 2.0 s!", live: true},
+      {chatId: 20, itemId: lines, text: "💻 Build the package ❌ !- 3 calls 2.0 s!"},
+    ])
+    expect(last(lines + 1)).toEqual({chatId: 20, itemId: lines + 1, text: "✏️ Write src/steps.ts !- 2 calls 100 ms!"})
+    expect(last(lines + 3)).toEqual({chatId: 20, itemId: lines + 3, text: "✏️ Edit src/hook.ts !- 30 ms!"})
   })
 
   it("ends the live lines of steps without an end with their text at an answer, at a prompt that starts a turn, at the last detach and at the hub's stop, not at a prompt added to the running turn, and posts nothing for their later ends", async () => {
@@ -1222,7 +1273,7 @@ describe("session channel", () => {
     chat.apiSendMessages = (target, messages, live) => (live === true ? new Promise(resolve => held.push(() => resolve(send(target, messages, live)))) : send(target, messages, live))
     const lines = chat.nextItemId
     const started = session.turn({id: id1, at: 1, step: {id: "toolu_1", text: "💻 Run the tests"}})
-    const ended = session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests ✅ 2.0 s", end: true}})
+    const ended = session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests", end: true, ms: 2018}})
     const second = session.turn({id: id1, at: 3, step: {id: "toolu_2", text: "📖 Read src/hook.ts"}})
     const stepsEnded = session.endSteps()
     await until(() => held.length === 1)
@@ -1232,7 +1283,8 @@ describe("session channel", () => {
     await Promise.all([started, ended, second, stepsEnded])
     expect(sentTo(chat, 20)).toEqual(["💻 Run the tests", "📖 Read src/hook.ts"])
     expect(chat.updates).toEqual([
-      {chatId: 20, itemId: lines, text: "💻 Run the tests ✅ 2.0 s"},
+      {chatId: 20, itemId: lines, text: "💻 Run the tests !- 2.0 s!", live: true},
+      {chatId: 20, itemId: lines, text: "💻 Run the tests !- 2.0 s!"},
       {chatId: 20, itemId: lines + 1, text: "📖 Read src/hook.ts"},
     ])
   })
@@ -1244,13 +1296,14 @@ describe("session channel", () => {
     const {session} = await channel(chat)
     chat.apiUpdateChatItem = async () => Promise.reject(new Error("invalid chat item update"))
     await session.turn({id: id1, at: 1, step: {id: "toolu_1", text: "💻 Run the tests"}})
-    await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests ✅ 2.0 s", end: true}})
+    await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests", end: true, ms: 2018}})
     const send = chat.apiSendMessages.bind(chat)
     chat.apiSendMessages = async (target, messages, live) => (live === true ? Promise.reject(new Error("network")) : send(target, messages, live))
     await session.turn({id: id1, at: 3, step: {id: "toolu_2", text: "📖 Read src/hook.ts"}})
-    await session.turn({id: id1, at: 4, step: {id: "toolu_2", text: "📖 Read src/hook.ts ✅ 41 ms", end: true}})
+    await session.turn({id: id1, at: 4, step: {id: "toolu_2", text: "📖 Read src/hook.ts", end: true, ms: 41}})
+    await session["finalizing"]
     expect(sentTo(chat, 20)).toEqual(["💻 Run the tests"])
-    expect(errors).toEqual(["steps of session 1: invalid chat item update", "steps of session 1: network"])
+    expect(errors.sort()).toEqual(["steps of session 1: invalid chat item update", "steps of session 1: invalid chat item update", "steps of session 1: network"])
   })
 
   it("ends the live line of a step 23 hours after its start, before the core refuses its update, and posts its later end as a new silent line", async () => {
@@ -1333,16 +1386,18 @@ describe("session channel", () => {
     const opening = chat.nextItemId
     await session.turn({id: id1, at: 1, prompt: "Fix the build", typed: true})
     await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests"}})
-    await session.turn({id: id1, at: 3, step: {id: "toolu_1", text: "💻 Run the tests ✅ 2.0 s", end: true}})
+    await session.turn({id: id1, at: 3, step: {id: "toolu_1", text: "💻 Run the tests", end: true, ms: 2018}})
     await session.turn({id: id1, at: 4, answer: "Fixed."})
     await session.turn({id: id1, at: 6, prompt: "Then lint it", typed: true})
     await session.turn({id: id1, at: 5, step: {id: "toolu_2", text: "🔍 Grep TODO"}})
     await session.turn({id: id1, at: 7, text: {message: "m1", index: 0, final: true, delta: "Linted."}})
     await session["liveOrder"]
-    expect(shown(chat)).toEqual([{text: "💻 Run the tests ✅ 2.0 s", quotedItemId: undefined}, endedIn("Fixed.", "3 ms"), {text: "Linted.", quotedItemId: undefined}, {text: "🔍 Grep TODO", quotedItemId: undefined}])
+    await session["finalizing"]
+    expect(shown(chat)).toEqual([{text: "💻 Run the tests !- 2.0 s!", quotedItemId: undefined}, endedIn("Fixed.", "3 ms"), {text: "Linted.", quotedItemId: undefined}, {text: "🔍 Grep TODO", quotedItemId: undefined}])
     expect(chat.updates).toEqual([
       {chatId: 20, itemId: opening, text: "💻 Run the tests", live: true},
-      {chatId: 20, itemId: opening, text: "💻 Run the tests ✅ 2.0 s"},
+      {chatId: 20, itemId: opening, text: "💻 Run the tests !- 2.0 s!", live: true},
+      {chatId: 20, itemId: opening, text: "💻 Run the tests !- 2.0 s!"},
       {chatId: 20, itemId: opening + 2, text: "Linted.", live: true},
     ])
   })

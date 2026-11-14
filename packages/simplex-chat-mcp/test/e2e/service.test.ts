@@ -394,7 +394,7 @@ test("while SimpleX links are off in a session's group, the connect card of a bo
   await sendNotice
 }, 600_000)
 
-test("the hooks post a prompt typed in the terminal as User, also the session's first one whose hook starts before the transcript file is created, a task notification at a turn's start or within a running turn as Claude's one-line note, a compaction of the session as Claude's line, and the answer as Claude in the session's group, in the opening message of its turn, whose description shows the model of the first answer from the transcript; a prompt to a session without Claude Code gets Session 1 is not running., without the quote for a prompt as long as a message can be; an owner's prompt reaches an attached session, in the channel tag or raw it is not posted again, and the opening message of its turn quotes it; an owner's reply to the answer reaches the session after the quote line, with the answer's ID and sender; an owner's reaction to an answer gets Session 1 is not running., quoting the answer, before the session attaches, and reaches the attached session as its emoji after the answer's quote line, with the answer's ID as item and reply_to, the opening message of its turn quotes the reacted answer, and a removed reaction reaches no session; Claude posts the line of a tool use live at its start and finalizes it at its end, not edited; the display hook streams Claude's text into the opening message, live until the Stop hook finalizes it with a line in small print, not edited; the last message of each answer ends with that line, with the turn's usage from the transcript and the plan's usage of the status line command", async () => {
+test("the hooks post a prompt typed in the terminal as User, also the session's first one whose hook starts before the transcript file is created, a task notification at a turn's start or within a running turn as Claude's one-line note, a compaction of the session as Claude's line, and the answer as Claude in the session's group, in the opening message of its turn, whose description shows the model of the first answer from the transcript; a prompt to a session without Claude Code gets Session 1 is not running., without the quote for a prompt as long as a message can be; an owner's prompt reaches an attached session, in the channel tag or raw it is not posted again, and the opening message of its turn quotes it; an owner's reply to the answer reaches the session after the quote line, with the answer's ID and sender; an owner's reaction to an answer gets Session 1 is not running., quoting the answer, before the session attaches, and reaches the attached session as its emoji after the answer's quote line, with the answer's ID as item and reply_to, the opening message of its turn quotes the reacted answer, and a removed reaction reaches no session; Claude posts the line of a tool use live at its start, adds its time in small print at its end, groups the next tool use of the same icon in that line with the count and the total time, and finalizes it when the next prompt ends the group, not edited; the display hook streams Claude's text into the opening message, live until the Stop hook finalizes it with a line in small print, not edited; the last message of each answer ends with that line, with the turn's usage from the transcript and the plan's usage of the status line command", async () => {
   const root = join(dir, "mirror", "root")
   await prepareRoot(smpServer.address, root)
   const alice = await personIn("mirror", "Alice")
@@ -495,16 +495,23 @@ test("the hooks post a prompt typed in the terminal as User, also the session's 
   const started = received(alice.chat, message("💻 Run the tests", "Claude"))
   await hook({hook_event_name: "PreToolUse", cwd: "/p", ...bash})
   expect((await started).chatItem.meta.itemLive).toBe(true)
-  const ended = updated(alice.chat, inGroup(groupId, ({chatItem}) => chatItem.meta.itemText === "💻 Run the tests ✅ 2.0 s"))
+  const ended = updated(alice.chat, inGroup(groupId, ({chatItem}) => chatItem.meta.itemText === "💻 Run the tests !- 2.0 s!"))
   await hook({hook_event_name: "PostToolUse", cwd: "/p", ...bash, tool_response: {stdout: "ok"}, duration_ms: 2018})
-  const {meta: finalized} = (await ended).chatItem
-  expect([finalized.itemLive, finalized.itemEdited]).toEqual([false, false])
+  expect((await ended).chatItem.meta.itemLive).toBe(true)
+  const lintStep = {tool_name: "Bash", tool_input: {command: "npm run lint", description: "Run the linter"}, tool_use_id: "toolu_2"}
+  const lintEnded = updated(alice.chat, inGroup(groupId, ({chatItem}) => chatItem.meta.itemText === "💻 Run the linter !- 2 calls 2.5 s!"))
+  await hook({hook_event_name: "PreToolUse", cwd: "/p", ...lintStep})
+  await hook({hook_event_name: "PostToolUse", cwd: "/p", ...lintStep, tool_response: {stdout: "ok"}, duration_ms: 500})
+  expect((await lintEnded).chatItem.meta.itemLive).toBe(true)
+  const grouped = updated(alice.chat, inGroup(groupId, ({chatItem}) => chatItem.meta.itemText === "💻 Run the linter !- 2 calls 2.5 s!" && chatItem.meta.itemLive === false))
 
   const [summarize] = await alice.chat.apiSendTextMessage([T.ChatType.Group, groupId], "Summarize")
   await until(() => attached.length === 7)
   const opened = received(alice.chat, message("", "Claude", summarize.chatItem.meta.itemId))
   await hook({hook_event_name: "UserPromptSubmit", prompt: "Summarize"})
   expect((await opened).chatItem.meta.itemLive).toBe(true)
+  const {meta: finalized} = (await grouped).chatItem
+  expect([finalized.itemLive, finalized.itemEdited]).toEqual([false, false])
   const display = (index: number, final: boolean, delta: string) => runDisplay({SIMPLEX_MCP_HOME: root}, {session_id: five, hook_event_name: "MessageDisplay", turn_id: "t1", message_id: "m1", index, final, delta})
   const streamed = updated(alice.chat, inGroup(groupId, ({chatItem}) => chatItem.meta.itemText === "Summary:\n"))
   expect(await display(0, false, "Summary:\n")).toBe("{}\n")
