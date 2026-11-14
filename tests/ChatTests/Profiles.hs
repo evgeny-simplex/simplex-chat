@@ -157,9 +157,9 @@ chatProfileTests = do
     it "allow full deletion to contact" testAllowFullDeletionContact
     it "allow full deletion to group" testAllowFullDeletionGroup
     it "prohibit direct messages to group members" testProhibitDirectMessages
-    xit'' "enable timed messages with contact" testEnableTimedMessagesContact
+    it "enable timed messages with contact" testEnableTimedMessagesContact
     it "enable timed messages in group" testEnableTimedMessagesGroup
-    xit'' "timed messages enabled globally, contact turns on" testTimedMessagesEnabledGlobally
+    it "timed messages enabled globally, contact turns on" testTimedMessagesEnabledGlobally
     it "update multiple user preferences for multiple contacts" testUpdateMultipleUserPrefs
     describe "group preferences for specific member role" $ do
       it "direct messages" testGroupPrefsDirectForRole
