@@ -8,6 +8,8 @@ Guide
 
 FOSS Index lists SimpleX Chat as a messenger with no user identifiers of any kind.
 
+Image: fossindex-simplex-chat.webp
+
 Language: English
 
 Date: Nov 2026
@@ -21,6 +23,8 @@ Darwin Dynamic
 Article
 
 Darwin Dynamic presents SimpleX Chat's equity crowdfunding on Wefunder as a way to support private messaging.
+
+Image: darwin-dynamic-crowdfunding.jpg
 
 Language: English
 
