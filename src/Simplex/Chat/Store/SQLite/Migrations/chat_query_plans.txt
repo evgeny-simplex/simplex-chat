@@ -7631,6 +7631,12 @@ SCAN CONSTANT ROW
 SCALAR SUBQUERY 1
 SEARCH group_relays USING COVERING INDEX idx_group_relays_chat_relay_id (chat_relay_id=?)
 
+Query: SELECT EXISTS (SELECT 1 FROM msg_deliveries WHERE connection_id = ? AND agent_msg_id = ?)
+Plan:
+SCAN CONSTANT ROW
+SCALAR SUBQUERY 1
+SEARCH msg_deliveries USING COVERING INDEX idx_msg_deliveries_agent_msg_id (connection_id=? AND agent_msg_id=?)
+
 Query: SELECT accepted_at FROM operator_usage_conditions WHERE server_operator_id = ? AND conditions_commit = ?
 Plan:
 SEARCH operator_usage_conditions USING INDEX idx_operator_usage_conditions_conditions_commit (conditions_commit=? AND server_operator_id=?)
