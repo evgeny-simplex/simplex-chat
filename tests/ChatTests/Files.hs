@@ -1363,12 +1363,7 @@ testXFTPChunksAfterReceived =
       bob <## "completed receiving file 1 (logo-large-rgba.png) from alice"
 
       smId <- itemSharedMsgId alice
-      withCCUser alice $ \user -> do
-        ct <- getTestCCContact alice 2
-        let sendChunk chunk =
-              runExceptT (sendDirectContactMessage user ct (BFileChunk smId chunk)) `runReaderT` chatController alice
-                >>= either (fail . show) (\_ -> pure ())
-        mapM_ sendChunk [FileChunk 1 "", FileChunkCancel, FileChunk 1 "", FileChunk 2 "alice's bytes"]
+      mapM_ (sendFileChunk alice smId) [FileChunk 1 "", FileChunkCancel, FileChunk 1 "", FileChunk 2 "alice's bytes"]
       alice #> "@bob hi"
       bob <# "alice> hi"
 
