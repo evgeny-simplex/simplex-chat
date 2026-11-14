@@ -793,6 +793,11 @@ proofHeaderTag (BadgeProof _ (BBSPresHeader ph) _ _) = case strDecode ph of
   Right (PHTest _) -> "T"
   _ -> "?"
 
+contactBadgeProof :: Contact -> Maybe BadgeProof
+contactBadgeProof Contact {profile = LocalProfile {localBadge}} = case localBadge of
+  Just (PeerBadge b _) -> Just b
+  _ -> Nothing
+
 lastItemId :: HasCallStack => TestCC -> IO String
 lastItemId cc = do
   cc ##> "/last_item_id"

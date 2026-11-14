@@ -32,7 +32,7 @@ import Data.List (intercalate, isInfixOf, isSubsequenceOf, isSuffixOf)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Simplex.Chat.Badges (FileSizeLimits (..))
-import Simplex.Chat.Controller (CM, ChatController (ChatController, smpAgent, subscriptionMode), ChatConfig (..), ChatEvent (CEvtDuplicateGroupMessage), ChatHooks (..), ChatLogLevel (..), defaultChatHooks, withAgent)
+import Simplex.Chat.Controller (ChatController (ChatController, smpAgent, subscriptionMode), ChatConfig (..), ChatEvent (CEvtDuplicateGroupMessage), ChatHooks (..), ChatLogLevel (..), defaultChatHooks, withAgent)
 import Simplex.Chat.Library.Internal (encodeConnInfo, getShortLinkConnReq, sendDirectContactMessage, sendDirectMemberMessage, uniqueMsgMentions, updatedMentionNames)
 import Simplex.Chat.Markdown (parseMaybeMarkdownList)
 import Simplex.Chat.Messages (CIMention (..), CIMentionMember (..), ChatItemId)
@@ -5082,8 +5082,12 @@ testNoMergeIncognitoMember =
       GroupMember {groupId, activeConn = Just memConn} <- getTestMember alice "team" (T.pack bobIncognito)
       ctCode <- connCodeAD alice ctConn
       memCode <- connCodeAD alice memConn
-      let sendToContact evt = withCCUser alice $ \user -> runCM alice $ void $ sendDirectContactMessage user ct evt
-          sendToMember evt = runCM alice $ void $ sendDirectMemberMessage memConn evt groupId
+      let sendToContact evt = withCCUser alice $ \user ->
+            runExceptT (sendDirectContactMessage user ct evt) `runReaderT` chatController alice
+              >>= either (fail . show) (\_ -> pure ())
+          sendToMember evt =
+            runExceptT (sendDirectMemberMessage memConn evt groupId) `runReaderT` chatController alice
+              >>= either (fail . show) (\_ -> pure ())
           checkHash probeCode checkCode = connProbeCheckHash checkCode . connProbeHash probeCode
           notMerged = do
             alice <##> bob
@@ -5099,8 +5103,6 @@ testNoMergeIncognitoMember =
       sendToMember $ XInfoProbeCheck $ checkHash ctCode memCode probe'
       notMerged
   where
-    runCM :: TestCC -> CM a -> IO a
-    runCM cc cm = runExceptT cm `runReaderT` chatController cc >>= either (fail . show) pure
     connCodeAD :: TestCC -> Connection -> IO ByteString
     connCodeAD TestCC {chatController = ChatController {smpAgent}} conn =
       runExceptT (codeAD <$> getConnectionVerifyCodes smpAgent (aConnId conn)) >>= either (fail . show) pure

@@ -33,7 +33,7 @@ import Simplex.Chat.Options (ChatOpts (..), CoreChatOpts (..))
 import Simplex.Chat.Protocol (ChatBinding (..), ChatMsgEvent (XContact, XInfo, XOk), ContactShortLinkData (ContactShortLinkData), LinkOwnerSig, MsgChatLink (..), MsgContent (..), encodeChatBinding)
 import Simplex.Chat.Store.Groups (getGroupMembers)
 import Simplex.Chat.Store.Shared (createContact, getGroupInfoKeys)
-import Simplex.Chat.Types (AgentConnId (..), ChatPeerType (..), ConnStatus (..), GroupId, GroupInfo (..), GroupInfoKeys (..), GroupMember (..), ImageData (..), Profile (..), GroupRejectionReason (..), ShortLinkContact, User (..), aUserId, fromLocalProfile, profile', profileFromName, userProfileDirect, pattern VersionChat)
+import Simplex.Chat.Types (AgentConnId (..), ChatPeerType (..), ConnStatus (..), GroupId, GroupInfo (..), GroupInfoKeys (..), GroupMember (..), ImageData (..), Profile (..), GroupRejectionReason (..), ShortLinkContact, User (..), aUserId, fromLocalProfile, profileFromName, userProfileDirect, pattern VersionChat)
 import qualified Simplex.Messaging.Crypto as C
 import Simplex.Messaging.Crypto.BBS (BBSPublicKey, BBSSecretKey, bbsKeyGen)
 import Simplex.Messaging.Crypto.Ratchet (pattern PQSupportOff)
@@ -920,8 +920,7 @@ testUserBadgeContactPresenter ps = do
       bob <# "alice *> hi"
       withCCUser bob $ \user -> do
         ct <- getTestCCContact bob 2
-        let Profile {badge} = fromLocalProfile $ profile' ct
-            p = (userProfileDirect user Nothing (Just ct) True) {badge}
+        let p = (userProfileDirect user Nothing (Just ct) True) {badge = contactBadgeProof ct}
         runExceptT (sendDirectContactMessage user ct (XInfo p Nothing)) `runReaderT` chatController bob
           >>= either (fail . show) (\_ -> pure ())
       bob #> "@alice hey"
