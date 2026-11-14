@@ -3598,7 +3598,7 @@ export type MsgContent =
   | MsgContent.Unknown
 
 export namespace MsgContent {
-  export type Tag =
+  export type Tag = 
     | "text"
     | "link"
     | "image"
