@@ -32,7 +32,7 @@ import Data.List (intercalate, isInfixOf, isSubsequenceOf, isSuffixOf)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Simplex.Chat.Badges (FileSizeLimits (..))
-import Simplex.Chat.Controller (ChatController (ChatController, smpAgent, subscriptionMode), ChatConfig (..), ChatEvent (CEvtDuplicateGroupMessage), ChatHooks (..), ChatLogLevel (..), defaultChatHooks, withAgent)
+import Simplex.Chat.Controller (CM, ChatController (ChatController, smpAgent, subscriptionMode), ChatConfig (..), ChatEvent (CEvtDuplicateGroupMessage), ChatHooks (..), ChatLogLevel (..), defaultChatHooks, withAgent)
 import Simplex.Chat.Library.Internal (encodeConnInfo, getShortLinkConnReq, sendDirectContactMessage, sendDirectMemberMessage, uniqueMsgMentions, updatedMentionNames)
 import Simplex.Chat.Markdown (parseMaybeMarkdownList)
 import Simplex.Chat.Messages (CIMention (..), CIMentionMember (..), ChatItemId)
@@ -44,9 +44,9 @@ import Simplex.Chat.Types
 import Simplex.Chat.Types.MemberRelations (MemberRelation (..), getRelation, setRelation)
 import Simplex.Chat.Types.Shared (GroupMemberRole (..), GroupAcceptance (..))
 import Simplex.Chat.Types.UITheme (ChatLayout (..))
-import Simplex.Messaging.Agent (createConnection, joinConnection, prepareConnectionToJoin, sendMessages, vrValue)
+import Simplex.Messaging.Agent (createConnection, getConnectionVerifyCodes, joinConnection, prepareConnectionToJoin, sendMessages, vrValue)
 import Simplex.Messaging.Agent.Env.SQLite
-import Simplex.Messaging.Agent.Protocol (CreatedConnLink (..), SConnectionMode (..))
+import Simplex.Messaging.Agent.Protocol (ConnVerifyCodes (..), CreatedConnLink (..), SConnectionMode (..))
 import Simplex.Messaging.Agent.RetryInterval
 import qualified Simplex.Messaging.Agent.Store.DB as DB
 import Simplex.Messaging.Agent.Store.DB (Binary (..), BoolInt (..))
@@ -180,6 +180,9 @@ chatGroupTests = do
     it "member of previous version that passed on the probe of another member should not merge" $ testNoMergeRelayedProbe prevProbeHashCfg
     it "contact that passed on the probe hash of another contact should not merge" $ testNoMergeRelayedProbeHash testCfg
     it "contact of previous version that passed on the probe hash of another contact should not merge" $ testNoMergeRelayedProbeHash prevProbeHashCfg
+    it "member of group joined incognito should not merge with contact" testNoMergeIncognitoMember
+    it "should not send probe hash to member of group joined incognito" testNoProbeHashIncognitoMember
+    it "should not send probe hash to contact connected incognito" testNoProbeHashIncognitoContact
   describe "create member contact" $ do
     it "create contact with group member with invitation message" testMemberContactMessage
     it "create contact with group member without invitation message" testMemberContactNoMessage
@@ -5068,6 +5071,106 @@ joinGroupViaLink host gName cc ccName ccFullName = do
         cc <## ("#" <> gName <> ": joining the group...")
         cc <## ("#" <> gName <> ": you joined the group")
     ]
+
+testNoMergeIncognitoMember :: HasCallStack => TestParams -> IO ()
+testNoMergeIncognitoMember =
+  testChat2 aliceProfile bobProfile $
+    \alice bob -> do
+      connectUsers alice bob
+      bobIncognito <- joinGroupViaLinkIncognito alice "team" bob
+      ct@Contact {activeConn = Just ctConn} <- getTestCCContact alice 2
+      GroupMember {groupId, activeConn = Just memConn} <- getTestMember alice "team" (T.pack bobIncognito)
+      ctCode <- connCodeAD alice ctConn
+      memCode <- connCodeAD alice memConn
+      let sendToContact evt = withCCUser alice $ \user -> runCM alice $ void $ sendDirectContactMessage user ct evt
+          sendToMember evt = runCM alice $ void $ sendDirectMemberMessage memConn evt groupId
+          checkHash probeCode checkCode = connProbeCheckHash checkCode . connProbeHash probeCode
+          notMerged = do
+            alice <##> bob
+            alice #> "#team hi"
+            bob ?<# "#team alice_1> hi"
+            memberContactId <$> getTestMember bob "team" "alice_1" `shouldReturn` Nothing
+          probe = Probe $ B.replicate 32 '1'
+          probe' = Probe $ B.replicate 32 '2'
+      sendToMember $ XInfoProbe probe
+      sendToContact $ XInfoProbeCheck $ checkHash memCode ctCode probe
+      notMerged
+      sendToContact $ XInfoProbe probe'
+      sendToMember $ XInfoProbeCheck $ checkHash ctCode memCode probe'
+      notMerged
+  where
+    runCM :: TestCC -> CM a -> IO a
+    runCM cc cm = runExceptT cm `runReaderT` chatController cc >>= either (fail . show) pure
+    connCodeAD :: TestCC -> Connection -> IO ByteString
+    connCodeAD TestCC {chatController = ChatController {smpAgent}} conn =
+      runExceptT (codeAD <$> getConnectionVerifyCodes smpAgent (aConnId conn)) >>= either (fail . show) pure
+
+testNoProbeHashIncognitoMember :: HasCallStack => TestParams -> IO ()
+testNoProbeHashIncognitoMember =
+  testChat2 aliceProfile bobProfile $
+    \alice bob -> do
+      bobIncognito <- joinGroupViaLinkIncognito alice "team" bob
+      bob ##> "/c"
+      inv <- getInvitation bob
+      alice ##> ("/c " <> inv)
+      alice <## "confirmation sent!"
+      concurrently_
+        (alice <## "bob (Bob): contact is connected")
+        (bob <## "alice_1 (Alice): contact is connected")
+      alice #> "@bob hi"
+      bob <# "alice_1> hi"
+      bob ?#> "#team hello"
+      alice <# ("#team " <> bobIncognito <> "> hello")
+      receivedProbeHashes alice `shouldReturn` []
+
+testNoProbeHashIncognitoContact :: HasCallStack => TestParams -> IO ()
+testNoProbeHashIncognitoContact =
+  testChat2 aliceProfile bobProfile $
+    \alice bob -> do
+      alice ##> "/c"
+      inv <- getInvitation alice
+      bob ##> ("/c i " <> inv)
+      bob <## "confirmation sent!"
+      bobIncognito <- getTermLine bob
+      concurrentlyN_
+        [ do
+            bob <## ("alice (Alice): contact is connected, your incognito profile for this contact is " <> bobIncognito)
+            bob <## "use /i alice to print out this incognito profile again",
+          alice <## (bobIncognito <> ": contact is connected")
+        ]
+      joinGroupViaLink alice "team" bob "bob" "Bob"
+      GroupMember {groupMemberId} <- getTestMember alice "team" "bob"
+      let bobProbes =
+            withCCTransaction alice $ \db ->
+              DB.query db "SELECT probe FROM received_probes WHERE group_member_id = ? AND probe IS NOT NULL" (Only groupMemberId) :: IO [Only ByteString]
+      (length <$> bobProbes) `shouldEventuallyReturn` 1
+      alice #> "#team hi"
+      bob <# "#team alice_1> hi"
+      bob ?#> "@alice hey"
+      alice <# (bobIncognito <> "> hey")
+      receivedProbeHashes alice `shouldReturn` []
+
+receivedProbeHashes :: TestCC -> IO [Only ByteString]
+receivedProbeHashes cc = withCCTransaction cc $ \db -> DB.query_ db "SELECT probe_hash FROM received_probes WHERE probe IS NULL"
+
+joinGroupViaLinkIncognito :: HasCallStack => TestCC -> String -> TestCC -> IO String
+joinGroupViaLinkIncognito host gName cc = do
+  host ##> ("/g " <> gName)
+  host <## ("group #" <> gName <> " is created")
+  host <## ("to add members use /a " <> gName <> " <name> or /create link #" <> gName)
+  host ##> ("/create link #" <> gName)
+  gLink <- getGroupLink host gName GRMember True
+  cc ##> ("/c i " <> gLink)
+  ccIncognito <- getTermLine cc
+  cc <## "connection request sent incognito!"
+  host <## (ccIncognito <> ": accepting request to join group #" <> gName <> "...")
+  concurrentlyN_
+    [ host <## ("#" <> gName <> ": " <> ccIncognito <> " joined the group"),
+      do
+        cc <## ("#" <> gName <> ": joining the group...")
+        cc <## ("#" <> gName <> ": you joined the group incognito as " <> ccIncognito)
+    ]
+  pure ccIncognito
 
 testMemberContactMessage :: HasCallStack => TestParams -> IO ()
 testMemberContactMessage =

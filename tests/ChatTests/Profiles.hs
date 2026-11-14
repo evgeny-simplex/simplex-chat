@@ -33,7 +33,7 @@ import Simplex.Chat.Options (ChatOpts (..), CoreChatOpts (..))
 import Simplex.Chat.Protocol (ChatBinding (..), ChatMsgEvent (XContact, XInfo, XOk), ContactShortLinkData (ContactShortLinkData), LinkOwnerSig, MsgChatLink (..), MsgContent (..), encodeChatBinding)
 import Simplex.Chat.Store.Groups (getGroupMembers)
 import Simplex.Chat.Store.Shared (createContact, getGroupInfoKeys)
-import Simplex.Chat.Types (AgentConnId (..), ChatPeerType (..), ConnStatus (..), GroupId, GroupInfo (..), GroupInfoKeys (..), GroupMember (..), ImageData (..), Profile (..), GroupRejectionReason (..), ShortLinkContact, User (..), aUserId, fromLocalProfile, profileFromName, userProfileDirect, pattern VersionChat)
+import Simplex.Chat.Types (AgentConnId (..), ChatPeerType (..), ConnStatus (..), GroupId, GroupInfo (..), GroupInfoKeys (..), GroupMember (..), ImageData (..), Profile (..), GroupRejectionReason (..), ShortLinkContact, User (..), aUserId, fromLocalProfile, profile', profileFromName, userProfileDirect, pattern VersionChat)
 import qualified Simplex.Messaging.Crypto as C
 import Simplex.Messaging.Crypto.BBS (BBSPublicKey, BBSSecretKey, bbsKeyGen)
 import Simplex.Messaging.Crypto.Ratchet (pattern PQSupportOff)
@@ -92,6 +92,7 @@ chatProfileTests = do
     it "supporter badge sent in a retried request to an address" testUserBadgeAddressConnectRetry
     it "supporter badge sent in a retried join of a one-time link" testUserBadgeInvitationConnectRetry
     it "supporter badge bound to another chat is ignored, stored badge is kept" testUserBadgeOtherBinding
+    it "supporter badge in a direct chat is accepted only with the presenter tag of the contact" testUserBadgeContactPresenter
     it "supporter badge of member bound to another member is ignored, stored badge is kept" testUserBadgeMemberOtherBinding
     it "supporter badge of member joining via group link, at request and after handshake" testUserBadgeGroupLinkJoiner
     it "supporter badge of introduced member is taken from the introduction" testUserBadgeIntroduced
@@ -906,6 +907,30 @@ testUserBadgeOtherBinding ps = do
       bob <## "connection not verified, use /code command to see security code"
       bob <## "quantum resistant end-to-end encryption"
       bob <## currentChatVRangeInfo
+
+testUserBadgeContactPresenter :: HasCallStack => TestParams -> IO ()
+testUserBadgeContactPresenter ps = do
+  Right (pk, sk) <- bbsKeyGen
+  testChatCfg2 (testCfg {badgePublicKeys = testBadgeKeys pk}) aliceProfile bobProfile (test sk) ps
+  where
+    test sk alice bob = do
+      connectUsers alice bob
+      addTestBadge alice =<< issueTestBadge sk futureDate
+      alice #> "@bob hi"
+      bob <# "alice *> hi"
+      withCCUser bob $ \user -> do
+        ct <- getTestCCContact bob 2
+        let Profile {badge} = fromLocalProfile $ profile' ct
+            p = (userProfileDirect user Nothing (Just ct) True) {badge}
+        runExceptT (sendDirectContactMessage user ct (XInfo p Nothing)) `runReaderT` chatController bob
+          >>= either (fail . show) (\_ -> pure ())
+      bob #> "@alice hey"
+      alice <# "bob> hey"
+      contactBadgeHeader alice "bob" `shouldReturn` Nothing
+      addTestBadge bob =<< issueTestBadge sk futureDate
+      bob #> "@alice hello"
+      alice <# "bob *> hello"
+      contactBadgeHeader alice "bob" `shouldReturn` Just ("CD", BSActive)
 
 testUserBadgeGroupLinkJoiner :: HasCallStack => TestParams -> IO ()
 testUserBadgeGroupLinkJoiner ps = do
