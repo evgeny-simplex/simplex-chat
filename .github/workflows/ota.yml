@@ -1,0 +1,349 @@
+name: ota
+
+run-name: ${{ inputs.pr && format('ota pull request #{0}', inputs.pr) || 'ota' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number; empty builds the branch the run starts on
+        type: string
+        default: ""
+      android:
+        description: Build the Android APKs
+        type: boolean
+        default: true
+      ios:
+        description: Build the iOS archive
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ota-${{ github.ref }}-${{ inputs.pr }}
+  cancel-in-progress: true
+
+env:
+  GHC_VER: 9.6.3
+  CABAL_VER: 3.10.2.0
+  JAVA_VER: 17
+  IOS_CORE_PKG: pkg-ios-aarch64-swift-json.zip
+
+jobs:
+  plan:
+    name: choose the commit and jobs, find earlier builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      run-android: ${{ steps.jobs.outputs.android }}
+      run-ios: ${{ steps.jobs.outputs.ios }}
+      android-core: ${{ steps.names.outputs.android-core }}
+      android-core-run: ${{ steps.android-core.outputs.run-id }}
+      android-core-armv7a: ${{ steps.names.outputs.android-core-armv7a }}
+      android-core-armv7a-run: ${{ steps.android-core-armv7a.outputs.run-id }}
+      android-cores: ${{ steps.android-cores.outputs.build }}
+      ios-core: ${{ steps.names.outputs.ios-core }}
+      ios-core-run: ${{ steps.ios-core.outputs.run-id }}
+    steps:
+      - name: Choose jobs
+        id: jobs
+        env:
+          PR: ${{ inputs.pr }}
+          ANDROID: ${{ inputs.android }}
+          IOS: ${{ inputs.ios }}
+        run: |
+          if [ -n "$PR" ] && ! [[ "$PR" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::pr must be a pull request number, not '$PR'"
+            exit 1
+          fi
+          echo "android=$ANDROID" | tee -a "$GITHUB_OUTPUT"
+          echo "ios=$IOS" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.pr && format('refs/pull/{0}/head', inputs.pr) || github.sha }}
+
+      - name: Commit
+        id: commit
+        run: |
+          if [ ! -f .github/workflows/ota.yml ]; then
+            echo "::error::$(git rev-parse --short HEAD) predates this workflow: merge master into it"
+            exit 1
+          fi
+          echo "sha=$(git rev-parse HEAD)" | tee -a "$GITHUB_OUTPUT"
+          git log -1 --format='%h %an %s'
+
+      - name: Artifact names
+        id: names
+        run: |
+          echo "android-core=android-core-${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'PRIVACY.md', 'flake.nix', 'flake.lock', 'scripts/nix/**', 'scripts/ci/android/build-core.sh') }}" >> "$GITHUB_OUTPUT"
+          echo "android-core-armv7a=android-core-armv7a-${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'PRIVACY.md', 'flake.nix', 'flake.lock', 'scripts/nix/**', 'scripts/ci/android/build-core.sh') }}" >> "$GITHUB_OUTPUT"
+          echo "ios-core=ios-sim-core-${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'scripts/ci/ios-sim/build-core.sh') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Find Android core library
+        id: android-core
+        if: steps.jobs.outputs.android == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.android-core }}"
+
+      - name: Find Android core library for armv7a
+        id: android-core-armv7a
+        if: steps.jobs.outputs.android == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.android-core-armv7a }}"
+
+      - name: Android core libraries to build
+        id: android-cores
+        if: steps.jobs.outputs.android == 'true'
+        env:
+          ARM64: ${{ steps.names.outputs.android-core }}
+          ARM64_RUN: ${{ steps.android-core.outputs.run-id }}
+          ARMV7A: ${{ steps.names.outputs.android-core-armv7a }}
+          ARMV7A_RUN: ${{ steps.android-core-armv7a.outputs.run-id }}
+        run: |
+          jq -nc --arg arm64 "$ARM64" --arg arm64_run "$ARM64_RUN" --arg armv7a "$ARMV7A" --arg armv7a_run "$ARMV7A_RUN" '
+            [ {arch: "aarch64", abi: "arm64-v8a", artifact: $arm64, run: $arm64_run},
+              {arch: "armv7a", abi: "armeabi-v7a", artifact: $armv7a, run: $armv7a_run} ]
+            | map(select(.run == "") | del(.run))' | sed 's/^/build=/' | tee -a "$GITHUB_OUTPUT"
+
+      - name: Find iOS core library
+        id: ios-core
+        if: steps.jobs.outputs.ios == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.ios-core }}"
+
+  android-core:
+    name: core library for Android ${{ matrix.abi }}
+    needs: plan
+    if: needs.plan.outputs.run-android == 'true' && needs.plan.outputs.android-cores != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.android-cores) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: Show runner
+        run: |
+          lsb_release -ds
+          nproc
+          free -h
+          df -h /
+
+      - name: Build core library
+        run: scripts/ci/android/build-core.sh ~/core/android-core-${{ matrix.abi }}.tar.gz ${{ matrix.arch }}
+
+      - name: Upload core library
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ~/core/android-core-${{ matrix.abi }}.tar.gz
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+
+  android:
+    name: Android APKs
+    needs: [plan, android-core]
+    if: ${{ !cancelled() && !failure() && needs.plan.outputs.run-android == 'true' && needs.android-core.result != 'cancelled' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          submodules: recursive
+
+      - name: Show runner
+        run: |
+          lsb_release -ds
+          nproc
+          free -h
+          df -h /
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools" "$ANDROID_HOME/ndk" || true
+
+      - name: Download core library
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.plan.outputs.android-core }}
+          path: ~/core
+          run-id: ${{ needs.plan.outputs.android-core-run || github.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Download core library for armv7a
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.plan.outputs.android-core-armv7a }}
+          path: ~/core
+          run-id: ${{ needs.plan.outputs.android-core-armv7a-run || github.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Install core libraries
+        run: |
+          scripts/ci/android/install-core.sh ~/core/android-core-arm64-v8a.tar.gz arm64-v8a
+          scripts/ci/android/install-core.sh ~/core/android-core-armeabi-v7a.tar.gz armeabi-v7a
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: ${{ env.JAVA_VER }}
+
+      - name: Build APKs
+        id: build
+        working-directory: apps/multiplatform
+        run: |
+          version=$(sed -n 's/^android.version_name=//p' gradle.properties)-ota.$GITHUB_RUN_NUMBER
+          echo "version=$version" | tee -a "$GITHUB_OUTPUT"
+          ./gradlew --no-daemon --console=plain --init-script ../../scripts/ci/android/dev-app.gradle \
+            -Psimplex.assets.dir=../../assets -Pandroid.version_code="$GITHUB_RUN_NUMBER" -Pandroid.version_name="$version" \
+            :android:assembleFossRelease
+          mkdir -p "$RUNNER_TEMP/apk"
+          cp android/build/outputs/apk/foss/release/*.apk "$RUNNER_TEMP/apk"
+          ls -la "$RUNNER_TEMP/apk"
+
+      - name: Check APKs
+        env:
+          VERSION: ${{ steps.build.outputs.version }}
+        run: |
+          aapt2=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
+          for abi in arm64-v8a armeabi-v7a; do
+            apk=$RUNNER_TEMP/apk/android-foss-$abi-release-unsigned.apk
+            badging=$("$aapt2" dump badging "$apk")
+            echo "$badging" | grep -E "^(package|application-label|native-code):"
+            unzip -l "$apk" | grep -E ' lib/'
+            echo "$badging" | grep -qF "package: name='chat.simplex.app.dev' versionCode='$GITHUB_RUN_NUMBER' versionName='$VERSION'"
+            echo "$badging" | grep -qx "application-label:'SimpleX dev'"
+            echo "$badging" | grep -qx "native-code: '$abi'"
+            "$aapt2" dump xmltree --file AndroidManifest.xml "$apk" | grep -q 'authorities.*="chat.simplex.app.dev.provider"'
+          done
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v7
+        with:
+          name: ota-android
+          path: ${{ runner.temp }}/apk/*.apk
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+
+  ios:
+    name: iOS archive
+    needs: plan
+    if: needs.plan.outputs.run-ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 240
+    env:
+      BUILD_CORE: ${{ needs.plan.outputs.ios-core-run == '' }}
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - name: Show runner
+        run: |
+          sw_vers
+          sysctl -n hw.ncpu hw.memsize
+          df -h /
+          xcodebuild -version
+          xcrun --show-sdk-path
+          ls /Library/Developer/CommandLineTools/SDKs || true
+
+      - name: Use the macOS 26 SDK
+        run: scripts/ci/ios-sim/use-macos26-sdk.sh
+
+      - name: Setup Haskell
+        if: env.BUILD_CORE == 'true'
+        uses: simplex-chat/setup-haskell-action@v2
+        with:
+          ghc-version: ${{ env.GHC_VER }}
+          cabal-version: ${{ env.CABAL_VER }}
+
+      - name: Install libraries
+        if: env.BUILD_CORE == 'true'
+        run: brew install openssl@3 libffi gmp
+
+      - name: Build core library
+        if: env.BUILD_CORE == 'true'
+        run: scripts/ci/ios-sim/build-core.sh ~/Downloads/${{ env.IOS_CORE_PKG }}
+
+      - name: Upload core library
+        if: env.BUILD_CORE == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ needs.plan.outputs.ios-core }}
+          path: ~/Downloads/${{ env.IOS_CORE_PKG }}
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Download core library
+        if: env.BUILD_CORE != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.plan.outputs.ios-core }}
+          path: ~/Downloads
+          run-id: ${{ needs.plan.outputs.ios-core-run }}
+          github-token: ${{ github.token }}
+
+      - name: Prepare libraries
+        run: |
+          scripts/ci/ios-sim/prepare-libs.sh ios
+          scripts/ios/update-pbxproj.sh
+
+      - name: Archive app
+        run: |
+          xcodebuild archive -quiet \
+            -project apps/ios/SimpleX.xcodeproj \
+            -scheme "SimpleX (iOS)" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/SimpleX.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Check archive
+        run: |
+          archive=$RUNNER_TEMP/SimpleX.xcarchive
+          app=$archive/Products/Applications/SimpleX.app
+          ls "$archive" "$archive/dSYMs" "$app/PlugIns" "$app/Frameworks"
+          for bundle in "$app" "$app/PlugIns/SimpleX NSE.appex" "$app/PlugIns/SimpleX SE.appex" "$app/Frameworks/SimpleXChat.framework"; do
+            echo "$bundle: $(plutil -extract CFBundleIdentifier raw "$bundle/Info.plist") $(plutil -extract CFBundleShortVersionString raw "$bundle/Info.plist") ($(plutil -extract CFBundleVersion raw "$bundle/Info.plist"))"
+            codesign -d --entitlements - "$bundle" 2>&1 || true
+          done
+          du -sh "$archive"
+
+      - name: Pack archive
+        run: tar -czf "$RUNNER_TEMP/SimpleX.xcarchive.tar.gz" -C "$RUNNER_TEMP" SimpleX.xcarchive
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: ota-ios
+          path: ${{ runner.temp }}/SimpleX.xcarchive.tar.gz
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error

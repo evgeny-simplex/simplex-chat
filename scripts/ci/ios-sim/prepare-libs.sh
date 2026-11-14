@@ -1,9 +1,21 @@
 #!/bin/bash
 
 # Builds mac2ios, runs scripts/ios/prepare.sh on ~/Downloads/pkg-ios-aarch64-swift-json.zip,
-# and fails unless every object in apps/ios/Libraries/sim is marked for the iOS simulator.
+# and fails unless every object in apps/ios/Libraries/sim is marked for the iOS simulator,
+# or with ios, every object in apps/ios/Libraries/ios for iOS devices.
+# Usage: scripts/ci/ios-sim/prepare-libs.sh [sim|ios]
 
 set -euo pipefail
+
+libs=${1:-sim}
+case "$libs" in
+  sim) platform='^(7|IOSSIMULATOR)$' platform_name="the iOS simulator" ;;
+  ios) platform='^(2|IOS)$' platform_name="iOS devices" ;;
+  *)
+    echo "usage: $0 [sim|ios]"
+    exit 1
+    ;;
+esac
 
 mac2ios_rev=4dcb77d5ea896d749381806dfab5358851b08951
 tools=$(mktemp -d)
@@ -14,12 +26,12 @@ cc -O2 -o "$tools/mac2ios" "$tools/mac2ios.c"
 
 PATH="$tools:$PATH" scripts/ios/prepare.sh
 
-for f in apps/ios/Libraries/sim/*.a; do
+for f in apps/ios/Libraries/$libs/*.a; do
   echo "$f: $(du -h "$f" | cut -f1), $(lipo -info "$f")"
   platforms=$({ otool -l "$f" || true; } | awk '$1 == "platform" {print $2}' | sort | uniq -c)
   echo "${platforms:-  no LC_BUILD_VERSION found}"
-  if echo "$platforms" | awk 'NF {print $2}' | grep -vE '^(7|IOSSIMULATOR)$' > /dev/null; then
-    echo "error: $f has objects for a platform other than the iOS simulator"
+  if echo "$platforms" | awk 'NF {print $2}' | grep -vE "$platform" > /dev/null; then
+    echo "error: $f has objects for a platform other than $platform_name"
     exit 1
   fi
 done
