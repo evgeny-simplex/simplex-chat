@@ -202,7 +202,7 @@ chatGroupTests = do
     it "deduplicate forwarded messages" testGroupMsgForwardDeduplicate
     it "report duplicate when forwarded copy is received after direct copy" testGroupMsgForwardDuplicateEvent
     it "report duplicate when direct copy is received after forwarded copy" testGroupMsgDirectDuplicateEvent
-    it "show message redelivered after chat stop once" testGroupRedeliveredMessage
+    it "skip saved message redelivered after chat stop" testGroupRedeliveredMessage
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
