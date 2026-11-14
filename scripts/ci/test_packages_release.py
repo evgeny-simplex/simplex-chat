@@ -514,6 +514,10 @@ class ChangesTest(GitRepoTest):
         self.assertEqual(self.builds("scripts/ci/packages_release.py"), set())
         self.assertEqual(self.values["scopes"], "ci-scripts")
 
+    def test_build_tool_change_tests_the_build_tool(self):
+        self.assertEqual(self.builds("scripts/simplex_build/android.py"), set())
+        self.assertEqual(self.values["scopes"], "build-tool")
+
 
 class PackageStateTest(GitRepoTest):
     def setUp(self):
