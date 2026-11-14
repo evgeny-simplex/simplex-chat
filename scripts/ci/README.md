@@ -256,12 +256,21 @@ The branch the run starts on gives the workflow; the commit built gives the scri
 | `macos` | macos-26 | `build-core.sh <out> mac` when not reused, VLC, then `:desktop:packageDmg` | `desktop-macos-core-<hash>`, 30 days; `ota-macos`: the dmg, 14 days |
 | `windows` | windows-latest | `build-core.sh <out> windows` in MSYS2 when not reused, VLC, then `:desktop:packageMsi` | `desktop-windows-core-<hash>`, 30 days; `ota-windows`: the msi, 14 days |
 
-The Android app is the release variant of the foss flavor as "SimpleX dev": `dev-app.gradle` gives it the id `chat.simplex.app.dev`, that name and the file provider `chat.simplex.app.dev.provider`, so it installs beside the released app, with its own data. Its version code is the run number, its version name `<android.version_name>-ota.<run number>`.
+The Android app is the release variant of the foss flavor as "SimpleX dev": `dev-app.gradle` gives it the id `chat.simplex.app.dev`, that name and the file provider `chat.simplex.app.dev.provider`, so it installs beside the released app, with its own data. Its version code is the run number, its version name `<android.version_name>-ota.<run number>`. The native libraries are stored uncompressed (`compression.level` 0), so each APK is about 250–280 MB.
 
-The iOS archive is signed ad hoc (`CODE_SIGN_IDENTITY=-`, `AD_HOC_CODE_SIGNING_ALLOWED=YES`), so each bundle keeps its entitlements for the export that signs it for App Store Connect: an unsigned archive has none to keep. The job checks that the app and both extensions have `5NN7GUYB6T.chat.simplex.app` as their first keychain access group. The version is the project's, and the build number the project's followed by the run number, such as `371.12`.
+The iOS archive is signed ad hoc (`CODE_SIGN_IDENTITY=-`, `AD_HOC_CODE_SIGNING_ALLOWED=YES`), so each bundle keeps its entitlements for the export that signs it for App Store Connect: an unsigned archive has none to keep. The job checks that the app and both extensions have `5NN7GUYB6T.chat.simplex.app` as their first keychain access group. The version is the project's, and the build number the project's followed by the run number, such as `371.12`. The archive records no team (`Team` is empty in its `Info.plist`), so an export of it gives `teamID`.
 
 The desktop packages are built as the release's, from the desktop core library that `scripts/desktop/build-lib-<linux|mac|windows>.sh` builds, without signing; they are the released app, with its id and data directory, and the project's version.
 
 The core libraries are reused as in android-emu and ios-sim, by `earlier-run.sh`. A run for a pull request, named `ota pull request #<number>`, builds code other than its branch's, so `earlier-run.sh` uses its artifacts only in runs for the same pull request.
 
 The workflow creates no release or tag: the desktop app's updater reads the releases of simplex-chat/simplex-chat.
+
+| Job | Core built | Core reused |
+|---|---|---|
+| `android-core` | 30 min for arm64-v8a, 76 min for armeabi-v7a, in parallel | skipped |
+| `android` | — | 7–9 min |
+| `ios` | 47 min, the core 26 of them | not measured yet |
+| `linux` | 33 min, the core 24 of them | 5 min |
+| `macos` | 44 min, the core 27 of them | not measured yet |
+| `windows` | about 45 min: the core 34, the msi 7 | 10 min |
