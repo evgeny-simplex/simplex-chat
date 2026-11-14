@@ -374,7 +374,7 @@ Date: May 15, 2026
 
 https://hermes-agent.nousresearch.com/docs/user-guide/messaging/simplex
 
-## SimpleX
+## SimpleX | Flux Documentation
 
 Flux Documentation
 
