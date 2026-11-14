@@ -1,5 +1,33 @@
 # Links to Community Publications
 
+## SimpleX Chat
+
+FOSS Index
+
+Guide
+
+FOSS Index lists SimpleX Chat as a messenger with no user identifiers of any kind, and covers its AGPL-3.0 license, the platforms it runs on and how to install it. The page also gives first steps for new users and the ways to support the project.
+
+Language: English
+
+Date: Nov 2026
+
+https://index.fossadmin.com/tools/simplex-chat/
+
+## SimpleX Chat Crowdfunding: A Chance to Support the Future of Private Messaging
+
+Darwin Dynamic
+
+Article
+
+Darwin Dynamic presents SimpleX Chat's equity crowdfunding on Wefunder as a way to support private messaging, citing the app's design without accounts or user identifiers. The article also says the investment is speculative and high-risk, and recommends reading the official campaign materials first.
+
+Language: English
+
+Date: Oct 29, 2026
+
+https://darwindynamic.com/simplex-chat-crowdfunding-a-chance-to-support-the-future-of-private-messaging/
+
 ## SimpleX Chat Wants Its 400K+ Users to Become Investors Too
 
 It's FOSS
