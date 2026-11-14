@@ -1,6 +1,6 @@
 # SimpleX MCP server: flows
 
-> Sequence diagrams of the main flows of `@simplex-chat/mcp` 0.3.0, each with notes and source locations. `serve` is shown in flows 1-16, and the Claude Code plugin in flows 17-38.
+> Sequence diagrams of the main flows of `@simplex-chat/mcp` 0.3.0, each with notes and source locations. `serve` is shown in flows 1-16, and the Claude Code plugin in flows 17-39.
 >
 > Related specs: [README](README.md) | [Architecture](architecture.md) | [API](api.md)
 
@@ -65,6 +65,7 @@ Claude Code plugin ([participants](#claude-code-plugin-flows)):
 36. [The list of sessions](#36-the-list-of-sessions)
 37. [The texts of a turn](#37-the-texts-of-a-turn)
 38. [The status line command](#38-the-status-line-command)
+39. [A teammate in the session's group](#39-a-teammate-in-the-sessions-group)
 
 ---
 
@@ -1046,13 +1047,13 @@ Notes:
 - No turn record is made for a prompt request whose hook started before an answer that was already handled. So that prompt is not quoted in a later answer ([`Session.turn`](../src/hub.ts)).
 - The UserPromptSubmit hook runs for every prompt of the session that queries the model, also for Claude Code's own prompts. It marks a prompt as typed only when the prompt's record in the transcript has the origin `human`. Task notifications, messages of other sessions and channel prompts have other origins. The record is the newest one whose text is the prompt: a user entry, or a `queued_command` attachment of a prompt that Claude Code added to a running turn. It is the entry with `prompt_id` as `promptId`, or a record after the first entry with that ID, tool results included, so a long turn whose first entry is out of the tail is found by its tool results. While a `queue-operation` `enqueue` entry with the prompt's text follows the record, the hook waits: the prompt is a later one with that text, still queued. Claude Code writes the entry only after the synchronous UserPromptSubmit hooks end, such as a slow hook in the user's settings, and it creates the transcript file with the session's first entry. So the hook reads the transcript up to 600 times, 100 ms apart, and it treats a missing file as empty. Until the entry with `prompt_id` is in the tail, the hook waits for it; at the last read it takes any record with the prompt's text, and without `prompt_id` it does so at once. Claude Code runs the hook of a person's prompt when it is submitted, and of its own prompts only when they are taken. So at the last read, the hook classifies a record still followed by such an `enqueue` entry by the record, and marks a typed one mid-turn: the queued prompt is the typed prompt itself, or a later prompt with the text of Claude Code's own prompt, as a repeated monitor event. When no record is written within the reads, an `enqueue` entry with the prompt's text after the entry with `prompt_id`, or anywhere without that entry, makes the prompt typed and mid-turn. Otherwise the prompt is typed when an entry with `prompt_id` has the origin `human` ([`promptReads`, `transcriptReadMs`, `turn`, `promptKind`, `findInTranscript`, `promptRecord`, `isPrompt`, `recordText`, `recordKind`](../src/hook.ts)).
 - Claude Code adds a prompt that arrives during a turn to that turn, and gives its hook the running turn's prompt ID. The hook sends `midTurn: true` for a prompt whose record is not the entry with `prompt_id`. A mid-turn prompt ends no tool-use card. A prompt adds a turn record only when its hook started no earlier than the hook of the last answer handled (`answeredAt`), and a mid-turn prompt only when it also matched a pushed prompt. So the answer of the turn quotes the turn's prompt, or an owner's prompt added to the turn ([`Session.turn`](../src/hub.ts)).
-- The hook sends `note`, a line about one of Claude Code's own prompts, and Claude posts it without a quote, silent ([`recordKind`, `noteOf`, `taskNote`, `teammateNote`, `idleNotification`, `peerName`, `shortened`](../src/hook.ts), [`Session.turn`](../src/hub.ts)). A typed prompt, a channel prompt and a teammate's prompt of idle notifications only have no note, nor has another record without origin that is not scheduled. The line is cut to 200 characters and ends with `…`. A note that a group preference refuses is replaced by `Claude's note was not posted: ` and the preference's text.
+- The hook sends `note`, a line about one of Claude Code's own prompts, and Claude posts it without a quote, silent ([`recordKind`, `noteOf`, `taskNote`, `teammateEvents`, `idleNotification`, `peerName`, `shortened`](../src/hook.ts), [`Session.turn`](../src/hub.ts)). A teammate's message and a subagent's report come as items of `teammates` instead, each with its note: the teammate posts the whole text under its own profile, and Claude posts the note only for a teammate without a profile ([flow 39](#39-a-teammate-in-the-sessions-group)). A typed prompt, a channel prompt and a teammate's prompt of idle notifications only have no note, nor has another record without origin that is not scheduled. The line is cut to 200 characters and ends with `…`. A note that a group preference refuses is replaced by `Claude's note was not posted: ` and the preference's text.
 
   | Kind | Record | Line |
   |---|---|---|
   | task notification | origin `task-notification`, or a `queued_command` attachment without origin whose `commandMode` is `task-notification` | an emoji, the first line of `<summary>`, and `: ` with the first line of `<event>` when there is one, with entities decoded. The emoji is ✅ for `<status>` completed, ❌ for failed, ⏹️ for stopped or killed, and without a status 📡 with an event or 🔔 without. Without a `<task-notification>` block: 🔔 and the first line |
   | message of another session | origin `peer` | `✉️ Message from NAME: ` and the first line of `body` |
-  | message of a teammate | no origin, a `<teammate-message teammate_id="NAME" ...>` tag after `Another Claude session sent a message` | `✉️ Message from NAME: ` and the tag's `summary`, or the first line of the message, from the first tag that is not an idle notification; nothing for idle notifications only |
+  | message of a teammate | no origin, a `<teammate-message teammate_id="NAME" ...>` tag after `Another Claude session sent a message` | for each tag that is not an idle notification, `✉️ Message from NAME: ` and the tag's `summary`, or the first line of the message; nothing for idle notifications only |
   | subagent report | origin `peer` with `handback` | `📋 Report from subagent NAME: ` and the first line of `handbackReportText`, or of `body` |
   | scheduled prompt | no origin, `turnOrigin` `scheduled` | `⏰ Scheduled prompt: ` and the first line |
   | automatic prompt | origin `auto-continuation` | `🔄 Automatic prompt: ` and the first line |
@@ -1814,3 +1815,55 @@ Notes:
 - Claude Code runs `status-line.js` also when no service could start in the data folder, so that folder must be writable only by the user.
 
 Source: [`statusLine`, `limitParts`, `runStatusLine`](../src/status-line.ts), [`writeStatusLine`](../src/files.ts), [`Session.turn`, `endLine`](../src/hub.ts).
+
+---
+
+## 39. A teammate in the session's group
+
+```mermaid
+sequenceDiagram
+  participant L as Claude Code, the lead
+  participant R as reviewer, a teammate
+  participant N as Session N
+  participant TM as Teammates of session N
+  participant TC as Core agents
+  participant C as Core _hub
+  participant O as Owner
+  L->>N: PreToolUse Agent {name: "reviewer", description} -> teammates [start], with the step
+  N->>TM: start("reviewer", description)
+  TM->>TC: open ROOT/_sessions/ID/agents, apiCreateActiveUser {displayName: "reviewer", peerType: agent, shortDescr}
+  TM->>C: /_connect, a one-time invitation
+  TC->>C: the teammate's user connects, contactConnected
+  TM->>C: apiSetContactCustomData {simplexMcpTeammate: {session, name}}, apiAddMember #35;G member
+  C->>TC: receivedGroupInvitation
+  TM->>TC: apiJoinGroup as the teammate, userJoinedGroup
+  C->>O: reviewer joined, no rights post
+  R->>L: SendMessage "The diff has no defect."
+  R->>N: PostToolUse SendMessage to team-lead, teammates [message, with the note "✉️ Message from reviewer: ..."]
+  opt Claude Code runs UserPromptSubmit for it
+    L->>N: UserPromptSubmit, the same message, dropped within 60 s
+  end
+  N->>TM: post("reviewer", parts)
+  TM->>TC: apiSendMessages as the teammate, priority -1
+  TC->>O: reviewer: The diff has no defect.
+  C->>N: newChatItems from the teammate's member, dropped
+  R->>N: PostToolUse SubagentHandback, teammates [report]
+  N->>TM: post, then end("reviewer")
+  TM->>TC: apiLeaveGroup as the teammate
+  C->>TM: leftMember within 30 s, else apiRemoveMembers by Claude
+  TM->>TC: apiDeleteUser as the core's own user
+  TM->>C: apiDeleteChat of the teammate's contact
+```
+
+Notes:
+
+- A teammate is an `Agent` call of the lead with a `name`. A subagent without a name keeps Claude's `📋 Report from subagent NAME` note ([`agentCall`](../src/hook.ts)).
+- One core holds the profiles of all teammates of a session, one user each, in the session's folder `agents`. Its commands run one at a time, and a command of a teammate first makes its user active ([`Teammates.asUser`, `serialize`](../src/teammates.ts)). The folder is removed when the core opens, so each open starts empty ([`Teammates.opened`](../src/teammates.ts)).
+- Messages that arrive while the teammate joins wait, and are posted after the join, in order. When the join fails, each of them is Claude's note instead ([`Teammates.post`, `join`, `failed`](../src/teammates.ts), [`Session.teammate`](../src/hub.ts)).
+- The teammate's own hooks carry its messages: Claude Code 2.1.325 ran no UserPromptSubmit hook for a teammate's message on 2026-11-14. Its tool hooks carry its `agent_id`, and `agent_type` is its name. When the lead's prompt hook sends the same message or report too, the hub posts it once ([`agentPost`, `agentName`, `teammateEvents`](../src/hook.ts), [`Session.echoed`](../src/hub.ts)).
+- Claude Code runs the hooks one process each, so a report can reach the service after the subagent's SubagentStop. SubagentStop of a finished agent ends its teammate 10 s later, and a report that arrives meanwhile is still posted under its profile. A teammate of an agent team gets SubagentStop at the end of each of its turns, and its record has no `finished`; it ends when it approves a shutdown ([`endedAgent`](../src/hook.ts), [`teammateEndWait`, `Session.teammate`](../src/hub.ts)).
+- A teammate's member stays known after its end, so its messages that arrive late are dropped, as `User`'s are ([`Teammates.isMember`](../src/teammates.ts), [`Session.isOwnProfile`](../src/hub.ts)).
+- At most 20 teammates of a session have profiles at once. Claude posts `Teammate NAME has no profile: this group has 20 teammates.` for a later one, which keeps Claude's notes ([`maxTeammates`](../src/teammates.ts), [`Session.teammate`](../src/hub.ts)).
+- SessionEnd, the session's idle close and the service's stop end every teammate of the session. A service start removes the teammates that an earlier run left in the session groups ([`Session.endTeammates`, `Hub.stop`, `Hub.open`](../src/hub.ts), [`Service.scheduleIdle`](../src/service.ts), [`removeStale`](../src/teammates.ts)).
+
+Source: [`Teammates`, `removeStale`](../src/teammates.ts), [`Session.teammate`, `endTeammates`, `isOwnProfile`](../src/hub.ts), [`agentCall`, `endedAgent`, `teammateEvents`](../src/hook.ts).

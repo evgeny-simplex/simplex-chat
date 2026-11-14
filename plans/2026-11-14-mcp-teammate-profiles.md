@@ -1,6 +1,6 @@
 # Teammates as members of the session's group
 
-Status: UX plan, 2026-11-14, no code. The user answered two principles on 2026-11-14: a teammate's tool steps show under its own profile ("yes"), and people address a teammate directly by a reply or a mention ("yes, of course, that's the whole point"). Q1 to Q3 are open. Code references: master `27fd68441`, by file and function name. Claude Code: version 2.1.322, its binary in `~/.local/share/claude/versions/`, the team folder `~/.claude/teams/session-420d62b8` and the subagent records of session `420d62b8` on this machine.
+Status: stage 1 implemented on 2026-11-14 with Q1 A and Q2 A, speculatively: profiles, messages to the lead, the final report, the leave, the cleanup and the limit. Steps come in stage 2, and addressing (Q3) in stage 3. The user answered two principles on 2026-11-14: a teammate's tool steps show under its own profile ("yes"), and people address a teammate directly by a reply or a mention ("yes, of course, that's the whole point"). Q1 to Q3 are open. Code references: master `27fd68441`, by file and function name. Claude Code: version 2.1.322, its binary in `~/.local/share/claude/versions/`, the team folder `~/.claude/teams/session-420d62b8` and the subagent records of session `420d62b8` on this machine.
 
 ## 1. Goal
 
@@ -95,15 +95,19 @@ Facts:
 8. The `User` profile is a second chat core in `ROOT/_user` (`User.open`, `openCore` in `core.ts`), with peer type human; Claude's profile has peer type agent (#8179).
 9. Steward runs many profiles in one chat core and switches the active user before each command, in one queue (`Profiles.asUser` in `/code/steward/src/profiles.ts`).
 
+Facts found in stage 1:
+- F1. An interactive session of Claude Code 2.1.325 on 2026-11-14, with hooks from `--settings`, showed for a teammate of its team: SubagentStart with `agent_type` equal to the teammate's name; the teammate's PreToolUse and PostToolUse of Bash and `SendMessage` with its `agent_id` and that `agent_type`; SubagentStop at the end of each of its turns, with `last_assistant_message`; TeammateIdle; and no UserPromptSubmit for its message to the lead, which reached the lead's transcript as a user entry with the turn's prompt ID. The teammate's record had `taskKind` `in_process_teammate` and no `finished`. Its approved shutdown was its PostToolUse of `SendMessage` with `type` `shutdown_response` and `approve` true.
+- F2. A named agent in a `claude -p` run was a background subagent: its record had `finished: true` after its end, and its report was its `SubagentHandback` call, which reached the lead as a prompt with the origin `peer` and `handback`, before SubagentStop.
+
 Choices:
 10. A teammate is recognized at the lead's `PreToolUse` of `Agent` with a `name`; its record is `subagents/agent-ID.meta.json` (fact 3), matched by `agent_type` and `name` at `SubagentStart`.
 11. The service keeps the teammates' profiles in one more chat core, `ROOT/_sessions/ID/agents`, one user per teammate, with Claude's commands for it run in one queue that switches the active user, as steward's `Profiles` (fact 9). One core for all teammates of a session, not one per teammate.
 12. A teammate's profile joins the session's group as a member: Claude invites it through a contact made at its start, as `User.connect` connects `User`, and it joins at once. Its posts wait until it has joined.
 13. Steps: the hook sends a step of a tool hook with `agent_id` to the service with the teammate's name, and the service posts it under the teammate's profile, as Claude's steps (`stepOf`).
-14. Messages: the hook sends a teammate's `PreToolUse` of `SendMessage` with its `to`, `message` and `summary`; the service posts the message under the teammate's profile. The lead's `SendMessage` to a teammate is posted by Claude as `@NAME TEXT`, with the teammate mentioned.
+14. Messages: the hook sends a teammate's delivered `PostToolUse` of `SendMessage` to `team-lead` with its `message` and `summary`, and a subagent's `SubagentHandback` as its report (F1, F2); the service posts them under the teammate's profile. The lead's prompt with the same message or report, where Claude Code runs UserPromptSubmit for it, is posted once. The lead's `SendMessage` to a teammate is posted by Claude as `@NAME TEXT`, with the teammate mentioned.
 15. Claude's note `✉️ Message from NAME` is not posted for a teammate that has a profile.
 16. A person's reply to a teammate's message, or a message that mentions a teammate, is a prompt for the lead with the meta key `to`, the teammate's name. The channel instructions say: "A message with to is for that teammate: forward it unchanged with SendMessage." The lead's forward is not posted again.
-17. A teammate's profile leaves the group and is deleted at `SubagentStop` of a teammate that ended, at the end of its session (`SessionEnd`), and when the service finds no such teammate in the team's `config.json` at its start.
+17. A teammate's profile leaves the group and is deleted at its report, 10 s after its approved shutdown or the `SubagentStop` of a subagent whose record has `finished: true`, at the end of its session (`SessionEnd`), at the session's idle close and at the service's stop. A service start removes the teammates that an earlier run left in the session groups.
 18. Limits: at most 20 teammate members in a group at once, because each member connects with every other member and delivery receipts stop at 20 members (`smallGroupsRcptsMemLimit`, as steward's subagent plan states). A teammate over the limit keeps Claude's notes, and Claude posts `Teammate NAME has no profile: this group has 20 teammates.`
 
 ```mermaid
@@ -111,7 +115,7 @@ stateDiagram-v2
   [*] --> joining: Agent with a name
   joining --> member: joined the session group
   joining --> notes: join failed, or over the limit
-  member --> left: SubagentStop of an ended teammate, or SessionEnd
+  member --> left: report, shutdown approved, SubagentStop of a finished agent, SessionEnd, idle close, service stop
   notes --> [*]
   left --> [*]: profile deleted
 ```

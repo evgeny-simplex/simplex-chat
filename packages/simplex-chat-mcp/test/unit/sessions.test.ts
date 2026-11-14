@@ -2067,6 +2067,86 @@ describe("session channel", () => {
     expect(session.actions.get(1)?.state).toBe("pending")
   })
 
+  describe("teammates", () => {
+    const silent = (chat: FakeChat) => chat.sent.filter(({chat: [, groupId]}) => groupId === 20).map(({messages: [{msgContent, priority}]}: {messages: (T.ComposedMessage & {priority?: number})[]}) => ({text: msgContent.text, priority}))
+
+    it("starts a teammate's profile at its start and posts that a teammate over the limit has no profile", async () => {
+      const chat = new FakeChat()
+      const {session} = await channel(chat)
+      const started = jest.spyOn(session.teammates, "start").mockReturnValueOnce("started").mockReturnValueOnce("full")
+      await session.turn({id: id1, at: 1, teammates: [{name: "reviewer", kind: "start", description: "Review the diff"}]})
+      await session.turn({id: id1, at: 2, teammates: [{name: "tester\nrunner", kind: "start"}]})
+      expect(started.mock.calls).toEqual([["reviewer", "Review the diff"], ["tester\nrunner", undefined]])
+      expect(silent(chat)).toEqual([{text: "Teammate tester runner has no profile: this group has 20 teammates.", priority: -1}])
+    })
+
+    it("posts a teammate's messages and report under its profile in place of Claude's notes, Claude's notes for a teammate without a profile, and ends a teammate at its report and after its stop", async () => {
+      const chat = new FakeChat()
+      const {session} = await channel(chat)
+      const posted: [string, string[]][] = []
+      jest.spyOn(session.teammates, "post").mockImplementation(async (name, parts) => (posted.push([name, parts]), name === "reviewer"))
+      const ended: [string, number | undefined][] = []
+      jest.spyOn(session.teammates, "end").mockImplementation(async (name, delay) => void ended.push([name, delay]))
+      await session.turn({id: id1, at: 1, prompt: "Another Claude session sent a message: ...", typed: false, teammates: [
+        {name: "reviewer", kind: "message", text: "No defect.", note: "✉️ Message from reviewer: No defect."},
+        {name: "tester", kind: "message", text: "Tests pass.", note: "✉️ Message from tester: Tests pass."},
+        {name: "tester", kind: "message", text: " \n", note: "✉️ Message from tester: (empty)"},
+      ]})
+      await session.turn({id: id1, at: 2, prompt: '<agent-message from="reviewer">...', typed: false, teammates: [{name: "reviewer", kind: "report", text: "The report.", note: "📋 Report from subagent reviewer: The report."}]})
+      await session.turn({id: id1, at: 3, teammates: [{name: "tester", kind: "end"}]})
+      expect(posted).toEqual([["reviewer", ["No defect."]], ["tester", ["Tests pass."]], ["reviewer", ["The report."]]])
+      expect(silent(chat)).toEqual([{text: "✉️ Message from tester: Tests pass.", priority: -1}, {text: "✉️ Message from tester: (empty)", priority: -1}])
+      expect(ended).toEqual([["reviewer", undefined], ["tester", 10_000]])
+    })
+
+    it("posts a teammate's message or report once when both the lead's prompt and the teammate's own hook send it within a minute, and again after that minute", async () => {
+      const chat = new FakeChat()
+      const {session} = await channel(chat)
+      const posted: string[] = []
+      jest.spyOn(session.teammates, "post").mockImplementation(async (name, parts) => (posted.push(`${name}: ${parts.join("")}`), name === "reviewer"))
+      jest.spyOn(session.teammates, "end").mockResolvedValue()
+      const message = (name: string, text: string) => session.turn({id: id1, teammates: [{name, kind: "message", text, note: `✉️ Message from ${name}: ${text}`}]})
+      await message("reviewer", "No defect.")
+      await message("reviewer", "No defect.\n")
+      await message("tester", "Tests pass.")
+      await message("tester", "Tests pass.")
+      await session.turn({id: id1, teammates: [{name: "reviewer", kind: "report", text: "No defect.", note: "📋 Report from subagent reviewer: No defect."}]})
+      expect(posted).toEqual(["reviewer: No defect.", "tester: Tests pass.", "reviewer: No defect."])
+      expect(silent(chat)).toEqual([{text: "✉️ Message from tester: Tests pass.", priority: -1}])
+      jest.spyOn(Date, "now").mockReturnValue(Date.now() + 60_001)
+      await message("reviewer", "No defect.")
+      expect(posted).toHaveLength(4)
+    })
+
+    it("ends the session's teammates at the session's end and when the hub stops", async () => {
+      const chat = new FakeChat()
+      const {hub, session} = await channel(chat)
+      const closed = jest.spyOn(session.teammates, "close").mockResolvedValue()
+      await session.turn({id: id1, at: 1, sessionEnd: true})
+      expect(closed).toHaveBeenCalledTimes(1)
+      await hub.stop()
+      expect(closed).toHaveBeenCalledTimes(2)
+    })
+
+    it("drops the messages, commands and reactions of a teammate's profile and posts no rights for it", async () => {
+      const chat = new FakeChat()
+      const {hub, session, lines} = await channel(chat)
+      const reviewer = member(2050, "reviewer")
+      jest.spyOn(session.teammates, "isMember").mockImplementation(({groupMemberId}) => groupMemberId === reviewer.groupMemberId)
+      chat.members.set(20, [self, invitedAlice, reviewer])
+      await hub["onEvent"]({type: "joinedGroupMember", groupInfo: group(20, "1 · auth"), member: reviewer} as unknown as ChatEvent)
+      await hub["controlEvents"]
+      const message = item(41, "No defect.", from(reviewer))
+      session.onMessage(event(sessionGroup, message))
+      session.onMessage(event(sessionGroup, item(42, "/pending", from(reviewer))))
+      session.onReaction(reaction(sessionGroup, item(43, "Opened.", {type: "groupSnd"}), reviewer, emoji("👍")) as CEvt.ChatItemReaction)
+      await ownerPrompt(session, 44, "Thanks")
+      expect(lines.flatMap(({prompt}) => (prompt === undefined ? [] : [prompt.from]))).toEqual(["Alice"])
+      expect(sentTo(chat, 20)).toEqual([])
+      expect(chat.replies).toEqual([])
+    })
+  })
+
   describe("while files and media are off in the session group", () => {
     const groupPosts = (chat: FakeChat) => chat.sent.filter(({chat: [kind, id]}) => kind === T.ChatType.Group && id === 20).map(({messages: [{msgContent}]}) => msgContent)
     const peerPosts = (chat: FakeChat) => chat.sent.filter(({chat: [kind, id]}) => kind === T.ChatType.Direct && id === 4).map(({messages: [{msgContent}]}) => msgContent.type)
