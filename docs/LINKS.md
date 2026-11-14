@@ -6,7 +6,7 @@ FOSS Index
 
 Guide
 
-FOSS Index lists SimpleX Chat as a messenger with no user identifiers of any kind, and covers its AGPL-3.0 license, the platforms it runs on and how to install it. The page also gives first steps for new users and the ways to support the project.
+FOSS Index lists SimpleX Chat as a messenger with no user identifiers of any kind.
 
 Language: English
 
@@ -20,7 +20,7 @@ Darwin Dynamic
 
 Article
 
-Darwin Dynamic presents SimpleX Chat's equity crowdfunding on Wefunder as a way to support private messaging, citing the app's design without accounts or user identifiers. The article also says the investment is speculative and high-risk, and recommends reading the official campaign materials first.
+Darwin Dynamic presents SimpleX Chat's equity crowdfunding on Wefunder as a way to support private messaging.
 
 Language: English
 
