@@ -270,7 +270,7 @@ The workflow creates no release or tag: the desktop app's updater reads the rele
 |---|---|---|
 | `android-core` | 30 min for arm64-v8a, 76 min for armeabi-v7a, in parallel | skipped |
 | `android` | — | 7–9 min |
-| `ios` | 47 min, the core 26 of them | not measured yet |
+| `ios` | 47 min, the core 26 of them | 18 min |
 | `linux` | 33 min, the core 24 of them | 5 min |
-| `macos` | 44 min, the core 27 of them | not measured yet |
+| `macos` | 44 min, the core 27 of them | 11 min |
 | `windows` | about 45 min: the core 34, the msi 7 | 10 min |
