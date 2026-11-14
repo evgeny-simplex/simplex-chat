@@ -37,8 +37,11 @@ case "${1:-}" in
     .venv/bin/pyright
     .venv/bin/pytest tests
     ;;
+  build-tool)
+    python3 -m unittest discover -s scripts/simplex_build -t scripts
+    ;;
   *)
-    echo "usage: $0 badge-web | ci-scripts | website | mcp | support-bot | support-bot-light" >&2
+    echo "usage: $0 badge-web | ci-scripts | website | mcp | support-bot | support-bot-light | build-tool" >&2
     exit 1
     ;;
 esac

@@ -161,6 +161,14 @@ The reduced build runs one Linux job, build-linux (ubuntu-22.04 x86_64), for eve
 - CI, in build-linux: `scope-tests.sh support-bot-light` (step "Test changed scopes"): the Python library of the branch and the bot installed in a virtual environment, then ruff, pyright and pytest. The tests use a fake API, without libsimplex.
 - Local: `scripts/ci/scope-tests.sh support-bot-light`.
 
+#### build-tool
+
+- Globs:
+  - scripts/simplex-chat-build.py
+  - scripts/simplex_build/**
+- CI, in build-linux: `scope-tests.sh build-tool` (step "Test changed scopes"): the unit tests of the build tool.
+- Local: `scripts/ci/scope-tests.sh build-tool`; Python 3.12 or newer is required.
+
 #### Scopes lacking CI tests
 
 | Scope | Paths | CI |
@@ -227,4 +235,4 @@ It needs the GitHub environment `app-sim-claude` with the secret `CLAUDE_CODE_OA
 
 ## Builds for signing
 
-`build-apps.yml`, also started only by hand, builds the Android APKs, the Play bundle and the iOS archive of a commit without signing them, and uploads them as artifacts for signing outside CI: [details](build-apps/README.md).
+`build-apps.yml`, also started only by hand, builds the Android APKs, the Play bundle and the iOS archive of a commit without signing them, and uploads them as artifacts for signing outside CI: [details](build-apps/README.md). With a pull request number and its head commit, or with `ota`, it makes the over-the-air builds for the team's devices.
