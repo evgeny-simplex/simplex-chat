@@ -14,7 +14,7 @@ module ChatTests.Direct where
 import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Utils
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_, poll, wait)
 import Control.Monad (forM_, void, (>=>))
 import Data.Aeson (ToJSON)
@@ -79,6 +79,7 @@ chatDirectTests = do
     it "should send multiline message" testMultilineMessage
     it "send large message" testLargeMessage
     it "initial chat pagination" testChatPaginationInitial
+    it "show message redelivered after chat stop once" testRedeliveredMessage
   describe "batch send messages" $ do
     it "send multiple messages api" testSendMulti
     it "send multiple timed messages" testSendMultiTimed
@@ -1443,6 +1444,22 @@ testExpireCallInvitation ps =
       M.member 2 <$> readTVarIO (currentCalls $ chatController bob) `shouldReturn` False
       callRowCount bob `shouldReturn` 0
       bob #$> ("/_get chat @2 count=100", chat, chatFeatures <> [(0, "incoming call: missed")])
+
+testRedeliveredMessage :: HasCallStack => TestParams -> IO ()
+testRedeliveredMessage ps = do
+  (received, cfg) <- blockFirstEventCfg $ newItemText "hello"
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      connectUsers alice bob
+      alice #> "@bob hello"
+      readMVar received
+      bob ##> "/_stop"
+      bob <## "chat stopped"
+      bob ##> "/_start"
+      bob <### ["chat started", "subscribed 1 connections on server localhost"]
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      bob #$> ("/_get chat @2 count=2", chat, [(0, "hello"), (0, "hi")])
 
 testStopStartChat :: HasCallStack => TestParams -> IO ()
 testStopStartChat ps =
