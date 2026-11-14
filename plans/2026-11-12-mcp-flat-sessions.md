@@ -597,16 +597,17 @@ badges on the avatar box (ChatListView.kt:741,  aligned to the box corner       
 ChatListView.desktop.kt:71-72)
 ```
 
-Every call site passes the visible size N, 5/6 of today's size S, and keeps S as the avatar's box with `Modifier.centeredIn(S)` (`Modifiers.kt`: `size(S).wrapContentSize()`). Each box has its present pixel size at every density and font scale, so neighbours, badges, overlays and height formulas stay. A padding of (S − N) / 2 rounds each side to whole pixels separately and changes boxes by 1 px (local renders: `Avatars.Rows` 414 to 419 px tall). `TERMINAL_MEMBER_IMAGE_SIZE` stays 27 dp: it is already the visible size.
+Every call site passes the visible size N, about 5/6 of today's size S, and keeps S as the avatar's box with `Modifier.centeredIn(S)`. `centeredIn` draws its child at exactly 5/6 of the box, centred with fractional placement, so placeholders reproduce the circle of master's padded vectors, S/12 to 11 S/12, and its first and last ink pixel at every density and font scale (user: "Previously there was an overshoot to the left and to the top, as it should have"). Photos and the incognito icon take the same size as placeholders: up to 1 px larger than on master, whose padding rounded each side of a photo to whole pixels. Each box has its present pixel size, so neighbours, badges, overlays and height formulas stay. `TERMINAL_MEMBER_IMAGE_SIZE` stays 27 dp: it is already the visible size.
 
 #### 12.3.1 Call sites
 
-As implemented. "N in S": the avatar is drawn at N inside the box S, `Modifier.centeredIn(S)`; S is today's size argument and N is S × 5/6, rounded to whole or half dp; √f is `fontSizeSqrtMultiplier`.
+As implemented. "N in S": the avatar is drawn at 5/6 of the box S, `Modifier.centeredIn(S)`; S is today's size argument and N, the measured size, is S × 5/6, rounded to whole or half dp; √f is `fontSizeSqrtMultiplier`.
 
 ```
 site (file, function)                              after
 chat list
 ChatPreviewView, ContactRequestView                60√f in 72√f
+ChatPreviewView chat-link thumbnail                36.5 sp in 44 sp
 ContactConnectionView                              54√f link icon, unchanged
 ChatListNavLinkView InvalidDataView                60 in 72
 ChatListView UserProfileButton                     31√f in 37√f
@@ -627,8 +628,8 @@ MemberSupportChatToolbarTitle                      in 60√f
 ChatView ChatInfoToolbarTitle, incognito           IncognitoImage 30√f in 36√f
 ChatView ChatItemsList, classic member and         31√f in MEMBER_IMAGE_SIZE√f (37)
 channel avatars
-ChatView ChatBannerView                            alertProfileImageSize 115 in 138; the comment on the image's
-                                                   own padding removed
+ChatView ChatBannerView                            alertProfileImageSize 115, Q10 spacing; the comment on the
+                                                   image's own padding removed
 TerminalItemView chatItemSender                    27√f; toEdge removed
 CIGroupInvitationView, CIChatLinkHeader,           45 in 54
 ComposeChatLinkView
@@ -661,16 +662,16 @@ ChatInfoImage PreviewChatInfoImage                 46 in 55
 ```
 
 Helpers:
-- `Modifier.centeredIn(size)` (`Modifiers.kt`): `size(size).wrapContentSize()`.
+- `Modifier.centeredIn(size)` (`Modifiers.kt`): `size(size)`, the child placed with a layer scaled to 5/6 of the box and translated to its centre.
 - `ProfileImage`: `toEdge`, `iconSize` and `requiredSize` removed; a `modifier` parameter, also in `ChatInfoImage`, `IncognitoImage`, `MemberProfileImage` and `MemberImage`; the disc behind the placeholder is `size * 0.84f`, as the cut-outs reach 0.72 (person) and 0.80 (group) of the radius.
 - `ProfileIconModifier`: the `padding` parameter removed; the blur of blocked photos is size / 4 (Q9).
-- `chatIconName`, `peerTypeIcon`, `iconRes` and `ChatInfoImage` return the avatar assets `ic_avatar_channel`, `ic_avatar_business`, `ic_avatar_bot`, `ic_avatar_agent` and `ic_avatar_folder`; `ic_folder_filled`, `ic_work_filled_padded`, `ic_cube` and `ic_agent` are deleted; `ic_bigtop_updates_circle_filled` stays for the Channels item of the tag menu. The chat-link thumbnail of the chat list (`ChatPreviewView`) draws `ProfileImage` at 36.5 sp, the visible size of the former 44 sp icon.
+- `chatIconName`, `peerTypeIcon`, `iconRes` and `ChatInfoImage` return the avatar assets `ic_avatar_channel`, `ic_avatar_business`, `ic_avatar_bot`, `ic_avatar_agent` and `ic_avatar_folder`; `ic_folder_filled`, `ic_work_filled_padded`, `ic_cube` and `ic_agent` are deleted; `ic_bigtop_updates_circle_filled` stays for the Channels item of the tag menu.
 - `MemberImage`: the default size removed; each caller passes the visible size.
 - `ProfileImageForActiveCall` removed; its callers use `ProfileImage`.
 - `ChatInfoToolbarTitle`, `MemberSupportChatToolbarTitle`: `imageBox` beside `imageSize`.
 - `FlatAvatarTest`: placeholders of a contact, a group, the notes and a channel, and a photo, each 27 dp, with ink over pixel columns 0 to 26.
 
-Snapshot evidence: the desktop scenes `Avatars.*` (`AvatarScenes.kt`) and the existing previews, recorded on the code before the change. After it, every changed pixel of an avatar screen lies within the colours of its 3 × 3 neighbourhood in the reference, so edges moved by at most 1 px, except the screens below. Without a desktop scene: the alerts, `ChatBannerView`, the reactions member list, `ChatItemInfoView`, `ComposeContextProfilePickerView`, `NewChatView`, the profile editors (`previewsCallingCore`) and the Android-only call screens and user picker; each uses `centeredIn` as the scenes do.
+Snapshot evidence: the first and last ink pixel of each avatar against master's reference, without tolerance (the PR page table). Without a desktop scene: the alerts, `ChatBannerView`, the reactions member list, `ChatItemInfoView`, `ComposeContextProfilePickerView`, `NewChatView`, the profile editors (`previewsCallingCore`) and the Android-only call screens and user picker; each uses `centeredIn` as the scenes do.
 
 Screens that change (missing compensations):
 - `ChannelMembersView`, `ChannelRelaysView` and `BadgeUserPreview` pass the iOS sizes and gaps (38 with spacing 8; 128 with spacing 12), so they drew 31.7 and 106.7 with gaps 13.2 and 22.7; now they match iOS (Q8).

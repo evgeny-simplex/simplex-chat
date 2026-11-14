@@ -362,7 +362,7 @@ fun ChatPreviewView(
           if (image != null) {
             Image(base64ToBitmap(image), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
           } else {
-            ProfileImage(36.5.sp.toDp(), icon = mc.chatLink.iconRes, color = if (isInDarkTheme()) FileDark else FileLight)
+            ProfileImage(36.5.sp.toDp(), icon = mc.chatLink.iconRes, color = if (isInDarkTheme()) FileDark else FileLight, modifier = Modifier.centeredIn(44.sp.toDp()))
           }
         }
       }
