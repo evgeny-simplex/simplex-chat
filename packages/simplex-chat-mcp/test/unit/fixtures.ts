@@ -172,6 +172,7 @@ export class FakeChat {
   commands: string[] = []
   sent: {chat: [T.ChatType, number]; messages: T.ComposedMessage[]; live?: true}[] = []
   updates: {chatId: number; itemId: number; text: string; live?: true}[] = []
+  updateTypes: string[] = []
   updatePriorities: {itemId: number; priority?: number}[] = []
   replies: string[] = []
   deleted: {chatType: T.ChatType; chatId: number; mode?: T.ChatDeleteMode}[] = []
@@ -233,6 +234,7 @@ export class FakeChat {
 
   async apiUpdateChatItem(_type: T.ChatType, chatId: number, itemId: number, msgContent: T.MsgContent, liveMessage?: boolean): Promise<T.ChatItem> {
     this.updates.push({chatId, itemId, text: msgContent.text, ...(liveMessage === true ? {live: true} : {})})
+    this.updateTypes.push(msgContent.type)
     return item(itemId, msgContent.text, {type: "groupSnd"})
   }
 

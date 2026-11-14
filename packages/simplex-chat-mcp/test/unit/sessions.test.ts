@@ -6,7 +6,7 @@ import {CallToolResult} from "@modelcontextprotocol/server"
 import {CEvt, ChatEvent, T} from "@simplex-chat/types"
 import {api, core} from "simplex-chat"
 import {Action} from "../../src/actions"
-import {controlCommands} from "../../src/control"
+import {StatusPreferences, controlCommands} from "../../src/control"
 import {SessionFile, createDataFolder, readSessionFile, sessionFolder, writeSessionFile} from "../../src/files"
 import {Hub, Session} from "../../src/hub"
 import {createMainGroup} from "../../src/main-group"
@@ -108,7 +108,7 @@ describe("session groups", () => {
           displayName: "1 · auth",
           fullName: "",
           description: "The Claude Code session 1. Members send it prompts; admins and owners also send the group's commands and approve tool use.",
-          groupPreferences: {history: {enable: "on"}, directMessages: {enable: "off"}, commands: controlCommands},
+          groupPreferences: {history: {enable: "on"}, directMessages: {enable: "off"}, commands: controlCommands, statusMessages: {enable: "on"}},
         },
       },
     ])
@@ -292,6 +292,16 @@ describe("session groups", () => {
     await Promise.all([session.turn({id: id1, model: "claude-opus-5"}), session.rename("deploy")])
     const {groupInfo} = chat.chats.get("#20")!.chatInfo as T.ChatInfo.Group
     expect(groupInfo.groupProfile).toMatchObject({displayName: "1 · deploy", shortDescr: "claude-opus-5"})
+  })
+
+  it("turn status messages on at creation, and again at each load of the group, as at the start of the service, after an owner turned them off", async () => {
+    const chat = new FakeChat()
+    const session = await openSession(await hubWith(chat), id1, stored(1, "auth"))
+    expect(chat.newGroups[0].groupProfile.groupPreferences).toMatchObject({statusMessages: {enable: "on"}})
+    const {groupInfo} = chat.chats.get("#20")!.chatInfo as T.ChatInfo.Group
+    groupInfo.groupProfile = {...groupInfo.groupProfile, groupPreferences: {...groupInfo.groupProfile.groupPreferences, statusMessages: {enable: T.GroupFeatureEnabled.Off}} as StatusPreferences}
+    await session.rename("deploy")
+    expect(chat.profiles.at(-1)?.groupProfile.groupPreferences).toMatchObject({statusMessages: {enable: "on"}})
   })
 
   it("keep the profile an owner changed, its preference for files and media included, at the next update of the model and at a rename, from the group's current profile", async () => {
@@ -1106,19 +1116,50 @@ describe("session channel", () => {
 
   const priorities = (chat: FakeChat) => chat.sent.filter(({chat: [, groupId]}) => groupId === 20).map(({messages}) => messages.map(message => (message as {priority?: number}).priority))
 
-  it("posts the start of a step as a silent live line and updates it with the step's end, and posts the end that arrives before its start as a silent line, and nothing for that start", async () => {
+  it("posts the start of a step as a silent live status line and updates it with the step's end, and posts the end that arrives before its start as a silent status line, and nothing for that start", async () => {
     const chat = new FakeChat()
     const {session} = await channel(chat)
     const posted = () => chat.sent.filter(({chat: [, groupId]}) => groupId === 20)
     const line = chat.nextItemId
     await session.turn({id: id1, at: 1, step: {id: "toolu_1", text: "💻 Run the tests"}})
-    expect(posted()).toEqual([{chat: [T.ChatType.Group, 20], messages: [{msgContent: {type: "text", text: "💻 Run the tests"}, mentions: {}, priority: -1}], live: true}])
+    expect(posted()).toEqual([{chat: [T.ChatType.Group, 20], messages: [{msgContent: {type: "status", text: "💻 Run the tests"}, mentions: {}, priority: -1}], live: true}])
     await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests ✅ 2.0 s", end: true}})
     expect(chat.updates).toEqual([{chatId: 20, itemId: line, text: "💻 Run the tests ✅ 2.0 s"}])
+    expect(chat.updateTypes).toEqual(["status"])
     await session.turn({id: id1, at: 4, step: {id: "toolu_2", text: "📖 Read src/hook.ts ✅ 41 ms", end: true}})
     await session.turn({id: id1, at: 3, step: {id: "toolu_2", text: "📖 Read src/hook.ts"}})
-    expect(posted().slice(1)).toEqual([{chat: [T.ChatType.Group, 20], messages: [{msgContent: {type: "text", text: "📖 Read src/hook.ts ✅ 41 ms"}, mentions: {}, priority: -1}]}])
+    expect(posted().slice(1)).toEqual([{chat: [T.ChatType.Group, 20], messages: [{msgContent: {type: "status", text: "📖 Read src/hook.ts ✅ 41 ms"}, mentions: {}, priority: -1}]}])
     expect(chat.updates).toHaveLength(1)
+  })
+
+  it("sends the lines of steps as text once the core refuses a status message, the final update of a line started as status included, and keeps text for later lines", async () => {
+    const chat = new FakeChat()
+    const {session} = await channel(chat)
+    const refusal = new core.ChatAPIError("Chat command error", {type: "error", errorType: {type: "commandError", message: "feature not allowed Status messages"}} as unknown as T.ChatError)
+    const update = chat.apiUpdateChatItem.bind(chat)
+    let statusOff = false
+    chat.apiUpdateChatItem = async (type, chatId, itemId, msgContent, live) => {
+      if (statusOff && (msgContent as {type: string}).type === "status") throw refusal
+      return update(type, chatId, itemId, msgContent, live)
+    }
+    const line = chat.nextItemId
+    await session.turn({id: id1, at: 1, step: {id: "toolu_1", text: "💻 Run the tests"}})
+    statusOff = true
+    await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests !- 2.0 s!", end: true}})
+    await session.turn({id: id1, at: 3, step: {id: "toolu_2", text: "📖 Read src/hook.ts"}})
+    const contents = chat.sent.filter(({chat: [, groupId]}) => groupId === 20).map(({messages: [{msgContent}]}) => [msgContent.type, msgContent.text])
+    expect(contents).toEqual([["status", "💻 Run the tests"], ["text", "📖 Read src/hook.ts"]])
+    expect(chat.updates).toEqual([{chatId: 20, itemId: line, text: "💻 Run the tests !- 2.0 s!"}])
+    expect(chat.updateTypes).toEqual(["text"])
+  })
+
+  it("sends the lines of steps as text in a session group without status messages", async () => {
+    const chat = new FakeChat()
+    const {session} = await channel(chat)
+    const {groupInfo} = chat.chats.get("#20")!.chatInfo as T.ChatInfo.Group
+    session.control["group"] = {...groupInfo, groupProfile: {...groupInfo.groupProfile, groupPreferences: {...groupInfo.groupProfile.groupPreferences, statusMessages: {enable: T.GroupFeatureEnabled.Off}} as StatusPreferences}}
+    await session.turn({id: id1, at: 1, step: {id: "toolu_1", text: "💻 Run the tests"}})
+    expect(chat.sent.filter(({chat: [, groupId]}) => groupId === 20).map(({messages: [{msgContent}]}) => msgContent.type)).toEqual(["text"])
   })
 
   it("ends the live lines of steps without an end with their text at an answer, at a prompt that starts a turn, at the last detach and at the hub's stop, not at a prompt added to the running turn, and posts nothing for their later ends", async () => {

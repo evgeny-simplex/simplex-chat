@@ -5,7 +5,7 @@ import {CC, CEvt, ChatEvent, T} from "@simplex-chat/types"
 import {api} from "simplex-chat"
 import {Action, Actions, HostTexts, Mode, isDecided, maxPending} from "./actions"
 import {Config} from "./config"
-import {Control, canSend, controlCommands, controlDataOf, createGroup, isControlEvent, isGroupMessage, parseCommand, rightsText, safeName, sessionApproverRoles} from "./control"
+import {Control, StatusPreferences, canSend, controlCommands, controlDataOf, createGroup, isControlEvent, isGroupMessage, parseCommand, rightsText, safeName, sessionApproverRoles} from "./control"
 import {openCore} from "./core"
 import {SessionFile, hubFolder, readSessionFile, sessionFolder, writeSessionFile} from "./files"
 import {chatErrorOf, errorText, log, logError, oneLine} from "./log"
@@ -57,6 +57,8 @@ const textEndMs = 10_000
 const maxRecentTexts = 20
 // spec: spec/architecture.md#hub-constants
 const stoppedLine = "⏹️ Stopped"
+// spec: spec/architecture.md#hub-constants
+const statusFeature = "Status messages"
 // spec: spec/api.md#list-of-sessions
 const listCheckMs = 2_000
 // spec: spec/api.md#list-of-sessions
@@ -89,6 +91,7 @@ interface SessionGroupData {
 interface Part {
   text: string
   priority?: number
+  status?: boolean
 }
 
 interface LiveStep {
@@ -125,9 +128,10 @@ interface Opening {
 interface LineKind {
   refused: string
   log: string
+  status?: boolean
 }
 
-const stepLines: LineKind = {refused: noteRefused, log: "steps"}
+const stepLines: LineKind = {refused: noteRefused, log: "steps", status: true}
 const textLines: LineKind = {refused: "Claude's text was not posted", log: "texts"}
 const answerLines: LineKind = {refused: "Claude's answer was not posted", log: "answers"}
 
@@ -146,6 +150,7 @@ export class Session {
   private readonly describedAt = {model: -Infinity, effort: -Infinity}
   private limits: Limits & {at: number} = {at: -Infinity}
   private statusLineReports = false
+  private statusRefused = false
   private turns: {at: number; item: T.ChatItem | null; added?: true}[] = []
   private answeredAt = -Infinity
   private requested?: Mode
@@ -555,7 +560,7 @@ export class Session {
       await item
     } else if (started === undefined) {
       this.remember(id)
-      await this.post([{text, priority: -1}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
+      await this.post([{text, priority: -1, status: true}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
     } else {
       await this.endStep(id, started, text)
     }
@@ -573,7 +578,7 @@ export class Session {
   // spec: spec/architecture.md#hub-session-step
   private async fill(itemId: number, text: string, live: boolean, kind: LineKind, onRefused?: () => void, line?: string, priority?: number): Promise<"filled" | "refused" | "failed"> {
     try {
-      await this.updateItem(itemId, text, live, priority)
+      await this.updateItem(itemId, text, live, priority, kind.status)
       return "filled"
     } catch (error) {
       if (refusedFeature(error) === undefined) {
@@ -589,7 +594,7 @@ export class Session {
   // spec: spec/architecture.md#hub-session-step
   private async sendLine(text: string, kind: LineKind, live: boolean, quotedItemId?: number, onRefused?: () => void): Promise<number | undefined> {
     try {
-      const [sent] = await this.post([{text, priority: -1}], quotedItemId, live)
+      const [sent] = await this.post([{text, priority: -1, status: kind.status}], quotedItemId, live)
       return sent?.chatItem.meta.itemId
     } catch (error) {
       if (await this.refused(error, kind)) onRefused?.()
@@ -805,12 +810,27 @@ export class Session {
   }
 
   // spec: spec/architecture.md#hub-session-text
-  private async updateItem(itemId: number, text: string, live: boolean, priority?: number): Promise<T.ChatItem> {
-    if (priority === undefined) return this.hub.chat.apiUpdateChatItem(T.ChatType.Group, this.control.groupId, itemId, {type: "text", text}, live)
-    const updatedMessage: T.UpdatedMessage & {priority: number} = {msgContent: {type: "text", text}, mentions: {}, priority}
-    const r = await this.hub.chat.sendChatCmd(CC.APIUpdateChatItem.cmdString({chatRef: {chatType: T.ChatType.Group, chatId: this.control.groupId}, chatItemId: itemId, liveMessage: live, updatedMessage}))
-    if (r.type === "chatItemUpdated" || r.type === "chatItemNotChanged") return r.chatItem.chatItem
-    throw new api.ChatCommandError("error updating chat item", r)
+  private updateItem(itemId: number, text: string, live: boolean, priority?: number, status?: boolean): Promise<T.ChatItem> {
+    return this.withStatus(status, async asStatus => {
+      const msgContent = lineContent(text, asStatus)
+      if (priority === undefined) return this.hub.chat.apiUpdateChatItem(T.ChatType.Group, this.control.groupId, itemId, msgContent, live)
+      const updatedMessage: T.UpdatedMessage & {priority: number} = {msgContent, mentions: {}, priority}
+      const r = await this.hub.chat.sendChatCmd(CC.APIUpdateChatItem.cmdString({chatRef: {chatType: T.ChatType.Group, chatId: this.control.groupId}, chatItemId: itemId, liveMessage: live, updatedMessage}))
+      if (r.type === "chatItemUpdated" || r.type === "chatItemNotChanged") return r.chatItem.chatItem
+      throw new api.ChatCommandError("error updating chat item", r)
+    })
+  }
+
+  // spec: spec/architecture.md#hub-session-withstatus
+  private async withStatus<R>(status: boolean | undefined, send: (asStatus: boolean) => Promise<R>): Promise<R> {
+    if (status !== true || this.statusRefused || !this.control.statusMessages) return send(false)
+    try {
+      return await send(true)
+    } catch (error) {
+      if (refusedFeature(error) !== statusFeature) throw error
+      this.statusRefused = true
+      return send(false)
+    }
   }
 
   // spec: spec/architecture.md#hub-session-step
@@ -821,9 +841,9 @@ export class Session {
   }
 
   // spec: spec/architecture.md#hub-session-step
-  private finalize(item: Promise<number | undefined>, text: string, {log}: LineKind): Promise<void> {
+  private finalize(item: Promise<number | undefined>, text: string, {log, status}: LineKind): Promise<void> {
     const updated = item
-      .then(itemId => (itemId === undefined ? undefined : this.updateItem(itemId, text, false)))
+      .then(itemId => (itemId === undefined ? undefined : this.updateItem(itemId, text, false, undefined, status)))
       .then(() => undefined, error => logError(`${log} of session ${this.number}`, error))
     this.finalizing = Promise.all([this.finalizing, updated]).then(() => undefined)
     return updated
@@ -867,10 +887,12 @@ export class Session {
 
   // spec: spec/architecture.md#hub-session-deliver
   private post(parts: Part[], quotedItemId?: number, live = false): Promise<T.AChatItem[]> {
-    const send = (quote?: number) => this.hub.chat.apiSendMessages([T.ChatType.Group, this.control.groupId], parts.map((part, i) => message(part, i === 0 ? quote : undefined)), live)
-    return send(quotedItemId).catch(error => {
-      if (quotedItemId === undefined || !isRefusedQuote(error)) throw error
-      return send()
+    return this.withStatus(parts.some(({status}) => status), asStatus => {
+      const send = (quote?: number) => this.hub.chat.apiSendMessages([T.ChatType.Group, this.control.groupId], parts.map((part, i) => message(part, asStatus, i === 0 ? quote : undefined)), live)
+      return send(quotedItemId).catch(error => {
+        if (quotedItemId === undefined || !isRefusedQuote(error)) throw error
+        return send()
+      })
     })
   }
 
@@ -1111,11 +1133,12 @@ export class Hub implements SessionGroups {
   // spec: spec/api.md#session-group-profile
   private async createSessionGroup({number, name}: SessionFile): Promise<T.GroupInfo> {
     const displayName = groupName(number, name)
+    const groupPreferences: StatusPreferences = {history: {enable: T.GroupFeatureEnabled.On}, directMessages: {enable: T.GroupFeatureEnabled.Off}, commands: controlCommands, statusMessages: {enable: T.GroupFeatureEnabled.On}}
     const group = await createGroup(this.chat, this.profile.userId, {
       displayName,
       fullName: "",
       description: `The Claude Code session ${number}. Members send it prompts; admins and owners also send the group's commands and approve tool use.`,
-      groupPreferences: {history: {enable: T.GroupFeatureEnabled.On}, directMessages: {enable: T.GroupFeatureEnabled.Off}, commands: controlCommands},
+      groupPreferences,
     }, {[sessionKey]: {session: number}})
     const user = await userContact(this.chat, this.profile.userId)
     if (user !== undefined) await this.chat.apiAddMember(group.groupId, user.contactId, T.GroupMemberRole.Member).catch(error => logError(`User in session ${number}`, error))
@@ -1212,8 +1235,13 @@ function textParts(text: string, quote?: Parameters<typeof fitsMessage>[2]): str
   return parts
 }
 
-function message({text, priority}: Part, quotedItemId?: number): T.ComposedMessage & {priority?: number} {
-  return {msgContent: {type: "text", text}, quotedItemId, mentions: {}, priority}
+function message({text, priority, status}: Part, asStatus: boolean, quotedItemId?: number): T.ComposedMessage & {priority?: number} {
+  return {msgContent: lineContent(text, asStatus && status === true), quotedItemId, mentions: {}, priority}
+}
+
+// spec: spec/architecture.md#hub-linecontent
+function lineContent(text: string, asStatus: boolean): T.MsgContent {
+  return asStatus ? ({type: "status", text} as unknown as T.MsgContent) : {type: "text", text}
 }
 
 // spec: spec/architecture.md#hub-quoteof

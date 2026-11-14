@@ -905,11 +905,12 @@ at = performance.timeOrigin of the hook process; absent: Infinity for an answer'
 | short description | `MODEL · effort LEVEL`, the parts known so far |
 | history | on |
 | direct messages | off |
+| status messages | on (`statusMessages`), set when the group is created and again at each load of the group, as at the service start, also after an owner turned them off ([`StatusPreferences`, `Control.statusMessages`](../src/control.ts)). The lines of steps are status messages while it is on, and text otherwise ([`Session.withStatus`](../src/hub.ts)) |
 | command menu | as in [2.5](#25-group-profile) |
 | members | `Claude`, the members invited through the Main group, the members others added directly, `User` |
 | peer types | `Claude` `agent`; `User` `human`, set at each service start ([`User.open`](../src/user.ts), [`updatedUser`](../src/core.ts)). A member who joined while `User` had `agent`, as in 0.3.0, gets `human` with `User`'s next post in the group, with the event `updated profile`: the core sends a member's profile to a group before the next message after a change of its name, full name, short description, description, image or peer type |
 
-Claude makes the profile updates one at a time. It starts each from the group's current profile in the chat database and changes only the display name, the short description or the command menu. So a rename and a model change that overlap both stay.
+Claude makes the profile updates one at a time. It starts each from the group's current profile in the chat database and changes only the display name, the short description, the command menu or the status messages. So a rename and a model change that overlap both stay.
 
 The hub takes the model and the effort level of a `/turn` only when its `at` is not older than the `at` of the value it took last. It keeps the two times apart, one for the model and one for the effort level. The model of a `/title` comes with the `at` of its SessionStart hook, as described in [4.6](#46-socket-protocol). A request without `at` counts as the current time. So when a Stop request that waited for its transcript entry arrives after a later model switch, the model of the switch stays ([`Session.turn`, `newer`](../src/hub.ts)). The model of a request with an answer that equals the shown model without a final `[1m]` counts as the shown model, because the transcript names the 1M context variant without that suffix ([`Session.turn`](../src/hub.ts)).
 

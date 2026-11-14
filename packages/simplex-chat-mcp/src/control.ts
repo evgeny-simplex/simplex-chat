@@ -18,6 +18,9 @@ export const controlCommands: T.ChatBotCommand[] = [
   {type: "command", keyword: "leave", label: "Leave a chat", params: "<chat ID>"},
 ]
 
+// spec: spec/api.md#session-group-profile
+export type StatusPreferences = T.GroupPreferences & {statusMessages?: T.RoleGroupPreference}
+
 // spec: spec/api.md#control-commands
 const commandsReply = "Commands: /approve, /reject, /receive, /forward, /revoke, /leave, /delete, /pending, /list. Each card shows its commands."
 // spec: spec/api.md#control-commands
@@ -136,13 +139,21 @@ export class Control implements Pick<ActionHooks, "refusal" | "saveCounter" | "p
     return `#${this.group.groupId}`
   }
 
+  // spec: spec/api.md#session-group-profile
+  get statusMessages(): boolean {
+    return statusMessagesOn(this.group.groupProfile.groupPreferences)
+  }
+
   // spec: spec/api.md#group-profile
   async load(): Promise<void> {
     if (isLost(this.group)) return this.lose()
-    const {displayName} = this.options
-    await this.updateProfile(profile =>
-      profile.displayName !== displayName || JSON.stringify(profile.groupPreferences?.commands) !== JSON.stringify(controlCommands) ? {...profile, displayName, groupPreferences: {...profile.groupPreferences, commands: controlCommands}} : undefined,
-    )
+    const {displayName, session} = this.options
+    await this.updateProfile(profile => {
+      const statusOff = session !== undefined && !statusMessagesOn(profile.groupPreferences)
+      if (profile.displayName === displayName && JSON.stringify(profile.groupPreferences?.commands) === JSON.stringify(controlCommands) && !statusOff) return undefined
+      const groupPreferences: StatusPreferences = {...profile.groupPreferences, commands: controlCommands, ...(statusOff ? {statusMessages: {enable: T.GroupFeatureEnabled.On}} : {})}
+      return {...profile, displayName, groupPreferences}
+    })
     await this.refreshMembers()
   }
 
@@ -748,6 +759,11 @@ export async function updateGroupProfile(chat: api.ChatApi, group: T.GroupInfo, 
 async function changeGroupProfile(chat: api.ChatApi, group: T.GroupInfo, change: (profile: T.GroupProfile) => T.GroupProfile | undefined): Promise<T.GroupInfo> {
   const profile = change(group.groupProfile)
   return profile === undefined ? group : chat.apiUpdateGroupProfile(group.groupId, profile)
+}
+
+// spec: spec/api.md#session-group-profile
+function statusMessagesOn(groupPreferences: StatusPreferences | undefined): boolean {
+  return groupPreferences?.statusMessages?.enable === T.GroupFeatureEnabled.On
 }
 
 // spec: spec/architecture.md#control-findcontrolgroup

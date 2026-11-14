@@ -222,11 +222,27 @@ SnapshotTests.swift                            four scenes: Classic/TerminalStat
 ```
 place                                    change
 Hub.createSessionGroup                   groupPreferences.statusMessages = {enable: on}
-step lines of ep/mcp-step-lines          {type: "status", text} when the session group has statusMessages on; {type: "text", text} otherwise
-final update of a live step line         {type: "text", text} when the preference was turned off after the line started
+Control.load                             statusMessages on in a session group at each load, as at the start of the service
+Control.statusMessages                   the group's profile has statusMessages on
+stepLines, Part.status                   the lines of steps ask for status content
+Session.withStatus                       status content while Control.statusMessages and no refusal; after "feature not allowed Status messages", the same post or update again as text, and text for the rest of the run
+lineContent                              {type: "status", text} cast to MsgContent until @simplex-chat/types has it; {type: "text", text} otherwise
 ```
 
-The plugin bundles core 7.1.3, so these rows wait for a core release with `status`, in a later plugin commit.
+```mermaid
+sequenceDiagram
+  participant H as hook
+  participant S as Session
+  participant C as core
+  H->>S: step start
+  S->>C: status line, live
+  C-->>S: refused: feature not allowed Status messages
+  S->>C: the same line as text
+  H->>S: step end
+  S->>C: final update as text
+```
+
+Branch `ep/mcp-status-steps`, stacked on `ep/status-messages` with master merged. It merges after a core release with `status`, when the plugin's `simplex-chat` and `@simplex-chat/types` dependencies move to it. Unit tests cover the status lines, the fallback and the preference; the end-to-end test checks that a step line is a status message when the core has the preference, and text otherwise. With `SIMPLEX_LIBS_DIR` set to the libraries of a `desktop-linux` core artifact of `ep/status-messages`, the end-to-end test runs against the branch core.
 
 ## 4. Tests
 
