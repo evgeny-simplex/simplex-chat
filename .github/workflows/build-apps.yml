@@ -1,13 +1,28 @@
 name: build-apps
 
+run-name: "${{ inputs.pr && format('build-apps pull request #{0} {1}', inputs.pr, inputs.commit) || (inputs.ota && 'build-apps ota' || 'build-apps') }}"
+
 on:
   workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number, whose head commit is built over the air; empty builds the branch the run starts on
+        type: string
+        default: ""
+      commit:
+        description: Full hash of the commit to build, required with a pull request; the run fails at another commit
+        type: string
+        default: ""
+      ota:
+        description: Over-the-air build of the branch, as of a pull request
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: build-apps-${{ github.ref }}
+  group: build-apps-${{ github.ref }}-${{ inputs.pr }}-${{ inputs.ota }}
   cancel-in-progress: true
 
 env:
@@ -17,14 +32,63 @@ env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
 
 jobs:
+  plan:
+    name: Commit to build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      ota: ${{ steps.commit.outputs.ota }}
+    steps:
+      - name: Check inputs
+        env:
+          PR: ${{ inputs.pr }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          if [ -n "$PR" ] && ! [[ "$PR" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::pr must be a pull request number, not '$PR'"
+            exit 1
+          fi
+          if [ -n "$PR" ] && [ -z "$COMMIT" ]; then
+            echo "::error::a pull request is built only at the commit given as commit"
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.pr && format('refs/pull/{0}/head', inputs.pr) || github.sha }}
+
+      - name: Check commit
+        id: commit
+        env:
+          COMMIT: ${{ inputs.commit }}
+          OTA: ${{ inputs.ota || inputs.pr != '' }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          git log -1 --format='%H %an %s'
+          if [ -n "$COMMIT" ] && [ "$sha" != "$COMMIT" ]; then
+            echo "::error::$sha is checked out, not the commit $COMMIT"
+            exit 1
+          fi
+          if [ "$OTA" = true ] && [ ! -f scripts/android/dev-app.gradle ]; then
+            echo "::error::$sha predates over-the-air builds: merge master into it"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "ota=$OTA" >> "$GITHUB_OUTPUT"
+
   # every build must open this encrypted database, made by the previous release with its own OpenSSL
   old-database:
     name: Previous release's database
+    needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
 
       - name: Make the database
         run: python3 scripts/simplex-chat-build.py test old-database --out "$RUNNER_TEMP/old-database"
@@ -39,6 +103,7 @@ jobs:
 
   android:
     name: Android ${{ matrix.arch }} APK
+    needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -49,6 +114,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
+          ref: ${{ needs.plan.outputs.sha }}
           fetch-depth: 0
           filter: tree:0
 
@@ -73,7 +139,9 @@ jobs:
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Build APK
-        run: scripts/simplex-chat-build.py build apk ${{ matrix.arch }} --out "$RUNNER_TEMP/out" --nix-cache
+        run: |
+          scripts/simplex-chat-build.py build apk ${{ matrix.arch }} --out "$RUNNER_TEMP/out" --nix-cache \
+            ${{ needs.plan.outputs.ota == 'true' && format('--ota {0}', github.run_number) || '' }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
@@ -86,12 +154,15 @@ jobs:
 
   android-bundle:
     name: Android Play bundle
-    needs: android
+    needs: [plan, android]
+    if: needs.plan.outputs.ota != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
 
       - name: Free disk space
         run: scripts/ci/linux_util_free_space.sh
@@ -116,7 +187,8 @@ jobs:
 
   android-test:
     name: Android ${{ matrix.arch }} APK in the emulator
-    needs: [android, old-database, desktop-linux]
+    needs: [plan, android, old-database, desktop-linux]
+    if: needs.plan.outputs.ota != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
@@ -130,6 +202,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
 
       - name: Download APK
         uses: actions/download-artifact@v8
@@ -181,14 +255,16 @@ jobs:
 
   ios:
     name: iOS archive
+    needs: plan
     runs-on: macos-26
     timeout-minutes: 360
     env:
-      HAS_ART_KEY: ${{ secrets.SIMPLEX_ART_SSH_KEY != '' }}
+      HAS_ART_KEY: ${{ secrets.SIMPLEX_ART_SSH_KEY != '' && inputs.pr == '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
+          ref: ${{ needs.plan.outputs.sha }}
           fetch-depth: 0
           filter: tree:0
 
@@ -215,7 +291,9 @@ jobs:
           path: simplex-chat-art
 
       - name: Build archive
-        run: scripts/simplex-chat-build.py build xcarchive ${{ env.HAS_ART_KEY == 'true' && '--art simplex-chat-art' || '' }} --out "$RUNNER_TEMP/out" --install-nix
+        run: |
+          scripts/simplex-chat-build.py build xcarchive ${{ env.HAS_ART_KEY == 'true' && '--art simplex-chat-art' || '' }} --out "$RUNNER_TEMP/out" --install-nix \
+            ${{ needs.plan.outputs.ota == 'true' && format('--ota {0}', github.run_number) || '' }}
 
       - name: Upload archive
         uses: actions/upload-artifact@v7
@@ -229,12 +307,14 @@ jobs:
   # the archive's core, from Nix, relabelled for the simulator: the same objects as the archive's, in the simulator app
   ios-test:
     name: iOS app in the simulator
-    needs: [ios, old-database, desktop-macos]
+    needs: [plan, ios, old-database, desktop-macos]
     runs-on: macos-26
     timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
 
       - name: Use the release Xcode
         uses: ./.github/actions/xcode
@@ -304,7 +384,7 @@ jobs:
 
   desktop-linux:
     name: Desktop Ubuntu ${{ matrix.ubuntu }} ${{ matrix.arch }}
-    needs: old-database
+    needs: [plan, old-database]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
     strategy:
@@ -319,6 +399,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
+          ref: ${{ needs.plan.outputs.sha }}
           submodules: recursive
 
       - name: Free disk space
@@ -386,7 +467,7 @@ jobs:
 
   desktop-macos:
     name: Desktop macOS ${{ matrix.arch }}
-    needs: old-database
+    needs: [plan, old-database]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
     strategy:
@@ -399,6 +480,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
+          ref: ${{ needs.plan.outputs.sha }}
           submodules: recursive
 
       - name: Use the release Xcode
@@ -462,7 +544,7 @@ jobs:
 
   desktop-windows:
     name: Desktop Windows
-    needs: old-database
+    needs: [plan, old-database]
     runs-on: windows-latest
     timeout-minutes: 240
     defaults:
@@ -477,6 +559,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
+          ref: ${{ needs.plan.outputs.sha }}
           submodules: recursive
 
       - name: Configure pagefile

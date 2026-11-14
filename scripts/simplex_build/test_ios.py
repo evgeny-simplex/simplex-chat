@@ -167,7 +167,7 @@ class IosArchiveTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def build(self, art, binary=b"app"):
+    def build(self, art, binary=b"app", ota=None):
         """build_ios_archive with art, against stand-ins of nix, Xcode and codesign, with binary as the app's executable;
         returns their commands and warn."""
         apple = FakeApple()
@@ -185,7 +185,8 @@ class IosArchiveTest(unittest.TestCase):
                 (source / "apps/ios/Shared/SimpleXAssets.xcassets/logo.imageset").mkdir()
             elif args[:2] == ["xcodebuild", "-showBuildSettings"]:
                 apple.commands.append(args)
-                return mock.Mock(returncode=0, stdout="    DEVELOPMENT_TEAM = 5NN7GUYB6T\n    IPHONEOS_DEPLOYMENT_TARGET = 15.0\n")
+                settings = "    DEVELOPMENT_TEAM = 5NN7GUYB6T\n    IPHONEOS_DEPLOYMENT_TARGET = 15.0\n    CURRENT_PROJECT_VERSION = 371\n"
+                return mock.Mock(returncode=0, stdout=settings)
             elif args[:2] == ["xcodebuild", "archive"]:
                 archive = pathlib.Path(args[args.index("-archivePath") + 1])
                 self.bridging_header_mtime = (source / "apps/ios/SimpleXChat/SimpleX.h").stat().st_mtime
@@ -215,7 +216,7 @@ class IosArchiveTest(unittest.TestCase):
             patch_all("machine_paths", return_value=["/Users/builder"]) as paths,
             patch_all("warn") as warn,
         ):
-            build_script.build_ios_archive(self.source, art, self.out, install=False)
+            build_script.build_ios_archive(self.source, art, self.out, install=False, ota=ota)
         self.assertEqual(install_libs.call_args.args[0], source)
         self.assertEqual(install_libs.call_args.args[1].name, build_script.IOS_CORE_ZIP)
         self.assertEqual(self.cwd, source)
@@ -239,6 +240,7 @@ class IosArchiveTest(unittest.TestCase):
         )
         archive = next(c for c in commands if c[:2] == ["xcodebuild", "archive"])
         self.assertIn("CODE_SIGNING_ALLOWED=NO", archive)
+        self.assertFalse(any(a.startswith("CURRENT_PROJECT_VERSION=") for a in archive))
         self.assertEqual(archive[archive.index("-derivedDataPath") + 1], str(self.build_root / "work/DerivedData"))
         signed = [c[-1] for c in commands if c[0] == "codesign" and "--entitlements" in c and "-d" not in c]
         self.assertEqual([pathlib.Path(p).name for p in signed], ["SimpleX NSE.appex", "SimpleX SE.appex", "SimpleX.app"])
@@ -253,6 +255,11 @@ class IosArchiveTest(unittest.TestCase):
             self.assertEqual(z.namelist()[0], "SimpleX.xcarchive/")
             self.assertIn("SimpleX.xcarchive/Products/Applications/SimpleX.app/SimpleX", z.namelist())
             self.assertEqual({i.date_time for i in z.infolist()}, {(2023, 11, 14, 22, 13, 20)})
+
+    def test_ota_build_numbers_the_archive_after_the_project(self):
+        commands, _ = self.build(self.art, ota=12)
+        archive = next(c for c in commands if c[:2] == ["xcodebuild", "archive"])
+        self.assertEqual(archive[-1], "CURRENT_PROJECT_VERSION=371.12")
 
     def test_without_the_art_checkout_the_archive_has_the_default_icons(self):
         commands, warn = self.build(None)

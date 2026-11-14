@@ -74,6 +74,34 @@ class AndroidTest(unittest.TestCase):
         self.assertFalse(any(a.startswith("NIX_CONFIG") for a in build))
         self.assertFalse(any(c[:2] == ["docker", "cp"] for c in recorder.commands))
 
+    def build_dev_apk(self, badging):
+        props = self.source / "apps/multiplatform/gradle.properties"
+        props.write_text("android.version_name=7.1.3\nandroid.version_code=387\n")
+        (self.source / "scripts/android").mkdir(parents=True)
+        (self.source / "scripts/android/dev-app.gradle").write_text("init script")
+        (self.source / "simplex-chat-arm64-v8a.apk").write_bytes(b"apk")
+        recorder = Recorder(answers={"find": "/g/bin/gradle\n", "dump badging": badging})
+        with patch_all("run", recorder), patch_all("log"):
+            build_script.build_dev_apk(self.container(), self.source, Arch.AARCH64, self.out, False, 12)
+        return props, recorder
+
+    def test_dev_apk_is_the_dev_app_numbered_by_the_ota_build(self):
+        badging = (
+            "package: name='chat.simplex.app.dev' versionCode='12' versionName='7.1.3-ota.12' platformBuildVersionName='16'\n"
+            "application-label:'SimpleX dev'\n"
+        )
+        props, recorder = self.build_dev_apk(badging)
+        self.assertEqual(props.read_text(), "android.version_name=7.1.3-ota.12\nandroid.version_code=12\n")
+        self.assertIn("init script", recorder.inputs)
+        build = next(c for c in recorder.commands if "./scripts/android/build-android.sh" in c)
+        self.assertEqual(build[-2:], ["-gs", "12"])
+        self.assertEqual((self.out / "simplex-dev-aarch64.apk").read_bytes(), b"apk")
+
+    def test_dev_apk_of_another_app_fails(self):
+        badging = "package: name='chat.simplex.app' versionCode='12' versionName='7.1.3-ota.12'\napplication-label:'SimpleX'\n"
+        with self.assertRaisesRegex(build_script.BuildError, "is not SimpleX dev 7.1.3-ota.12"):
+            self.build_dev_apk(badging)
+
     def test_missing_gradle_distribution(self):
         with patch_all("run", Recorder()), self.assertRaises(build_script.BuildError):
             build_script.build_apk(self.container(), self.source, Arch.AARCH64, self.out, "x.apk", False, False)

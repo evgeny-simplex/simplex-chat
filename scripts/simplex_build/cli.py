@@ -18,9 +18,9 @@ Build one commit's release files, as CI does; desktop, libs and openssl build fo
     simplex-chat-build.py build libs android [--arch <aarch64|armv7a>] [--install-nix] --out <dir>
     simplex-chat-build.py build libs ios-sim --out <dir>
     simplex-chat-build.py build openssl <macos|windows> --out <dir>
-    simplex-chat-build.py build apk <aarch64|armv7a> [--nix-cache] --out <dir>
+    simplex-chat-build.py build apk <aarch64|armv7a> [--nix-cache] [--ota <build>] --out <dir>
     simplex-chat-build.py build aab --libs <dir> --out <dir>
-    simplex-chat-build.py build xcarchive [--art <simplex-chat-art>] [--install-nix] --out <dir>
+    simplex-chat-build.py build xcarchive [--art <simplex-chat-art>] [--install-nix] [--ota <build>] --out <dir>
 Each build takes --source <dir>, the simplex-chat checkout, by default the current directory.
 
 Run release files as their users do, with screenshots of the apps; apk needs a running emulator:
@@ -53,12 +53,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .android import (
+    DEV_APP_ID,
+    DEV_APP_NAME,
     Arch,
     android_container,
     android_signing,
     build_android_libs,
     build_apk,
     build_bundle,
+    build_dev_apk,
     install_android_libs,
     reproduce_android,
 )
@@ -153,6 +156,7 @@ class BuildApk:
     out: Path
     source: Path
     nix_cache: bool
+    ota: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,6 +248,7 @@ class BuildIosArchive:
     out: Path
     source: Path
     install_nix: bool
+    ota: int | None = None
 
 
 type Build = (
@@ -351,11 +356,14 @@ def build(command: Build) -> None:
     out = prepare_out(command.out)
     source = command.source.resolve()
     match command:
-        case BuildApk(arch=arch, nix_cache=nix_cache):
+        case BuildApk(arch=arch, nix_cache=nix_cache, ota=ota):
             require_tools(["docker"])
             signing = android_signing()
             with android_container(source, out, arch == Arch.ARMV7A, signing) as container:
-                build_apk(container, source, arch, out, f"simplex-{arch}.apk", nix_cache, keep_libs=True, signing=signing)
+                if ota is None:
+                    build_apk(container, source, arch, out, f"simplex-{arch}.apk", nix_cache, keep_libs=True, signing=signing)
+                else:
+                    build_dev_apk(container, source, arch, out, nix_cache, ota, signing)
         case BuildBundle(libs=libs):
             require_tools(["docker"])
             signing = android_signing()
@@ -398,11 +406,11 @@ def build(command: Build) -> None:
             require_platform(Platform.WINDOWS)
             require_tools(WINDOWS_DESKTOP_TOOLS)
             build_desktop_windows(source, out)
-        case BuildIosArchive(art=art, install_nix=install):
+        case BuildIosArchive(art=art, install_nix=install, ota=ota):
             require_platform(Platform.MACOS)
             require_tools(IOS_TOOLS)
             require_nix(install)
-            build_ios_archive(source, art.resolve() if art else None, out, install)
+            build_ios_archive(source, art.resolve() if art else None, out, install, ota)
     write_sha256sums(out)
 
 
@@ -507,11 +515,18 @@ def parse_build_args(argv: Sequence[str]) -> Command:
     apk = kinds.add_parser("apk", parents=[common], help="the deterministic APK and its core libraries, signed when ANDROID_* are set")
     apk.add_argument("arch", type=Arch, choices=list(Arch))
     apk.add_argument("--nix-cache", action="store_true", help="substitute from zw3rk's and IOG's caches")
+    apk.add_argument(
+        "--ota",
+        type=int,
+        metavar="BUILD",
+        help=f"over-the-air build BUILD of {DEV_APP_NAME} ({DEV_APP_ID}): version code BUILD, version name <version>-ota.BUILD",
+    )
     aab = kinds.add_parser("aab", parents=[common], help="the Play bundle, from both arches' core libraries")
     aab.add_argument("--libs", type=Path, required=True, help="directory with the pkg-<arch>-android-*.zip files")
     xcarchive = kinds.add_parser("xcarchive", parents=[common], help="the iOS archive, its bundles signed ad hoc with their entitlements")
     xcarchive.add_argument("--art", type=Path, help="checkout of simplex-chat-art, with the brand assets (default: none, with a warning)")
     xcarchive.add_argument("--install-nix", action="store_true", help="install Nix first, as on a CI runner")
+    xcarchive.add_argument("--ota", type=int, metavar="BUILD", help="over-the-air build BUILD: build number <build number>.BUILD")
 
     args = parser.parse_args(argv)
     match args.kind, getattr(args, "platform", None):
@@ -536,11 +551,11 @@ def parse_build_args(argv: Sequence[str]) -> Command:
         case "openssl", str(openssl_platform):
             return BuildOpenssl(Platform(openssl_platform), args.out, args.source)
         case "apk", _:
-            return BuildApk(args.arch, args.out, args.source, args.nix_cache)
+            return BuildApk(args.arch, args.out, args.source, args.nix_cache, args.ota)
         case "aab", _:
             return BuildBundle(args.libs, args.out, args.source)
         case _:
-            return BuildIosArchive(args.art, args.out, args.source, args.install_nix)
+            return BuildIosArchive(args.art, args.out, args.source, args.install_nix, args.ota)
 
 
 def parse_install_args(argv: Sequence[str]) -> InstallLibs:

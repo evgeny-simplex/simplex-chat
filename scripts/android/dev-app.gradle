@@ -1,0 +1,8 @@
+allprojects {
+    plugins.withId('com.android.application') {
+        android.buildTypes.getByName('release') {
+            applicationIdSuffix = '.dev'
+            manifestPlaceholders.putAll(app_name: 'SimpleX dev', provider_authorities: 'chat.simplex.app.dev.provider')
+        }
+    }
+}

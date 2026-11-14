@@ -17,7 +17,7 @@ Two tests cover the OpenSSL of the mobile apps' core beyond opening a database:
 
 ## Running it
 
-The workflow runs only when started by hand, on any branch: in the Actions tab, `build-apps` → Run workflow, or `gh workflow run build-apps.yml --ref <branch>`. A newer run on the same branch cancels the older one. Start it on master or a branch of master: armv7a is built from the same commit, which `stable` only supports once it carries the armv7a build of master.
+The workflow runs only when started by hand, on any branch: in the Actions tab, `build-apps` → Run workflow, or `gh workflow run build-apps.yml --ref <branch>`. A newer run on the same branch, for the same pull request and `ota`, cancels the older one. Start it on master or a branch of master: armv7a is built from the same commit, which `stable` only supports once it carries the armv7a build of master.
 
 It needs the repository secret `SIMPLEX_ART_SSH_KEY`, the private half of a read-only deploy key of simplex-chat/simplex-chat-art, for the iOS brand assets; without it, as on forks, the archive has the default icons and the build warns. A fork with its own copy of the assets sets the repository variable `SIMPLEX_ART_REPO` to that repository (`owner/name`) and the secret to a deploy key of it.
 
@@ -30,6 +30,21 @@ It needs the repository secret `SIMPLEX_ART_SSH_KEY`, the private half of a read
 | iOS archive | macos-26 | `build xcarchive` with Xcode 26.6: the core library `aarch64-darwin-ios:lib:simplex-chat` with Nix, the brand assets of simplex-chat-art, then `xcodebuild archive` of the Release configuration for devices, unsigned, and each bundle signed ad hoc with its entitlements | `ios-archive-unsigned`: `SimpleX.xcarchive.zip`, `SHA256SUMS` |
 
 `gh run download <run id> -n <artifact>` downloads one. The version and build numbers are the commit's: bump them before the run.
+
+## Over-the-air builds
+
+The same jobs build the apps of a pull request, or of a branch, for the team's devices, to be signed outside CI as the release files are:
+
+```sh
+gh workflow run build-apps.yml --ref master -f pr=<number> -f commit=<full hash of its head>
+gh workflow run build-apps.yml --ref master -f ota=true
+```
+
+- **Commit:** the job `plan` checks out `refs/pull/<number>/head` and fails unless it is at `commit`; every other job builds that commit. With a branch, `commit` is optional and checked the same way. The run is named `build-apps pull request #<number> <commit>`, or `build-apps ota`.
+- **Android:** `build apk <arch> --ota <run number>` builds SimpleX dev, which installs beside the released app, with its own data: the init script `scripts/android/dev-app.gradle`, which the build runs from `~/.gradle/init.d` in its container, gives the release variant the id `chat.simplex.app.dev`, the name "SimpleX dev" and the file provider `chat.simplex.app.dev.provider`. The version code is the run number, the version name `<android.version_name>-ota.<run number>`, and the build fails unless `aapt2 dump badging` shows them. The artifact `android-<arch>-unsigned` has `simplex-dev-<arch>.apk`. The Play bundle and the emulator tests, which install the released app's id, are skipped.
+- **iOS:** `build xcarchive --ota <run number>` numbers the archive `<CURRENT_PROJECT_VERSION>.<run number>`, such as `371.12`, which is unique in its version and below the next release's number. A pull request's archive has the default icons: its job runs the pull request's code, so it gets no brand assets key.
+- **Desktop:** the packages are the release's, with the commit's version.
+- **Reuse:** a run for a pull request runs that pull request's code under the branch's name, so `scripts/ci/desktop-linux/earlier-run.sh`, which android-emu, desktop-linux and ios-sim use to reuse builds, uses its artifacts only in runs for the same pull request.
 
 ## Android: signing reproducibly
 
