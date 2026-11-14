@@ -16,7 +16,7 @@ import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Profiles (addTestBadge, futureDate, issueTestBadge, testBadgeKeys)
 import ChatTests.Utils
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Concurrent.STM (TVar, atomically, modifyTVar', newTVarIO, readTVarIO, writeTVar)
 import Control.Monad (forM_, void, when)
@@ -202,6 +202,7 @@ chatGroupTests = do
     it "deduplicate forwarded messages" testGroupMsgForwardDeduplicate
     it "report duplicate when forwarded copy is received after direct copy" testGroupMsgForwardDuplicateEvent
     it "report duplicate when direct copy is received after forwarded copy" testGroupMsgDirectDuplicateEvent
+    it "show message redelivered after chat stop once" testGroupRedeliveredMessage
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
@@ -6101,6 +6102,22 @@ testGroupMsgDirectDuplicateEvent ps = do
         agentSendBody bob bobConnId $ chatMsgToBody chatMsg
         cath <##. "duplicate group message, group id: 1"
         readTVarIO dups `shouldReturn` ["bob"]
+
+testGroupRedeliveredMessage :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredMessage ps = do
+  (received, cfg) <- blockFirstEventCfg $ newItemText "hello"
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      createGroup2 "team" alice bob
+      alice #> "#team hello"
+      readMVar received
+      bob ##> "/_stop"
+      bob <## "chat stopped"
+      bob ##> "/_start"
+      bob <### ["chat started", "subscribed 2 connections on server localhost"]
+      alice #> "#team hi"
+      bob <# "#team alice> hi"
+      bob #$> ("/_get chat #1 count=2", chat, [(0, "hello"), (0, "hi")])
 
 testGroupMsgForwardEdit :: HasCallStack => TestParams -> IO ()
 testGroupMsgForwardEdit =
