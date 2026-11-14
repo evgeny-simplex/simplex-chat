@@ -277,13 +277,13 @@ rcvQuotedItem db user chatDirection RcvMessage {chatMsgEvent} = case chatMsgEven
     case chatDirection of
       CDDirectRcv Contact {contactId} ->
         resolveQuote (getDirectChatItemBySharedMsgId db user contactId) $ Just $ sentQuote $ if sent then CIQDirectRcv else CIQDirectSnd
-      CDGroupRcv gInfo scopeInfo m@GroupMember {memberId = senderMemberId}
+      CDGroupRcv gInfo scopeInfo m
         | isJust (prohibitedGroupContent gInfo m scopeInfo qmc qFormattedText (Nothing :: Maybe String) False) ->
             resolveQuote (getGroupQuotedItem gInfo) Nothing
         | otherwise ->
-            resolveQuote (getGroupQuotedItem gInfo) $ Just $ sentQuote $ CIQGroupRcv $ if memberId == Just senderMemberId then Just m else Nothing
+            resolveQuote (getGroupQuotedItem gInfo) $ Just $ sentQuote $ sentQuoteDirection gInfo (Just m)
       CDChannelRcv gInfo _ ->
-        resolveQuote (getGroupQuotedItem gInfo) $ Just $ sentQuote $ CIQGroupRcv Nothing
+        resolveQuote (getGroupQuotedItem gInfo) $ Just $ sentQuote $ sentQuoteDirection gInfo Nothing
     where
       resolveQuote :: (SharedMsgId -> ExceptT StoreError IO (CChatItem c)) -> Maybe (CIQuote c) -> IO (Maybe (CIQuote c))
       resolveQuote getItem sentQuote_ = case sharedMsgId_ of
@@ -291,21 +291,28 @@ rcvQuotedItem db user chatDirection RcvMessage {chatMsgEvent} = case chatMsgEven
         Nothing -> pure sentQuote_
       getGroupQuotedItem gInfo = maybe (getGroupChatItemBySharedMsgId db user gInfo Nothing) (getGroupMemberCIBySharedMsgId db user gInfo) memberId
       itemQuote :: CChatItem c -> Maybe (CIQuote c)
-      itemQuote (CChatItem _ ChatItem {chatDir, meta = CIMeta {itemId}, content, mentions, file}) = do
+      itemQuote (CChatItem _ ci@ChatItem {meta = CIMeta {itemId}, content, mentions, file}) = do
         qmc' <- (\itemMC -> quoteContent mc itemMC file) <$> ciMsgContent content
         let ParsedMarkdown formattedText markdownBlocks = parsedMsgContent qmc'
             (qmc'', ft', _) = updatedMentionNames qmc' formattedText mentions
-        pure CIQuote {chatDir = quoteDirection chatDir, itemId = Just itemId, sharedMsgId = sharedMsgId_, sentAt, content = qmc'', formattedText = ft', markdownBlocks}
+        pure CIQuote {chatDir = quoteDirection ci, itemId = Just itemId, sharedMsgId = sharedMsgId_, sentAt, content = qmc'', formattedText = ft', markdownBlocks}
+      quoteDirection :: ChatItem c d -> CIQDirection c
+      quoteDirection ChatItem {chatDir, meta = CIMeta {showGroupAsSender}} = case chatDir of
+        CIDirectSnd -> CIQDirectSnd
+        CIDirectRcv -> CIQDirectRcv
+        CIGroupSnd
+          | showGroupAsSender -> CIQGroupRcv Nothing
+          | otherwise -> CIQGroupSnd
+        CIGroupRcv m -> CIQGroupRcv $ Just m
+        CIChannelRcv -> CIQGroupRcv Nothing
       sentQuote :: CIQDirection c -> CIQuote c
       sentQuote dir = CIQuote {chatDir = dir, itemId = Nothing, sharedMsgId = sharedMsgId_, sentAt, content = qmc, formattedText = qFormattedText, markdownBlocks = qMarkdownBlocks}
       ParsedMarkdown qFormattedText qMarkdownBlocks = parsedMsgContent qmc
-      quoteDirection :: CIDirection c d -> CIQDirection c
-      quoteDirection = \case
-        CIDirectSnd -> CIQDirectSnd
-        CIDirectRcv -> CIQDirectRcv
-        CIGroupSnd -> CIQGroupSnd
-        CIGroupRcv m -> CIQGroupRcv $ Just m
-        CIChannelRcv -> CIQGroupRcv Nothing
+      sentQuoteDirection GroupInfo {membership} sender_ = case memberId of
+        Just mId
+          | sameMemberId mId membership -> CIQGroupSnd
+          | Just m <- sender_, sameMemberId mId m -> CIQGroupRcv sender_
+        _ -> CIQGroupRcv Nothing
   _ -> pure Nothing
 
 forwardLinkCIFF :: DB.Connection -> User -> ForwardLink -> IO CIForwardedFrom
