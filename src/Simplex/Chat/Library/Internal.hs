@@ -108,7 +108,7 @@ import qualified Simplex.Messaging.TMap as TM
 import Simplex.Messaging.Util
 import Simplex.Messaging.Version
 import System.FilePath (takeFileName, (</>))
-import System.IO (Handle, IOMode (..), hFlush)
+import System.IO (Handle, IOMode (..))
 import UnliftIO.Concurrent (forkFinally, mkWeakThreadId)
 import UnliftIO.Directory
 import UnliftIO.IO (hClose, openFile)
@@ -787,7 +787,7 @@ acceptFileReceive user@User {userId} RcvFileTransfer {fileId, xftpRcvFile, fileI
     -- XFTP
     (Just XFTPRcvFile {userApprovedRelays = approvedBeforeReady}, _) -> do
       let userApproved = approvedBeforeReady || userApprovedRelays
-      filePath <- getRcvFilePath fileId filePath_ fName False
+      filePath <- getRcvFilePath filePath_ fName
       (ci, rfd) <- withStore $ \db -> do
         -- marking file as accepted and reading description in the same transaction
         -- to prevent race condition with appending description
@@ -814,7 +814,7 @@ acceptFileReceive user@User {userId} RcvFileTransfer {fileId, xftpRcvFile, fileI
   where
     acceptFile :: (ChatMsgEvent 'Json -> CM ()) -> CM AChatItem
     acceptFile send = do
-      filePath <- getRcvFilePath fileId filePath_ fName True
+      filePath <- getRcvFilePath filePath_ fName
       inline <- receiveInline
       cxt <- chatStoreCxt
       if
@@ -944,8 +944,8 @@ startReceivingFile user fileId = do
     getChatItemByFileId db cxt user fileId
   toView $ CEvtRcvFileStart user ci
 
-getRcvFilePath :: FileTransferId -> Maybe FilePath -> String -> Bool -> CM FilePath
-getRcvFilePath fileId fPath_ fn keepHandle = case fPath_ of
+getRcvFilePath :: Maybe FilePath -> String -> CM FilePath
+getRcvFilePath fPath_ fn = case fPath_ of
   Nothing ->
     chatReadVar filesFolder >>= \case
       Nothing -> do
@@ -970,14 +970,7 @@ getRcvFilePath fileId fPath_ fn keepHandle = case fPath_ of
       fPath <- liftIO $ fPathDir `uniqueCombine` fn
       createEmptyFile fPath $> fPath
     createEmptyFile :: FilePath -> CM ()
-    createEmptyFile fPath = emptyFile `catchThrow` (ChatError . CEFileWrite fPath . show)
-      where
-        emptyFile :: CM ()
-        emptyFile
-          | keepHandle = do
-              h <- getFileHandle fileId fPath rcvFiles AppendMode
-              liftIO $ B.hPut h "" >> hFlush h
-          | otherwise = liftIO $ B.writeFile fPath ""
+    createEmptyFile fPath = liftIO (B.writeFile fPath "") `catchThrow` (ChatError . CEFileWrite fPath . show)
 
 -- TODO [short links]
 -- Please note:
@@ -2048,11 +2041,9 @@ appendFileChunk ft@RcvFileTransfer {fileId, fileStatus, cryptoArgs, fileInvitati
     append_ :: FilePath -> CM ()
     append_ filePath = do
       fsFilePath <- lift $ toFSFilePath filePath
-      h <- getFileHandle fileId fsFilePath rcvFiles AppendMode
-      liftIO (B.hPut h chunk >> hFlush h) `catchThrow` (fileErr . show)
+      liftIO (B.appendFile fsFilePath chunk) `catchThrow` (fileErr . show)
       withStore' $ \db -> updatedRcvFileChunkStored db ft chunkNo
-      when final $ do
-        lift $ closeFileHandle fileId rcvFiles
+      when final $
         forM_ cryptoArgs $ \cfArgs -> do
           tmpFile <- lift getChatTempDirectory >>= liftIO . (`uniqueCombine` fileName)
           tryAllErrors (liftError encryptErr $ encryptFile fsFilePath tmpFile cfArgs) >>= \case

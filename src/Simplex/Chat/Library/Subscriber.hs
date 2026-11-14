@@ -2071,7 +2071,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
         Just IFMSent -> do
           encrypt <- chatReadVar encryptLocalFiles
           ft' <- (if encrypt then setFileToEncrypt else pure) ft
-          fPath <- getRcvFilePath fileId Nothing fileName True
+          fPath <- getRcvFilePath Nothing fileName
           withStore' $ \db -> startRcvInlineFT db user ft' fPath inline
           pure (Just fPath, CIFSRcvAccepted, ft')
         _ -> pure (Nothing, CIFSRcvInvitation, ft)
@@ -3544,7 +3544,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           chSize <- asks $ fileChunkSize . config
           let rosterFInv = FileInvitation {fileName = "roster", fileSize, fileDigest = Nothing, fileConnReq = Nothing, fileInline = Just IFMSent, fileDescr = Nothing, fileBadge = Nothing}
           -- transfer record + its scratch file in one transaction (file owned by the transfer, keyed per source)
-          rft@RcvFileTransfer {fileId} <- withStore $ \db -> do
+          rft <- withStore $ \db -> do
             transferId <- liftIO $ createRosterTransfer db gInfo (groupMemberId' fromMember) newVer fileDigest (groupMemberId' author) brokerTs relayHdr
             createRosterRcvFile db userId gInfo fromMember transferId sharedMsgId rosterFInv (Just IFMSent) chSize
           -- accept the chat-item-free file before chunk 1 (FIFO before it) so chunk 1 isn't rejected on RFSNew
@@ -3553,7 +3553,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           rosterTs <- liftIO getCurrentTime
           let GroupInfo {groupId = gId} = gInfo
               rosterFile = "roster_" <> show gId <> "_" <> show (groupMemberId' fromMember) <> "_" <> formatTime defaultTimeLocale "%Y%m%d_%H%M%S" rosterTs
-          filePath <- getRcvFilePath fileId (Just tmpDir) rosterFile False
+          filePath <- getRcvFilePath (Just tmpDir) rosterFile
           withStore' $ \db -> startRcvInlineFT db user rft filePath (Just IFMSent)
           pure Nothing
 
