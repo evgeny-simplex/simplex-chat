@@ -1170,7 +1170,7 @@ private fun InvestInSimpleXChatView(modalManager: ModalManager) {
     }
     Text(
       buildAnnotatedString {
-        append(generalGetString(MR.strings.v7_0_invest_descr))
+        append(generalGetString(MR.strings.v7_1_4_invest_descr))
         append(" ")
         withStyle(SpanStyle(color = MaterialTheme.colors.primary)) {
           append(generalGetString(MR.strings.learn_more))

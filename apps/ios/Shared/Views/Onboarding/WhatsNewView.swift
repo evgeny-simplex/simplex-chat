@@ -706,7 +706,7 @@ private let versionDescriptions: [VersionDescription] = [
             Feature.feature(Description(
                 icon: "checkmark.shield",
                 title: "New security audit by Trail of Bits",
-                description: "Please upgrade, and ask your contacts to upgrade too. We will publish the report and our security process before the end of November.",
+                description: "Please upgrade, and ask your contacts to upgrade. Full report by the end of November.",
                 learnMore: URL(string: "https://simplex.chat/blog/20261121-simplex-chat-security-audit-trail-of-bits-security-process.html")
             ))
         ] + (isInUS ? [
@@ -860,7 +860,7 @@ fileprivate struct InvestInSimpleXChat: View {
                 .padding(.bottom, 8)
                 .onTapGesture { showGetStakeSheet = true }
             #endif
-            (Text("Crowdfunding on Wefunder.") + Text(verbatim: " ") + Text("Learn more").foregroundColor(theme.colors.primary))
+            (Text("The only messaging network without user identifiers.") + Text(verbatim: " ") + Text("Learn more").foregroundColor(theme.colors.primary))
                 .multilineTextAlignment(.leading)
                 .onTapGesture { showGetStakeSheet = true }
         }
