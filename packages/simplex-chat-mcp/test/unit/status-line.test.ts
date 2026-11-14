@@ -24,7 +24,7 @@ const input = {
 }
 const env = (): NodeJS.ProcessEnv => ({SIMPLEX_MCP_HOME: root, CLAUDE_PID: "77"})
 const roots: string[] = []
-const machine = async (folder: string): Promise<Machine> => (roots.push(folder), {memoryFree: 12_400_000_000, memoryTotal: 32_000_000_000, diskFree: 7_380_000_000})
+const machine = (folder: string): Machine => (roots.push(folder), {memoryFree: 12_400_000_000, memoryTotal: 32_000_000_000, diskFree: 7_380_000_000})
 const free = " · RAM 12 GB free · disk 7.3 GB free"
 
 beforeEach(() => {
@@ -73,12 +73,13 @@ describe("status line command", () => {
     expect(machineParts({memoryFree: 3_199_000_000, memoryTotal: 32_000_000_000, diskFree: 4_999_000_000})).toEqual(["⚠️ RAM 3.1 GB free", "⚠️ disk 4.9 GB free"])
     expect(machineParts({memoryFree: 850_700_000, memoryTotal: 16_000_000_000, diskFree: 45_600_000_000_000})).toEqual(["⚠️ RAM 850 MB free", "disk 45 TB free"])
     expect(machineParts({memoryFree: 9_900_000_000, memoryTotal: 16_000_000_000})).toEqual(["RAM 9.9 GB free"])
+    expect(machineParts(undefined)).toEqual([])
   })
 
-  it("reads the available memory of the process's limits and the free disk of the data folder, or of its nearest existing parent", async () => {
+  it("reads the available memory of the process's limits and the free disk of the data folder, or of its nearest existing parent", () => {
     const {bavail, bsize} = statfsSync(root)
     for (const folder of [root, join(root, "missing", "folder")]) {
-      const {memoryFree, memoryTotal, diskFree} = await machineState(folder)
+      const {memoryFree, memoryTotal, diskFree} = machineState(folder)
       expect(memoryFree).toBeGreaterThan(0)
       expect(memoryFree).toBeLessThanOrEqual(memoryTotal)
       expect(memoryTotal).toBeLessThanOrEqual(totalmem())
