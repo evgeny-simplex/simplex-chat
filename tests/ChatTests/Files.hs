@@ -7,6 +7,7 @@ module ChatTests.Files where
 
 import ChatClient
 import ChatTests.DBUtils
+import ChatTests.Groups (itemSharedMsgId)
 import ChatTests.Profiles (addTestBadge, futureDate, issueTestBadge, issueTestBadgeType, testBadgeKeys)
 import ChatTests.Utils
 import Control.Concurrent (threadDelay)
@@ -25,14 +26,14 @@ import Simplex.Chat.Badges (BadgeProof, BadgeStatus (..), BadgeType (..), FileSi
 import Simplex.Chat.Controller (ChatCommand (APIGetChat), ChatConfig (..), ChatPagination (CPLast), ChatResponse (CRApiChat, CRNewChatItems))
 import Simplex.Chat.Core (sendChatCmdStr)
 import Simplex.Chat.Library.Commands (execChatCommand')
-import Simplex.Chat.Library.Internal (badgeProofStatus, roundedFDCount, sendDirectContactMessage)
+import Simplex.Chat.Library.Internal (badgeProofStatus, roundedFDCount, sendDirectContactMessage, sendDirectMemberMessage)
 import Simplex.Chat.Markdown (parseMaybeMarkdownList)
 import Simplex.Chat.Messages (AChat (..), AChatItem (..), CChatItem (..), CIQuote (CIQuote, content, formattedText), Chat (..), ChatItem (..), ChatRef (..), ChatType (..), SndMessage (..))
 import Simplex.Chat.Messages.CIContent (ciMsgContent)
 import Simplex.Chat.Mobile.File
 import Simplex.Chat.Options (ChatOpts (..))
 import Simplex.Chat.Protocol (ChatMsgEvent (BFileChunk, XMsgNew), FileChunk (..), MsgContainer (file), MsgContent (MCImage, MCText, MCVoice), mcSimple)
-import Simplex.Chat.Types (FileInvitation (..), ImageData (..), InlineFileMode (..), SharedMsgId)
+import Simplex.Chat.Types (FileInvitation (..), GroupMember (..), ImageData (..), InlineFileMode (..), SharedMsgId)
 import Simplex.FileTransfer.Server.Env (XFTPServerConfig (..), XFTPStoreConfig (..))
 import Simplex.Messaging.Crypto.BBS (BBSPublicKey, bbsKeyGen)
 import Simplex.Messaging.Crypto.File (CryptoFile (..), CryptoFileArgs (..))
@@ -74,6 +75,8 @@ chatFileTests = do
     it "receive file marked to receive on chat start" testXFTPMarkToReceive
     it "error receiving file" testXFTPRcvError
     it "cancel receiving file, repeat receive" testXFTPCancelRcvRepeat
+    it "file chunks after the file is received are ignored" testXFTPChunksAfterReceived
+    it "file chunks after the file is received are ignored in group" testXFTPGroupChunksAfterReceived
     it "should accept file automatically with CLI option" testAutoAcceptFile
     it "should prohibit file transfers in groups based on preference" testProhibitFiles
   describe "file transfer over XFTP without chat items" $ do
@@ -1337,6 +1340,75 @@ testXFTPCancelRcvRepeat =
       dest `shouldBe` src
   where
     cfg = testCfg {xftpDescrPartSize = 200}
+
+testXFTPChunksAfterReceived :: HasCallStack => TestParams -> IO ()
+testXFTPChunksAfterReceived =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    withXFTPServer alice $ do
+      connectUsers alice bob
+      let logoPng = tmpFile bob "logo-large-rgba.png"
+
+      alice #> "/f @bob ./tests/fixtures/logo-large-rgba.png"
+      alice <## "use /fc 1 to cancel sending"
+      bob <# "alice> sends file logo-large-rgba.png (28.0 KiB / 28676 bytes)"
+      bob <## "use /fr 1 [<dir>/ | <path>] to receive it"
+      bob ##> ("/fr 1 " <> tmpDir bob)
+      concurrentlyN_
+        [ alice <## "completed uploading file 1 (logo-large-rgba.png) for bob",
+          bob
+            <### [ ConsoleString $ "saving file 1 from alice to " <> logoPng,
+                   "started receiving file 1 (logo-large-rgba.png) from alice"
+                 ]
+        ]
+      bob <## "completed receiving file 1 (logo-large-rgba.png) from alice"
+
+      sharedMsgId <- itemSharedMsgId alice
+      withCCUser alice $ \user -> do
+        ct <- getTestCCContact alice 2
+        let sendChunk chunk =
+              runExceptT (sendDirectContactMessage user ct (BFileChunk sharedMsgId chunk)) `runReaderT` chatController alice
+                >>= either (fail . show) (\_ -> pure ())
+        mapM_ sendChunk [FileChunk 1 "", FileChunkCancel, FileChunk 1 "", FileChunk 2 "alice's bytes"]
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+
+      bob ##> "/fs 1"
+      bob <## ("receiving file 1 (logo-large-rgba.png) complete, path: " <> logoPng)
+      src <- B.readFile "./tests/fixtures/logo-large-rgba.png"
+      B.readFile logoPng `shouldReturn` src
+
+testXFTPGroupChunksAfterReceived :: HasCallStack => TestParams -> IO ()
+testXFTPGroupChunksAfterReceived =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    withXFTPServer alice $ do
+      createGroup2 "team" alice bob
+      let logoPng = tmpFile bob "logo-large-rgba.png"
+
+      alice #> "/f #team ./tests/fixtures/logo-large-rgba.png"
+      alice <## "use /fc 1 to cancel sending"
+      bob <# "#team alice> sends file logo-large-rgba.png (28.0 KiB / 28676 bytes)"
+      bob <## "use /fr 1 [<dir>/ | <path>] to receive it"
+      alice <## "completed uploading file 1 (logo-large-rgba.png) for #team"
+      bob ##> ("/fr 1 " <> tmpDir bob)
+      bob
+        <### [ ConsoleString $ "saving file 1 from alice to " <> logoPng,
+               "started receiving file 1 (logo-large-rgba.png) from alice"
+             ]
+      bob <## "completed receiving file 1 (logo-large-rgba.png) from alice"
+
+      sharedMsgId <- itemSharedMsgId alice
+      GroupMember {groupId = gId, activeConn = Just conn} <- getTestMember alice "team" "bob"
+      let sendChunk chunk =
+            runExceptT (sendDirectMemberMessage conn (BFileChunk sharedMsgId chunk) gId) `runReaderT` chatController alice
+              >>= either (fail . show) (\_ -> pure ())
+      mapM_ sendChunk [FileChunk 1 "", FileChunkCancel, FileChunk 1 "", FileChunk 2 "alice's bytes"]
+      alice #> "#team hi"
+      bob <# "#team alice> hi"
+
+      bob ##> "/fs 1"
+      bob <## ("receiving file 1 (logo-large-rgba.png) complete, path: " <> logoPng)
+      src <- B.readFile "./tests/fixtures/logo-large-rgba.png"
+      B.readFile logoPng `shouldReturn` src
 
 testAutoAcceptFile :: HasCallStack => TestParams -> IO ()
 testAutoAcceptFile =
