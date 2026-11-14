@@ -4296,8 +4296,8 @@ sealed class CC {
     is ApiLeaveGroup -> "/_leave #$groupId"
     is ApiListMembers -> "/_members #$groupId"
     is ApiUpdateGroupProfile -> "/_group_profile #$groupId ${json.encodeToString(groupProfile)}"
-    is APICreateGroupLink -> "/_create link #$groupId ${memberRole.name.lowercase()}"
-    is APIGroupLinkMemberRole -> "/_set link role #$groupId ${memberRole.name.lowercase()}"
+    is APICreateGroupLink -> "/_create link #$groupId ${memberRole.memberRole}"
+    is APIGroupLinkMemberRole -> "/_set link role #$groupId ${memberRole.memberRole}"
     is APIDeleteGroupLink -> "/_delete link #$groupId"
     is APIGetGroupLink -> "/_get link #$groupId"
     is ApiAddGroupShortLink -> "/_short link #$groupId"
@@ -7856,7 +7856,7 @@ data class GroupLink(
           groupLink.shortLinkDataSet,
           groupLink.shortLinkLargeDataSet,
           groupLink.groupLinkId,
-          groupLink.acceptMemberRole.name
+          groupLink.acceptMemberRole.memberRole
         )
       },
       restore = { saved ->
@@ -7877,7 +7877,7 @@ data class GroupLink(
           shortLinkDataSet = shortLinkDataSet,
           shortLinkLargeDataSet = shortLinkLargeDataSet,
           groupLinkId = groupLinkId,
-          acceptMemberRole = GroupMemberRole.valueOf(roleName)
+          acceptMemberRole = GroupMemberRole.fromString(roleName)
         )
       }
     )
