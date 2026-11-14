@@ -664,7 +664,7 @@ ChatInfoImage PreviewChatInfoImage                 46 in 55
 Helpers:
 - `Modifier.centeredIn(size)` (`Modifiers.kt`): `size(size)`; the child at inset `box / 12` (whole pixels, rounded down) on each side, measured at `box − 2 × inset`.
 - `ProfileImage`: `toEdge`, `iconSize` and `requiredSize` removed; a `modifier` parameter, also in `ChatInfoImage`, `IncognitoImage`, `MemberProfileImage` and `MemberImage`; the disc behind the placeholder is `size * 0.84f`, as the cut-outs reach 0.72 (person) and 0.80 (group) of the radius.
-- `ProfileIconModifier`: the `padding` parameter removed; the blur of blocked photos is size / 4 (Q9).
+- `ProfileIconModifier`: the `padding` parameter removed; the blur of blocked photos is size / 4 (Q9). In `ProfileImage` a photo fills the drawn box, and its rounded square is inset from that box in whole pixels (`profileIconShape`, `insetTo`).
 - `chatIconName`, `peerTypeIcon`, `iconRes` and `ChatInfoImage` return the avatar assets `ic_avatar_channel`, `ic_avatar_business`, `ic_avatar_bot`, `ic_avatar_agent` and `ic_avatar_folder`; `ic_folder_filled`, `ic_work_filled_padded`, `ic_cube` and `ic_agent` are deleted; `ic_bigtop_updates_circle_filled` stays for the Channels item of the tag menu.
 - `MemberImage`: the default size removed; each caller passes the visible size.
 - `ProfileImageForActiveCall` removed; its callers use `ProfileImage`.
