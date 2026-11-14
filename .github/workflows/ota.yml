@@ -1,6 +1,6 @@
 name: ota
 
-run-name: ${{ inputs.pr && format('ota pull request #{0}', inputs.pr) || 'ota' }}
+run-name: "${{ inputs.pr && format('ota pull request #{0}', inputs.pr) || 'ota' }}"
 
 on:
   workflow_dispatch:
