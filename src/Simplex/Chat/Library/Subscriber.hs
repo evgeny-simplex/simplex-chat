@@ -583,6 +583,9 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               atomically $ modifyTVar' tags (tshow tag :)
               logInfo $ "contact msg=" <> tshow tag <> " " <> eInfo
               (conn'', msg@RcvMessage {chatMsgEvent = ACME _ event}) <- saveDirectRcvMSG conn' msgMeta chatMsg
+              let User {localDisplayName = diagName} = user
+                  MsgMeta {recipient = (diagMsgId, _)} = msgMeta
+              liftIO $ putStrLn $ "diag " <> T.unpack diagName <> " saved msg " <> show diagMsgId <> " " <> show tag
               let ct'' = ct' {activeConn = Just conn''} :: Contact
               case event of
                 XMsgNew mc -> newContentMessage ct'' mc msg msgMeta
@@ -2012,6 +2015,9 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           -- to prevent race condition with accept
           ft' <- getRcvFileTransfer db user fileId
           pure (rfd, ft')
+        let User {localDisplayName = diagName} = user
+            FileDescr {fileDescrPartNo = diagPartNo} = fileDescr
+        liftIO $ putStrLn $ "diag " <> T.unpack diagName <> " appended file " <> show fileId <> " part " <> show diagPartNo <> " complete " <> show fileDescrComplete
         when fileDescrComplete $ toView $ CEvtRcvFileDescrReady user aci ft' rfd
         maxSize <- asks $ noBadge . fileSizeLimits . config
         let descrBadgeRequired = fileDescrComplete && fileSize > maxSize && isNothing fileProhibited
@@ -2752,7 +2758,11 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
 
     rcvMsgRepeated :: Connection -> MsgMeta -> CM Bool
     rcvMsgRepeated Connection {connId} MsgMeta {recipient = (agentMsgId, _), redelivered}
-      | redelivered = withStore' $ \db -> checkMsgDeliveryExists db connId agentMsgId
+      | redelivered = do
+          saved <- withStore' $ \db -> checkMsgDeliveryExists db connId agentMsgId
+          let User {localDisplayName = diagName} = user
+          liftIO $ putStrLn $ "diag " <> T.unpack diagName <> " redelivered conn " <> show connId <> " msg " <> show agentMsgId <> " saved " <> show saved
+          pure saved
       | otherwise = pure False
 
     xInfo :: Contact -> Profile -> CM ()
