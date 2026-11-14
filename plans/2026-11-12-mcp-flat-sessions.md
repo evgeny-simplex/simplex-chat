@@ -522,9 +522,8 @@ Q8   iOS ports     (a), by the Q4 answer: the iOS ports are the missing compensa
                    the iOS sizes.
 Q9   blur          (a): blocked photos blurred by size / 4, as iOS.
 Q10  banner        (a): top 20, gap 10.
-Q11  settings      open, shown as renders of the Android/desktop row now and proposed, beside the iOS screen:
-                   (a) the Appearance profile-images row 70 dp, as the font-scale row below it, and one
-                   unread-badge offset on both platforms (the desktop badge moves 0.5 left, 2.5 up); (b) as today.
+Q11  settings      (a): the Appearance profile-images row 70 dp, as the font-scale row below it, and one
+                   unread-badge offset on both platforms (the desktop badge moves 0.5 left, 2.5 up).
 Q12  share icons   (a): ChatInfoImage in the share list.
 Q13  placeholders  (a), as iOS: business a filled circle with the briefcase cut out; bot and agent fill the box.
 ```
@@ -535,8 +534,7 @@ flowchart TB
   S --> Q5[Q5 overshoot 2 dp]
   S --> Q6[Q6 gap 6 dp]
   S --> Q7[Q7 five defects fixed]
-  S --> R[Q8 Q9 Q10 Q12 Q13 answered]
-  S --> Q11{Q11 settings row, open}
+  S --> R[Q8 Q9 Q10 Q11 Q12 Q13 answered]
 ```
 
 ### 12.2 Placeholders fill their box
@@ -619,8 +617,10 @@ ContactPreviewView
 user picker and profiles
 UserPicker UserProfileRow                          45√f in 54√f
 SettingsView ProfilePreview                        S − 10 in S; S is 60, or 64 from IncomingCallAlertLayout
-UserPicker.desktop UserPickerUsersSection          46 in 55
+UserPicker.desktop UserPickerUsersSection          46 in 55; the unread badge at the avatar's corner (Q11)
 UserPicker.android UserPickerUserBox               ProfileImage(44) for ProfileImageForActiveCall(44)
+UserPicker userUnreadBadge                         one offset, 4 sp right and 4 sp up from the avatar's top end
+                                                   corner, on both platforms (Q11); hasPadding removed
 chat view
 ChatView ChatInfoToolbarTitle,                     imageSize 33√f in imageBox 40√f; from AddGroupMembersLayout 50√f
 MemberSupportChatToolbarTitle                      in 60√f
@@ -649,7 +649,8 @@ profiles, creation, settings
 WelcomeView, AddGroupView, AddChannelView          107 in 128
 AddChannelView ProgressStepView                    90 in 108
 BadgeUserPreview                                   128, unchanged: the avatar grows from 106.7 to 128, as on iOS (Q8)
-Appearance ProfileImageSection                     50 with vertical padding 5; offset removed; Spacer 15
+Appearance ProfileImageSection                     50 without padding, so the row is 70, as the font-scale row (Q11);
+                                                   offset removed; Spacer 15
 alerts
 ConnectPlan open-chat alerts                       alertProfileImageSize 115 in a 138 box in AlertManager
                                                    .showOpenChatAlert
@@ -772,6 +773,9 @@ defect 6          a hidden integrity error renders no row (ChatViewListItem);   
                   skip hidden neighbours (MergedItems.create)                     has no sender row
 Q9 blur           blur size / 4
 Q10 banner        top 20, 10 below the image                                     the banner 3 dp shorter
+Q11 settings      ProfileImageSection: the image box without its 5 dp padding;   the row 80 → 70 dp; the desktop
+                  userUnreadBadge: one offset; the desktop picker draws the      badge 0.5 dp left, 2.5 dp up
+                  badge in the 46 dp avatar box
 Q12 share list    ChatInfoImage
 Q13 placeholders  business a filled circle with the briefcase cut out (scaled
                   0.785); bot and agent in the cube's box, 124.5 −878.5 711 797,

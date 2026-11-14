@@ -58,11 +58,11 @@ actual fun UserPickerUsersSection(
                 horizontalAlignment = Alignment.CenterHorizontally,
               ) {
                 val user = u.user
-                Box {
-                  ProfileImage(size = 46.dp, image = user.profile.image, color = iconColor, modifier = Modifier.centeredIn(55.dp))
+                Box(Modifier.centeredIn(55.dp)) {
+                  ProfileImage(size = 46.dp, image = user.profile.image, color = iconColor)
 
                   if (u.unreadCount > 0 && !user.activeUser) {
-                    userUnreadBadge(u.unreadCount, user.showNtfs, true)
+                    userUnreadBadge(u.unreadCount, user.showNtfs)
                   }
                 }
 

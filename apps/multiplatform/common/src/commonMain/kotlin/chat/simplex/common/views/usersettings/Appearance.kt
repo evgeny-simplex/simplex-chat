@@ -70,12 +70,10 @@ object AppearanceScope {
       val image = remember { chatModel.currentUser }.value?.image
       Row(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
         val size = 50.dp
-        Box(Modifier.padding(vertical = 5.dp)) {
-          if (!image.isNullOrEmpty()) {
-            ProfileImage(size, image, MR.images.ic_simplex_light, color = Color.Unspecified)
-          } else {
-            ProfileImage(size, if (isInDarkTheme()) MR.images.ic_simplex_light else MR.images.ic_simplex_dark)
-          }
+        if (!image.isNullOrEmpty()) {
+          ProfileImage(size, image, MR.images.ic_simplex_light, color = Color.Unspecified)
+        } else {
+          ProfileImage(size, if (isInDarkTheme()) MR.images.ic_simplex_light else MR.images.ic_simplex_dark)
         }
         Spacer(Modifier.width(15.dp))
         Slider(

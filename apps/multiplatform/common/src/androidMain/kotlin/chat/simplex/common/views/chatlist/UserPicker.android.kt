@@ -91,7 +91,7 @@ fun UserPickerUserBox(
       ProfileImage(size = USER_PICKER_IMAGE_SIZE, image = userInfo.user.profile.image, color = MaterialTheme.colors.secondaryVariant)
 
       if (userInfo.unreadCount > 0 && !userInfo.user.activeUser) {
-        userUnreadBadge(userInfo.unreadCount, userInfo.user.showNtfs, false)
+        userUnreadBadge(userInfo.unreadCount, userInfo.user.showNtfs)
       }
     }
     val user = userInfo.user

@@ -661,14 +661,14 @@ fun HostDisconnectButton(onClick: (() -> Unit)?) {
 }
 
 @Composable
-fun BoxScope.userUnreadBadge(unreadCount: Int, userMuted: Boolean, hasPadding: Boolean) {
+fun BoxScope.userUnreadBadge(unreadCount: Int, userMuted: Boolean) {
   Text(
     if (unreadCount > 0) unreadCountStr(unreadCount) else "",
     color = Color.White,
     fontSize = 10.sp,
     style = TextStyle(textAlign = TextAlign.Center),
     modifier = Modifier
-      .offset(y = if (hasPadding) 3.sp.toDp() else -4.sp.toDp(), x = if (hasPadding) 0.dp else 4.sp.toDp())
+      .offset(y = -4.sp.toDp(), x = 4.sp.toDp())
       .background(if (userMuted) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.secondary, shape = CircleShape)
       .badgeLayout()
       .padding(horizontal = 2.sp.toDp())
