@@ -349,8 +349,8 @@ describe("turn hooks", () => {
       ])
       expect(teammateEvents(requests).slice(5, 9)).toEqual([
         undefined,
-        [{name: "general-purpose", kind: "report", text: "\n## Review of the race fix\n\nNo defect.", note: "📋 Report from subagent general-purpose: ## Review of the race fix"}],
-        [{name: "ios-terminal", kind: "report", text: "[Subagent hand-back] The report follows:\n  All done.", note: "📋 Report from subagent ios-terminal: [Subagent hand-back] The report follows:"}],
+        [{name: "general-purpose", kind: "report", id: "report a43be993e71d0a22f", copy: true, text: "\n## Review of the race fix\n\nNo defect.", note: "📋 Report from subagent general-purpose: ## Review of the race fix"}],
+        [{name: "ios-terminal", kind: "report", id: "report a1", copy: true, text: "[Subagent hand-back] The report follows:\n  All done.", note: "📋 Report from subagent ios-terminal: [Subagent hand-back] The report follows:"}],
         undefined,
       ])
       expect(requests.map(request => (request as {body: object}).body).filter(body => "note" in body && "teammates" in body)).toEqual([])
@@ -426,14 +426,14 @@ describe("turn hooks", () => {
         ["✉️ Message from tester: Tests pass\n✉️ Message from reviewer & co: Reviewed: no defect.", false, undefined],
       ])
       expect(teammateEvents(requests)).toEqual([
-        [{name: "lookalikes-builder", kind: "message", text: "The seed file is written.\n\nSeeds: 37 handles.", note: '✉️ Message from lookalikes-builder: X Ads look-alike seed file "v2" written'}],
-        [{name: "lookalikes-builder", kind: "message", text: "\nThe seed file is written.\n\nSeeds: 37 handles.", note: "✉️ Message from lookalikes-builder: The seed file is written."}],
+        [{name: "lookalikes-builder", kind: "message", copy: true, text: "The seed file is written.\n\nSeeds: 37 handles.", note: '✉️ Message from lookalikes-builder: X Ads look-alike seed file "v2" written'}],
+        [{name: "lookalikes-builder", kind: "message", copy: true, text: "\nThe seed file is written.\n\nSeeds: 37 handles.", note: "✉️ Message from lookalikes-builder: The seed file is written."}],
         undefined,
-        [{name: "lookalikes-builder", kind: "message", text: "All 37 handles are live.", note: "✉️ Message from lookalikes-builder: Handles checked"}],
+        [{name: "lookalikes-builder", kind: "message", copy: true, text: "All 37 handles are live.", note: "✉️ Message from lookalikes-builder: Handles checked"}],
         undefined,
         [
-          {name: "tester", kind: "message", text: "All 12 tests pass.", note: "✉️ Message from tester: Tests pass"},
-          {name: "reviewer & co", kind: "message", text: "Reviewed: no defect.", note: "✉️ Message from reviewer & co: Reviewed: no defect."},
+          {name: "tester", kind: "message", copy: true, text: "All 12 tests pass.", note: "✉️ Message from tester: Tests pass"},
+          {name: "reviewer & co", kind: "message", copy: true, text: "Reviewed: no defect.", note: "✉️ Message from reviewer & co: Reviewed: no defect."},
         ],
       ])
     } finally {
@@ -749,11 +749,11 @@ describe("turn hooks", () => {
       await used("SendMessage", {to: "team-lead", message: "From ../"}, {agent_id: "../a1", agent_type: "probe"})
       await used("Bash", {command: "echo probe-ok"})
       expect(requests.map(request => (request as {body: object}).body)).toEqual([
-        {id, at: 1, teammates: [{name: "probe", kind: "message", text: "probe-ok\nsecond line", note: "✉️ Message from probe: Output of echo"}]},
-        {id, at: 1, teammates: [{name: "reviewer", kind: "message", text: "Reviewed: no defect.", note: "✉️ Message from reviewer: Reviewed: no defect."}]},
-        {id, at: 1, teammates: [{name: "reviewer", kind: "report", text: "The report.\nDetails.", note: "📋 Report from subagent reviewer: The report."}]},
+        {id, at: 1, teammates: [{name: "probe", kind: "message", id: "message toolu_SendMessage", text: "probe-ok\nsecond line", note: "✉️ Message from probe: Output of echo"}]},
+        {id, at: 1, teammates: [{name: "reviewer", kind: "message", id: "message toolu_SendMessage", text: "Reviewed: no defect.", note: "✉️ Message from reviewer: Reviewed: no defect."}]},
+        {id, at: 1, teammates: [{name: "reviewer", kind: "report", id: "report a1", text: "The report.\nDetails.", note: "📋 Report from subagent reviewer: The report."}]},
         {id, at: 1, teammates: [{name: "probe", kind: "end"}]},
-        {id, at: 1, teammates: [{name: "probe", kind: "message", text: "From ../", note: "✉️ Message from probe: From ../"}]},
+        {id, at: 1, teammates: [{name: "probe", kind: "message", id: "message toolu_SendMessage", text: "From ../", note: "✉️ Message from probe: From ../"}]},
       ])
     } finally {
       rmSync(folder, {recursive: true, force: true})

@@ -45,6 +45,7 @@ interface Pending {
 interface Teammate {
   name: string
   userId?: number
+  connId?: number
   contactId?: number
   memberId?: number
   groupId?: number
@@ -65,6 +66,7 @@ export class Teammates {
   private queue: Promise<unknown> = Promise.resolve()
   private activeUserId?: number
   private closing = new AbortController()
+  private closed?: Promise<void>
 
   constructor(
     private readonly folder: string,
@@ -72,12 +74,7 @@ export class Teammates {
     private readonly opener: Opener = folder => openCore(folder, hostName, T.ChatPeerType.Agent),
   ) {}
 
-  // spec: spec/architecture.md#teammates-teammates-has
-  has(name: string): boolean {
-    return this.active(name) !== undefined
-  }
-
-  // spec: spec/architecture.md#teammates-teammates-has
+  // spec: spec/architecture.md#teammates-teammates-ismember
   isMember({groupMemberId}: T.GroupMember): boolean {
     return this.memberIds.has(groupMemberId)
   }
@@ -113,7 +110,13 @@ export class Teammates {
   }
 
   // spec: spec/architecture.md#teammates-teammates-end
-  async close(): Promise<void> {
+  close(): Promise<void> {
+    this.closed ??= this.shutDown().finally(() => (this.closed = undefined))
+    return this.closed
+  }
+
+  // spec: spec/architecture.md#teammates-teammates-end
+  private async shutDown(): Promise<void> {
     this.closing.abort()
     await Promise.all([...this.teammates.values()].filter(({ended}) => ended !== true).map(teammate => this.finish(teammate)))
     const core = await this.core?.catch(() => undefined)
@@ -121,11 +124,17 @@ export class Teammates {
     this.activeUserId = undefined
     this.closing = new AbortController()
     await core?.chat.close().catch(error => logError(`teammates of session ${this.host.session}`, error))
+    try {
+      rmSync(this.folder, {recursive: true, force: true})
+    } catch (error) {
+      logError(`teammates of session ${this.host.session}`, error)
+    }
   }
 
   // spec: spec/architecture.md#teammates-teammates-join
   private async join(teammate: Teammate, description: string | undefined): Promise<void> {
     const {chat: hostChat, userId: hostUserId, groupId: hostGroupId, session} = this.host
+    await this.closed
     const {chat} = await this.opened()
     const shortDescr = description === undefined ? undefined : [...description.trim()].slice(0, maxDescription).join("")
     const profile: T.Profile = {displayName: validName(teammate.name) || hostName, fullName: "", peerType: T.ChatPeerType.Agent, ...(shortDescr ? {shortDescr} : {})}
@@ -138,6 +147,7 @@ export class Teammates {
     const r = await hostChat.sendChatCmd(CC.APIAddContact.cmdString({userId: hostUserId, incognito: false}))
     if (r.type !== "invitation") throw new api.ChatCommandError("error creating link", r)
     const {connLinkInvitation, connection} = r
+    teammate.connId = connection.pccConnId
     const connected = hostChat.wait("contactConnected", ({contact}) => contact.activeConn?.connId === connection.pccConnId, joinTimeout)
     await this.asUser(userId, async teammateChat => {
       const [, link] = await teammateChat.apiConnectPlan(userId, connLinkInvitation.connShortLink || connLinkInvitation.connFullLink)
@@ -180,7 +190,7 @@ export class Teammates {
   }
 
   // spec: spec/architecture.md#teammates-teammates-end
-  private async leave({name, userId, contactId, memberId, groupId}: Teammate): Promise<void> {
+  private async leave({name, userId, connId, contactId, memberId, groupId}: Teammate): Promise<void> {
     const {chat: hostChat, groupId: hostGroupId, session} = this.host
     const context = `teammate ${name} of session ${session}`
     try {
@@ -197,6 +207,7 @@ export class Teammates {
       logError(context, error)
     }
     if (contactId !== undefined) await hostChat.apiDeleteChat(T.ChatType.Direct, contactId, {type: "full", notify: false}).catch(error => logError(context, error))
+    else if (connId !== undefined) await deleteConnection(hostChat, connId).catch(error => logError(context, error))
   }
 
   // spec: spec/architecture.md#teammates-teammates-opened
@@ -284,6 +295,12 @@ export class Teammates {
     this.queue = result.catch(() => undefined)
     return result
   }
+}
+
+// spec: spec/architecture.md#teammates-teammates-end
+async function deleteConnection(chat: api.ChatApi, connId: number): Promise<void> {
+  const r = await chat.sendChatCmd(`/_delete :${connId}`)
+  if (r.type !== "contactConnectionDeleted") throw new api.ChatCommandError("error deleting connection", r)
 }
 
 // spec: spec/architecture.md#teammates-removestale

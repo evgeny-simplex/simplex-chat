@@ -11,7 +11,7 @@ import {SessionFile, createDataFolder, readSessionFile, sessionFolder, writeSess
 import {Hub, Session} from "../../src/hub"
 import {createMainGroup} from "../../src/main-group"
 import {Collected} from "../../src/messages"
-import {AttachLine} from "../../src/protocol"
+import {AttachLine, TeammateEvent} from "../../src/protocol"
 import * as tools from "../../src/tools"
 import {User} from "../../src/user"
 import {version} from "../../src/version"
@@ -2099,23 +2099,30 @@ describe("session channel", () => {
       expect(ended).toEqual([["reviewer", undefined], ["tester", 10_000]])
     })
 
-    it("posts a teammate's message or report once when both the lead's prompt and the teammate's own hook send it within a minute, and again after that minute", async () => {
+    it("posts a teammate's message once by its identity: its own hook's message, not the lead's copy of an agent of the session, a repeated text again, and a report once by its agent", async () => {
       const chat = new FakeChat()
       const {session} = await channel(chat)
       const posted: string[] = []
+      jest.spyOn(session.teammates, "start").mockReturnValue("started")
       jest.spyOn(session.teammates, "post").mockImplementation(async (name, parts) => (posted.push(`${name}: ${parts.join("")}`), name === "reviewer"))
       jest.spyOn(session.teammates, "end").mockResolvedValue()
-      const message = (name: string, text: string) => session.turn({id: id1, teammates: [{name, kind: "message", text, note: `✉️ Message from ${name}: ${text}`}]})
-      await message("reviewer", "No defect.")
-      await message("reviewer", "No defect.\n")
-      await message("tester", "Tests pass.")
-      await message("tester", "Tests pass.")
-      await session.turn({id: id1, teammates: [{name: "reviewer", kind: "report", text: "No defect.", note: "📋 Report from subagent reviewer: No defect."}]})
-      expect(posted).toEqual(["reviewer: No defect.", "tester: Tests pass.", "reviewer: No defect."])
-      expect(silent(chat)).toEqual([{text: "✉️ Message from tester: Tests pass.", priority: -1}])
-      jest.spyOn(Date, "now").mockReturnValue(Date.now() + 60_001)
-      await message("reviewer", "No defect.")
-      expect(posted).toHaveLength(4)
+      const send = (event: object) => session.turn({id: id1, teammates: [{kind: "message", note: "a note", ...event} as TeammateEvent]})
+      await session.turn({id: id1, teammates: [{name: "reviewer", kind: "start"}]})
+      await send({name: "reviewer", copy: true, text: "No defect."})
+      await send({name: "reviewer", id: "message t1", text: "No defect."})
+      await send({name: "reviewer", id: "message t1", text: "No defect."})
+      await send({name: "reviewer", id: "message t2", text: "No defect."})
+      await send({name: "reviewer", copy: true, text: "No defect."})
+      await send({name: "tester", copy: true, text: "Tests pass.", note: "✉️ Message from tester: Tests pass."})
+      await send({name: "tester", copy: true, text: "Tests pass.", note: "✉️ Message from tester: Tests pass."})
+      await send({name: "general-purpose", kind: "report", id: "report a9", copy: true, text: "Done.", note: "📋 Report from subagent general-purpose: Done."})
+      await send({name: "general-purpose", kind: "report", id: "report a9", text: "Done.", note: "📋 Report from subagent general-purpose: Done."})
+      expect(posted).toEqual(["reviewer: No defect.", "reviewer: No defect.", "tester: Tests pass.", "tester: Tests pass.", "general-purpose: Done."])
+      expect(silent(chat)).toEqual([
+        {text: "✉️ Message from tester: Tests pass.", priority: -1},
+        {text: "✉️ Message from tester: Tests pass.", priority: -1},
+        {text: "📋 Report from subagent general-purpose: Done.", priority: -1},
+      ])
     })
 
     it("ends the session's teammates at the session's end and when the hub stops", async () => {
@@ -2126,6 +2133,16 @@ describe("session channel", () => {
       expect(closed).toHaveBeenCalledTimes(1)
       await hub.stop()
       expect(closed).toHaveBeenCalledTimes(2)
+    })
+
+    it("removes the folder of the teammates' core that an earlier service left, when the hub opens the session", async () => {
+      const chat = new FakeChat()
+      const hub = await hubWith(chat)
+      const agents = join(sessionFolder(root, id1), "agents")
+      mkdirSync(agents, {recursive: true})
+      writeFileSync(join(agents, "simplex_chat.db"), "")
+      await openSession(hub, id1, stored(1, "auth"))
+      expect(existsSync(agents)).toBe(false)
     })
 
     it("drops the messages, commands and reactions of a teammate's profile and posts no rights for it", async () => {

@@ -32,6 +32,10 @@ class FakeHost extends FakeChat {
   }
 
   async sendChatCmd(cmd: string): Promise<ChatResponse> {
+    if (cmd.startsWith("/_delete :")) {
+      this.commands.push(cmd)
+      return {type: "contactConnectionDeleted"} as unknown as ChatResponse
+    }
     if (cmd !== `/_connect ${user.userId}`) return super.sendChatCmd(cmd)
     this.commands.push(cmd)
     const connId = this.nextConn++
@@ -157,7 +161,6 @@ describe("Teammates", () => {
     expect(host.customData).toEqual([{chat: "@50", customData: {simplexMcpTeammate: {session, name: "reviewer"}}}])
     expect(host.invitations).toEqual([{groupId: hostGroup, viaGroupId: 0, groupMemberId: 50, memberRole: T.GroupMemberRole.Member}])
     expect(core.sent).toEqual([{userId: 2, groupId: 350, texts: ["The diff has no defect.", "Details follow."], priority: -1}])
-    expect(teammates.has("reviewer")).toBe(true)
     expect(teammates.isMember(member(2050, "reviewer"))).toBe(true)
     expect(teammates.isMember(member(2051, "tester"))).toBe(false)
     expect(await teammates.post("tester", ["Tests pass."])).toBe(false)
@@ -182,7 +185,7 @@ describe("Teammates", () => {
     expect(core.calls.slice(-2)).toEqual(["leave 350 as 2", "delete 2 as 1 with queues"])
     expect(host.removed).toEqual([])
     expect(host.deleted).toEqual([{chatType: T.ChatType.Direct, chatId: 50, mode: {type: "full", notify: false}}])
-    expect(teammates.has("reviewer")).toBe(false)
+    expect(host.commands.filter(command => command.startsWith("/_delete"))).toEqual([])
     expect(teammates.isMember(member(2050, "reviewer"))).toBe(true)
     expect(await teammates.post("reviewer", ["Late."])).toBe(false)
     expect(teammates.start("reviewer")).toBe("started")
@@ -202,10 +205,9 @@ describe("Teammates", () => {
     const {core, teammates} = setup()
     teammates.start("reviewer")
     await teammates.end("reviewer", 50)
-    expect(teammates.has("reviewer")).toBe(true)
     expect(await teammates.post("reviewer", ["The report."])).toBe(true)
     await until(() => core.calls.includes("delete 2 as 1 with queues"))
-    expect(teammates.has("reviewer")).toBe(false)
+    expect(await teammates.post("reviewer", ["Late."])).toBe(false)
   })
 
   it("refuse the messages of a teammate whose join failed, waiting and later ones, and delete its profile and contact", async () => {
@@ -235,8 +237,8 @@ describe("Teammates", () => {
     expect(opens).toBe(2)
   })
 
-  it("stop the joins that wait at close, refuse their messages and delete their profiles", async () => {
-    const {core, teammates} = setup()
+  it("stop the joins that wait at close, refuse their messages, delete their profiles and Claude's pending invitations", async () => {
+    const {host, core, teammates} = setup()
     core.connects = false
     teammates.start("reviewer")
     const waiting = teammates.post("reviewer", ["Done."])
@@ -244,6 +246,37 @@ describe("Teammates", () => {
     await teammates.close()
     expect(await waiting).toBe(false)
     expect(core.calls.slice(-2)).toEqual(["delete 2 as 1 with queues", "close"])
+    expect(host.commands.filter(command => command.startsWith("/_delete"))).toEqual(["/_delete :900"])
+    expect(host.deleted).toEqual([])
+  })
+
+  it("share one close between overlapping calls, so the second waits for the first, and remove the folder after the core closes", async () => {
+    const {core, teammates} = setup()
+    teammates.start("reviewer")
+    expect(await teammates.post("reviewer", ["Done."])).toBe(true)
+    mkdirSync(join(root, "agents"), {recursive: true})
+    writeFileSync(join(root, "agents", "simplex_chat.db"), "")
+    const first = teammates.close()
+    const second = teammates.close()
+    expect(second).toBe(first)
+    await second
+    expect(core.calls.filter(call => call === "close" || call.startsWith("delete"))).toEqual(["delete 2 as 1 with queues", "close"])
+    expect(existsSync(join(root, "agents"))).toBe(false)
+    await teammates.close()
+    expect(core.calls.filter(call => call === "close")).toHaveLength(1)
+  })
+
+  it("join a teammate started during a close after that close, in a new core", async () => {
+    const {core, teammates, opened} = setup()
+    teammates.start("reviewer")
+    expect(await teammates.post("reviewer", ["Done."])).toBe(true)
+    const closing = teammates.close()
+    teammates.start("tester")
+    const posted = teammates.post("tester", ["Tests pass."])
+    await closing
+    expect(await posted).toBe(true)
+    expect(opened).toHaveLength(2)
+    expect(core.calls.indexOf("close")).toBeLessThan(core.calls.indexOf("create 3"))
   })
 
   it(`start ${maxTeammates} teammates at most at once`, async () => {
@@ -263,7 +296,7 @@ describe("Teammates", () => {
     await teammates.close()
     expect(core.calls.filter(call => call.startsWith("delete"))).toEqual(["delete 2 as 1 with queues", "delete 3 as 1 with queues"])
     expect(core.calls.at(-1)).toBe("close")
-    expect(teammates.has("reviewer")).toBe(false)
+    expect(await teammates.post("reviewer", ["Late."])).toBe(false)
     teammates.start("reviewer")
     expect(await teammates.post("reviewer", ["Back."])).toBe(true)
     expect(opened).toHaveLength(2)

@@ -79,6 +79,8 @@ export interface TurnRequest {
 export interface TeammateEvent {
   name: string
   kind: "start" | "message" | "report" | "end"
+  id?: string
+  copy?: true
   description?: string
   text?: string
   note?: string

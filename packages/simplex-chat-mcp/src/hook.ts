@@ -88,6 +88,7 @@ interface Origin {
   body?: unknown
   handback?: unknown
   handbackReportText?: unknown
+  senderTaskId?: unknown
 }
 
 // spec: spec/api.md#plugin-options
@@ -408,14 +409,15 @@ function teammateEvents(origin: Origin | null | undefined, turnOrigin: unknown, 
     const name = stringOf(origin.name) ?? stringOf(origin.from)
     if (name === undefined) return undefined
     const report = stringOf(origin.handbackReportText) ?? stringOf(origin.body) ?? text
-    return [{name, kind: "report", text: report, note: reportNote(name, report)}]
+    const agent = stringOf(origin.senderTaskId)
+    return [{name, kind: "report", ...(agent === undefined ? {} : {id: reportId(agent)}), copy: true, text: report, note: reportNote(name, report)}]
   }
   if (origin?.kind !== undefined || turnOrigin === "scheduled" || !teammatePrompt.test(text)) return undefined
   const events = [...text.matchAll(teammateMessage)].flatMap(([, sender, attributes, body]): TeammateEvent[] => {
     if (idleNotification(body)) return []
     const name = decoded(sender)
     const summary = /\ssummary="([^"]*)"/.exec(attributes)?.[1]
-    return [{name, kind: "message", text: body, note: messageNote(name, summary === undefined ? body : decoded(summary))}]
+    return [{name, kind: "message", copy: true, text: body, note: messageNote(name, summary === undefined ? body : decoded(summary))}]
   })
   return events.length === 0 ? undefined : events
 }
@@ -428,6 +430,11 @@ function messageNote(name: string, summary: string): string {
 // spec: spec/architecture.md#hook-teammateevents
 function reportNote(name: string, report: string): string {
   return shortened(`📋 Report from subagent ${oneLine(name)}: ${firstLine(report)}`)
+}
+
+// spec: spec/architecture.md#hook-teammateevents
+function reportId(agent: string): string {
+  return `report ${agent}`
 }
 
 // spec: spec/architecture.md#hook-noteof
@@ -497,7 +504,7 @@ function agentCall({tool_name: tool, agent_id: agent, hook_event_name: event, to
 }
 
 // spec: spec/architecture.md#hook-agentcall
-async function agentPost({agent_id: agent, agent_type: type, hook_event_name: event, tool_name: tool, tool_input: fields = {}, tool_response: response, transcript_path: path}: TurnInput): Promise<TeammateEvent | undefined> {
+async function agentPost({agent_id: agent, agent_type: type, hook_event_name: event, tool_name: tool, tool_input: fields = {}, tool_response: response, tool_use_id: toolUse, transcript_path: path}: TurnInput): Promise<TeammateEvent | undefined> {
   if (agent === undefined || event !== "PostToolUse" || response?.success !== true) return undefined
   if (tool !== "SubagentHandback" && (tool !== "SendMessage" || fields.to !== leadName)) return undefined
   const name = (await agentName(path, agent)) ?? stringOf(type)
@@ -505,8 +512,8 @@ async function agentPost({agent_id: agent, agent_type: type, hook_event_name: ev
   if (fields.type === "shutdown_response") return fields.approve === true ? {name, kind: "end"} : undefined
   const text = stringOf(fields.message)
   if (text === undefined || text.trim() === "") return undefined
-  if (tool === "SubagentHandback") return {name, kind: "report", text, note: reportNote(name, text)}
-  return {name, kind: "message", text, note: messageNote(name, stringOf(fields.summary) ?? text)}
+  if (tool === "SubagentHandback") return {name, kind: "report", id: reportId(agent), text, note: reportNote(name, text)}
+  return {name, kind: "message", ...(toolUse === undefined ? {} : {id: `message ${toolUse}`}), text, note: messageNote(name, stringOf(fields.summary) ?? text)}
 }
 
 // spec: spec/architecture.md#hook-agentcall

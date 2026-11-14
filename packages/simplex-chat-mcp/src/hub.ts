@@ -73,8 +73,6 @@ const claudeStates = new Map<string, [string, string]>([
 const unknownState: [string, string] = ["▶️", "running"]
 // spec: spec/api.md#teammates
 const teammateEndWait = 10_000
-// spec: spec/api.md#teammates
-const teammateEcho = 60_000
 
 // spec: spec/architecture.md#hub-hubtexts
 export const hubTexts: HostTexts = {lost: "The group of this session is lost. Start a new Claude Code session.", stopping: "The SimpleX service is stopping.", pending: `${maxPending} actions are pending; wait for the approvers' decisions.`}
@@ -172,7 +170,8 @@ export class Session {
   private liveOrder: Promise<void> = Promise.resolve()
   private claudeStatus?: string
   private recordRead?: Promise<void>
-  private readonly teammatePosts = new Map<string, number>()
+  private readonly teammatePosts = new Set<string>()
+  private readonly agentNames = new Set<string>()
 
   constructor(
     private readonly hub: Hub,
@@ -473,26 +472,21 @@ export class Session {
   }
 
   // spec: spec/architecture.md#hub-session-teammate
-  private async teammate({name, kind, description, text, note}: TeammateEvent): Promise<void> {
+  private async teammate({name, kind, id, copy, description, text, note}: TeammateEvent): Promise<void> {
     if (kind === "start") {
+      this.agentNames.add(name)
       if (this.teammates.start(name, description) !== "full") return
       await this.post([{text: `Teammate ${oneLine(name)} has no profile: this group has ${maxTeammates} teammates.`, priority: -1}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
       return
     }
     if (kind === "end") return this.teammates.end(name, teammateEndWait)
-    if (this.echoed(JSON.stringify([kind, name, text?.trim()]))) return
+    if (id !== undefined && this.teammatePosts.has(id)) return
+    if (id !== undefined) keepLast(this.teammatePosts, id)
+    if (copy === true && this.agentNames.has(name)) return
+    if (copy !== true) this.agentNames.add(name)
     const posted = text !== undefined && text.trim() !== "" && (await this.teammates.post(name, textParts(text)))
     if (!posted && note !== undefined) await this.post([{text: note, priority: -1}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
     if (kind === "report") void this.teammates.end(name)
-  }
-
-  // spec: spec/architecture.md#hub-session-teammate
-  private echoed(key: string): boolean {
-    const now = Date.now()
-    for (const [posted, at] of this.teammatePosts) if (at <= now - teammateEcho) this.teammatePosts.delete(posted)
-    if (this.teammatePosts.has(key)) return true
-    this.teammatePosts.set(key, now)
-    return false
   }
 
   // spec: spec/architecture.md#hub-session-refusereaction
@@ -1053,6 +1047,7 @@ export class Hub implements SessionGroups {
     }
     const folder = sessionFolder(this.root, id)
     rmSync(join(folder, "files", "sent"), {recursive: true, force: true})
+    rmSync(join(folder, "agents"), {recursive: true, force: true})
     const known = await this.storedGroup(stored)
     const group = known ?? (await this.createSessionGroup(stored))
     if (known === undefined) writeSessionFile(folder, {...(readSessionFile(folder) ?? stored), group: group.groupId})
