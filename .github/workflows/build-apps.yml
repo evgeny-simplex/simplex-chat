@@ -341,6 +341,96 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
+  android-split-build:
+    name: Android aarch64 APK with a changed string
+    needs: [plan, android]
+    if: needs.plan.outputs.ota == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: Free disk space
+        run: scripts/ci/linux_util_free_space.sh
+
+      - name: Download APK and core library
+        uses: actions/download-artifact@v8
+        with:
+          name: android-aarch64-unsigned
+          path: ${{ runner.temp }}/apk
+
+      - name: Change a string of the first screen
+        run: scripts/ci/android/split-test.sh change
+
+      - name: Build APK
+        run: scripts/simplex-chat-build.py build apk aarch64 --out "$RUNNER_TEMP/out" --libs "$RUNNER_TEMP/apk" --ota ${{ github.run_number }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-aarch64-changed-unsigned
+          path: ${{ runner.temp }}/out/simplex-dev-aarch64.apk
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+
+  android-split-test:
+    name: Android aarch64 base APK update in the emulator
+    needs: [plan, android, android-split-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - name: Download APK
+        uses: actions/download-artifact@v8
+        with:
+          name: android-aarch64-unsigned
+          path: ${{ runner.temp }}/apk
+
+      - name: Download APK with the changed string
+        uses: actions/download-artifact@v8
+        with:
+          name: android-aarch64-changed-unsigned
+          path: ${{ runner.temp }}/changed
+
+      - name: Split and sign APKs
+        run: |
+          scripts/ci/android/split-test.sh prepare "$RUNNER_TEMP/apk/simplex-dev-aarch64.apk" \
+            "$RUNNER_TEMP/changed/simplex-dev-aarch64.apk" "$RUNNER_TEMP/split"
+
+      - name: Install emulator and system image
+        run: |
+          sudo apt-get install -y libpulse0 libegl1
+          scripts/ci/android/install-sdk.sh "$RUNNER_TEMP/android-sdk" 34
+
+      - name: Boot emulator
+        run: scripts/ci/android/emulator.sh start "$RUNNER_TEMP/screens"
+
+      - name: Install base and split APKs, then update the base APK alone
+        run: scripts/ci/android/split-test.sh run "$RUNNER_TEMP/split" "$RUNNER_TEMP/screens"
+
+      - name: Upload results and APKs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-split-test
+          path: |
+            ${{ runner.temp }}/screens
+            ${{ runner.temp }}/split/first
+            ${{ runner.temp }}/split/second
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: ignore
+
   ios:
     name: iOS archive
     needs: plan
