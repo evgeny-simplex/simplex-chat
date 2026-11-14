@@ -3,7 +3,8 @@ import {CC, ChatEvent, T} from "@simplex-chat/types"
 import {api} from "simplex-chat"
 import {Core, openCore} from "./core"
 import {logError} from "./log"
-import {validName} from "./messages"
+import {keepLast, validName} from "./messages"
+import {Step} from "./protocol"
 
 // spec: spec/architecture.md#teammates-constants
 export const maxTeammates = 20
@@ -17,6 +18,8 @@ const joinTimeout = 5 * 60_000
 const leaveWait = 30_000
 // spec: spec/architecture.md#teammates-constants
 const maxDescription = 160
+// spec: spec/architecture.md#teammates-constants
+const liveLineMs = 23 * 3_600_000
 // spec: spec/architecture.md#teammates-constants
 const goneStatuses = [T.GroupMemberStatus.Left, T.GroupMemberStatus.Removed, T.GroupMemberStatus.Deleted, T.GroupMemberStatus.Rejected]
 
@@ -38,8 +41,14 @@ interface TeammateData {
 }
 
 interface Pending {
-  parts: string[]
-  posted: (posted: boolean) => void
+  run: () => Promise<boolean>
+  done: (posted: boolean) => void
+}
+
+interface Line {
+  text: string
+  item: Promise<number | undefined>
+  at: number
 }
 
 interface Teammate {
@@ -51,6 +60,8 @@ interface Teammate {
   groupId?: number
   joined: boolean
   pending: Pending[]
+  lines: Map<string, Line>
+  finished: Set<string>
   ending?: NodeJS.Timeout
   ended?: true
   joining: Promise<boolean>
@@ -83,7 +94,7 @@ export class Teammates {
   start(name: string, description?: string): StartResult {
     if (this.active(name) !== undefined) return "known"
     if ([...this.teammates.values()].filter(({ended}) => ended !== true).length >= maxTeammates) return "full"
-    const teammate: Teammate = {name, joined: false, pending: [], joining: Promise.resolve(false)}
+    const teammate: Teammate = {name, joined: false, pending: [], lines: new Map(), finished: new Set(), joining: Promise.resolve(false)}
     this.teammates.set(name, teammate)
     teammate.joining = this.join(teammate, description).then(
       () => true,
@@ -94,10 +105,12 @@ export class Teammates {
 
   // spec: spec/architecture.md#teammates-teammates-post
   post(name: string, parts: string[]): Promise<boolean> {
-    const teammate = this.active(name)
-    if (teammate === undefined) return Promise.resolve(false)
-    if (teammate.joined) return this.send(teammate, parts)
-    return new Promise(posted => teammate.pending.push({parts, posted}))
+    return this.queued(name, teammate => this.send(teammate, parts).then(items => items !== undefined))
+  }
+
+  // spec: spec/architecture.md#teammates-teammates-step
+  step(name: string, step: Step): Promise<boolean> {
+    return this.queued(name, teammate => this.stepLine(teammate, step))
   }
 
   // spec: spec/architecture.md#teammates-teammates-end
@@ -168,7 +181,7 @@ export class Teammates {
     const joined = this.awaited(this.joins, userId)
     await this.asUser(userId, teammateChat => teammateChat.apiJoinGroup(groupId))
     await joined
-    for (let next = teammate.pending.shift(); next !== undefined; next = teammate.pending.shift()) next.posted(await this.send(teammate, next.parts))
+    for (let next = teammate.pending.shift(); next !== undefined; next = teammate.pending.shift()) next.done(await next.run())
     teammate.joined = true
   }
 
@@ -177,7 +190,7 @@ export class Teammates {
     logError(`teammate ${teammate.name} of session ${this.host.session}`, error)
     teammate.ended = true
     clearTimeout(teammate.ending)
-    for (const {posted} of teammate.pending.splice(0)) posted(false)
+    for (const {done} of teammate.pending.splice(0)) done(false)
     await this.leave(teammate)
   }
 
@@ -190,9 +203,11 @@ export class Teammates {
   }
 
   // spec: spec/architecture.md#teammates-teammates-end
-  private async leave({name, userId, connId, contactId, memberId, groupId}: Teammate): Promise<void> {
+  private async leave(teammate: Teammate): Promise<void> {
+    const {name, userId, connId, contactId, memberId, groupId} = teammate
     const {chat: hostChat, groupId: hostGroupId, session} = this.host
     const context = `teammate ${name} of session ${session}`
+    await this.endLines(teammate)
     try {
       if (memberId !== undefined) {
         const left = hostChat.wait("leftMember", ({member}) => member.groupMemberId === memberId, leaveWait)
@@ -263,10 +278,57 @@ export class Teammates {
   }
 
   // spec: spec/architecture.md#teammates-teammates-post
-  private send({name, userId, groupId}: Teammate, parts: string[]): Promise<boolean> {
-    if (userId === undefined || groupId === undefined) return Promise.resolve(false)
+  private queued(name: string, run: (teammate: Teammate) => Promise<boolean>): Promise<boolean> {
+    const teammate = this.active(name)
+    if (teammate === undefined) return Promise.resolve(false)
+    if (teammate.joined) return run(teammate)
+    return new Promise(done => teammate.pending.push({run: () => run(teammate), done}))
+  }
+
+  // spec: spec/architecture.md#teammates-teammates-post
+  private send({name, userId, groupId}: Teammate, parts: string[], live = false): Promise<number[] | undefined> {
+    if (userId === undefined || groupId === undefined) return Promise.resolve(undefined)
     const messages = parts.map(text => ({msgContent: {type: "text", text}, mentions: {}, priority: -1}) as T.ComposedMessage)
-    return this.asUser(userId, chat => chat.apiSendMessages([T.ChatType.Group, groupId], messages)).then(
+    return this.asUser(userId, chat => chat.apiSendMessages([T.ChatType.Group, groupId], messages, live)).then(
+      items => items.map(({chatItem}) => chatItem.meta.itemId),
+      error => (logError(`teammate ${name} of session ${this.host.session}`, error), undefined),
+    )
+  }
+
+  // spec: spec/architecture.md#teammates-teammates-step
+  private async stepLine(teammate: Teammate, {id, text, end}: Step): Promise<boolean> {
+    const {lines, finished} = teammate
+    await this.endLines(teammate, Date.now() - liveLineMs)
+    if (end !== true) {
+      if (finished.delete(id)) return true
+      const item = this.send(teammate, [text], true).then(items => items?.[0])
+      lines.set(id, {text, item, at: Date.now()})
+      return (await item) !== undefined
+    }
+    const line = lines.get(id)
+    lines.delete(id)
+    if (line === undefined) {
+      keepLast(finished, id)
+      return (await this.send(teammate, [text])) !== undefined
+    }
+    const itemId = await line.item
+    return itemId === undefined ? (await this.send(teammate, [text])) !== undefined : this.update(teammate, itemId, text)
+  }
+
+  // spec: spec/architecture.md#teammates-teammates-step
+  private async endLines(teammate: Teammate, sentBy = Infinity): Promise<void> {
+    const ended = [...teammate.lines].filter(([, {at}]) => at <= sentBy)
+    for (const [id] of ended) teammate.lines.delete(id)
+    for (const [, {text, item}] of ended) {
+      const itemId = await item
+      if (itemId !== undefined) await this.update(teammate, itemId, text)
+    }
+  }
+
+  // spec: spec/architecture.md#teammates-teammates-step
+  private update({name, userId, groupId}: Teammate, itemId: number, text: string): Promise<boolean> {
+    if (userId === undefined || groupId === undefined) return Promise.resolve(false)
+    return this.asUser(userId, chat => chat.apiUpdateChatItem(T.ChatType.Group, groupId, itemId, {type: "text", text}, false)).then(
       () => true,
       error => (logError(`teammate ${name} of session ${this.host.session}`, error), false),
     )

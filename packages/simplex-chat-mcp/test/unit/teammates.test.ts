@@ -53,12 +53,15 @@ class FakeHost extends FakeChat {
 
 class FakeCore {
   readonly calls: string[] = []
-  readonly sent: {userId: number; groupId: number; texts: string[]; priority?: number}[] = []
+  readonly sent: {userId: number; groupId: number; texts: string[]; priority?: number; live?: true}[] = []
+  readonly updates: {userId: number; groupId: number; itemId: number; text: string; live: boolean}[] = []
   readonly profiles: T.Profile[] = []
   handler?: EventHandler
   active = 1
   connects = true
+  refuses = false
   private nextUser = 2
+  private nextItem = 700
 
   constructor(private readonly host: FakeHost) {
     host.core = this
@@ -101,9 +104,16 @@ class FakeCore {
     setImmediate(() => this.receive({type: "userJoinedGroup", user: {userId}, groupInfo: {groupId}} as unknown as ChatEvent))
   }
 
-  async apiSendMessages([, groupId]: [T.ChatType, number], messages: (T.ComposedMessage & {priority?: number})[]): Promise<T.AChatItem[]> {
-    this.sent.push({userId: this.active, groupId, texts: messages.map(({msgContent}) => msgContent.text), priority: messages[0]?.priority})
-    return []
+  async apiSendMessages([, groupId]: [T.ChatType, number], messages: (T.ComposedMessage & {priority?: number})[], live = false): Promise<T.AChatItem[]> {
+    if (this.refuses) throw new Error("feature not allowed")
+    this.sent.push({userId: this.active, groupId, texts: messages.map(({msgContent}) => msgContent.text), priority: messages[0]?.priority, ...(live ? {live: true} : {})})
+    return messages.map(() => ({chatItem: {meta: {itemId: this.nextItem++}}}) as unknown as T.AChatItem)
+  }
+
+  async apiUpdateChatItem(_chatType: T.ChatType, groupId: number, itemId: number, {text}: T.MsgContent, live = false): Promise<T.ChatItem> {
+    this.updates.push({userId: this.active, groupId, itemId, text, live})
+    this.calls.push(`update ${itemId} as ${this.active}`)
+    return {} as T.ChatItem
   }
 
   async apiLeaveGroup(groupId: number): Promise<void> {
@@ -277,6 +287,58 @@ describe("Teammates", () => {
     expect(await posted).toBe(true)
     expect(opened).toHaveLength(2)
     expect(core.calls.indexOf("close")).toBeLessThan(core.calls.indexOf("create 3"))
+  })
+
+  it("post a teammate's step as its live line at the start and complete it at the end, live off, also for steps sent while it joins", async () => {
+    const {core, teammates} = setup()
+    teammates.start("reviewer")
+    const started = teammates.step("reviewer", {id: "toolu_1", text: "!- 💻 Run the tests!"})
+    const ended = teammates.step("reviewer", {id: "toolu_1", text: "!- 💻 Run the tests 2.0 s!", end: true})
+    expect(await Promise.all([started, ended])).toEqual([true, true])
+    expect(await teammates.step("reviewer", {id: "toolu_2", text: "!- 📖 Read src/hub.ts!"})).toBe(true)
+    expect(await teammates.step("reviewer", {id: "toolu_2", text: "!- 📖 Read src/hub.ts 12 ms!", end: true})).toBe(true)
+    expect(core.sent).toEqual([
+      {userId: 2, groupId: 350, texts: ["!- 💻 Run the tests!"], priority: -1, live: true},
+      {userId: 2, groupId: 350, texts: ["!- 📖 Read src/hub.ts!"], priority: -1, live: true},
+    ])
+    expect(core.updates).toEqual([
+      {userId: 2, groupId: 350, itemId: 700, text: "!- 💻 Run the tests 2.0 s!", live: false},
+      {userId: 2, groupId: 350, itemId: 701, text: "!- 📖 Read src/hub.ts 12 ms!", live: false},
+    ])
+    expect(await teammates.step("tester", {id: "toolu_3", text: "!- 💻 Build!"})).toBe(false)
+  })
+
+  it("post a step's end that comes before its start as a line, and nothing for that start; post an end as a line after its start failed", async () => {
+    const {core, teammates} = setup()
+    teammates.start("reviewer")
+    expect(await teammates.step("reviewer", {id: "toolu_1", text: "!- 💻 Build 42 ms!", end: true})).toBe(true)
+    expect(await teammates.step("reviewer", {id: "toolu_1", text: "!- 💻 Build!"})).toBe(true)
+    core.refuses = true
+    expect(await teammates.step("reviewer", {id: "toolu_2", text: "!- 🌐 Fetch https://simplex.chat!"})).toBe(false)
+    core.refuses = false
+    expect(await teammates.step("reviewer", {id: "toolu_2", text: "!- 🌐 Fetch https://simplex.chat 1.0 s!", end: true})).toBe(true)
+    expect(core.sent.map(({texts, live}) => [texts[0], live])).toEqual([["!- 💻 Build 42 ms!", undefined], ["!- 🌐 Fetch https://simplex.chat 1.0 s!", undefined]])
+    expect(core.updates).toEqual([])
+  })
+
+  it("complete a line sent 23 hours ago with its own text at the teammate's next step, and post its later end as a line", async () => {
+    const {core, teammates} = setup()
+    teammates.start("reviewer")
+    expect(await teammates.step("reviewer", {id: "toolu_1", text: "!- 💻 Watch the logs!"})).toBe(true)
+    jest.spyOn(Date, "now").mockReturnValue(Date.now() + 23 * 3_600_000 + 1)
+    expect(await teammates.step("reviewer", {id: "toolu_2", text: "!- 📖 Read README.md!"})).toBe(true)
+    expect(core.updates).toEqual([{userId: 2, groupId: 350, itemId: 700, text: "!- 💻 Watch the logs!", live: false}])
+    expect(await teammates.step("reviewer", {id: "toolu_1", text: "!- 💻 Watch the logs 23 h 0 min!", end: true})).toBe(true)
+    expect(core.sent.map(({texts, live}) => [texts[0], live])).toEqual([["!- 💻 Watch the logs!", true], ["!- 📖 Read README.md!", true], ["!- 💻 Watch the logs 23 h 0 min!", undefined]])
+  })
+
+  it("complete a teammate's live lines with their own text before it leaves", async () => {
+    const {core, teammates} = setup()
+    teammates.start("reviewer")
+    expect(await teammates.step("reviewer", {id: "toolu_1", text: "!- 💻 Run the tests!"})).toBe(true)
+    await teammates.end("reviewer")
+    expect(core.updates).toEqual([{userId: 2, groupId: 350, itemId: 700, text: "!- 💻 Run the tests!", live: false}])
+    expect(core.calls.slice(-3)).toEqual(["update 700 as 2", "leave 350 as 2", "delete 2 as 1 with queues"])
   })
 
   it(`start ${maxTeammates} teammates at most at once`, async () => {

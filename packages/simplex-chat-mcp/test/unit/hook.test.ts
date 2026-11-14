@@ -646,7 +646,7 @@ describe("turn hooks", () => {
     ])
   })
 
-  it("send a step at the end of each tool use with its outcome and duration, or in background for a launch, and nothing for a tool use of a subagent or of this plugin, or without its ID or tool", async () => {
+  it("send a step at the end of each tool use with its outcome and duration, or in background for a launch, a subagent's step with its name as the teammate, and nothing for a tool use of a subagent without a name or of this plugin, or without its ID or tool", async () => {
     const {client, requests, ensured} = turnClient()
     const bash = {command: "npm test", description: "Run the tests"}
     const ended = (event: string, extra: object, tool = "Bash", input: object = bash) => turn(toolUse(event, tool, input, extra), {}, client, 0, 1)
@@ -679,8 +679,9 @@ describe("turn hooks", () => {
       {id: "toolu_Bash", text: "!- 💻 Run the tests (in background)!", end: true},
       {id: "toolu_Agent", text: "!- 🤖 Agent: Review (in background)!", end: true},
       {id: "toolu_Bash", text: "!- 💻 Run the tests ❌ 12 ms!", end: true},
+      {id: "toolu_Bash", text: "!- 💻 Run the tests!", teammate: "general-purpose"},
     ])
-    expect(ensured()).toBe(11)
+    expect(ensured()).toBe(12)
   })
 
   it("send a teammate's start at the lead's Agent call with a name, its end when that call fails or when its finished subagent stops, and the end of the session once, without starting a service", async () => {
@@ -708,6 +709,7 @@ describe("turn hooks", () => {
       })).toEqual([
         {step: "!- 🤖 Agent: Review the diff of #8204!", teammates: [{name: "reviewer", kind: "start", description: "Review the diff of #8204"}]},
         {step: "!- 🤖 Agent: Unnamed!"},
+        {step: "!- 🤖 Agent: Review the diff of #8204!"},
         {step: "!- 🤖 Agent: Review the diff of #8204 (in background)!"},
         {step: "!- 🤖 Agent: Review the diff of #8204 ❌!", teammates: [{name: "reviewer", kind: "end"}]},
         {step: "!- 🤖 Agent!", teammates: [{name: "tester", kind: "start"}]},
@@ -733,7 +735,7 @@ describe("turn hooks", () => {
     }
   })
 
-  it("send a teammate's message to the lead and its report under the name of its record, or its type, the end of a teammate whose shutdown it approved, and nothing for its other tool uses", async () => {
+  it("send a teammate's message to the lead and its report under the name of its record, or its type, the end of a teammate whose shutdown it approved, its other tool uses as its steps, and no step for its messages and reports", async () => {
     const folder = mkdtempSync(join(tmpdir(), "simplex-mcp-subagents-"))
     try {
       const lead = join(folder, "session.jsonl")
@@ -758,6 +760,7 @@ describe("turn hooks", () => {
         {id, at: 1, teammates: [{name: "reviewer", kind: "report", id: "report a1", text: "The report.\nDetails.", note: "!- 📋 Report from subagent reviewer: The report.!"}]},
         {id, at: 1, teammates: [{name: "probe", kind: "end"}]},
         {id, at: 1, teammates: [{name: "probe", kind: "message", id: "message toolu_SendMessage", text: "From ../", note: "!- ✉️ Message from probe: From ../!"}]},
+        {id, at: 1, step: {id: "toolu_Bash", text: "!- 💻 echo probe-ok!", end: true, teammate: "probe"}},
       ])
     } finally {
       rmSync(folder, {recursive: true, force: true})

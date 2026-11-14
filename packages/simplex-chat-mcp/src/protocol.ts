@@ -103,6 +103,7 @@ export interface Step {
   id: string
   text: string
   end?: boolean
+  teammate?: string
 }
 
 // spec: spec/architecture.md#protocol-textbatch

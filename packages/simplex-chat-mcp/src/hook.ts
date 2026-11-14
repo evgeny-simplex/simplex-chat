@@ -47,6 +47,7 @@ const teammatePrompt = /^Another Claude session sent a message[^:\n]*:\n<teammat
 const teammateMessage = /<teammate-message teammate_id="([^"]*)"([^>]*)>\n([\s\S]*?)\n<\/teammate-message>/g
 const pluginTools = "mcp__plugin_simplex_simplex__"
 const leadName = "team-lead"
+const teammateTools = ["SendMessage", "SubagentHandback"]
 const stepFields = ["description", "query", "url", "file_path", "path", "pattern", "command"]
 
 // spec: spec/api.md#plugin-options
@@ -223,8 +224,9 @@ async function eventFields(input: TurnInput, at: number, readMs: number): Promis
     case "PreToolUse":
     case "PostToolUse":
     case "PostToolUseFailure": {
-      const step = stepOf(input)
-      const teammate = agentCall(input) ?? (await agentPost(input))
+      const agent = input.agent_id === undefined ? undefined : await agentOf(input)
+      const step = agentStep(input, agent)
+      const teammate = agentCall(input) ?? (agent === undefined ? undefined : agentPost(input, agent))
       if (step === undefined && teammate === undefined) return undefined
       return {...(step === undefined ? {} : {step}), ...(teammate === undefined ? {} : {teammates: [teammate]})}
     }
@@ -484,13 +486,21 @@ function peerName(origin: Origin): string {
 }
 
 // spec: spec/architecture.md#hook-stepof
-function stepOf({tool_use_id: id, tool_name: tool, agent_id: agent, hook_event_name: event, tool_input: fields = {}, cwd, is_interrupt: interrupted, duration_ms: ms}: TurnInput): Step | undefined {
-  if (id === undefined || tool === undefined || agent !== undefined || tool.startsWith(pluginTools)) return undefined
+function stepOf({tool_use_id: id, tool_name: tool, hook_event_name: event, tool_input: fields = {}, cwd, is_interrupt: interrupted, duration_ms: ms}: TurnInput): Step | undefined {
+  if (id === undefined || tool === undefined || tool.startsWith(pluginTools)) return undefined
   const text = shortened(stepText(tool, fields, cwd))
   if (event === "PreToolUse") return {id, text: small(text)}
   if (event === "PostToolUse" && fields.run_in_background === true) return {id, text: small(`${text} (in background)`), end: true}
   const outcome = event === "PostToolUse" ? "" : interrupted === true ? " ⏹️" : " ❌"
   return {id, text: small(`${text}${outcome}${ms === undefined ? "" : ` ${duration(ms)}`}`), end: true}
+}
+
+// spec: spec/architecture.md#hook-stepof
+function agentStep(input: TurnInput, agent: string | undefined): Step | undefined {
+  const step = stepOf(input)
+  if (step === undefined || input.agent_id === undefined) return step
+  if (!agent || teammateTools.includes(input.tool_name ?? "")) return undefined
+  return {...step, teammate: agent}
 }
 
 // spec: spec/architecture.md#hook-agentcall
@@ -504,16 +514,19 @@ function agentCall({tool_name: tool, agent_id: agent, hook_event_name: event, to
 }
 
 // spec: spec/architecture.md#hook-agentcall
-async function agentPost({agent_id: agent, agent_type: type, hook_event_name: event, tool_name: tool, tool_input: fields = {}, tool_response: response, tool_use_id: toolUse, transcript_path: path}: TurnInput): Promise<TeammateEvent | undefined> {
-  if (agent === undefined || event !== "PostToolUse" || response?.success !== true) return undefined
+function agentPost({agent_id: agent, hook_event_name: event, tool_name: tool, tool_input: fields = {}, tool_response: response, tool_use_id: toolUse}: TurnInput, name: string): TeammateEvent | undefined {
+  if (agent === undefined || !name || event !== "PostToolUse" || response?.success !== true) return undefined
   if (tool !== "SubagentHandback" && (tool !== "SendMessage" || fields.to !== leadName)) return undefined
-  const name = (await agentName(path, agent)) ?? stringOf(type)
-  if (!name) return undefined
   if (fields.type === "shutdown_response") return fields.approve === true ? {name, kind: "end"} : undefined
   const text = stringOf(fields.message)
   if (text === undefined || text.trim() === "") return undefined
   if (tool === "SubagentHandback") return {name, kind: "report", id: reportId(agent), text, note: reportNote(name, text)}
   return {name, kind: "message", ...(toolUse === undefined ? {} : {id: `message ${toolUse}`}), text, note: messageNote(name, stringOf(fields.summary) ?? text)}
+}
+
+// spec: spec/architecture.md#hook-agentcall
+async function agentOf({agent_id: agent = "", agent_type: type, transcript_path: path}: TurnInput): Promise<string> {
+  return (await agentName(path, agent)) ?? stringOf(type) ?? ""
 }
 
 // spec: spec/architecture.md#hook-agentcall
