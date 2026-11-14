@@ -1289,7 +1289,7 @@ describe("session channel", () => {
     ])
   })
 
-  it("logs a failed update of a step's line and a failed send of its start, and posts nothing more for them", async () => {
+  it("logs a failed update of a step's line and a failed send of its start, posts nothing more for them, and posts its own line for the next step with that icon", async () => {
     const errors: string[] = []
     jest.spyOn(process.stderr, "write").mockImplementation(text => (errors.push(String(text).trimEnd()), true))
     const chat = new FakeChat()
@@ -1304,6 +1304,9 @@ describe("session channel", () => {
     await session["finalizing"]
     expect(sentTo(chat, 20)).toEqual(["💻 Run the tests"])
     expect(errors.sort()).toEqual(["steps of session 1: invalid chat item update", "steps of session 1: invalid chat item update", "steps of session 1: network"])
+    chat.apiSendMessages = send
+    await session.turn({id: id1, at: 5, step: {id: "toolu_3", text: "📖 Read src/hub.ts"}})
+    expect(sentTo(chat, 20)).toEqual(["💻 Run the tests", "📖 Read src/hub.ts"])
   })
 
   it("ends the live line of a step 23 hours after its start, before the core refuses its update, and posts its later end as a new silent line", async () => {

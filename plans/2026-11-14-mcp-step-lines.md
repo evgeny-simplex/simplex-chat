@@ -13,7 +13,7 @@ Status: the user's rules of 2026-11-14, implemented on `ep/mcp-step-lines`, on t
 1. The hook sends the step's text without an outcome. At the end it adds `ms`, from `duration_ms`, and `mark`: ❌, ⏹️ or `(in background)`. The hub formats the line with `stepLine`.
 2. The icon is the first word of the step's text.
 3. The hub keeps one current group per session: the group of the turn's last step line.
-4. A start joins the current group when the icons match. Otherwise the current group ends, and the start posts a new line.
+4. A start joins the current group when the icons match and the group's line was posted. Otherwise the current group ends, and the start posts a new line.
 5. The first batch of a text of Claude's, an answer and a prompt that is not mid-turn end the current group.
 6. An ended group's line is completed, live off, once none of its steps runs. A step that ends later in an ended group completes the line.
 7. The line shows the marks of all ended steps of the group, after the newest step's text.

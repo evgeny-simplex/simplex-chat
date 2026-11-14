@@ -581,7 +581,7 @@ export class Session {
     await this.endComplete()
     const icon = text.split(" ")[0]
     const current = this.stepGroup
-    if (current?.icon === icon) {
+    if (current?.icon === icon && (await current.item) !== undefined) {
       current.text = text
       current.count++
       current.open++
