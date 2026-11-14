@@ -40,6 +40,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: build-apps-${{ github.ref }}-${{ inputs.pr }}-${{ inputs.ota }}
@@ -59,6 +60,12 @@ jobs:
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       ota: ${{ steps.commit.outputs.ota }}
+      android-core: ${{ steps.names.outputs.android-core }}
+      android-core-run: ${{ steps.android-core.outputs.run-id }}
+      android-core-armv7a: ${{ steps.names.outputs.android-core-armv7a }}
+      android-core-armv7a-run: ${{ steps.android-core-armv7a.outputs.run-id }}
+      ios-core: ${{ steps.names.outputs.ios-core }}
+      ios-core-run: ${{ steps.ios-core.outputs.run-id }}
     steps:
       - name: Check inputs
         env:
@@ -98,6 +105,35 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "ota=$OTA" >> "$GITHUB_OUTPUT"
 
+      - name: Core library names
+        id: names
+        run: |
+          hash=${{ hashFiles('src/**', 'cabal.project', 'simplex-chat.cabal', 'PRIVACY.md', 'flake.nix', 'flake.lock', 'scripts/nix/**', 'scripts/simplex-chat-build.py', 'scripts/simplex_build/**', '!scripts/simplex_build/test_*.py', '!scripts/simplex_build/testing.py') }}
+          echo "android-core=android-core-$hash" >> "$GITHUB_OUTPUT"
+          echo "android-core-armv7a=android-core-armv7a-$hash" >> "$GITHUB_OUTPUT"
+          echo "ios-core=ios-core-$hash" >> "$GITHUB_OUTPUT"
+
+      - name: Find Android core library
+        id: android-core
+        if: inputs.android
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.android-core }}"
+
+      - name: Find Android core library for armv7a
+        id: android-core-armv7a
+        if: inputs.android
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.android-core-armv7a }}"
+
+      - name: Find iOS core library
+        id: ios-core
+        if: inputs.ios
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.ios-core }}"
+
   # every build must open this encrypted database, made by the previous release with its own OpenSSL
   old-database:
     name: Previous release's database
@@ -130,7 +166,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [aarch64, armv7a]
+        include:
+          - arch: aarch64
+            core: ${{ needs.plan.outputs.android-core }}
+            core-run: ${{ needs.plan.outputs.android-core-run }}
+          - arch: armv7a
+            core: ${{ needs.plan.outputs.android-core-armv7a }}
+            core-run: ${{ needs.plan.outputs.android-core-armv7a-run }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -150,19 +192,40 @@ jobs:
         run: scripts/ci/linux_util_free_space.sh
 
       - name: Setup swap
-        if: matrix.arch == 'armv7a'
+        if: matrix.arch == 'armv7a' && matrix.core-run == ''
         uses: ./.github/actions/swap
         with:
           swap-size-gb: 30
 
       # the Nix sandbox needs user namespaces, which Ubuntu 24.04 restricts
       - name: Allow user namespaces
+        if: matrix.core-run == ''
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Download core library
+        if: matrix.core-run != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.core }}
+          path: ${{ runner.temp }}/core
+          run-id: ${{ matrix.core-run }}
+          github-token: ${{ github.token }}
 
       - name: Build APK
         run: |
           scripts/simplex-chat-build.py build apk ${{ matrix.arch }} --out "$RUNNER_TEMP/out" --nix-cache \
+            ${{ matrix.core-run != '' && '--libs "$RUNNER_TEMP/core"' || '' }} \
             ${{ needs.plan.outputs.ota == 'true' && format('--ota {0}', github.run_number) || '' }}
+
+      - name: Upload core library
+        if: matrix.core-run == ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.core }}
+          path: ${{ runner.temp }}/out/pkg-${{ matrix.arch }}-android-*.zip
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
@@ -209,7 +272,7 @@ jobs:
   android-test:
     name: Android ${{ matrix.arch }} APK in the emulator
     needs: [plan, android, old-database, desktop-linux]
-    if: needs.plan.outputs.ota != 'true'
+    if: ${{ !cancelled() && needs.android.result == 'success' && needs.old-database.result == 'success' && (needs.plan.outputs.ota == 'true' || needs.desktop-linux.result == 'success') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
@@ -220,6 +283,8 @@ jobs:
             api: 34
           - arch: armv7a
             api: 30
+    env:
+      APK: ${{ needs.plan.outputs.ota == 'true' && 'simplex-dev-' || 'simplex-' }}${{ matrix.arch }}.apk
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -250,19 +315,21 @@ jobs:
 
       - name: Smoke test
         run: |
-          python3 scripts/simplex-chat-build.py test apk "$RUNNER_TEMP/apks/simplex-${{ matrix.arch }}.apk" \
+          python3 scripts/simplex-chat-build.py test apk "$RUNNER_TEMP/apks/$APK" \
             --out "$RUNNER_TEMP/screens" --database "$RUNNER_TEMP/old-database"
 
       # the new CLI is the app's peer on the preset servers
       - name: Download the CLI
+        if: needs.plan.outputs.ota != 'true'
         uses: actions/download-artifact@v8
         with:
           name: desktop-ubuntu-24.04-x86_64
           path: ${{ runner.temp }}/cli
 
       - name: Upgrade and quantum resistant contact
+        if: needs.plan.outputs.ota != 'true'
         run: |
-          python3 scripts/simplex-chat-build.py test apk "$RUNNER_TEMP/apks/simplex-${{ matrix.arch }}.apk" \
+          python3 scripts/simplex-chat-build.py test apk "$RUNNER_TEMP/apks/$APK" \
             --out "$RUNNER_TEMP/screens" --upgrade-from-previous --cli "$RUNNER_TEMP/cli/simplex-chat-ubuntu-24_04-x86_64"
 
       - name: Upload screenshots
@@ -312,10 +379,30 @@ jobs:
           ssh-key: ${{ secrets.SIMPLEX_ART_SSH_KEY }}
           path: simplex-chat-art
 
+      - name: Download core library
+        if: needs.plan.outputs.ios-core-run != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.plan.outputs.ios-core }}
+          path: ${{ runner.temp }}/core
+          run-id: ${{ needs.plan.outputs.ios-core-run }}
+          github-token: ${{ github.token }}
+
       - name: Build archive
         run: |
           scripts/simplex-chat-build.py build xcarchive ${{ env.HAS_ART_KEY == 'true' && '--art simplex-chat-art' || '' }} --out "$RUNNER_TEMP/out" --install-nix \
+            ${{ needs.plan.outputs.ios-core-run != '' && '--core "$RUNNER_TEMP/core/pkg-ios-aarch64-swift-json.zip"' || '' }} \
             ${{ needs.plan.outputs.ota == 'true' && format('--ota {0}', github.run_number) || '' }}
+
+      - name: Upload core library
+        if: needs.plan.outputs.ios-core-run == ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ needs.plan.outputs.ios-core }}
+          path: ${{ runner.temp }}/out/pkg-ios-aarch64-swift-json.zip
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
 
       - name: Upload archive
         uses: actions/upload-artifact@v7

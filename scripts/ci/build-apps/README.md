@@ -42,10 +42,22 @@ gh workflow run build-apps.yml --ref master -f ota=true
 
 - **Platforms:** the inputs `android`, `ios`, `linux`, `macos` and `windows`, on by default, choose the jobs, here as for a release build; a test job runs only when the jobs it needs ran.
 - **Commit:** the job `plan` checks out `refs/pull/<number>/head` and fails unless it is at `commit`; every other job builds that commit. With a branch, `commit` is optional and checked the same way. The run is named `build-apps pull request #<number> <commit>`, or `build-apps ota`.
-- **Android:** `build apk <arch> --ota <run number>` builds SimpleX dev, which installs beside the released app, with its own data: the init script `scripts/android/dev-app.gradle`, which the build runs from `~/.gradle/init.d` in its container, gives the release variant the id `chat.simplex.app.dev`, the name "SimpleX dev" and the file provider `chat.simplex.app.dev.provider`. The version code is the run number, the version name `<android.version_name>-ota.<run number>`, and the build fails unless `aapt2 dump badging` shows them. The artifact `android-<arch>-unsigned` has `simplex-dev-<arch>.apk`. The Play bundle and the emulator tests, which install the released app's id, are skipped.
+- **Android:** `build apk <arch> --ota <run number>` builds SimpleX dev, which installs beside the released app, with its own data: the init script `scripts/android/dev-app.gradle`, which the build runs from `~/.gradle/init.d` in its container, gives the release variant the id `chat.simplex.app.dev`, the name "SimpleX dev" and the file provider `chat.simplex.app.dev.provider`. The version code is the run number, the version name `<android.version_name>-ota.<run number>`, and the build fails unless `aapt2 dump badging` shows them. The artifact `android-<arch>-unsigned` has `simplex-dev-<arch>.apk`. In the emulator, `test apk` installs it as the package that `aapt2 dump packagename` reads from it and runs the smoke and previous release's database tests; the upgrade and quantum resistant contact tests, which install it over the previous release, and the Play bundle are skipped. The tests run without waiting for the Linux desktop jobs only when `linux` is off.
 - **iOS:** `build xcarchive --ota <run number>` numbers the archive `<CURRENT_PROJECT_VERSION>.<run number>`, such as `371.12`, which is unique in its version and below the next release's number. A pull request's archive has the default icons: its job runs the pull request's code, so it gets no brand assets key.
 - **Desktop:** the packages are the release's, with the commit's version.
 - **Reuse:** a run for a pull request runs that pull request's code under the branch's name, so `scripts/ci/desktop-linux/earlier-run.sh`, which android-emu, desktop-linux and ios-sim use to reuse builds, uses its artifacts only in runs for the same pull request.
+
+## Core libraries built before
+
+Each run, a release build too, reuses the Nix core packages of an earlier run of the same branch when their sources are unchanged: `plan` names them after a hash of `src/**`, `cabal.project`, `simplex-chat.cabal`, `PRIVACY.md`, the Nix files and the build tool, as android-emu does, and finds them with `earlier-run.sh`.
+
+| Artifact | Made by | Used by |
+|---|---|---|
+| `android-core-<hash>`: `pkg-aarch64-android-libsimplex.zip`, `pkg-aarch64-android-libsupport.zip` | the aarch64 APK job when it builds them, or android-emu's job `core` | `build apk aarch64 --libs <dir>` |
+| `android-core-armv7a-<hash>`: the armv7a packages | the armv7a APK job when it builds them | `build apk armv7a --libs <dir>` |
+| `ios-core-<hash>`: `pkg-ios-aarch64-swift-json.zip` | the iOS archive job when it builds it | `build xcarchive --core <zip>` |
+
+With `--libs`, `build-android.sh` unpacks the packages of `LIBS_DIR` in place of building them with Nix; with `--core`, the archive links that package in place of the Nix build's. Either way the packages are the outputs of the same `flake.nix` jobs.
 
 ## Android: signing reproducibly
 

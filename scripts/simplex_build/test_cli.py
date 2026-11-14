@@ -98,6 +98,17 @@ class ParseArgsTest(unittest.TestCase):
         with mock.patch("sys.stderr"), self.assertRaises(SystemExit):
             build_script.parse_args(["build", "apk", "aarch64", "--out", "o", "--ota", "pr"])
 
+    def test_build_commands_with_cores_built_before(self):
+        out, here = pathlib.Path("o"), pathlib.Path(".")
+        self.assertEqual(
+            build_script.parse_args(["build", "apk", "armv7a", "--out", "o", "--libs", "l"]),
+            build_script.BuildApk(Arch.ARMV7A, out, here, False, None, pathlib.Path("l")),
+        )
+        self.assertEqual(
+            build_script.parse_args(["build", "xcarchive", "--out", "o", "--core", "c.zip"]),
+            build_script.BuildIosArchive(None, out, here, False, None, pathlib.Path("c.zip")),
+        )
+
     def test_build_commands_reject_missing_or_unknown_arguments(self):
         self.assertIsNone(build_script.parse_args(["build", "xcarchive", "--out", "o"]).art)
         for argv in (
