@@ -798,6 +798,9 @@ contactBadgeProof Contact {profile = LocalProfile {localBadge}} = case localBadg
   Just (PeerBadge b _) -> Just b
   _ -> Nothing
 
+proofHeaderLength :: BadgeProof -> Int
+proofHeaderLength (BadgeProof _ (BBSPresHeader ph) _ _) = B.length ph
+
 lastItemId :: HasCallStack => TestCC -> IO String
 lastItemId cc = do
   cc ##> "/last_item_id"

@@ -2285,8 +2285,14 @@ membershipHandshakeProfile user gInfo@GroupInfo {membership} =
 
 directPresHeader :: ContactRequestBinding -> ProofPresHeader
 directPresHeader = \case
-  CRBRatchet ConnVerifyCodes {codeAD} -> PHChat $ encodeChatBinding CBDirect $ C.sha256Hash $ "SimpleX badge" <> codeAD
+  CRBRatchet codes -> PHChat $ directBadgeBinding codes
   CRBRequest code -> PHRequest code
+
+directBadgeBinding :: ConnVerifyCodes -> ByteString
+directBadgeBinding ConnVerifyCodes {codeAD} = encodeChatBinding CBDirect $ C.sha256Hash $ "SimpleX badge" <> codeAD
+
+badgePresenterTag :: ConnId -> ByteString
+badgePresenterTag connId = C.sha256Hash $ "SimpleX badge presenter" <> connId
 
 linkPresHeader :: ConnShortLink c -> ProofPresHeader
 linkPresHeader = \case
@@ -2297,7 +2303,22 @@ connPresHeader :: Connection -> CM (Maybe ProofPresHeader)
 connPresHeader conn = M.lookup (aConnId conn) <$> connsPresHeaders [conn]
 
 connsPresHeaders :: [Connection] -> CM (Map ConnId ProofPresHeader)
-connsPresHeaders conns = M.map (directPresHeader . CRBRatchet) <$> withAgent (`getConnectionsVerifyCodes` map aConnId conns)
+connsPresHeaders conns = M.intersectionWith sndPresHeader connMap <$> withAgent (`getConnectionsVerifyCodes` map aConnId conns)
+  where
+    connMap = M.fromList $ map (\conn -> (aConnId conn, conn)) conns
+    sndPresHeader conn@Connection {connChatVersion} codes
+      | connChatVersion >= directBadgePresenterVersion = PHChat $ directBadgeBinding codes <> badgePresenterTag (aConnId conn)
+      | otherwise = PHChat $ directBadgeBinding codes
+
+rcvConnPresHeader :: Connection -> Maybe BadgeProof -> CM (Maybe ProofPresHeader)
+rcvConnPresHeader conn badge_ = fmap (rcvPresHeader . directBadgeBinding) . M.lookup connId <$> withAgent (`getConnectionsVerifyCodes` [connId])
+  where
+    connId = aConnId conn
+    rcvPresHeader binding = PHChat $ binding <> fromMaybe "" (contactTag binding)
+    contactTag binding = do
+      BadgeProof {presHeader = BBSPresHeader ph} <- badge_
+      PHChat b <- eitherToMaybe $ strDecode ph
+      mfilter (\tag -> B.length tag == 32 && tag /= badgePresenterTag connId) $ B.stripPrefix binding b
 
 -- receiving side of contact/invitation link data: verify the badge proof from the link profile
 -- and set the crypto-free display badge for the UI (the raw proof stays in profile for APIPrepareContact)

@@ -2813,7 +2813,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
 
     processContactProfileUpdate :: Contact -> Profile -> Bool -> CM Contact
     processContactProfileUpdate c@Contact {profile = lp} p'@Profile {badge = rcvBadge} createItems = do
-      presHeader_ <- if any (not . unboundProof) rcvBadge then pure (contactConn c) $>>= connPresHeader else pure Nothing
+      presHeader_ <- if any (not . unboundProof) rcvBadge then pure (contactConn c) $>>= (`rcvConnPresHeader` rcvBadge) else pure Nothing
       let p'' = p' {badge = acceptedBadge presHeader_ storedBadge rcvBadge}
           contentChanged = not (sameProfileContent p p'')
       -- a failed/unknown-key badge is re-verified even when content is unchanged, so it heals after an app update adds the key
@@ -3243,7 +3243,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       conn' <- updatePeerChatVRange activeConn chatVRange
       case chatMsgEvent of
         XInfo p@Profile {badge} _ -> do
-          presHeader_ <- if any (not . unboundProof) badge then connPresHeader conn' else pure Nothing
+          presHeader_ <- if any (not . unboundProof) badge then rcvConnPresHeader conn' badge else pure Nothing
           ct <- withStore $ \db -> createDirectContact db cxt user conn' presHeader_ p
           toView $ CEvtContactConnecting user ct
           pure (conn', Nothing)

@@ -163,7 +163,7 @@ A BBS proof is generated over a string, called the presentation header, and is v
 
 The context of a conversation is the same string over which message signatures are computed:
 
-- In a direct chat it is a hash derived from the state of the end-to-end encryption, which only the two sides hold.
+- In a direct chat it is a hash derived from the state of the end-to-end encryption, which only the two sides hold. As both sides hold the same hash, a profile proof adds an identifier of the side that presents it, and the app accepts a proof only with an identifier other than its own.
 - In a group it is the member's identifier together with the member's signing key.
 - In a channel it is the channel's identifier together with the member's identifier, or the channel's identifier alone when a message is sent in the name of the channel.
 

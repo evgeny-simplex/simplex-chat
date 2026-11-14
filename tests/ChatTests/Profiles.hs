@@ -104,6 +104,7 @@ chatProfileTests = do
     it "supporter badge in link data bound to another link is not shown" testUserBadgeLinkDataOtherLink
     it "supporter badge in link data without a proof is not shown" testUserBadgeLinkDataNoProof
     it "supporter badge in a direct chat is accepted only with the presenter tag of the contact" testUserBadgeContactPresenter
+    it "supporter badge presenter tag is sent only to contacts of the current version" testUserBadgePresenterTagVersion
   describe "user contact link" $ do
     it "create and connect via contact link" testUserContactLink
     it "rotate address ratchet keys" testRotateAddressRatchetKeys
@@ -1178,6 +1179,30 @@ testUserBadgeContactPresenter ps = do
       bob #> "@alice hello"
       alice <# "bob *> hello"
       contactBadgeHeader alice "bob" `shouldReturn` Just ("CD", BSActive)
+
+testUserBadgePresenterTagVersion :: HasCallStack => TestParams -> IO ()
+testUserBadgePresenterTagVersion ps = do
+  Right (pk, sk) <- bbsKeyGen
+  let cfg = testCfg {badgePublicKeys = testBadgeKeys pk}
+      prevCfg = cfg {chatVRange = prevRange $ chatVRange cfg}
+  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps prevCfg "bob" bobProfile $ \bob ->
+      withNewTestChatCfg ps cfg "cath" cathProfile $ \cath -> do
+        connectUsers alice bob
+        connectUsers alice cath
+        addTestBadge alice =<< issueTestBadge sk futureDate
+        alice #> "@bob hi"
+        bob <# "alice *> hi"
+        alice #> "@cath hi"
+        cath <# "alice *> hi"
+        contactProofHeaderLength bob `shouldReturn` Just 34
+        contactProofHeaderLength cath `shouldReturn` Just 66
+        addTestBadge bob =<< issueTestBadge sk futureDate
+        bob #> "@alice hey"
+        alice <# "bob *> hey"
+        contactProofHeaderLength alice `shouldReturn` Just 34
+  where
+    contactProofHeaderLength cc = fmap proofHeaderLength . contactBadgeProof <$> getTestCCContact cc 2
 
 sendTestMemberProof :: TestCC -> GroupId -> BadgeProof -> IO ()
 sendTestMemberProof cc groupId proof =
