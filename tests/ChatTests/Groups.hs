@@ -202,7 +202,7 @@ chatGroupTests = do
     it "deduplicate forwarded messages" testGroupMsgForwardDeduplicate
     it "report duplicate when forwarded copy is received after direct copy" testGroupMsgForwardDuplicateEvent
     it "report duplicate when direct copy is received after forwarded copy" testGroupMsgDirectDuplicateEvent
-    it "show message redelivered after chat stop once" testGroupRedeliveredMessage
+    it "skip saved message redelivered after chat stop" testGroupRedeliveredMessage
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
@@ -3748,6 +3748,7 @@ testGroupLinkIgnoreRelayJoinRequest ps =
       (gShortLink, _gLink) <- getGroupLinks alice "team" GRMember True
       sendMemberJoinRequest bob gShortLink
       alice <## "warning: memberJoinRequestViaRelay (group team): ignored relay join request from bob (group does not use relays)"
+      checkPendingInvitations alice 0
       alice ##> "/ms team"
       alice <## "alice (Alice): owner, you, created group"
 
@@ -12210,6 +12211,7 @@ testChannelRelayInvUnsigned ps =
       (cathSLink, _cLink) <- getContactLinks cath True
       sendUnsignedRelayInv alice cathSLink
       cath <##. "error: x.grp.relay.inv: invitation is not signed by the owner"
+      checkPendingInvitations cath 0
 
 sendUnsignedRelayInv :: TestCC -> String -> IO ()
 sendUnsignedRelayInv cc relayAddress =
