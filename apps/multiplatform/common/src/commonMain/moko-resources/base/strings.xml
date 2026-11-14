@@ -2716,6 +2716,7 @@
   <string name="v6_5_safe_web_links_descr">- opt-in to send link previews.\n- use SOCKS proxy if enabled.\n- prevent hyperlink phishing.\n- remove link tracking.</string>
   <string name="v6_5_non_profit_governance">Non-profit governance</string>
   <string name="v6_5_non_profit_governance_descr">To make SimpleX Network last.</string>
+  <string name="v7_0_invest_descr" translatable="false">Crowdfunding on Wefunder.</string>
   <string name="v7_0_crowdfunding" translatable="false">Crowdfunding on Wefunder</string>
   <string name="v7_0_invest_learn_more" translatable="false">Learn more on Wefunder</string>
   <string name="invest_banner_title" translatable="false">Invest in SimpleX Chat!</string>
@@ -3371,6 +3372,5 @@
   <string name="v7_1_flat_layout">Flat layout and markdown</string>
   <string name="v7_1_flat_layout_descr">Enable in Appearance settings.</string>
   <string name="v7_1_4_security_audit">New security audit by Trail of Bits</string>
-  <string name="v7_1_4_security_audit_descr">Please ask your contacts to upgrade. Report will be public soon.</string>
-  <string name="v7_1_4_invest_descr">The only messaging network without user identifiers.</string>
+  <string name="v7_1_4_security_audit_descr">Please ask your contacts to upgrade.\nReport will be public soon.</string>
 </resources>

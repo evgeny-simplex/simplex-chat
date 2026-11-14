@@ -1170,7 +1170,7 @@ private fun InvestInSimpleXChatView(modalManager: ModalManager) {
     }
     Text(
       buildAnnotatedString {
-        append(generalGetString(MR.strings.v7_1_4_invest_descr))
+        append(generalGetString(MR.strings.v7_0_invest_descr))
         append(" ")
         withStyle(SpanStyle(color = MaterialTheme.colors.primary)) {
           append(generalGetString(MR.strings.learn_more))
@@ -1251,7 +1251,7 @@ fun GetStakeView(showFirstImage: Boolean, inCenterOfWindow: Boolean = false, clo
 
   ColumnWithScrollBar(Modifier.pinchZoom().padding(horizontal = DEFAULT_PADDING)) {
     // in the center of the window the page is wide enough for the title to fit on one line
-    val title = "Invest in\nSimpleX Chat"
+    val title = "Own a part of\nSimpleX Chat"
     AppBarTitle(if (inCenterOfWindow) title.replace("\n", " ") else title, withPadding = false)
     if (showFirstImage) {
       slideImage(getStakeSlides[0])

@@ -706,7 +706,7 @@ private let versionDescriptions: [VersionDescription] = [
             Feature.feature(Description(
                 icon: "checkmark.shield",
                 title: "New security audit by Trail of Bits",
-                description: "Please ask your contacts to upgrade. Report will be public soon.",
+                description: "Please ask your contacts to upgrade.\nReport will be public soon.",
                 learnMore: URL(string: "https://simplex.chat/blog/20261121-simplex-chat-security-audit-trail-of-bits-security-process.html")
             ))
         ] + (isInUS ? [
@@ -860,7 +860,7 @@ fileprivate struct InvestInSimpleXChat: View {
                 .padding(.bottom, 8)
                 .onTapGesture { showGetStakeSheet = true }
             #endif
-            (Text("The only messaging network without user identifiers.") + Text(verbatim: " ") + Text("Learn more").foregroundColor(theme.colors.primary))
+            (Text("Crowdfunding on Wefunder.") + Text(verbatim: " ") + Text("Learn more").foregroundColor(theme.colors.primary))
                 .multilineTextAlignment(.leading)
                 .onTapGesture { showGetStakeSheet = true }
         }
@@ -911,7 +911,7 @@ struct GetStakeView: View {
     var body: some View {
         ZoomablePageView {
             VStack(alignment: .leading, spacing: 18) {
-                Text(verbatim: "Invest in\nSimpleX Chat")
+                Text(verbatim: "Own a part of\nSimpleX Chat")
                     .font(.largeTitle)
                     .bold()
                     .fixedSize(horizontal: false, vertical: true)
