@@ -59,7 +59,7 @@ Each run, a release build too, reuses the Nix core packages of an earlier run of
 
 With `--libs`, `build-android.sh` unpacks the packages of `LIBS_DIR` in place of building them with Nix; with `--core`, the archive links that package in place of the Nix build's. Either way the packages are the outputs of the same `flake.nix` jobs.
 
-One set of the three takes about 160 MB (40, 47 and 75 MB), kept 30 days. They are artifacts, not Actions caches: a run for a pull request runs under master's name, so a cache that its code saved would be one of master's, while `earlier-run.sh` tells such a run's artifacts apart by the run's name.
+One set of the three takes about 170 MB (42, 49 and 78 MB), kept 30 days. They are artifacts, not Actions caches: a run for a pull request runs under the branch it starts on, so a cache that its code saved would be that branch's, while `earlier-run.sh` tells such a run's artifacts apart by the run's name.
 
 ## Android: signing reproducibly
 
