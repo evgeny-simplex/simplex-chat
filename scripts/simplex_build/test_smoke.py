@@ -261,8 +261,16 @@ class SmokeTest(unittest.TestCase):
         screenshot.assert_not_called()
         killpg.assert_called_once()
 
-    def apk_run(self, verify_returncode, pidof, screen='<hierarchy><node text="Get started"/></hierarchy>', database=None):
-        recorder = Recorder(answers={"pidof": pidof, "abilist": "x86_64,arm64-v8a\n", "uiautomator": screen})
+    def apk_run(
+        self,
+        verify_returncode,
+        pidof,
+        screen='<hierarchy><node text="Get started"/></hierarchy>',
+        database=None,
+        package="chat.simplex.app",
+    ):
+        answers = {"pidof": pidof, "abilist": "x86_64,arm64-v8a\n", "uiautomator": screen, "packagename": f"{package}\n"}
+        recorder = Recorder(answers=answers)
 
         def fake_run(args, **kwargs):
             if [str(a) for a in args[:4]] == ["adb", "emu", "screenrecord", "screenshot"]:
@@ -278,7 +286,7 @@ class SmokeTest(unittest.TestCase):
         with (
             patch_all("run", fake_run),
             patch_all("require_tools"),
-            patch_all("find_apksigner", return_value="apksigner"),
+            patch_all("find_build_tool", side_effect=lambda tool: tool),
             mock.patch.object(build_script.time, "sleep"),
         ):
             build_script.test_apk(apk, self.out, database)
@@ -289,7 +297,14 @@ class SmokeTest(unittest.TestCase):
         self.assertTrue(any(c[0] == "keytool" for c in commands))
         install = next(c for c in commands if c[:2] == ["adb", "install"])
         self.assertNotEqual(install[-1], str(self.root / "simplex-aarch64.apk"))
-        self.assertIn(["adb", "shell", "am", "start", "-W", "-n", "chat.simplex.app/.MainActivity"], commands)
+        self.assertIn(["adb", "shell", "am", "start", "-W", "-n", "chat.simplex.app/chat.simplex.app.MainActivity"], commands)
+
+    def test_apk_of_another_app_is_tested_as_its_package(self):
+        commands = self.apk_run(verify_returncode=0, pidof="1234\n", package="chat.simplex.app.dev")
+        self.assertIn(["aapt2", "dump", "packagename", str(self.root / "simplex-aarch64.apk")], commands)
+        self.assertIn(["adb", "uninstall", "chat.simplex.app.dev"], commands)
+        self.assertIn(["adb", "shell", "am", "start", "-W", "-n", "chat.simplex.app.dev/chat.simplex.app.MainActivity"], commands)
+        self.assertIn(["adb", "shell", "pidof", "chat.simplex.app.dev"], commands)
 
     def test_screenshot_comes_from_the_emulator(self):
         commands = self.apk_run(verify_returncode=0, pidof="1234\n")
@@ -321,7 +336,7 @@ class SmokeTest(unittest.TestCase):
     def test_apk_gets_the_old_database_before_it_starts(self):
         opened = []
         with (
-            patch_all("push_android_old_database", lambda database: opened.append(("push", database))),
+            patch_all("push_android_old_database", lambda database, package: opened.append(("push", database))),
             patch_all("open_android_old_database", lambda out, work: opened.append(("open",))),
         ):
             commands = self.apk_run(verify_returncode=0, pidof="1234\n", database=self.root / "old")
@@ -987,10 +1002,12 @@ class AndroidUiTest(unittest.TestCase):
         apk = self.root / "simplex-aarch64.apk"
         with zipfile.ZipFile(apk, "w") as z:
             z.writestr("lib/arm64-v8a/libsimplex.so", b"lib")
-        recorder = Recorder(answers={"abilist": "x86_64,arm64-v8a\n", "uiautomator": texts("Your network", "Continue")})
+        answers = {"abilist": "x86_64,arm64-v8a\n", "uiautomator": texts("Your network", "Continue"), "packagename": "chat.simplex.app\n"}
+        recorder = Recorder(answers=answers)
         with (
             patch_all("run", recorder),
             patch_all("require_tools"),
+            patch_all("find_build_tool", side_effect=lambda tool: tool),
             patch_all("install_over_old_release", side_effect=build_script.BuildError("no chat list after onboarding")),
             patch_all("emulator_screenshot", lambda target, work: target.write_bytes(b"png")),
             self.assertRaises(build_script.BuildError),
@@ -1056,7 +1073,7 @@ class AndroidUiTest(unittest.TestCase):
                 pathlib.Path(args[args.index("-keystore") + 1]).write_bytes(b"key")
             return recorder(args, **kwargs)
 
-        with patch_all("run", fake_run), patch_all("find_apksigner", return_value="apksigner"):
+        with patch_all("run", fake_run), patch_all("find_build_tool", return_value="apksigner"):
             old = build_script.signed_for_test(self.root / "v7.0.3/v7.0.3-simplex-aarch64.apk", self.work)
             new = build_script.signed_for_test(self.root / "simplex-aarch64.apk", self.work)
         self.assertEqual([c[0] for c in recorder.commands], ["keytool", "apksigner", "apksigner"])
@@ -1101,7 +1118,7 @@ class AndroidUiTest(unittest.TestCase):
             steps,
             [
                 f"adb install -g {self.work}/signed-v7.0.3-simplex-aarch64.apk",
-                "adb shell am start -W -n chat.simplex.app/.MainActivity",
+                "adb shell am start -W -n chat.simplex.app/chat.simplex.app.MainActivity",
                 "onboarding",
                 "screenshot simplex-aarch64.apk.v7.0.3.png",
                 f"adb install -r -g {self.work}/signed-simplex-aarch64.apk",
@@ -1124,19 +1141,20 @@ class AndroidUiTest(unittest.TestCase):
         ):
             build_script.android_app_version()
 
-    def upgrade_run(self, **kwargs):
+    def upgrade_run(self, package="chat.simplex.app", **kwargs):
         steps = []
         apk = self.root / "simplex-aarch64.apk"
         with zipfile.ZipFile(apk, "w") as z:
             z.writestr("lib/arm64-v8a/libsimplex.so", b"lib")
-        recorder = Recorder(answers={"pidof": "1234\n", "abilist": "x86_64,arm64-v8a\n"})
+        recorder = Recorder(answers={"pidof": "1234\n", "abilist": "x86_64,arm64-v8a\n", "packagename": f"{package}\n"})
         with (
             patch_all("run", recorder),
             patch_all("require_tools"),
+            patch_all("find_build_tool", side_effect=lambda tool: tool),
             patch_all("install_over_old_release", lambda apk, out, work: steps.append(("install over", apk.name))),
             patch_all("wait_android_chat_list", lambda: steps.append(("chat list",))),
             patch_all("emulator_screenshot", lambda target, work: steps.append(("screenshot", target.name))),
-            patch_all("connect_android_peer", lambda cli, profile, name, out, work: steps.append(("peer", cli, profile, name))),
+            patch_all("connect_android_peer", lambda cli, profile, name, out, work, package: steps.append(("peer", cli, profile, name))),
         ):
             build_script.test_apk(apk, self.out, **kwargs)
         return steps, recorder.commands
@@ -1158,13 +1176,16 @@ class AndroidUiTest(unittest.TestCase):
     def test_peer_of_the_old_database_is_its_user(self):
         opened = []
         with (
-            patch_all("push_android_old_database", lambda database: opened.append("push")),
+            patch_all("push_android_old_database", lambda database, package: opened.append("push")),
             patch_all("open_android_old_database", lambda out, work: opened.append("open")),
-            patch_all("find_apksigner", return_value="apksigner"),
         ):
             steps, _ = self.upgrade_run(database=self.root / "old", cli=self.root / "simplex-chat")
         self.assertEqual(opened, ["push", "open"])
         self.assertEqual(steps[-1], ("peer", self.root / "simplex-chat", "alice", "simplex-aarch64.apk"))
+
+    def test_only_the_released_app_installs_over_the_previous_release(self):
+        with self.assertRaisesRegex(build_script.BuildError, "is chat.simplex.app.dev: only chat.simplex.app installs over v7.0.3"):
+            self.upgrade_run(package="chat.simplex.app.dev", upgrade=True)
 
     def test_upgrade_and_peer_options_that_do_not_go_together_fail(self):
         for kwargs in ({"database": self.root / "old", "upgrade": True}, {"cli": self.root / "simplex-chat"}):
@@ -1310,7 +1331,7 @@ class ConnectAndroidPeerTest(unittest.TestCase):
 
     def test_app_opens_the_peers_link_and_they_exchange_messages_with_quantum_resistant_encryption(self):
         android, starts = self.connect([CliPeerTest.CONTACT, CliPeerTest.CONTACT])
-        activity = "chat.simplex.app/.MainActivity"
+        activity = "chat.simplex.app/chat.simplex.app.MainActivity"
         view = ["adb", "shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", f"'{CliPeerTest.LINK}'", "-n", activity]
         self.assertEqual(starts, [view])
         self.assertEqual(android.taps, ["Use current profile", "OK", "pq_peer", "Message", "Send Message"])

@@ -16,7 +16,8 @@ run_ids=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page
   | sort_by(.created_at) | reverse | .[].workflow_run.id')
 for run_id in $run_ids; do
   if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" | jq -e --arg own "$own_title" \
-    '.path != ".github/workflows/build-apps.yml" or (.display_title | startswith("build-apps pull request") | not) or .display_title == $own' > /dev/null; then
+    '.path != ".github/workflows/build-apps.yml" or (.display_title | startswith("build-apps pull request") | not)
+      or (.display_title | split(" ")[:4]) == ($own | split(" ")[:4])' > /dev/null; then
     echo "$name: from run $run_id"
     echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
     exit 0

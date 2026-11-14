@@ -41,7 +41,7 @@ LINUX_SCREEN = "1440x900x24"
 LINUX_JAVA_OPTIONS = "-Dskiko.renderApi=SOFTWARE"
 DESKTOP_WINDOW_TITLE = "SimpleX"
 ANDROID_PACKAGE = "chat.simplex.app"
-ANDROID_ACTIVITY = f"{ANDROID_PACKAGE}/.MainActivity"
+ANDROID_MAIN_ACTIVITY = f"{ANDROID_PACKAGE}.MainActivity"
 EMULATOR_SCREENSHOT_SECONDS = 10
 # the x86_64 image translates the armv7a APK's ARM code, which opens the database several times slower
 ANDROID_FIRST_SCREEN_SECONDS = 300
@@ -77,7 +77,6 @@ OLD_RELEASE_DESKTOP_SHA256 = {
     "simplex-desktop-macos-x86_64.dmg": "8e7be5015dd8b3f96ef08c8752f99d7db517d8461b87db1ac56bd561414219e7",
     "simplex-desktop-windows-x86_64.msi": "0162d8eb42917b59962203b74527512c6d05eb032cf6e8189b62eb39587fbc79",
 }
-ANDROID_DATA_DIR = f"/data/user/0/{ANDROID_PACKAGE}"
 ANDROID_DATABASE_PREFIX = "files"
 ANDROID_PASSPHRASE_TEXT = "Database passphrase is required"
 ANDROID_PASSPHRASE_FIELD = "Enter passphrase"
@@ -469,14 +468,18 @@ def test_desktop_upgrade(package: Path, out: Path, cli: Path | None) -> None:
     add_summary(f"`{package.name}`: the app {upgraded}, screenshots `{old_screen.name}`, `{screen.name}`\n\n")
 
 
-def find_apksigner() -> str:
-    if found := shutil.which("apksigner"):
+def find_build_tool(tool: str) -> str:
+    if found := shutil.which(tool):
         return found
     roots = [os.environ.get(name, "") for name in ("ANDROID_SDK_ROOT", "ANDROID_HOME")] + ["/usr/local/lib/android/sdk"]
-    tools = sorted((tool for root in roots if root for tool in Path(root).glob("build-tools/*/apksigner")), key=lambda p: p.parent.name)
+    tools = sorted((path for root in roots if root for path in Path(root).glob(f"build-tools/*/{tool}")), key=lambda p: p.parent.name)
     if not tools:
-        raise BuildError("apksigner is not found: install the Android SDK build tools")
+        raise BuildError(f"{tool} is not found: install the Android SDK build tools")
     return str(tools[-1])
+
+
+def apk_package(apk: Path) -> str:
+    return run([find_build_tool("aapt2"), "dump", "packagename", apk], capture=True).stdout.strip()
 
 
 def signed_for_test(apk: Path, work: Path) -> Path:
@@ -487,7 +490,8 @@ def signed_for_test(apk: Path, work: Path) -> Path:
         keytool: list[str | Path] = ["keytool", "-genkeypair", "-keystore", keystore, "-storepass", password, "-alias", "test"]
         run([*keytool, "-keyalg", "RSA", "-keysize", "2048", "-validity", "1", "-dname", "CN=test"])
     signed = work / apk.name
-    signer: list[str | Path] = [find_apksigner(), "sign", "--ks", keystore, "--ks-pass", f"pass:{password}", "--out", signed, apk]
+    apksigner = find_build_tool("apksigner")
+    signer: list[str | Path] = [apksigner, "sign", "--ks", keystore, "--ks-pass", f"pass:{password}", "--out", signed, apk]
     run(signer, title=f"apksigner sign {apk.name}")
     return signed
 
@@ -682,7 +686,7 @@ def install_over_old_release(apk: Path, out: Path, work: Path) -> None:
     with the same test key, and keeps the old app's data and the database key that it stored in the Android keystore."""
     run(["adb", "install", "-g", signed_for_test(old_release_apk(apk, work), work)])
     old_version = android_app_version()
-    run(["adb", "shell", "am", "start", "-W", "-n", ANDROID_ACTIVITY])
+    run(["adb", "shell", "am", "start", "-W", "-n", f"{ANDROID_PACKAGE}/{ANDROID_MAIN_ACTIVITY}"])
     android_onboarding()
     time.sleep(SETTLE_SECONDS)
     emulator_screenshot(out / f"{apk.name}.{OLD_RELEASE}.png", work)
@@ -741,14 +745,15 @@ class CliPeer:
         return outputs[-1]
 
 
-def connect_android_peer(cli: Path, profile: str, name: str, out: Path, work: Path) -> None:
+def connect_android_peer(cli: Path, profile: str, name: str, out: Path, work: Path, package: str = ANDROID_PACKAGE) -> None:
     """The app, at its chat list with the profile, opens the one-time link of a CLI peer, and they exchange messages;
     the peer's contact info and the app's chat must show quantum resistant encryption, whose sntrup761 KEM hashes with
     the core's OpenSSL."""
     (work / "peer").mkdir()
     peer = CliPeer(runnable_cli(cli, work), work / "peer" / PEER_NAME, out / f"{name}.peer.log")
     link = peer.invitation()
-    run(["adb", "shell", "am", "start", "-W", "-a", ANDROID_VIEW_ACTION, "-d", shlex.quote(link), "-n", ANDROID_ACTIVITY])
+    activity = f"{package}/{ANDROID_MAIN_ACTIVITY}"
+    run(["adb", "shell", "am", "start", "-W", "-a", ANDROID_VIEW_ACTION, "-d", shlex.quote(link), "-n", activity])
     android_tap_when_shown(ANDROID_USE_PROFILE_BUTTON)
     wait_until(lambda: android_shows(android_screen(), ANDROID_CONNECTION_SENT_TEXT), ANDROID_STEP_SECONDS, "connection request sent")
     android_tap_when_shown(ANDROID_OK_BUTTON)
@@ -772,14 +777,15 @@ def connect_android_peer(cli: Path, profile: str, name: str, out: Path, work: Pa
     emulator_screenshot(out / f"{name}.pq.png", work)
 
 
-def push_android_old_database(database: Path) -> None:
+def push_android_old_database(database: Path, package: str = ANDROID_PACKAGE) -> None:
     """The previous release's database in the installed app's data directory, owned by the app as Android requires;
     adb runs as root on the emulator's Google APIs image."""
     run(["adb", "root"])
     run(["adb", "wait-for-device"])
-    owner = run(["adb", "shell", "stat", "-c", "%u:%g", ANDROID_DATA_DIR], capture=True).stdout.strip()
+    data = f"/data/user/0/{package}"
+    owner = run(["adb", "shell", "stat", "-c", "%u:%g", data], capture=True).stdout.strip()
     for suffix in DATABASE_SUFFIXES:
-        target = f"{ANDROID_DATA_DIR}/{ANDROID_DATABASE_PREFIX}{suffix}"
+        target = f"{data}/{ANDROID_DATABASE_PREFIX}{suffix}"
         run(["adb", "push", database / f"{OLD_DATABASE_PREFIX}{suffix}", target])
         run(["adb", "shell", "chown", owner, target])
         run(["adb", "shell", "restorecon", target])
@@ -825,19 +831,22 @@ def test_apk(apk: Path, out: Path, database: Path | None = None, upgrade: bool =
         warn(f"{apk.name} is for {', '.join(sorted(apk_abis(apk)))}, which the emulator can't run ({', '.join(sorted(device_abis))})")
         add_summary(f"`{apk.name}`: not tested, the emulator runs {', '.join(sorted(device_abis))}\n\n")
         return
+    package = apk_package(apk)
+    if upgrade and package != ANDROID_PACKAGE:
+        raise BuildError(f"{apk.name} is {package}: only {ANDROID_PACKAGE} installs over {OLD_RELEASE}")
     name = f"{apk.name}.upgraded" if upgrade else apk.name
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
-        run(["adb", "uninstall", ANDROID_PACKAGE], check=False, capture=True)
+        run(["adb", "uninstall", package], check=False, capture=True)
         try:
             if upgrade:
                 install_over_old_release(apk, out, work)
             else:
-                unsigned = run([find_apksigner(), "verify", apk], check=False, capture=True).returncode != 0
+                unsigned = run([find_build_tool("apksigner"), "verify", apk], check=False, capture=True).returncode != 0
                 run(["adb", "install", "-g", signed_for_test(apk, work) if unsigned else apk])
             if database:
-                push_android_old_database(database)
-            run(["adb", "shell", "am", "start", "-W", "-n", ANDROID_ACTIVITY])
+                push_android_old_database(database, package)
+            run(["adb", "shell", "am", "start", "-W", "-n", f"{package}/{ANDROID_MAIN_ACTIVITY}"])
             if database:
                 open_android_old_database(out, work)
             elif upgrade:
@@ -848,14 +857,14 @@ def test_apk(apk: Path, out: Path, database: Path | None = None, upgrade: bool =
             screen = out / f"{name}.png"
             emulator_screenshot(screen, work)
             if cli:
-                connect_android_peer(cli, OLD_DATABASE_USER if database else ANDROID_PROFILE, name, out, work)
+                connect_android_peer(cli, OLD_DATABASE_USER if database else ANDROID_PROFILE, name, out, work, package)
         except BuildError:
             save_android_screen(out / f"{name}.failed", work)
             raise
-    if not run(["adb", "shell", "pidof", ANDROID_PACKAGE], check=False, capture=True).stdout.strip():
+    if not run(["adb", "shell", "pidof", package], check=False, capture=True).stdout.strip():
         logcat = run(["adb", "logcat", "-d", "-t", "200"], check=False, capture=True).stdout
         record(out, f"{name}.logcat", logcat)
-        raise BuildError(f"{ANDROID_PACKAGE} is not running after it started: logcat in {name}.logcat.txt")
+        raise BuildError(f"{package} is not running after it started: logcat in {name}.logcat.txt")
     opened = f", opens the {OLD_RELEASE} database" if database else ""
     upgraded = f", installs over {OLD_RELEASE} and opens its database" if upgrade else ""
     connected = ", connects with the CLI with quantum resistant encryption" if cli else ""

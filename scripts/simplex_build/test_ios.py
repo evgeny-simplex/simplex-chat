@@ -167,7 +167,7 @@ class IosArchiveTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def build(self, art, binary=b"app", ota=None):
+    def build(self, art, binary=b"app", ota=None, core=None):
         """build_ios_archive with art, against stand-ins of nix, Xcode and codesign, with binary as the app's executable;
         returns their commands and warn."""
         apple = FakeApple()
@@ -216,7 +216,7 @@ class IosArchiveTest(unittest.TestCase):
             patch_all("machine_paths", return_value=["/Users/builder"]) as paths,
             patch_all("warn") as warn,
         ):
-            build_script.build_ios_archive(self.source, art, self.out, install=False, ota=ota)
+            build_script.build_ios_archive(self.source, art, self.out, install=False, ota=ota, core=core)
         self.assertEqual(install_libs.call_args.args[0], source)
         self.assertEqual(install_libs.call_args.args[1].name, build_script.IOS_CORE_ZIP)
         self.assertEqual(self.cwd, source)
@@ -255,6 +255,14 @@ class IosArchiveTest(unittest.TestCase):
             self.assertEqual(z.namelist()[0], "SimpleX.xcarchive/")
             self.assertIn("SimpleX.xcarchive/Products/Applications/SimpleX.app/SimpleX", z.namelist())
             self.assertEqual({i.date_time for i in z.infolist()}, {(2023, 11, 14, 22, 13, 20)})
+
+    def test_archive_with_a_core_built_before_skips_nix(self):
+        core = self.out.parent / "core" / build_script.IOS_CORE_ZIP
+        core.parent.mkdir()
+        core.write_bytes(b"core built before")
+        commands, _ = self.build(self.art, core=core)
+        self.assertNotIn("nix", [c[0] for c in commands])
+        self.assertEqual((self.out / build_script.IOS_CORE_ZIP).read_bytes(), b"core built before")
 
     def test_ota_build_numbers_the_archive_after_the_project(self):
         commands, _ = self.build(self.art, ota=12)

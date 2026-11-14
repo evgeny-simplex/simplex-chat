@@ -79,7 +79,7 @@ from .common import (
     write_sha256sums,
 )
 from .desktop import Database
-from .ios import IOS_TOOLS, build_ios_archive, build_ios_sim_libs, install_ios_libs, reproduce_ios
+from .ios import IOS_CORE_ZIP, IOS_TOOLS, build_ios_archive, build_ios_sim_libs, install_ios_libs, reproduce_ios
 from .linux import (
     APPIMAGE_IMAGE,
     DESKTOP_IMAGES,
@@ -157,6 +157,7 @@ class BuildApk:
     source: Path
     nix_cache: bool
     ota: int | None = None
+    libs: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,6 +250,7 @@ class BuildIosArchive:
     source: Path
     install_nix: bool
     ota: int | None = None
+    core: Path | None = None
 
 
 type Build = (
@@ -356,14 +358,16 @@ def build(command: Build) -> None:
     out = prepare_out(command.out)
     source = command.source.resolve()
     match command:
-        case BuildApk(arch=arch, nix_cache=nix_cache, ota=ota):
+        case BuildApk(arch=arch, nix_cache=nix_cache, ota=ota, libs=apk_libs):
             require_tools(["docker"])
             signing = android_signing()
+            prebuilt = apk_libs.resolve() if apk_libs else None
             with android_container(source, out, arch == Arch.ARMV7A, signing) as container:
                 if ota is None:
-                    build_apk(container, source, arch, out, f"simplex-{arch}.apk", nix_cache, keep_libs=True, signing=signing)
+                    name = f"simplex-{arch}.apk"
+                    build_apk(container, source, arch, out, name, nix_cache, keep_libs=True, signing=signing, libs=prebuilt)
                 else:
-                    build_dev_apk(container, source, arch, out, nix_cache, ota, signing)
+                    build_dev_apk(container, source, arch, out, nix_cache, ota, signing, prebuilt)
         case BuildBundle(libs=libs):
             require_tools(["docker"])
             signing = android_signing()
@@ -406,11 +410,12 @@ def build(command: Build) -> None:
             require_platform(Platform.WINDOWS)
             require_tools(WINDOWS_DESKTOP_TOOLS)
             build_desktop_windows(source, out)
-        case BuildIosArchive(art=art, install_nix=install, ota=ota):
+        case BuildIosArchive(art=art, install_nix=install, ota=ota, core=core):
             require_platform(Platform.MACOS)
             require_tools(IOS_TOOLS)
-            require_nix(install)
-            build_ios_archive(source, art.resolve() if art else None, out, install, ota)
+            if core is None:
+                require_nix(install)
+            build_ios_archive(source, art.resolve() if art else None, out, install, ota, core.resolve() if core else None)
     write_sha256sums(out)
 
 
@@ -521,12 +526,14 @@ def parse_build_args(argv: Sequence[str]) -> Command:
         metavar="BUILD",
         help=f"over-the-air build BUILD of {DEV_APP_NAME} ({DEV_APP_ID}): version code BUILD, version name <version>-ota.BUILD",
     )
+    apk.add_argument("--libs", type=Path, help="directory with the arch's pkg-<arch>-android-*.zip files, built before, in place of Nix")
     aab = kinds.add_parser("aab", parents=[common], help="the Play bundle, from both arches' core libraries")
     aab.add_argument("--libs", type=Path, required=True, help="directory with the pkg-<arch>-android-*.zip files")
     xcarchive = kinds.add_parser("xcarchive", parents=[common], help="the iOS archive, its bundles signed ad hoc with their entitlements")
     xcarchive.add_argument("--art", type=Path, help="checkout of simplex-chat-art, with the brand assets (default: none, with a warning)")
     xcarchive.add_argument("--install-nix", action="store_true", help="install Nix first, as on a CI runner")
     xcarchive.add_argument("--ota", type=int, metavar="BUILD", help="over-the-air build BUILD: build number <build number>.BUILD")
+    xcarchive.add_argument("--core", type=Path, help=f"the {IOS_CORE_ZIP} that the Nix build made before, in place of Nix")
 
     args = parser.parse_args(argv)
     match args.kind, getattr(args, "platform", None):
@@ -551,11 +558,11 @@ def parse_build_args(argv: Sequence[str]) -> Command:
         case "openssl", str(openssl_platform):
             return BuildOpenssl(Platform(openssl_platform), args.out, args.source)
         case "apk", _:
-            return BuildApk(args.arch, args.out, args.source, args.nix_cache, args.ota)
+            return BuildApk(args.arch, args.out, args.source, args.nix_cache, args.ota, args.libs)
         case "aab", _:
             return BuildBundle(args.libs, args.out, args.source)
         case _:
-            return BuildIosArchive(args.art, args.out, args.source, args.install_nix, args.ota)
+            return BuildIosArchive(args.art, args.out, args.source, args.install_nix, args.ota, args.core)
 
 
 def parse_install_args(argv: Sequence[str]) -> InstallLibs:

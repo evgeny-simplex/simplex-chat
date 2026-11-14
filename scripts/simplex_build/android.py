@@ -167,6 +167,14 @@ def android_container(source: Path, out: Path, set_pid_max: bool, signing: Andro
         yield container
 
 
+def android_lib_package(libs: Path, arch: Arch, lib: str) -> Path:
+    name = f"pkg-{arch}-android-{lib}.zip"
+    found = sorted(libs.rglob(name))
+    if not found:
+        raise BuildError(f"{name} not found in {libs}")
+    return found[0]
+
+
 def gradle_path(container: Container) -> str:
     """PATH with the gradle of the project's wrapper first, which build-android.sh needs as `gradle`."""
     container.run(Step(("./gradlew", "--version"), workdir=f"{PROJECT}/apps/multiplatform"))
@@ -189,11 +197,16 @@ def build_apk(
     nix_cache: bool,
     keep_libs: bool,
     signing: AndroidSigning | None = None,
+    libs: Path | None = None,
 ) -> None:
     """The deterministic APK of scripts/android/build-android.sh, signed by Gradle with signing, as <out>/<out_name>."""
     env = {"ARCHES": arch.value, "PATH": gradle_path(container)}
     if nix_cache:
         env["NIX_CONFIG"] = NIX_CACHE_CONFIG
+    if libs:
+        for lib in ANDROID_LIBS:
+            shutil.copy(android_lib_package(libs, arch, lib), out)
+        env["LIBS_DIR"] = OUT
     secrets = None
     if signing:
         env |= signing.env
@@ -201,20 +214,27 @@ def build_apk(
     build = Step(("./scripts/android/build-android.sh", "-gs", android_vercode(source)), env=env)
     retry_once(lambda: container.run(build, secrets=secrets))
     shutil.copy(source / f"simplex-chat-{arch.abi}.apk", out / out_name)
-    if keep_libs:
+    if keep_libs and libs is None:
         for lib in ANDROID_LIBS:
             container.copy_out(f"{PROJECT}/result-{arch}-{lib}/pkg-{arch}-android-{lib}.zip", out)
 
 
 def build_dev_apk(
-    container: Container, source: Path, arch: Arch, out: Path, nix_cache: bool, build: int, signing: AndroidSigning | None = None
+    container: Container,
+    source: Path,
+    arch: Arch,
+    out: Path,
+    nix_cache: bool,
+    build: int,
+    signing: AndroidSigning | None = None,
+    libs: Path | None = None,
 ) -> None:
     version_name = set_ota_version(source, build)
     # Gradle runs the init scripts of ~/.gradle/init.d in each build, build-android.sh's included
     install = 'mkdir -p "$HOME/.gradle/init.d" && cat > "$HOME/.gradle/init.d/dev-app.gradle"'
     container.run(Step(("sh", "-c", install), input=(source / DEV_APP_INIT_SCRIPT).read_text()))
     out_name = f"simplex-dev-{arch}.apk"
-    build_apk(container, source, arch, out, out_name, nix_cache, keep_libs=True, signing=signing)
+    build_apk(container, source, arch, out, out_name, nix_cache, keep_libs=True, signing=signing, libs=libs)
     aapt2 = 'exec "$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n 1)" dump badging "$1"'
     badging = container.run(Step(("sh", "-c", aapt2, "sh", f"{OUT}/{out_name}")), capture=True).splitlines()
     package = f"package: name='{DEV_APP_ID}' versionCode='{build}' versionName='{version_name}'"
@@ -234,11 +254,7 @@ def build_bundle(container: Container, source: Path, libs: Path, out: Path, sign
         target = source / ANDROID_LIBS_DIR / arch.abi
         target.mkdir(parents=True, exist_ok=True)
         for lib in ANDROID_LIBS:
-            name = f"pkg-{arch}-android-{lib}.zip"
-            found = sorted(libs.rglob(name))
-            if not found:
-                raise BuildError(f"{name} not found in {libs}")
-            with zipfile.ZipFile(found[0]) as z:
+            with zipfile.ZipFile(android_lib_package(libs, arch, lib)) as z:
                 z.extractall(target)
     build = Step(
         ("./gradlew", "--no-daemon", ":android:bundleGoogleRelease"),
