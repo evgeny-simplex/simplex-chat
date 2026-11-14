@@ -1894,7 +1894,8 @@ getChatItemFileServers user dir ci = case ci of
           Just sfdText -> fileDescrServers <$> (parseFileDescription sfdText :: CM (ValidFileDescription 'FSender))
           Nothing -> pure []
       SMDRcv -> do
-        RcvFileDescr {fileDescrText} <- withStore $ \db -> getRcvFileDescrByRcvFileId db fileId
+        RcvFileDescr {fileDescrText, fileDescrComplete} <- withStore $ \db -> getRcvFileDescrByRcvFileId db fileId
+        unless fileDescrComplete $ throwChatError $ CEInvalidFileDescription "incomplete file description"
         fileDescrServers <$> (parseFileDescription fileDescrText :: CM (ValidFileDescription 'FRecipient))
 
 sendDirectFileInline :: User -> Contact -> FileTransferMeta -> SharedMsgId -> CM ()
@@ -2125,7 +2126,7 @@ cancelSndFileTransfer user@User {userId} ft@SndFileTransfer {fileId, connId, fil
 closeFileHandle :: Int64 -> (ChatController -> TVar (Map Int64 Handle)) -> CM' ()
 closeFileHandle fileId files = do
   fs <- asks files
-  h_ <- atomically . stateTVar fs $ \m -> (M.lookup fileId m, M.delete fileId m)
+  h_ <- atomically . stateTVar' fs $ \m -> (M.lookup fileId m, M.delete fileId m)
   liftIO $ mapM_ hClose h_ `catchAll_` pure ()
 
 -- The roster file has no chat item, so chat-item file enumeration misses it; clean it up by group.
