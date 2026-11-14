@@ -400,7 +400,7 @@ function recordKind(record: TranscriptEntry, id: string | undefined, text: strin
   const teammates = teammateEvents(origin, record.turnOrigin, text)
   const note = teammates === undefined ? noteOf(origin, record.turnOrigin, text) : undefined
   const midTurn = record.type !== "user" || (id !== undefined && record.promptId !== id)
-  return {typed: origin?.kind === "human", ...(note === undefined ? {} : {note: shortened(note)}), ...(teammates === undefined ? {} : {teammates}), ...(midTurn ? {midTurn} : {})}
+  return {typed: origin?.kind === "human", ...(note === undefined ? {} : {note: small(shortened(note))}), ...(teammates === undefined ? {} : {teammates}), ...(midTurn ? {midTurn} : {})}
 }
 
 // spec: spec/architecture.md#hook-teammateevents
@@ -424,12 +424,12 @@ function teammateEvents(origin: Origin | null | undefined, turnOrigin: unknown, 
 
 // spec: spec/architecture.md#hook-teammateevents
 function messageNote(name: string, summary: string): string {
-  return shortened(`✉️ Message from ${oneLine(name)}: ${firstLine(summary)}`)
+  return small(shortened(`✉️ Message from ${oneLine(name)}: ${firstLine(summary)}`))
 }
 
 // spec: spec/architecture.md#hook-teammateevents
 function reportNote(name: string, report: string): string {
-  return shortened(`📋 Report from subagent ${oneLine(name)}: ${firstLine(report)}`)
+  return small(shortened(`📋 Report from subagent ${oneLine(name)}: ${firstLine(report)}`))
 }
 
 // spec: spec/architecture.md#hook-teammateevents

@@ -634,10 +634,10 @@ VERSION is the plugin's version, as in `npx -y @simplex-chat/mcp@0.3.0 link`. Th
 ### Teammates
 
 - Each agent that Claude starts with a name, as a teammate of an agent team or a named background agent, joins the session's group with its own profile. The profile has the agent's name, the agent placeholder of the peer type `agent`, and the agent's task as its short description, up to 160 characters.
-- A teammate's messages to Claude, and its final report, appear whole under its profile, silent, in place of Claude's line `✉️ Message from NAME: ...` or `📋 Report from subagent NAME: ...`.
+- A teammate's messages to Claude, and its final report, appear whole under its profile, silent and in normal print, in place of Claude's small-print line `✉️ Message from NAME: ...` or `📋 Report from subagent NAME: ...`.
 - A teammate is a member of the group. Its messages are never prompts, commands or approvals, and Claude posts no rights for it.
 - A teammate leaves the group when it ends, and when the session ends or closes. Its profile is then deleted, and its messages stay in the group. A teammate left in a group by a service that was killed is removed when the service starts again.
-- A session has at most 20 teammates with profiles at once. For a later one, Claude posts `Teammate NAME has no profile: this group has 20 teammates.`, and its messages keep Claude's lines.
+- A session has at most 20 teammates with profiles at once. For a later one, Claude posts `Teammate NAME has no profile: this group has 20 teammates.` in small print, and its messages keep Claude's lines.
 - An agent without a name, as a short subagent, gets no profile; its report keeps Claude's line.
 
 ### Prompts and answers
@@ -658,7 +658,7 @@ With the channel, a message from a member of a session's group, other than `User
 - Claude's replies to a prompt, its answer included, are posted without the quote when the prompt was deleted or the quote makes the message too large. An answer is also posted without the quote when the quote leaves no room for its first character.
 - While the plugin is enabled, Claude Code shows Claude's text in the terminal by whole lines, after the plugin's MessageDisplay hook passes each batch of lines to the service, about 0.1 s later.
 - `User` posts only the prompts a person typed, also one typed while Claude works. `User` skips commands such as `/compact`, empty prompts such as one with images only, and prompts made only of the plugin's `<channel source="plugin:simplex:simplex" ...>` tags. `User`'s posts are never commands of the group, even a part that starts with `/`.
-- Claude posts one line for each of Claude Code's own prompts, without a quote. The line starts with an emoji for the prompt's kind:
+- Claude posts one line in small print for each of Claude Code's own prompts, without a quote, so it reads apart from the prompts of people. A `!` in it is shown as `ǃ`, because `!` would end the small print. The line starts with an emoji for the prompt's kind:
   - a notification of a background task, a subagent, a workflow or a monitor: its summary, such as `✅ Background command "Build" completed (exit code 0)`, and the first line of its event, when it has one, such as `📡 Monitor event: "Builds": serverpg exit 0`. The emoji is ✅ for a task that completed, ❌ for one that failed and ⏹️ for one that was stopped or killed. A notification without a status gets 📡 when it has an event, as a monitor event or the end of an artifact watch, and 🔔 otherwise. A notification in plain text, such as `3 background agents were stopped by the user: ...`, gets 🔔 and its first line;
   - a message of another Claude session: `✉️ Message from NAME: ` and its first line;
   - a message of a teammate without a profile, see [Teammates](#teammates): `✉️ Message from NAME: ` and its summary, or its first line without one. A prompt with several teammate messages gets a line for each one that is not an idle notification, and a prompt of idle notifications only gets no line;

@@ -476,7 +476,7 @@ export class Session {
     if (kind === "start") {
       this.agentNames.add(name)
       if (this.teammates.start(name, description) !== "full") return
-      await this.post([{text: `Teammate ${oneLine(name)} has no profile: this group has ${maxTeammates} teammates.`, priority: -1}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
+      await this.post([{text: small(`Teammate ${oneLine(name).replaceAll("!", "ǃ")} has no profile: this group has ${maxTeammates} teammates.`), priority: -1}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
       return
     }
     if (kind === "end") return this.teammates.end(name, teammateEndWait)

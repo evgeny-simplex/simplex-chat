@@ -2075,9 +2075,9 @@ describe("session channel", () => {
       const {session} = await channel(chat)
       const started = jest.spyOn(session.teammates, "start").mockReturnValueOnce("started").mockReturnValueOnce("full")
       await session.turn({id: id1, at: 1, teammates: [{name: "reviewer", kind: "start", description: "Review the diff"}]})
-      await session.turn({id: id1, at: 2, teammates: [{name: "tester\nrunner", kind: "start"}]})
-      expect(started.mock.calls).toEqual([["reviewer", "Review the diff"], ["tester\nrunner", undefined]])
-      expect(silent(chat)).toEqual([{text: "Teammate tester runner has no profile: this group has 20 teammates.", priority: -1}])
+      await session.turn({id: id1, at: 2, teammates: [{name: "tester\nrunner!", kind: "start"}]})
+      expect(started.mock.calls).toEqual([["reviewer", "Review the diff"], ["tester\nrunner!", undefined]])
+      expect(silent(chat)).toEqual([{text: "!- Teammate tester runnerǃ has no profile: this group has 20 teammates.!", priority: -1}])
     })
 
     it("posts a teammate's messages and report under its profile in place of Claude's notes, Claude's notes for a teammate without a profile, and ends a teammate at its report and after its stop", async () => {
