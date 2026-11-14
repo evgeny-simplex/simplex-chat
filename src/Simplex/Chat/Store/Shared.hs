@@ -988,6 +988,10 @@ setViaGroupLinkUri db groupId connId = do
       |]
       (viaContactUri, viaContactUriHash, groupId)
 
+resetConnGroupLinkId :: DB.Connection -> Int64 -> IO ()
+resetConnGroupLinkId db connId =
+  DB.execute db "UPDATE connections SET group_link_id = NULL WHERE connection_id = ?" (Only connId)
+
 deleteConnectionRecord :: DB.Connection -> User -> Int64 -> IO ()
 deleteConnectionRecord db User {userId} cId = do
   DB.execute db "DELETE FROM connections WHERE user_id = ? AND connection_id = ?" (userId, cId)
