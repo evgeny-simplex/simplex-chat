@@ -3371,6 +3371,6 @@
   <string name="v7_1_flat_layout">Flat layout and markdown</string>
   <string name="v7_1_flat_layout_descr">Enable in Appearance settings.</string>
   <string name="v7_1_4_security_audit">New security audit by Trail of Bits</string>
-  <string name="v7_1_4_security_audit_descr">Please upgrade, and ask your contacts to upgrade. Full report by the end of November.</string>
+  <string name="v7_1_4_security_audit_descr">Please ask your contacts to upgrade. Report will be public soon.</string>
   <string name="v7_1_4_invest_descr">The only messaging network without user identifiers.</string>
 </resources>

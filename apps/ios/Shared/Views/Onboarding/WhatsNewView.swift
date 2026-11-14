@@ -706,7 +706,7 @@ private let versionDescriptions: [VersionDescription] = [
             Feature.feature(Description(
                 icon: "checkmark.shield",
                 title: "New security audit by Trail of Bits",
-                description: "Please upgrade, and ask your contacts to upgrade. Full report by the end of November.",
+                description: "Please ask your contacts to upgrade. Report will be public soon.",
                 learnMore: URL(string: "https://simplex.chat/blog/20261121-simplex-chat-security-audit-trail-of-bits-security-process.html")
             ))
         ] + (isInUS ? [
