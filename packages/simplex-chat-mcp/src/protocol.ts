@@ -74,6 +74,8 @@ export interface Step {
   id: string
   text: string
   end?: boolean
+  ms?: number
+  mark?: string
 }
 
 // spec: spec/architecture.md#protocol-textbatch

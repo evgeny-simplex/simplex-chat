@@ -1111,19 +1111,37 @@ describe("session channel", () => {
 
   const priorities = (chat: FakeChat) => chat.sent.filter(({chat: [, groupId]}) => groupId === 20).map(({messages}) => messages.map(message => (message as {priority?: number}).priority))
 
-  it("posts the start of a step as a silent live line and updates it with the step's end, and posts the end that arrives before its start as a silent line, and nothing for that start", async () => {
+  it("posts the start of a step as a silent live line and updates it at the step's end with its time in small print, and posts the end that arrives before its start as a silent line, and nothing for that start", async () => {
     const chat = new FakeChat()
     const {session} = await channel(chat)
     const posted = () => chat.sent.filter(({chat: [, groupId]}) => groupId === 20)
     const line = chat.nextItemId
     await session.turn({id: id1, at: 1, step: {id: "toolu_1", text: "💻 Run the tests"}})
     expect(posted()).toEqual([{chat: [T.ChatType.Group, 20], messages: [{msgContent: {type: "text", text: "💻 Run the tests"}, mentions: {}, priority: -1}], live: true}])
-    await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests ✅ 2.0 s", end: true}})
-    expect(chat.updates).toEqual([{chatId: 20, itemId: line, text: "💻 Run the tests ✅ 2.0 s"}])
-    await session.turn({id: id1, at: 4, step: {id: "toolu_2", text: "📖 Read src/hook.ts ✅ 41 ms", end: true}})
+    await session.turn({id: id1, at: 2, step: {id: "toolu_1", text: "💻 Run the tests", end: true, ms: 2018}})
+    expect(chat.updates).toEqual([{chatId: 20, itemId: line, text: "💻 Run the tests !- 2.0 s!"}])
+    await session.turn({id: id1, at: 4, step: {id: "toolu_2", text: "📖 Read src/hook.ts", end: true, ms: 41}})
     await session.turn({id: id1, at: 3, step: {id: "toolu_2", text: "📖 Read src/hook.ts"}})
-    expect(posted().slice(1)).toEqual([{chat: [T.ChatType.Group, 20], messages: [{msgContent: {type: "text", text: "📖 Read src/hook.ts ✅ 41 ms"}, mentions: {}, priority: -1}]}])
+    expect(posted().slice(1)).toEqual([{chat: [T.ChatType.Group, 20], messages: [{msgContent: {type: "text", text: "📖 Read src/hook.ts !- 41 ms!"}, mentions: {}, priority: -1}]}])
     expect(chat.updates).toHaveLength(1)
+  })
+
+  it("shows a step's time in small print, keeps ❌ for a failure, ⏹️ for an interruption and (in background) for a launch, and drops ✅", async () => {
+    const chat = new FakeChat()
+    const {session} = await channel(chat)
+    const ends: [number | undefined, string | undefined][] = [[2018, undefined], [39, "❌"], [252_000, "⏹️"], [42_500, undefined], [3_900_000, undefined], [undefined, undefined], [41.6, undefined], [1999.6, undefined], [undefined, "(in background)"]]
+    for (const [i, [ms, mark]] of ends.entries()) await session.turn({id: id1, at: i + 1, step: {id: `toolu_${i}`, text: "💻 Run the tests", end: true, ...(ms === undefined ? {} : {ms}), ...(mark === undefined ? {} : {mark})}})
+    expect(sentTo(chat, 20)).toEqual([
+      "💻 Run the tests !- 2.0 s!",
+      "💻 Run the tests ❌ !- 39 ms!",
+      "💻 Run the tests ⏹️ !- 4 min 12 s!",
+      "💻 Run the tests !- 42 s!",
+      "💻 Run the tests !- 1 h 5 min!",
+      "💻 Run the tests",
+      "💻 Run the tests !- 42 ms!",
+      "💻 Run the tests !- 2.0 s!",
+      "💻 Run the tests (in background)",
+    ])
   })
 
   it("ends the live lines of steps without an end with their text at an answer, at a prompt that starts a turn, at the last detach and at the hub's stop, not at a prompt added to the running turn, and posts nothing for their later ends", async () => {

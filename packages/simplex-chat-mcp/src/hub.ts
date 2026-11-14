@@ -529,7 +529,7 @@ export class Session {
   }
 
   // spec: spec/architecture.md#hub-session-step
-  private async step({id, text, end}: Step, at: number): Promise<void> {
+  private async step({id, text, end, ms, mark}: Step, at: number): Promise<void> {
     if (this.finished.delete(id)) return
     this.expireLive()
     const started = this.steps.get(id)
@@ -541,9 +541,9 @@ export class Session {
       await item
     } else if (started === undefined) {
       this.remember(id)
-      await this.post([{text, priority: -1}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
+      await this.post([{text: stepLine(text, ms, mark), priority: -1}]).catch(error => this.postRefusal(error, noteRefused, featureOff))
     } else {
-      await this.endStep(id, started, text)
+      await this.endStep(id, started, stepLine(text, ms, mark))
     }
   }
 
@@ -1189,6 +1189,12 @@ function quoteOf(quoted: T.ChatItem | undefined, text: string): Parameters<typeo
 // spec: spec/architecture.md#hub-quoteof
 function endLine(ms: number | undefined): string {
   return `!- ✅ Done${ms === undefined ? "" : ` in ${duration(ms)}`}!`
+}
+
+// spec: spec/architecture.md#hub-session-step
+function stepLine(text: string, ms: number | undefined, mark: string | undefined): string {
+  const shown = mark === undefined ? text : `${text} ${mark}`
+  return ms === undefined ? shown : `${shown} !- ${duration(ms)}!`
 }
 
 // spec: spec/architecture.md#hub-quoteof

@@ -4,7 +4,6 @@ import {ServiceClient} from "./client"
 import {interactive, interactiveEntrypoint, readConfig} from "./config"
 import {dataRoot} from "./files"
 import {errorText, logError, oneLine} from "./log"
-import {duration} from "./messages"
 import {Step, TitleReply, TurnRequest} from "./protocol"
 import {qrCodeText} from "./qr"
 import {claudePid} from "./service-request"
@@ -371,9 +370,9 @@ function stepOf({tool_use_id: id, tool_name: tool, agent_id: agent, hook_event_n
   if (id === undefined || tool === undefined || agent !== undefined || tool.startsWith(pluginTools)) return undefined
   const text = shortened(stepText(tool, fields, cwd))
   if (event === "PreToolUse") return {id, text}
-  if (event === "PostToolUse" && fields.run_in_background === true) return {id, text: `${text} (in background)`, end: true}
-  const outcome = event === "PostToolUse" ? "✅" : interrupted === true ? "⏹️" : "❌"
-  return {id, text: `${text} ${outcome}${ms === undefined ? "" : ` ${duration(ms)}`}`, end: true}
+  if (event === "PostToolUse" && fields.run_in_background === true) return {id, text, end: true, mark: "(in background)"}
+  const mark = event === "PostToolUse" ? undefined : interrupted === true ? "⏹️" : "❌"
+  return {id, text, end: true, ...(ms === undefined ? {} : {ms}), ...(mark === undefined ? {} : {mark})}
 }
 
 // spec: spec/architecture.md#hook-stepof
@@ -388,7 +387,7 @@ function stepText(tool: string, fields: {[field: string]: unknown}, cwd: string 
     case "Edit":
       return `✏️ Edit ${path("file_path")}`
     case "Write":
-      return `📝 Write ${path("file_path")}`
+      return `✏️ Write ${path("file_path")}`
     case "Grep":
     case "Glob": {
       const where = path("path")
@@ -397,7 +396,7 @@ function stepText(tool: string, fields: {[field: string]: unknown}, cwd: string 
     case "WebFetch":
       return `🌐 Fetch ${field("url")}`
     case "WebSearch":
-      return `🔎 Search ${field("query")}`
+      return `🔍 Search ${field("query")}`
     case "Agent":
       return `🤖 Agent: ${field("description")}`
     default: {
