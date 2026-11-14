@@ -27,5 +27,7 @@ tar -C "$libs_dir" -xzf "$1"
 ls -la "$libs_dir"
 
 mkdir -p apps/multiplatform/build/links
-ln -sfn "../../common/src/commonMain/cpp/desktop/libs/$libs/" "apps/multiplatform/build/links/$link"
-ls -la apps/multiplatform/build/links
+cd apps/multiplatform/build/links
+rm -rf "$link"
+ln -s "../../common/src/commonMain/cpp/desktop/libs/$libs/" "$link"
+ls -la
