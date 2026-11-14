@@ -1362,11 +1362,11 @@ testXFTPChunksAfterReceived =
         ]
       bob <## "completed receiving file 1 (logo-large-rgba.png) from alice"
 
-      sharedMsgId <- itemSharedMsgId alice
+      smId <- itemSharedMsgId alice
       withCCUser alice $ \user -> do
         ct <- getTestCCContact alice 2
         let sendChunk chunk =
-              runExceptT (sendDirectContactMessage user ct (BFileChunk sharedMsgId chunk)) `runReaderT` chatController alice
+              runExceptT (sendDirectContactMessage user ct (BFileChunk smId chunk)) `runReaderT` chatController alice
                 >>= either (fail . show) (\_ -> pure ())
         mapM_ sendChunk [FileChunk 1 "", FileChunkCancel, FileChunk 1 "", FileChunk 2 "alice's bytes"]
       alice #> "@bob hi"
@@ -1396,10 +1396,10 @@ testXFTPGroupChunksAfterReceived =
              ]
       bob <## "completed receiving file 1 (logo-large-rgba.png) from alice"
 
-      sharedMsgId <- itemSharedMsgId alice
+      smId <- itemSharedMsgId alice
       GroupMember {groupId = gId, activeConn = Just conn} <- getTestMember alice "team" "bob"
       let sendChunk chunk =
-            runExceptT (sendDirectMemberMessage conn (BFileChunk sharedMsgId chunk) gId) `runReaderT` chatController alice
+            runExceptT (sendDirectMemberMessage conn (BFileChunk smId chunk) gId) `runReaderT` chatController alice
               >>= either (fail . show) (\_ -> pure ())
       mapM_ sendChunk [FileChunk 1 "", FileChunkCancel, FileChunk 1 "", FileChunk 2 "alice's bytes"]
       alice #> "#team hi"
