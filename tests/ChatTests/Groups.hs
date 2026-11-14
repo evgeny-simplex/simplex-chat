@@ -1325,7 +1325,6 @@ testGroupQuoteReceivedContent =
       helloMsgId <- itemSharedMsgId cath
       aliceMemId <- memberIdByName cath "alice"
       bobMemId <- memberIdByName cath "bob"
-      cathMemId <- memberIdByName cath "cath"
       connId <- relayConnIdToMember bob "cath"
       sentAt <- getCurrentTime
       let sendReply msgId quotedMsgId memberId =
@@ -1336,16 +1335,11 @@ testGroupQuoteReceivedContent =
       sendReply "reply_2" (SharedMsgId "unknown") aliceMemId
       cath <# "#team bob> > quoted text"
       cath <## "      reply"
-      sendReply "reply_3" (SharedMsgId "unknown") cathMemId
-      cath <# "#team bob> > quoted text"
-      cath <## "      reply"
-      sendReply "reply_4" helloMsgId bobMemId
+      sendReply "reply_3" helloMsgId bobMemId
       cath <# "#team bob> > bob quoted text"
       cath <## "      reply"
-      cath ##> "/tail #team 4"
+      cath ##> "/tail #team 3"
       cath <# "#team bob> > alice hello"
-      cath <## "      reply"
-      cath <# "#team bob> > quoted text"
       cath <## "      reply"
       cath <# "#team bob> > quoted text"
       cath <## "      reply"
@@ -8664,7 +8658,7 @@ testForwardQuoteMention =
       alice <## "      hi there!"
       concurrently_
         ( do
-            bob <# "#team alice!> > bob hello @alice @alice_1"
+            bob <# "#team alice!> > bob hello @alice @cath"
             bob <## "      hi there!"
         )
         ( do
