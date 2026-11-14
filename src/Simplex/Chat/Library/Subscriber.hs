@@ -597,8 +597,8 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                 XInfo p _ -> xInfo ct'' p
                 XDirectDel -> xDirectDel ct'' msg msgMeta
                 XGrpInv gInv -> processGroupInvitation ct'' gInv msg msgMeta
-                XInfoProbe probe -> xInfoProbe (COMContact ct'') probe
-                XInfoProbeCheck probeHash -> xInfoProbeCheck (COMContact ct'') probeHash
+                XInfoProbe probe -> xInfoProbe (COMContact ct'') (contactConnIncognito ct'') probe
+                XInfoProbeCheck probeHash -> xInfoProbeCheck (COMContact ct'') (contactConnIncognito ct'') probeHash
                 XInfoProbeOk probe -> xInfoProbeOk (COMContact ct'') probe
                 XCallInv callId invitation -> xCallInv ct'' callId invitation msg msgMeta
                 XCallOffer callId offer -> xCallOffer ct'' callId offer msg
@@ -1126,8 +1126,8 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               -- TODO [knocking] why don't we forward these messages?
               XGrpDirectInv connReq mContent_ msgScope -> memberCanSend (Just m'') msgScope $ Nothing <$ xGrpDirectInv gInfo' m'' conn' connReq mContent_ msg brokerTs
               XGrpMsgForward fwd msg' -> Nothing <$ xGrpMsgForward (GIK gInfo' gks) Nothing m'' fwd (ParsedMsg Nothing Nothing msg') brokerTs
-              XInfoProbe probe -> Nothing <$ xInfoProbe (COMGroupMember m'') probe
-              XInfoProbeCheck probeHash -> Nothing <$ xInfoProbeCheck (COMGroupMember m'') probeHash
+              XInfoProbe probe -> Nothing <$ xInfoProbe (COMGroupMember m'') (incognitoMembership gInfo') probe
+              XInfoProbeCheck probeHash -> Nothing <$ xInfoProbeCheck (COMGroupMember m'') (incognitoMembership gInfo') probeHash
               XInfoProbeOk probe -> Nothing <$ xInfoProbeOk (COMGroupMember m'') probe
               BFileChunk sharedMsgId chunk -> Nothing <$ bFileChunkGroup (GIK gInfo' gks) m'' sharedMsgId chunk msgMeta
               _ -> Nothing <$ messageError ("unsupported message: " <> tshow event)
@@ -3009,18 +3009,17 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                     createItem (Just GCSIMemberSupport {groupMember_ = Just m''}) m''
               | otherwise -> createItem Nothing m''
 
-    xInfoProbe :: ContactOrMember -> Probe -> CM ()
-    xInfoProbe cgm2 probe = do
+    xInfoProbe :: ContactOrMember -> IncognitoEnabled -> Probe -> CM ()
+    xInfoProbe cgm2 connectedIncognito probe = do
       contactMerge <- readTVarIO =<< asks contactMergeEnabled
       -- [incognito] unless connected incognito
-      when (contactMerge && not (contactOrMemberIncognito cgm2)) $ do
+      when (contactMerge && not connectedIncognito) $ do
         cgms <- withStore' (`getMatchingContactsOrMembers` cgm2)
         connCode <- getConnCodes (cgm2 : cgms)
         forM_ (connCode cgm2) $ \probeConnCode -> do
           let cgmCheckHashes = mapMaybe (\cgm -> (cgm,) <$> probeCheckHash connCode cgm2 probe cgm) cgms
           cgm1s <- withStore' $ \db -> matchReceivedProbe db user cgm2 probe (connProbeHash probeConnCode probe) cgmCheckHashes
-          let cgm1s' = filter (not . contactOrMemberIncognito) cgm1s
-          probeMatches cgm1s' cgm2
+          probeMatches cgm1s cgm2
       where
         probeMatches :: [ContactOrMember] -> ContactOrMember -> CM ()
         probeMatches [] _ = pure ()
@@ -3029,18 +3028,17 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           let cgm2'' = fromMaybe cgm2' cgm2''_
           probeMatches cgm1s' cgm2''
 
-    xInfoProbeCheck :: ContactOrMember -> ProbeHash -> CM ()
-    xInfoProbeCheck cgm1 checkHash = do
+    xInfoProbeCheck :: ContactOrMember -> IncognitoEnabled -> ProbeHash -> CM ()
+    xInfoProbeCheck cgm1 connectedIncognito checkHash = do
       contactMerge <- readTVarIO =<< asks contactMergeEnabled
       -- [incognito] unless connected incognito
-      when (contactMerge && not (contactOrMemberIncognito cgm1)) $ do
+      when (contactMerge && not connectedIncognito) $ do
         connCode <- getConnCodes [cgm1]
         forM_ (connCode cgm1) $ \checkConnCode -> do
           cgm2Probe_ <- withStore' $ \db ->
             matchReceivedProbeHash db user cgm1 checkConnCode checkHash =<< getMatchingContactsOrMembers db cgm1
           forM_ cgm2Probe_ $ \(cgm2, probe) ->
-            unless (contactOrMemberIncognito cgm2) . void $
-              probeMatch cgm1 cgm2 probe
+            void $ probeMatch cgm1 cgm2 probe
 
     probeMatch :: ContactOrMember -> ContactOrMember -> Probe -> CM (Maybe ContactOrMember)
     probeMatch cgm1 cgm2 probe =

@@ -377,11 +377,6 @@ contactOrMemberIds = \case
   COMContact Contact {contactId} -> (Just contactId, Nothing)
   COMGroupMember GroupMember {groupMemberId} -> (Nothing, Just groupMemberId)
 
-contactOrMemberIncognito :: ContactOrMember -> IncognitoEnabled
-contactOrMemberIncognito = \case
-  COMContact ct -> contactConnIncognito ct
-  COMGroupMember m -> memberIncognito m
-
 contactOrMemberConn :: ContactOrMember -> Maybe Connection
 contactOrMemberConn = \case
   COMContact ct -> contactConn ct

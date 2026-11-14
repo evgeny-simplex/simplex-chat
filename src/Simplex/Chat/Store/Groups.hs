@@ -2979,7 +2979,7 @@ getMatchingContacts db cxt user@User {userId} Contact {contactId, profile = Loca
 
 getMatchingMembers :: DB.Connection -> StoreCxt -> User -> Contact -> IO [GroupMember]
 getMatchingMembers db cxt user@User {userId} Contact {profile = LocalProfile {displayName, fullName, shortDescr, image}} = do
-  memberIds <- map fromOnly <$> DB.query db q (userId, GCUserMember, displayName, fullName, shortDescr, image)
+  memberIds <- map fromOnly <$> DB.query db q (userId, GCUserMember, displayName, fullName, shortDescr, image, GCUserMember)
   rights <$> mapM (runExceptT . getGroupMemberById db cxt user) memberIds
   where
     -- only match with members without associated contact
@@ -2992,13 +2992,18 @@ getMatchingMembers db cxt user@User {userId} Contact {profile = LocalProfile {di
           AND m.member_category != ?
           AND p.display_name = ? AND p.full_name = ?
           AND p.short_descr IS NOT DISTINCT FROM ? AND p.image IS NOT DISTINCT FROM ?
+          AND NOT EXISTS (
+            SELECT 1 FROM group_members mu
+            WHERE mu.user_id = m.user_id AND mu.group_id = m.group_id
+              AND mu.member_category = ? AND mu.member_profile_id IS NOT NULL
+          )
       |]
 
 getMatchingMemberContacts :: DB.Connection -> StoreCxt -> User -> GroupMember -> IO [Contact]
 getMatchingMemberContacts _ _ _ GroupMember {memberContactId = Just _} = pure []
 getMatchingMemberContacts db cxt user@User {userId} GroupMember {memberProfile = LocalProfile {displayName, fullName, shortDescr, image}} = do
   contactIds <- map fromOnly <$> DB.query db q (userId, CSActive, displayName, fullName, shortDescr, image)
-  rights <$> mapM (runExceptT . getContact db cxt user) contactIds
+  filter (not . contactConnIncognito) . rights <$> mapM (runExceptT . getContact db cxt user) contactIds
   where
     q =
       [sql|

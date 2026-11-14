@@ -4115,9 +4115,16 @@ Query:
           AND m.member_category != ?
           AND p.display_name = ? AND p.full_name = ?
           AND p.short_descr IS NOT DISTINCT FROM ? AND p.image IS NOT DISTINCT FROM ?
+          AND NOT EXISTS (
+            SELECT 1 FROM group_members mu
+            WHERE mu.user_id = m.user_id AND mu.group_id = m.group_id
+              AND mu.member_category = ? AND mu.member_profile_id IS NOT NULL
+          )
       
 Plan:
 SEARCH m USING INDEX idx_group_members_user_id (user_id=?)
+CORRELATED SCALAR SUBQUERY 1
+SEARCH mu USING INDEX idx_group_members_group_id (user_id=? AND group_id=?)
 SEARCH p USING INTEGER PRIMARY KEY (rowid=?)
 
 Query: 

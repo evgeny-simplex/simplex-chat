@@ -165,6 +165,8 @@ Sending clients MAY disable this functionality, and receiving clients MAY ignore
 
 If the sending client uses `x.info.probe` messages, it MUST send them to all new members, rather than only when there is a matching contact profile. This is to avoid leaking information that the matching contact profile exists.
 
+A client MUST NOT send `x.info.probe.check` via a connection on which it uses an incognito profile. It MUST ignore `x.info.probe` and `x.info.probe.check` received via such a connection, and MUST NOT match the contact or member of such a connection with another contact or member.
+
 ## Sub-protocol for content messages
 
 ### x.msg.new - a new content message
