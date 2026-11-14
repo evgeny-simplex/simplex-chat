@@ -23,6 +23,7 @@ import Data.List (isPrefixOf, isSuffixOf)
 import Data.Maybe (fromMaybe)
 import Data.String
 import qualified Data.Text as T
+import Data.Time.Clock (UTCTime)
 import Simplex.Chat.Badges (BadgeProof (..), BadgeStatus, LocalBadge (..), ProofPresHeader (..))
 import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), storeCxt)
 import Simplex.Chat.Library.Commands (maxProfileImageSize)
@@ -986,3 +987,10 @@ setRelativePaths cc filesFolder tempFolder = do
   cc #$> ("/_temp_folder " <> tempFolder, id, "ok")
   cc ##> "/_start"
   cc <## "chat started"
+
+quotedMsgBody :: SharedMsgId -> SharedMsgId -> Maybe MemberId -> UTCTime -> MsgContent -> MsgContent -> ByteString
+quotedMsgBody msgId quotedMsgId memberId sentAt quotedContent content =
+  chatMsgToBody $ ChatMessage chatInitialVRange (Just msgId) $ XMsgNew $ mcQuote QuotedMsg {msgRef = MsgRef {msgId = Just quotedMsgId, sentAt, sent = False, memberId}, content = quotedContent} content
+
+reactionMsgBody :: SharedMsgId -> Maybe MemberId -> ByteString
+reactionMsgBody msgId memberId = chatMsgToBody $ ChatMessage chatInitialVRange Nothing $ XMsgReact msgId memberId Nothing (MREmoji $ MREmojiChar '👍') True

@@ -167,6 +167,7 @@ chatDirectTests = do
 #endif
   describe "message reactions" $ do
     it "set message reactions" testSetMessageReactions
+    it "ignore reaction to message not found" testReactionNoItem
   describe "delivery receipts" $ do
     it "should send delivery receipts" testSendDeliveryReceipts
     it "should send delivery receipts depending on configuration" testConfigureDeliveryReceipts
@@ -3380,6 +3381,21 @@ testSetMessageReactions =
       bob ##> "/tail @alice 1"
       bob <# "alice> hi"
       bob <## "      👍 1"
+
+testReactionNoItem :: HasCallStack => TestParams -> IO ()
+testReactionNoItem =
+  testChat2 aliceProfile bobProfile $
+    \alice bob -> do
+      connectUsers alice bob
+      alice #> "@bob hi"
+      bob <# "alice> hi"
+      msgItemId <- lastItemId alice
+      alice #$> ("/_delete item @2 " <> msgItemId <> " internal", id, "message deleted")
+      bob ##> "+1 alice hi"
+      bob <## "added 👍"
+      bob #> "@alice hello"
+      alice <# "bob> hello"
+      withCCTransaction alice (\db -> DB.query_ db "SELECT COUNT(1) FROM chat_item_reactions") `shouldReturn` [Only (0 :: Int)]
 
 testSendDeliveryReceipts :: HasCallStack => TestParams -> IO ()
 testSendDeliveryReceipts ps =
