@@ -700,9 +700,16 @@ private let versionDescriptions: [VersionDescription] = [
         ]
     ),
     VersionDescription(
-        version: "v7.1",
+        version: "v7.1.4",
         post: nil,
-        features: (isInUS ? [
+        features: [
+            Feature.feature(Description(
+                icon: "checkmark.shield",
+                title: "New security audit by Trail of Bits",
+                description: "Please upgrade, and ask your contacts to upgrade too. We will publish the report and our security process before the end of November.",
+                learnMore: URL(string: "https://simplex.chat/blog/20261121-simplex-chat-security-audit-trail-of-bits-security-process.html")
+            ))
+        ] + (isInUS ? [
             .view(FeatureView(
                 icon: nil,
                 title: "Own a part of SimpleX Chat",

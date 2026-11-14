@@ -992,9 +992,15 @@ private val versionDescriptions: List<VersionDescription> = listOf(
     )
   ),
   VersionDescription(
-    version = "v7.1",
+    version = "v7.1.4",
     post = null,
     features = listOf(
+      VersionFeature.FeatureDescription(
+        icon = MR.images.ic_verified_user,
+        titleId = MR.strings.v7_1_4_security_audit,
+        descrId = MR.strings.v7_1_4_security_audit_descr,
+        learnMoreLink = "https://simplex.chat/blog/20261121-simplex-chat-security-audit-trail-of-bits-security-process.html"
+      ),
       VersionFeature.FeatureView(
         icon = null,
         titleId = MR.strings.v7_1_invest,
