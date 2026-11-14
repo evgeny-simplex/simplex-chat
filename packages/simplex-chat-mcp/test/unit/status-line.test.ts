@@ -67,11 +67,11 @@ describe("status line command", () => {
     expect(bodies).toEqual([{id: "s1", pid: 77, at: 14.5, effort: "xhigh", statusLine: true}])
   })
 
-  it("shows free memory and disk in TB, GB with one decimal under 10 or MB, rounded down, with ⚠️ under 10% of the memory and under 5 GB of disk, and no disk part when it is unknown", () => {
+  it("shows free memory and disk in TB, GB with one decimal under 10 or MB, rounded down, with ❗️ after a part under 5% of the memory or under 5 GB of disk, and no disk part when it is unknown", () => {
     expect(machineParts({memoryFree: 12_400_000_000, memoryTotal: 32_000_000_000, diskFree: 1_259_000_000_000})).toEqual(["RAM 12 GB free", "disk 1.2 TB free"])
-    expect(machineParts({memoryFree: 3_200_000_000, memoryTotal: 32_000_000_000, diskFree: 5_000_000_000})).toEqual(["RAM 3.2 GB free", "disk 5.0 GB free"])
-    expect(machineParts({memoryFree: 3_199_000_000, memoryTotal: 32_000_000_000, diskFree: 4_999_000_000})).toEqual(["⚠️ RAM 3.1 GB free", "⚠️ disk 4.9 GB free"])
-    expect(machineParts({memoryFree: 850_700_000, memoryTotal: 16_000_000_000, diskFree: 45_600_000_000_000})).toEqual(["⚠️ RAM 850 MB free", "disk 45 TB free"])
+    expect(machineParts({memoryFree: 1_600_000_000, memoryTotal: 32_000_000_000, diskFree: 5_000_000_000})).toEqual(["RAM 1.6 GB free", "disk 5.0 GB free"])
+    expect(machineParts({memoryFree: 1_599_000_000, memoryTotal: 32_000_000_000, diskFree: 4_999_000_000})).toEqual(["RAM 1.5 GB free❗️", "disk 4.9 GB free❗️"])
+    expect(machineParts({memoryFree: 790_700_000, memoryTotal: 16_000_000_000, diskFree: 45_600_000_000_000})).toEqual(["RAM 790 MB free❗️", "disk 45 TB free"])
     expect(machineParts({memoryFree: 9_900_000_000, memoryTotal: 16_000_000_000})).toEqual(["RAM 9.9 GB free"])
     expect(machineParts(undefined)).toEqual([])
   })

@@ -410,7 +410,7 @@ test("the hooks post a prompt typed in the terminal as User, also the session's 
     inGroup(groupId, ({chatItem}) => chatItem.meta.itemText === text && chatItem.chatDir.type === "groupRcv" && chatItem.chatDir.groupMember.memberProfile.displayName === sender && chatItem.quotedItem?.itemId === quoted)
   const withEnd = (text: string, quoted?: number): ItemCheck =>
     inGroup(groupId, ({chatItem}) => chatItem.meta.itemText.startsWith(`${text}\n!- Done`) && chatItem.chatDir.type === "groupRcv" && chatItem.chatDir.groupMember.memberProfile.displayName === "Claude" && chatItem.quotedItem?.itemId === quoted)
-  const machine = " · (⚠️ )?RAM [\\d.]+ [TGM]B free · (⚠️ )?disk [\\d.]+ [TGM]B free!$"
+  const machine = " · RAM [\\d.]+ [TGM]B free(❗️)? · disk [\\d.]+ [TGM]B free(❗️)?!$"
   const matches = (pattern: string): ItemCheck => inGroup(groupId, ({chatItem}) => new RegExp(pattern).test(chatItem.meta.itemText) && chatItem.chatDir.type === "groupRcv" && chatItem.chatDir.groupMember.memberProfile.displayName === "Claude")
   let hookStart = 0
   const hook = (input: object) => turn(JSON.stringify({session_id: five, ...input}), {}, client, undefined, ++hookStart)

@@ -6,9 +6,11 @@ import {claudePid, postToService} from "./service-request"
 
 const requestWaitMs = 1_000
 // spec: spec/architecture.md#status-line-statusline
-const lowMemoryShare = 0.1
+const lowMemoryShare = 0.05
 // spec: spec/architecture.md#status-line-statusline
 const lowDiskBytes = 5_000_000_000
+// spec: spec/architecture.md#status-line-statusline
+const lowMark = "❗️"
 const sizeUnits: [string, number][] = [
   ["TB", 1e12],
   ["GB", 1e9],
@@ -66,8 +68,8 @@ export function machineState(root: string): Machine {
 export function machineParts(machine: Machine | undefined): string[] {
   if (machine === undefined) return []
   const {memoryFree, memoryTotal, diskFree} = machine
-  const memory = `${memoryFree < memoryTotal * lowMemoryShare ? "⚠️ " : ""}RAM ${size(memoryFree)} free`
-  return diskFree === undefined ? [memory] : [memory, `${diskFree < lowDiskBytes ? "⚠️ " : ""}disk ${size(diskFree)} free`]
+  const memory = `RAM ${size(memoryFree)} free${memoryFree < memoryTotal * lowMemoryShare ? lowMark : ""}`
+  return diskFree === undefined ? [memory] : [memory, `disk ${size(diskFree)} free${diskFree < lowDiskBytes ? lowMark : ""}`]
 }
 
 // spec: spec/architecture.md#status-line-statusline

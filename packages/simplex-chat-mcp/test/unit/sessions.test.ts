@@ -797,7 +797,7 @@ describe("session channel", () => {
     const text = (value: string): object => ({type: "text", text: value})
     const card = "I want to use `Bash`: `Run shell command`\n`rm -rf build`\n/'approve 3' or /'reject 3'"
     const replies = [
-      reply(43, "No, the other test", quoted({type: "groupSnd"}, 41, text("Fixed: the build passes.\n!- Done in 2 min 51 s · 16K output tokens · 673K tokens in context · 5 h: 34% · week: 61%!"))),
+      reply(43, "No, the other test", quoted({type: "groupSnd"}, 41, text("Fixed: the build passes.\n!- Done in 2 min 51 s · 16K output tokens · 673K tokens in context · 5 h: 34% · week: 61% · RAM 12 GB free · disk 3.4 GB free❗️!"))),
       reply(44, "Why?", quoted({type: "groupSnd"}, 38, text(card))),
       reply(45, "Is it done?", quoted(from(member(8, "User")), 36, text("Fix the build"))),
       reply(46, "Agreed", quoted(from(bob), 35, text("Run the tests\n!- Done!"))),
@@ -1174,12 +1174,12 @@ describe("session channel", () => {
     expect(priorities(chat)).toEqual([[1], [1], [1]])
   })
 
-  it("ends the end line with the machine's free memory and the free disk of the data folder at the answer's time, each with ⚠️ when low, and reads the data folder of the hub", async () => {
+  it("ends the end line with the machine's free memory and the free disk of the data folder at the answer's time, each with ❗️ when low inside one small-print span, and reads the data folder of the hub", async () => {
     const chat = new FakeChat()
     const {hub, session} = await channel(chat)
     const machines = [
       {memoryFree: 12_400_000_000, memoryTotal: 32_000_000_000, diskFree: 7_380_000_000},
-      {memoryFree: 3_100_000_000, memoryTotal: 32_000_000_000, diskFree: 4_200_000_000},
+      {memoryFree: 1_500_000_000, memoryTotal: 32_000_000_000, diskFree: 3_400_000_000},
       {memoryFree: 9_900_000_000, memoryTotal: 16_000_000_000},
     ]
     hub.machine = () => machines.shift()
@@ -1191,10 +1191,13 @@ describe("session channel", () => {
     await session.turn({id: id1, at: 5, answer: "Deployed."})
     expect(sentTo(chat, 20)).toEqual([
       "Fixed.\n!- Done in 2 min 51 s · 16K output tokens · 673K tokens in context · 5 h: 34% · week: 61% · RAM 12 GB free · disk 7.3 GB free!",
-      "Tests pass.\n!- Done · 5 h: 34% · week: 61% · ⚠️ RAM 3.1 GB free · ⚠️ disk 4.2 GB free!",
+      "Tests pass.\n!- Done · 5 h: 34% · week: 61% · RAM 1.5 GB free❗️ · disk 3.4 GB free❗️!",
       "Lint passes.\n!- Done · 5 h: 34% · week: 61% · RAM 9.9 GB free!",
       "Deployed.\n!- Done · 5 h: 34% · week: 61%!",
     ])
+    const warned = sentTo(chat, 20)[1].split("\n")[1]
+    expect(warned).toMatch(/^!- [^!\n]+!$/)
+    expect([...warned.matchAll(/❗️/g)]).toHaveLength(2)
     const real = new (Hub as unknown as HubConstructor)(chat.api(), user, root, 23, group(10, "SimpleX MCP", self), "SimpleX MCP").machine()
     expect(real?.diskFree).toBeGreaterThan(0)
     expect(real?.memoryFree).toBeGreaterThan(0)
