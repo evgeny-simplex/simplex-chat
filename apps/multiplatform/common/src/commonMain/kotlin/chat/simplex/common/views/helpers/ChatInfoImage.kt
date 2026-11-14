@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.Placeholder
@@ -108,7 +109,7 @@ fun ProfileImage(
           base64ImageString = image,
           contentDescription = stringResource(MR.strings.image_descr_profile_image),
           contentScale = ContentScale.Crop,
-          modifier = ProfileIconModifier(size, blurred = blurred)
+          modifier = Modifier.fillMaxSize().profileIconShape(size, blurred)
         )
       } else {
         val imageBitmap = base64ToBitmap(image)
@@ -116,7 +117,7 @@ fun ProfileImage(
           bitmap = imageBitmap,
           contentDescription = stringResource(MR.strings.image_descr_profile_image),
           contentScale = ContentScale.Crop,
-          modifier = ProfileIconModifier(size, blurred = blurred)
+          modifier = Modifier.fillMaxSize().profileIconShape(size, blurred)
         )
       }
     }
@@ -283,23 +284,30 @@ private const val squareToCircleRatio = 0.935f
 private const val radiusFactor = (1 - squareToCircleRatio) / 50
 
 @Composable
-fun ProfileIconModifier(size: Dp, blurred: Boolean = false): Modifier {
+fun ProfileIconModifier(size: Dp, blurred: Boolean = false): Modifier = Modifier.size(size).profileIconShape(size, blurred)
+
+@Composable
+private fun Modifier.profileIconShape(size: Dp, blurred: Boolean): Modifier {
   val percent = remember { appPreferences.profileImageCornerRadius.state }
   val r = max(0f, percent.value)
-  val m = Modifier.size(size)
   val m1 = when {
     r >= 50 ->
-      m.clip(CircleShape)
-    r <= 0 -> {
-      val sz = size * squareToCircleRatio
-      m.padding((size - sz) / 2)
-    }
-    else -> {
-      val sz = size * (squareToCircleRatio + r * radiusFactor)
-      m.padding((size - sz) / 2).clip(RoundedCornerShape(size = sz * r / 100))
-    }
+      clip(CircleShape)
+    r <= 0 ->
+      insetTo(squareToCircleRatio)
+    else ->
+      insetTo(squareToCircleRatio + r * radiusFactor).clip(RoundedCornerShape(CornerSize(r)))
   }
   return if (blurred) m1.blur(size / 4) else m1
+}
+
+private fun Modifier.insetTo(ratio: Float): Modifier = layout { measurable, constraints ->
+  val inset = ((constraints.maxWidth - constraints.maxWidth * ratio) / 2).roundToInt()
+  val side = constraints.maxWidth - 2 * inset
+  val placeable = measurable.measure(Constraints.fixed(side, side))
+  layout(constraints.maxWidth, constraints.maxHeight) {
+    placeable.place(inset, inset)
+  }
 }
 
 @Preview

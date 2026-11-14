@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
@@ -15,14 +16,11 @@ import kotlin.math.roundToInt
 
 fun Modifier.centeredIn(size: Dp): Modifier =
   size(size).layout { measurable, constraints ->
-    val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-    layout(constraints.maxWidth, constraints.maxHeight) {
-      placeable.placeWithLayer(0, 0) {
-        scaleX = constraints.maxWidth * 5f / 6 / placeable.width
-        scaleY = constraints.maxHeight * 5f / 6 / placeable.height
-        translationX = (constraints.maxWidth - placeable.width) / 2f
-        translationY = (constraints.maxHeight - placeable.height) / 2f
-      }
+    val box = constraints.maxWidth
+    val inset = box / 12
+    val placeable = measurable.measure(Constraints.fixed(box - 2 * inset, box - 2 * inset))
+    layout(box, box) {
+      placeable.place(inset, inset)
     }
   }
 

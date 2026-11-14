@@ -597,11 +597,11 @@ badges on the avatar box (ChatListView.kt:741,  aligned to the box corner       
 ChatListView.desktop.kt:71-72)
 ```
 
-Every call site passes the visible size N, about 5/6 of today's size S, and keeps S as the avatar's box with `Modifier.centeredIn(S)`. `centeredIn` draws its child at exactly 5/6 of the box, centred with fractional placement, so placeholders reproduce the circle of master's padded vectors, S/12 to 11 S/12, and its first and last ink pixel at every density and font scale (user: "Previously there was an overshoot to the left and to the top, as it should have"). Photos and the incognito icon take the same size as placeholders: up to 1 px larger than on master, whose padding rounded each side of a photo to whole pixels. Each box has its present pixel size, so neighbours, badges, overlays and height formulas stay. `TERMINAL_MEMBER_IMAGE_SIZE` stays 27 dp: it is already the visible size.
+Every call site passes the visible size N, about 5/6 of today's size S, and keeps S as the avatar's box with `Modifier.centeredIn(S)`. `centeredIn` places its child at the whole pixel below S/12 and sizes it to the whole pixel above 11 S/12, so placeholders keep the first and last ink pixel of master's padded vectors, whose circle runs from S/12 to 11 S/12, at every density and font scale (user: "Previously there was an overshoot to the left and to the top, as it should have"). Whole pixels keep vector caches and photos sharp; a half-pixel placement resamples them. The circle is up to 1 px wider than master's. Photos and the incognito icon take the same size as placeholders: up to 1 px larger than on master, whose padding rounded each side of a photo to whole pixels. Each box has its present pixel size, so neighbours, badges, overlays and height formulas stay. `TERMINAL_MEMBER_IMAGE_SIZE` stays 27 dp: it is already the visible size.
 
 #### 12.3.1 Call sites
 
-As implemented. "N in S": the avatar is drawn at 5/6 of the box S, `Modifier.centeredIn(S)`; S is today's size argument and N, the measured size, is S × 5/6, rounded to whole or half dp; √f is `fontSizeSqrtMultiplier`.
+As implemented. "N in S": the avatar in the box S, `Modifier.centeredIn(S)`; S is today's size argument and N, the nominal visible size, is S × 5/6, rounded to whole or half dp; `centeredIn` sets the drawn size; √f is `fontSizeSqrtMultiplier`.
 
 ```
 site (file, function)                              after
@@ -662,7 +662,7 @@ ChatInfoImage PreviewChatInfoImage                 46 in 55
 ```
 
 Helpers:
-- `Modifier.centeredIn(size)` (`Modifiers.kt`): `size(size)`, the child placed with a layer scaled to 5/6 of the box and translated to its centre.
+- `Modifier.centeredIn(size)` (`Modifiers.kt`): `size(size)`; the child at inset `box / 12` (whole pixels, rounded down) on each side, measured at `box − 2 × inset`.
 - `ProfileImage`: `toEdge`, `iconSize` and `requiredSize` removed; a `modifier` parameter, also in `ChatInfoImage`, `IncognitoImage`, `MemberProfileImage` and `MemberImage`; the disc behind the placeholder is `size * 0.84f`, as the cut-outs reach 0.72 (person) and 0.80 (group) of the radius.
 - `ProfileIconModifier`: the `padding` parameter removed; the blur of blocked photos is size / 4 (Q9).
 - `chatIconName`, `peerTypeIcon`, `iconRes` and `ChatInfoImage` return the avatar assets `ic_avatar_channel`, `ic_avatar_business`, `ic_avatar_bot`, `ic_avatar_agent` and `ic_avatar_folder`; `ic_folder_filled`, `ic_work_filled_padded`, `ic_cube` and `ic_agent` are deleted; `ic_bigtop_updates_circle_filled` stays for the Channels item of the tag menu.
