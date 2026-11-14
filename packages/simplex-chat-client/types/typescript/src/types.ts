@@ -2914,6 +2914,7 @@ export namespace Format {
 export interface FormattedText {
   format?: Format
   text: string
+  style?: Format
 }
 
 export interface FullGroupPreferences {

@@ -244,6 +244,7 @@ private func previewScenes() -> [SnapshotScene] {
         SnapshotScene(ClassicOverviewDirect_Previews.self),
         SnapshotScene(ClassicOverviewGroup_Previews.self),
         SnapshotScene(ClassicParagraphs_Previews.self, allSizes: true),
+        SnapshotScene(ClassicStyledLinks_Previews.self, allSizes: true),
         SnapshotScene(ComposeVoiceView_Previews.self),
         SnapshotScene(ConnectDesktopView_Previews.self, device: true),
         SnapshotScene(ContactConnectionInfo_Previews.self),
@@ -512,6 +513,12 @@ struct ClassicParagraphs_Previews: PreviewProvider {
     }
 }
 
+struct ClassicStyledLinks_Previews: PreviewProvider {
+    static var previews: some View {
+        SnapshotFixtures().styledLinks()
+    }
+}
+
 private struct ChatRows: View {
     @EnvironmentObject var theme: AppTheme
     let chat: Chat
@@ -611,6 +618,8 @@ private func showsAvatar(_ current: ChatItem, _ older: ChatItem?) -> Bool {
     default: false
     }
 }
+
+private let styledLinksText = "Two sources:\n- **[SimpleX docs](https://simplex.chat/docs/)** — protocol overview\n- _[Release notes](https://simplex.chat/blog/)_ and ~~[old notes](https://simplex.chat/blog/)~~\n\nRun **`npm test`** in **https://github.com/simplex-chat**"
 
 private func imageBase64(_ color: UIColor, _ size: CGSize) -> String {
     let format = UIGraphicsImageRendererFormat.default()
@@ -722,6 +731,33 @@ private final class SnapshotFixtures {
                 .paragraph(content: SegmentRange(from: 0, to: 1)),
                 .paragraph(content: SegmentRange(from: 2, to: 3)),
                 .paragraph(content: SegmentRange(from: 4, to: 5))
+            ]
+        ),
+        styledLinksText: ParsedMarkdown(
+            formattedText: [
+                FormattedText(text: "Two sources:"),
+                FormattedText(text: "\n", format: .markup(token: .lineBreak)),
+                FormattedText(text: "- ", format: .markup(token: .listMark(number: nil))),
+                FormattedText(text: "[SimpleX docs](https://simplex.chat/docs/)", format: .hyperLink(showText: "SimpleX docs", linkUri: "https://simplex.chat/docs/"), style: .bold(singleStar: false)),
+                FormattedText(text: " — protocol overview"),
+                FormattedText(text: "\n", format: .markup(token: .lineBreak)),
+                FormattedText(text: "- ", format: .markup(token: .listMark(number: nil))),
+                FormattedText(text: "[Release notes](https://simplex.chat/blog/)", format: .hyperLink(showText: "Release notes", linkUri: "https://simplex.chat/blog/"), style: .italic),
+                FormattedText(text: " and "),
+                FormattedText(text: "[old notes](https://simplex.chat/blog/)", format: .hyperLink(showText: "old notes", linkUri: "https://simplex.chat/blog/"), style: .strikeThrough),
+                FormattedText(text: "\n\n", format: .markup(token: .paragraphBreak(lineBreaks: 2))),
+                FormattedText(text: "Run "),
+                FormattedText(text: "npm test", format: .snippet, style: .bold(singleStar: false)),
+                FormattedText(text: " in "),
+                FormattedText(text: "https://github.com/simplex-chat", format: .uri, style: .bold(singleStar: false))
+            ],
+            markdownBlocks: [
+                .paragraph(content: SegmentRange(from: 0, to: 1)),
+                .list(items: [
+                    ListEntry(number: nil, content: SegmentRange(from: 3, to: 5), items: []),
+                    ListEntry(number: nil, content: SegmentRange(from: 7, to: 10), items: [])
+                ]),
+                .paragraph(content: SegmentRange(from: 11, to: 15))
             ]
         ),
         "\nlinks to a scam site": ParsedMarkdown(
@@ -1015,6 +1051,10 @@ private final class SnapshotFixtures {
         oneText.formattedText = nil
         oneText.markdownBlocks = nil
         return chatRows(direct, [msg(.directRcv, text, -10), oneText], terminal: false)
+    }
+
+    func styledLinks() -> some View {
+        chatRows(direct, [msg(.directRcv, styledLinksText, -10)], terminal: false)
     }
 
     func spacingEdgeItems() -> [ChatItem] {

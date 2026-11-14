@@ -5301,7 +5301,7 @@ data class LinkOwnerSig(
 )
 
 @Serializable
-class FormattedText(val text: String, val format: Format? = null) {
+class FormattedText(val text: String, val format: Format? = null, val style: Format? = null) {
   val linkUri: String? get() =
     when (format) {
       is Format.Uri -> text

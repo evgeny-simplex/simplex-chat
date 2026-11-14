@@ -593,6 +593,7 @@ func messageText(
         for ft in fts {
             var t = ft.text
             var attrs = plain
+            let start = res.length
             switch (ft.format) {
             case let .bold(singleStar):
                 if singleStar {
@@ -722,6 +723,32 @@ func messageText(
             case .none: ()
             }
             res.append(NSAttributedString(string: t, attributes: attrs))
+            if let style = ft.style {
+                applyStyle(style, NSRange(location: start, length: res.length - start))
+            }
+        }
+
+        func applyStyle(_ style: Format, _ range: NSRange) {
+            switch style {
+            case let .bold(singleStar):
+                if singleStar { addItalic(range) } else {
+                    changeFonts(range) { $0.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: UIFont.Weight.bold]]) }
+                }
+            case .italic: addItalic(range)
+            case .strikeThrough: res.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+            default: ()
+            }
+        }
+
+        func addItalic(_ range: NSRange) {
+            changeFonts(range) { $0.withSymbolicTraits($0.symbolicTraits.union(.traitItalic)) ?? $0 }
+        }
+
+        func changeFonts(_ range: NSRange, _ change: (UIFontDescriptor) -> UIFontDescriptor) {
+            res.enumerateAttribute(.font, in: range) { value, r, _ in
+                let f = value as? UIFont ?? font
+                res.addAttribute(.font, value: UIFont(descriptor: change(f.fontDescriptor), size: f.pointSize), range: r)
+            }
         }
 
         func linkAttrs() -> [NSAttributedString.Key: Any] {

@@ -2039,6 +2039,7 @@ Format_Tag = Literal["bold", "italic", "strikeThrough", "snippet", "secret", "sm
 class FormattedText(TypedDict):
     format: NotRequired["Format"]
     text: str
+    style: NotRequired["Format"]
 
 class FullGroupPreferences(TypedDict):
     timedMessages: "TimedMessagesGroupPreference"

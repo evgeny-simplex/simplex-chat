@@ -295,7 +295,7 @@ updatedMentionNames mc ft_ mentions = case ft_ of
   Just ft
     | not (null ft) && not (null mentions) && not (all sameName $ M.assocs mentions) ->
         let (mentions', ft') = mapAccumL update M.empty ft
-            text = T.concat $ map markdownText ft'
+            text = markdownListText ft'
          in (mc {text} :: MsgContent, Just ft', mentions')
   _ -> (mc, ft_, mentions)
   where
@@ -308,13 +308,13 @@ updatedMentionNames mc ft_ mentions = case ft_ of
               _ -> False
         Nothing -> False
       Nothing -> True
-    update mentions' ft@(FormattedText f _) = case f of
+    update mentions' ft@(FormattedText f _ _) = case f of
       Just (Mention name) -> case M.lookup name mentions of
         Just mm@CIMention {memberRef} ->
           let name' = uniqueMentionName 0 $ case memberRef of
                 Just CIMentionMember {displayName} -> displayName
                 Nothing -> name
-           in (M.insert name' mm mentions', FormattedText (Just $ Mention name') ('@' `T.cons` viewName name'))
+           in (M.insert name' mm mentions', FormattedText (Just $ Mention name') ('@' `T.cons` viewName name') Nothing)
         Nothing -> (mentions', ft)
       _ -> (mentions', ft)
       where
@@ -1381,7 +1381,7 @@ redactedMemberProfile g m Profile {displayName, fullName, shortDescr, descriptio
             | dropOnLink || T.null (T.strip kept) || hasObfuscatedSimplexLink kept -> Nothing
             | otherwise -> Just kept
             where
-              kept = T.concat $ map (\(FormattedText _ t) -> t) $ filter (not . ftIsSimplexLink) fts
+              kept = T.concat $ map (\(FormattedText _ t _) -> t) $ filter (not . ftIsSimplexLink) fts
       where
         dropObfuscated = if hasObfuscatedSimplexLink s then Nothing else Just s
 

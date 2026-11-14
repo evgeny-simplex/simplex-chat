@@ -83,7 +83,7 @@ FormattedText
 flowchart TD
   F[fragmentP] -->|"* _ ~"| S[doubleP / formattedP]
   S --> I[inner text s, span format f]
-  I --> P[spanPartsP s]
+  I --> P[spanMD f s: spanPartP parts]
   P -->|no link or code part| O1["markdown f s (as today)"]
   P -->|link or code part| O2[parts]
   O2 --> T1["text part: format f"]
@@ -93,9 +93,9 @@ flowchart TD
   L -->|plain text| L3[HyperLink as today]
 ```
 
-- `spanPartsP` parses the inner text into `sowLinkP`, `autolinkP`, `codeSpanP` and words through `linkMD`. It parses no bold, italic or strike-through, so nesting stays one level.
-- `sowLinkP` removes one span around the link text (`**t**`, `__t__`, `*t*`, `_t_`, `~~t~~`, `~t~`). The punctuation check applies to the text inside. The segment text is `[t](u)`.
-- `Markdown` gets the same `style` field. `joinMarkdown` and `Semigroup` merge segments only when `format` and `style` are both equal.
+- `spanMD` parses the inner text with `spanPartP` into `sowLinkP`, `autolinkP`, `codeSpanP` and words through `wordMD`. It parses no bold, italic or strike-through, so nesting stays one level.
+- `sowLinkP` removes one span around the link text (`**t**`, `__t__`, `*t*`, `_t_`, `~~t~~`, `~t~`) with `linkTextStyle`. The punctuation check applies to the text inside. The segment text is `[t](u)`.
+- `Markdown` gets the constructor `StyledMarkdown style format text`. `joinMarkdown` and `joinSegments` merge segments only when `format` and `style` are both equal.
 - `markdownListText` replaces `T.concat . map markdownText` in `updatedMentionNames`. It wraps each run of one span once: `**see [t](u) now**`. `[**t**](u)` is written as `**[t](u)**`.
 
 ### Rendering
@@ -105,13 +105,15 @@ flowchart LR
   FT[FormattedText] --> ST{style}
   ST -->|none| R1[format as today]
   ST -->|"Bold / Italic / StrikeThrough"| R2[style around the format]
-  R2 --> K["Kotlin MarkdownText: pushStyle(style), pop()"]
-  R2 --> S["iOS appendSegments: bold or italic font trait, strikethrough attribute"]
+  R2 --> K["Kotlin MarkdownText: addStyle over the segment"]
+  R2 --> S["iOS appendSegments: font trait or strikethrough over the segment"]
 ```
 
-- Kotlin: `FormattedText.style`. `MarkdownText` pushes `style.style` around the segment, as it does for headings. `Bold {singleStar}` maps to italic, as for bold segments.
-- iOS: `FormattedText.style`. `appendSegments` adds the font trait to the link font or sets `.strikethroughStyle` after the format's attributes.
+- Kotlin: `FormattedText.style`. `MarkdownText` adds `segmentSpanStyle` over the segment's range. `Bold {singleStar}` maps to italic, as for bold segments. Strike-through over a link combines underline and line-through.
+- iOS: `FormattedText.style`. `appendSegments` adds the bold weight or the italic trait to every font in the segment's range, or sets `.strikethroughStyle`.
+- Link sanitizing in the compose views keeps `style`.
 - CLI (`Styled.hs`) shows the link format.
+- Snapshot scenes: `ChatItemView.PreviewChatItemViewStyledLinks` (desktop) and `ClassicStyledLinks_Previews` (iOS).
 
 ### Tests
 

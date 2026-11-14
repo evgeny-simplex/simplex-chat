@@ -1600,6 +1600,35 @@ fun PreviewChatItemViewEmptyLinesTerminal() = CompositionLocalProvider(LocalTerm
 
 @Preview
 @Composable
+fun PreviewChatItemViewStyledLinks() = PreviewChatItemView(
+  ChatItem.getSampleData(1, CIDirection.DirectRcv(), previewDate, "Two sources:\n- **[SimpleX docs](https://simplex.chat/docs/)** — protocol overview\n- _[Release notes](https://simplex.chat/blog/)_ and ~~[old notes](https://simplex.chat/blog/)~~\n\nRun **`npm test`** in **https://github.com/simplex-chat**").copy(
+    formattedText = listOf(
+      FormattedText("Two sources:"),
+      FormattedText("\n", Format.Markup(BlockToken.LineBreak())),
+      FormattedText("- ", Format.Markup(BlockToken.ListMark())),
+      FormattedText("[SimpleX docs](https://simplex.chat/docs/)", Format.HyperLink("SimpleX docs", "https://simplex.chat/docs/"), Format.Bold()),
+      FormattedText(" — protocol overview"),
+      FormattedText("\n", Format.Markup(BlockToken.LineBreak())),
+      FormattedText("- ", Format.Markup(BlockToken.ListMark())),
+      FormattedText("[Release notes](https://simplex.chat/blog/)", Format.HyperLink("Release notes", "https://simplex.chat/blog/"), Format.Italic()),
+      FormattedText(" and "),
+      FormattedText("[old notes](https://simplex.chat/blog/)", Format.HyperLink("old notes", "https://simplex.chat/blog/"), Format.StrikeThrough()),
+      FormattedText("\n\n", Format.Markup(BlockToken.ParagraphBreak(2))),
+      FormattedText("Run "),
+      FormattedText("npm test", Format.Snippet(), Format.Bold()),
+      FormattedText(" in "),
+      FormattedText("https://github.com/simplex-chat", Format.Uri(), Format.Bold())
+    ),
+    markdownBlocks = listOf(
+      MarkdownBlock.Paragraph(SegmentRange(0, 1)),
+      MarkdownBlock.ItemList(listOf(ListEntry(content = SegmentRange(3, 5), items = listOf()), ListEntry(content = SegmentRange(7, 10), items = listOf()))),
+      MarkdownBlock.Paragraph(SegmentRange(11, 15))
+    )
+  )
+)
+
+@Preview
+@Composable
 fun PreviewChatItemViewDeletedContent() = BubblePreview {
   SimpleXTheme {
     ChatItemView(

@@ -2022,14 +2022,14 @@ func sanitizeMessage(_ parsedMsg: [FormattedText]) -> (message: String, parsedMs
         switch ft.format {
         case .uri:
             if let sanitized = parseSanitizeUri(ft.text, safe: true)?.uriInfo?.sanitized {
-                updated = FormattedText(text: sanitized, format: .uri)
+                updated = FormattedText(text: sanitized, format: .uri, style: ft.style)
                 pos += updated.text.count
                 sanitizedPos = pos
             }
         case let .hyperLink(text, uri):
             if let sanitized = parseSanitizeUri(uri, safe: true)?.uriInfo?.sanitized {
                 let updatedText = if let text { "[\(text)](\(sanitized))" } else { sanitized }
-                updated = FormattedText(text: updatedText, format: .hyperLink(showText: text, linkUri: sanitized))
+                updated = FormattedText(text: updatedText, format: .hyperLink(showText: text, linkUri: sanitized), style: ft.style)
                 pos += updated.text.count
                 sanitizedPos = pos
             }

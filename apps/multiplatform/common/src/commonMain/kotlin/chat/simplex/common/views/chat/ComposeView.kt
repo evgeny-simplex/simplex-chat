@@ -1029,7 +1029,7 @@ fun ComposeView(
         is Format.Uri -> {
           val sanitized = parseSanitizeUri(ft.text, safe = true)?.uriInfo?.sanitized
           if (sanitized != null) {
-            updated = FormattedText(text = sanitized, format = Format.Uri())
+            updated = FormattedText(text = sanitized, format = Format.Uri(), style = ft.style)
             pos += updated.text.count()
             sanitizedPos = pos
           }
@@ -1038,7 +1038,7 @@ fun ComposeView(
           val sanitized = parseSanitizeUri(ft.format.linkUri, safe = true)?.uriInfo?.sanitized
           if (sanitized != null) {
             val updatedText = if (ft.format.showText == null) sanitized else "[${ft.format.showText}]($sanitized)"
-            updated = FormattedText(text = updatedText, format = Format.HyperLink(showText = ft.format.showText, linkUri = sanitized))
+            updated = FormattedText(text = updatedText, format = Format.HyperLink(showText = ft.format.showText, linkUri = sanitized), style = ft.style)
             pos += updated.text.count()
             sanitizedPos = pos
           }

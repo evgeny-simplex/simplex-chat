@@ -52,7 +52,7 @@ groupLinkLinePrefix name = "Link to join the group " <> name <> ": "
 
 matchesGroupLink :: CreatedLinkContact -> FormattedText -> Bool
 matchesGroupLink (CCLink cReq sLnk_) = \case
-  FormattedText (Just SimplexLink {simplexUri = ACL SCMContact cLink}) _ -> case cLink of
+  FormattedText (Just SimplexLink {simplexUri = ACL SCMContact cLink}) _ _ -> case cLink of
     CLFull cReq' -> sameConnReqContact cReq' cReq
     CLShort sLnk' -> maybe False (sameShortLinkContact sLnk') sLnk_
   _ -> False
@@ -202,4 +202,4 @@ generateListing dir gs = do
     saveListing newDir f = LB.writeFile (newDir </> f) . J.encode . DirectoryListing . map fst
 
 toFormattedText :: Text -> (MarkdownList, Maybe (NonEmpty MarkdownBlock))
-toFormattedText t = let ParsedMarkdown ft blocks = parsedMarkdown t in (fromMaybe [FormattedText Nothing t] ft, blocks)
+toFormattedText t = let ParsedMarkdown ft blocks = parsedMarkdown t in (fromMaybe [FormattedText Nothing t Nothing] ft, blocks)

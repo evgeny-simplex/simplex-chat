@@ -597,7 +597,7 @@ directoryServiceEvent opts@DirectoryOpts {adminUsers, superUsers, serviceName, o
               Nothing -> T.words
             withoutLink gl descr =
               maybe descr (T.concat . map ftText . filter (not . matchesGroupLink gl)) $ parseMaybeMarkdownList descr
-            ftText (FormattedText _ t) = t
+            ftText (FormattedText _ t _) = t
         checkRolesSendToApprove gr gaId = do
           (badRolesMsg <$$> getGroupRolesStatus toGroup gr) >>= \case
             Left e -> notifyOwner gr $ "Error: getGroupRolesStatus. Please notify the developers.\n" <> T.pack e
@@ -1071,7 +1071,7 @@ directoryServiceEvent opts@DirectoryOpts {adminUsers, superUsers, serviceName, o
              in "Found " <> tshow n <> " group(s)" <> more <> "."
         where
           linkNotFound = "No groups found.\nTo register a group or a channel, please use \"Share via chat\" feature."
-          groupLinkUri fts = listToMaybe [uri | FormattedText (Just SimplexLink {linkType, simplexUri = uri}) _ <- fts, linkType == XLGroup || linkType == XLChannel]
+          groupLinkUri fts = listToMaybe [uri | FormattedText (Just SimplexLink {linkType, simplexUri = uri}) _ _ <- fts, linkType == XLGroup || linkType == XLChannel]
       DCSearchNext ->
         atomically (TM.lookup (contactId' ct) searchRequests) >>= \case
           Just SearchRequest {searchType, searchTime, lastGroup} -> do

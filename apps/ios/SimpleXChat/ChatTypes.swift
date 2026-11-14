@@ -5834,10 +5834,12 @@ public struct LinkOwnerSig: Codable, Equatable, Hashable {
 public struct FormattedText: Decodable, Hashable {
     public var text: String
     public var format: Format?
+    public var style: Format?
 
-    public init(text: String, format: Format? = nil) {
+    public init(text: String, format: Format? = nil, style: Format? = nil) {
         self.text = text
         self.format = format
+        self.style = style
     }
 
     public static func plain(_ text: String) -> [FormattedText] {

@@ -2567,6 +2567,7 @@ Markup:
 **Record type**:
 - format: [Format](#format)?
 - text: string
+- style: [Format](#format)?
 
 
 ---

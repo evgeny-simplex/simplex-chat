@@ -8,6 +8,7 @@ module MarkdownTests where
 
 import Control.Applicative ((<|>))
 import Control.Monad (forM_)
+import qualified Data.Aeson as J
 import Data.List (intercalate)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as L
@@ -34,6 +35,7 @@ markdownTests = do
   textColor
   textWithUri
   textWithHyperlink
+  linksInStyles
   obfuscatedSimplexLinks
   textWithEmail
   textWithPhone
@@ -73,7 +75,7 @@ s <==> m = (s ==> m) >> (s <== m)
 s ==>> ft = parseMaybeMarkdownList s `shouldBe` Just ft
 
 (<<==) :: Text -> MarkdownList -> Expectation
-s <<== ft = T.concat (map markdownText ft) `shouldBe` s
+s <<== ft = markdownListText ft `shouldBe` s
 
 (<<==>>) :: Text -> MarkdownList -> Expectation
 s <<==>> ft = (s ==>> ft) >> (s <<== ft)
@@ -350,6 +352,57 @@ textWithHyperlink = describe "text with HyperLink without link text" do
     "[click here](example.com)" <==> "[click here](" <> uri "example.com" <> ")"
     "[click here](https://example.com )" <==> "[click here](" <> uri "https://example.com" <> " )"
 
+linksInStyles :: Spec
+linksInStyles = describe "links inside bold, italic and strike-through" do
+  let link t = HyperLink {showText = Just t, linkUri = "https://x.com"}
+      addr = "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw"
+      addr' = "simplex:/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw?h=smp6.simplex.im"
+      reconstructed = fmap markdownListText . parseMaybeMarkdownList
+  it "link is the whole span" do
+    "**[t](https://x.com)**" <==> StyledMarkdown bold2F (link "t") "[t](https://x.com)"
+    "__[t](https://x.com)__" ==> StyledMarkdown bold2F (link "t") "[t](https://x.com)"
+    "*[t](https://x.com)*" <==> StyledMarkdown boldF (link "t") "[t](https://x.com)"
+    "_[t](https://x.com)_" <==> StyledMarkdown Italic (link "t") "[t](https://x.com)"
+    "~[t](https://x.com)~" <==> StyledMarkdown StrikeThrough (link "t") "[t](https://x.com)"
+    "~~[t](https://x.com)~~" ==> StyledMarkdown StrikeThrough (link "t") "[t](https://x.com)"
+  it "link inside a longer span" do
+    "**see [t](https://x.com) now**" <==> bold2 "see " <> StyledMarkdown bold2F (link "t") "[t](https://x.com)" <> bold2 " now"
+    "**see [two words](https://x.com)**" <==> bold2 "see " <> StyledMarkdown bold2F (link "two words") "[two words](https://x.com)"
+    "*[a](https://x.com) and [b](https://x.com)*" <==> StyledMarkdown boldF (link "a") "[a](https://x.com)" <> bold " and " <> StyledMarkdown boldF (link "b") "[b](https://x.com)"
+  it "style inside link text" do
+    "[**t**](https://x.com)" ==> StyledMarkdown bold2F (link "t") "[t](https://x.com)"
+    "[__t__](https://x.com)" ==> StyledMarkdown bold2F (link "t") "[t](https://x.com)"
+    "[*t*](https://x.com)" ==> StyledMarkdown boldF (link "t") "[t](https://x.com)"
+    "[_t_](https://x.com)" ==> StyledMarkdown Italic (link "t") "[t](https://x.com)"
+    "[~~two words~~](https://x.com)" ==> StyledMarkdown StrikeThrough (link "two words") "[two words](https://x.com)"
+    "[**https://x.com**](https://x.com)" ==> StyledMarkdown bold2F HyperLink {showText = Just "https://x.com", linkUri = "https://x.com"} "[https://x.com](https://x.com)"
+    reconstructed "[**t**](https://x.com)" `shouldBe` Just "**[t](https://x.com)**"
+  it "potentially spoofed link inside a style" do
+    "[**x.com**](https://another.com)" <==> "[**x.com**](" <> uri "https://another.com" <> ")"
+    "**[x.com](https://another.com)**" <==> bold2 "[x.com](" <> StyledMarkdown bold2F Uri "https://another.com" <> bold2 ")"
+  it "bare links inside a span" do
+    "**https://x.com/y**" <==> StyledMarkdown bold2F Uri "https://x.com/y"
+    "**see https://x.com.**" <==> bold2 "see " <> StyledMarkdown bold2F Uri "https://x.com" <> bold2 "."
+    "*example.com*" <==> StyledMarkdown boldF Uri "example.com"
+    "**a@b.com**" <==> StyledMarkdown bold2F Email "a@b.com"
+    ("**" <> addr <> "**") <<==>> [FormattedText (simplexLinkFormat XLContact addr' ["smp6.simplex.im"] Nothing) addr (Just bold2F)]
+  it "code inside a span" do
+    "**`x`**" <==> StyledMarkdown bold2F Snippet "x"
+    "**run `npm test` now**" <==> bold2 "run " <> StyledMarkdown bold2F Snippet "npm test" <> bold2 " now"
+  it "span without links stays one segment" do
+    "**see the docs**" <==> bold2 "see the docs"
+    "_see the docs_" <==> markdown Italic "see the docs"
+  it "in a list item" do
+    "- **[t](https://x.com)**\n- b"
+      <<==>> [bullet "- ", FormattedText (Just $ link "t") "[t](https://x.com)" (Just bold2F), lineBr, bullet "- ", "b"]
+  it "links count in hasLinks" do
+    hasLinks <$> parseMaybeMarkdownList "**https://x.com**" `shouldBe` Just True
+  it "JSON has style only when set" do
+    J.encode (fmt Uri "https://x.com") `shouldBe` "{\"format\":{\"type\":\"uri\"},\"text\":\"https://x.com\"}"
+    let styled = FormattedText (Just Uri) "https://x.com" (Just StrikeThrough)
+    J.encode styled `shouldBe` "{\"format\":{\"type\":\"uri\"},\"text\":\"https://x.com\",\"style\":{\"type\":\"strikeThrough\"}}"
+    J.decode (J.encode styled) `shouldBe` Just styled
+
 obfuscatedSimplexLinks :: Spec
 obfuscatedSimplexLinks = describe "SimpleX links obfuscated with whitespace" do
   let addr = "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw"
@@ -472,10 +525,10 @@ textWithCommands = describe "text with commands" do
     "send /help /" <==> "send " <> command "help" "/help" <> " /"
 
 uri' :: Text -> FormattedText
-uri' = FormattedText $ Just Uri
+uri' = fmt Uri
 
 command' :: Text -> Text -> FormattedText
-command' = FormattedText . Just . Command
+command' = fmt . Command
 
 sname :: SimplexNameType -> SimplexTLD -> Text -> [Text] -> Text -> Markdown
 sname nt ns dom sub txt = markdown (SimplexName $ SimplexNameInfo nt (SimplexDomain ns dom sub)) (pfx <> txt)
@@ -524,13 +577,13 @@ multilineMarkdownList = describe "multiline markdown" do
   it "multiline with simplex link" do
     ("https://simplex.chat" <> inv <> "\ntext")
       <<==>>
-        [ FormattedText (simplexLinkFormat XLInvitation ("simplex:" <> inv) ["smp.simplex.im"] Nothing) ("https://simplex.chat" <> inv),
+        [ FormattedText (simplexLinkFormat XLInvitation ("simplex:" <> inv) ["smp.simplex.im"] Nothing) ("https://simplex.chat" <> inv) Nothing,
           "\ntext"
         ]
   it "command markdown" do
     "/link 1" <<==>> [command' "link 1" "/link 1"]
     " /link 1" <<==>> [command' "link 1" " /link 1"]
-    "*0*\n/7   /+" <<==>> [FormattedText (Just boldF) "0", "\n", command' "7" "/7", "   ", command' "+" "/+"]
+    "*0*\n/7   /+" <<==>> [fmt boldF "0", "\n", command' "7" "/7", "   ", command' "+" "/+"]
 
 inlineMarkdownGFM :: Spec
 inlineMarkdownGFM = describe "inline markdown of GFM" do
@@ -556,8 +609,8 @@ inlineMarkdownGFM = describe "inline markdown of GFM" do
     "**a****b**" <==> "**a****b**"
     "*a**" <==> "*a**"
   it "code spans inside a format" do
-    "*a `*`*" <==> bold "a `*`"
-    "**a `**` b**" <==> bold2 "a `**` b"
+    "*a `*`*" <==> bold "a " <> StyledMarkdown boldF Snippet "*"
+    "**a `**` b**" <==> bold2 "a " <> StyledMarkdown bold2F Snippet "**" <> bold2 " b"
   it "code spans" do
     "`` x ` y ``" ==> markdown Snippet "x ` y"
     "``x ` y``" <== markdown Snippet "x ` y"
@@ -644,7 +697,7 @@ rangesCoverContent ft blocks = do
   [i | SegmentRange a b <- ranges, i <- [a .. b - 1], i `elem` contentIndices] `shouldBe` contentIndices
   where
     ranges = concatMap blockRanges blocks
-    contentIndices = [i | (i, FormattedText f _) <- zip [0 ..] ft, not (isMarkup f)]
+    contentIndices = [i | (i, FormattedText f _ _) <- zip [0 ..] ft, not (isMarkup f)]
     blockRanges = \case
       Paragraph r -> [r]
       Heading _ r -> [r]
@@ -657,7 +710,7 @@ rangesCoverContent ft blocks = do
     entryRanges (ListEntry _ r children) = r : concatMap entryRanges children
 
 fmt :: Format -> Text -> FormattedText
-fmt = FormattedText . Just
+fmt f t = FormattedText (Just f) t Nothing
 
 mk :: BlockToken -> Text -> FormattedText
 mk = markupText
@@ -698,7 +751,7 @@ blockMarkdown = describe "block markdown" do
                 mk LineBreak "\n",
                 mk (ListMark Nothing) "- ",
                 "buy ",
-                FormattedText (Just boldF) "milk",
+                fmt boldF "milk",
                 mk HardBreak "\n",
                 mk Indent "  ",
                 "and eggs",
@@ -873,7 +926,7 @@ lists = describe "lists" do
         marker k = T.replicate (2 * (k - 1)) " " <> "- "
         e k = entry (3 * k - 2) (3 * k - 1)
     T.intercalate "\n" [marker k <> T.pack (show k) | k <- ks]
-      <===> ( intercalate [lineBr] [[bullet (marker k), FormattedText Nothing (T.pack $ show k)] | k <- ks],
+      <===> ( intercalate [lineBr] [[bullet (marker k), FormattedText Nothing (T.pack $ show k) Nothing] | k <- ks],
               [List [e 1 [e 2 [e 3 [e 4 [e 5 [e 6 [e 7 [], e 8 []]]]]]]]]
             )
   it "continuation lines" do
@@ -1106,11 +1159,11 @@ linearTimeParsing = describe "bounded scans for linear-time parsing" do
     let ParsedMarkdown _ blocks = parsedMarkdown $ T.replicate 1000 "- a\n"
     length <$> blocks `shouldBe` Just 1
     noBlocks $ T.replicate 1001 "- a\n"
-    length . filter (\(FormattedText f _) -> f == Just boldF) <$> parseMaybeMarkdownList (T.replicate 1001 "- *a*\n") `shouldBe` Just 1001
+    length . filter (\(FormattedText f _ _) -> f == Just boldF) <$> parseMaybeMarkdownList (T.replicate 1001 "- *a*\n") `shouldBe` Just 1001
     let ParsedMarkdown _ paragraphs = parsedMarkdown $ T.replicate 2000 "a\n\n"
     length <$> paragraphs `shouldBe` Just 2000
     parseMaybeMarkdownList (T.replicate 2001 "a\n\n") `shouldBe` Nothing
-    length . filter (\(FormattedText f _) -> f == Just boldF) <$> parseMaybeMarkdownList (T.replicate 2001 "*a*\n\n") `shouldBe` Just 2001
+    length . filter (\(FormattedText f _ _) -> f == Just boldF) <$> parseMaybeMarkdownList (T.replicate 2001 "*a*\n\n") `shouldBe` Just 2001
   it "large adversarial texts" do
     forM_ (["1 ", "[ ", "[a]( ", "< ", "a\n", ">\n", "- a\n", "|\n", "|-|\n", "*a\n"] :: [Text]) $ \p ->
       length (show $ parseMaybeMarkdownList $ "|a|\n|-|\n" <> T.replicate 4000 p) `shouldSatisfy` (> 0)
@@ -1151,9 +1204,9 @@ markdownConsumers = describe "consumers of parsed Markdown" do
     parsed = fromMaybe [] . parseMaybeMarkdownList
     mentions = mentionedNames . parsed
     links = hasLinks . parsed
-    isSimplexLinkFormat (FormattedText f _) = maybe False isSimplexLink f
+    isSimplexLinkFormat (FormattedText f _ _) = maybe False isSimplexLink f
     simplexLinks = any isSimplexLinkFormat . parsed
-    textWithoutSimplexLinks = T.concat . map (\(FormattedText _ t) -> t) . filter (not . isSimplexLinkFormat) . parsed
+    textWithoutSimplexLinks = T.concat . map (\(FormattedText _ t _) -> t) . filter (not . isSimplexLinkFormat) . parsed
     addr = "https://smp6.simplex.im/a#lrdvu2d8A1GumSmoKb2krQmtKhWXq-tyGpHuM7aMwsw"
 
 testSanitizeUri :: Spec

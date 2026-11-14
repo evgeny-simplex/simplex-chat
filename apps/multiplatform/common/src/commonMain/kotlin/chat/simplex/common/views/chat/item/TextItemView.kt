@@ -53,6 +53,14 @@ val boldFont = SpanStyle(fontWeight = FontWeight.Medium)
 @Composable
 fun messageTextColor(): Color = MaterialTheme.colors.onSurface.copy(alpha = if (MaterialTheme.colors.isLight) 1f else 0.95f)
 
+@Composable
+private fun segmentSpanStyle(style: Format, format: Format?): SpanStyle = when {
+  style is Format.Bold && style.singleStar -> Format.Italic().style
+  style is Format.StrikeThrough && format?.style?.textDecoration == TextDecoration.Underline ->
+    SpanStyle(textDecoration = TextDecoration.combine(listOf(TextDecoration.Underline, TextDecoration.LineThrough)))
+  else -> style.style
+}
+
 fun appendSender(b: AnnotatedString.Builder, sender: String?, senderBold: Boolean) {
   if (sender != null) {
     if (senderBold) b.withStyle(boldFont) { append(sender) }
@@ -331,6 +339,7 @@ fun MarkdownText (
           val ft = formattedText[i]
           val heading = headings?.get(i) == true
           if (heading) pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+          val segmentStart = length
           if (ft.format == null) append(ft.text)
           else when(ft.format) {
             is Format.Bold -> withStyle(if (ft.format.singleStar) Format.Italic().style else ft.format.style) { append(ft.text) }
@@ -449,6 +458,7 @@ fun MarkdownText (
             )
             is Format.Unknown -> append(ft.text)
           }
+          if (ft.style != null) addStyle(segmentSpanStyle(ft.style, ft.format), segmentStart, length)
           if (heading) pop()
         }
         selectableEnd = this.length

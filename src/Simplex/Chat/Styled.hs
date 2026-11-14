@@ -34,11 +34,12 @@ instance IsString StyledString where fromString = plain
 styleMarkdown :: Markdown -> StyledString
 styleMarkdown (s1 :|: s2) = styleMarkdown s1 <> styleMarkdown s2
 styleMarkdown (Markdown f s) = styleFormat f s
+styleMarkdown (StyledMarkdown _ f s) = styleFormat (Just f) s
 
 styleMarkdownList :: MarkdownList -> StyledString
 styleMarkdownList [] = ""
-styleMarkdownList [FormattedText f s] = styleFormat f s
-styleMarkdownList (FormattedText f s : ts) = styleFormat f s <> styleMarkdownList ts
+styleMarkdownList [FormattedText f s _] = styleFormat f s
+styleMarkdownList (FormattedText f s _ : ts) = styleFormat f s <> styleMarkdownList ts
 
 styleFormat :: Maybe Format -> Text -> StyledString
 styleFormat (Just Snippet) s = '`' `wrap` styled Snippet s

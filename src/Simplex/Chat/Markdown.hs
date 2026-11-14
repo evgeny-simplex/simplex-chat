@@ -47,7 +47,7 @@ import System.Console.ANSI.Types
 import qualified Text.Email.Validate as Email
 import qualified URI.ByteString as U
 
-data Markdown = Markdown (Maybe Format) Text | Markdown :|: Markdown
+data Markdown = Markdown (Maybe Format) Text | StyledMarkdown Format Format Text | Markdown :|: Markdown
   deriving (Eq, Show)
 
 data Format
@@ -111,7 +111,7 @@ data TableAlign = TANone | TALeft | TACenter | TARight
   deriving (Eq, Show)
 
 mentionedNames :: MarkdownList -> [Text]
-mentionedNames = mapMaybe (\(FormattedText f _) -> mentionedName =<< f)
+mentionedNames = mapMaybe (\(FormattedText f _ _) -> mentionedName =<< f)
   where
     mentionedName = \case
       Mention name -> Just name
@@ -174,11 +174,11 @@ instance ToJSON FormatColor where
     Black -> "black"
     White -> "white"
 
-data FormattedText = FormattedText {format :: Maybe Format, text :: Text}
+data FormattedText = FormattedText {format :: Maybe Format, text :: Text, style :: Maybe Format}
   deriving (Eq, Show)
 
 instance IsString FormattedText where
-  fromString = FormattedText Nothing . T.pack
+  fromString s = FormattedText Nothing (T.pack s) Nothing
 
 type MarkdownList = [FormattedText]
 
@@ -195,34 +195,34 @@ parsedMarkdown s = case T.lines s of
   [] -> ParsedMarkdown Nothing Nothing
   [l]
     | T.null cmd -> ParsedMarkdown Nothing Nothing
-    | isCmd -> ParsedMarkdown (Just [FormattedText (Just $ Command cmd) l]) Nothing
+    | isCmd -> ParsedMarkdown (Just [FormattedText (Just $ Command cmd) l Nothing]) Nothing
     where
       (isCmd, cmd) = case T.uncons $ T.dropWhile (== ' ') l of
         Just (c, rest) -> (c == '/', rest)
         Nothing -> (False, "")
   _
-    | any isBlockSyntax tokens && length [f | FormattedText f _ <- tokens, isMarkup f] <= maxMarkupTokens, blocks@(Just _) <- L.nonEmpty (markdownBlocksOf tokens) -> ParsedMarkdown (Just tokens) blocks
+    | any isBlockSyntax tokens && length [f | FormattedText f _ _ <- tokens, isMarkup f] <= maxMarkupTokens, blocks@(Just _) <- L.nonEmpty (markdownBlocksOf tokens) -> ParsedMarkdown (Just tokens) blocks
     | all (isNothing . format) inline -> ParsedMarkdown Nothing Nothing
     | otherwise -> ParsedMarkdown (Just inline) Nothing
   where
     s' = fromMaybe s $ T.stripSuffix "\r\n" s <|> T.stripSuffix "\n" s
-    tokens = joinSegments $ fromRight [FormattedText Nothing s'] $ A.parseOnly (documentP <* A.endOfInput) s'
+    tokens = joinSegments $ fromRight [FormattedText Nothing s' Nothing] $ A.parseOnly (documentP <* A.endOfInput) s'
     inline = joinSegments $ map breakAsText tokens
-    breakAsText ft@(FormattedText f t) = if isMarkup f then FormattedText Nothing t else ft
+    breakAsText ft@(FormattedText f t _) = if isMarkup f then FormattedText Nothing t Nothing else ft
 
 isBlockSyntax :: FormattedText -> Bool
 isBlockSyntax = \case
-  FormattedText (Just (Markup t)) _ -> case t of
+  FormattedText (Just (Markup t)) _ _ -> case t of
     SoftBreak -> False
     HardBreak -> False
     _ -> True
   _ -> False
 
 joinSegments :: MarkdownList -> MarkdownList
-joinSegments = map joinGroup . L.groupBy (\(FormattedText f _) (FormattedText f' _) -> f == f' && not (isMarkup f))
+joinSegments = map joinGroup . L.groupBy (\(FormattedText f _ s) (FormattedText f' _ s') -> f == f' && s == s' && not (isMarkup f))
 
 joinGroup :: NonEmpty FormattedText -> FormattedText
-joinGroup g@(FormattedText f _ :| _) = FormattedText f $ T.concat [t | FormattedText _ t <- L.toList g]
+joinGroup g@(FormattedText f _ s :| _) = FormattedText f (T.concat [t | FormattedText _ t _ <- L.toList g]) s
 
 isMarkup :: Maybe Format -> Bool
 isMarkup = \case
@@ -236,12 +236,12 @@ markdownBlocksOf = groupLists . mapMaybe (blockOf <=< L.nonEmpty) . splitBlocks 
       (b, _ : rest) -> b : splitBlocks rest
       (b, []) -> [b]
     isBlockBreak = \case
-      FormattedText (Just (Markup LineBreak)) _ -> True
-      FormattedText (Just (Markup (ParagraphBreak _))) _ -> True
+      FormattedText (Just (Markup LineBreak)) _ _ -> True
+      FormattedText (Just (Markup (ParagraphBreak _))) _ _ -> True
       _ -> False
 
 blockOf :: NonEmpty (Int, FormattedText) -> Maybe (Either (Int, Maybe Text, SegmentRange) MarkdownBlock)
-blockOf ts@((i, FormattedText f t) :| _) = case f of
+blockOf ts@((i, FormattedText f t _) :| _) = case f of
   Just (Markup tkn) -> case tkn of
     HeadingMark lvl -> Right . Heading lvl <$> contentRange
     ListMark num -> (\r -> Left (indentColumn $ T.takeWhile isIndentChar t, num, r)) <$> contentRange
@@ -252,18 +252,18 @@ blockOf ts@((i, FormattedText f t) :| _) = case f of
     _ -> paragraph
   _ -> paragraph
   where
-    contentRange = (\is -> SegmentRange (L.head is) (L.last is + 1)) <$> L.nonEmpty [j | (j, FormattedText f' _) <- L.toList ts, not (isMarkup f')]
+    contentRange = (\is -> SegmentRange (L.head is) (L.last is + 1)) <$> L.nonEmpty [j | (j, FormattedText f' _ _) <- L.toList ts, not (isMarkup f')]
     codeEnd = case L.last ts of
-      (j, FormattedText (Just (Markup (FenceMark _))) _) -> j - 1
+      (j, FormattedText (Just (Markup (FenceMark _))) _ _) -> j - 1
       (j, _) -> j + 1
     paragraph = case L.last ts of
-      (_, FormattedText (Just (Markup (HeadingUnderline lvl))) _) -> Right . Heading lvl <$> contentRange
+      (_, FormattedText (Just (Markup (HeadingUnderline lvl))) _ _) -> Right . Heading lvl <$> contentRange
       _ -> Right . Paragraph <$> contentRange
 
 tableBlock :: [(Int, FormattedText)] -> Maybe MarkdownBlock
 tableBlock ts = do
-  cols <- L.nonEmpty $ concat [aligns | (_, FormattedText (Just (Markup (DelimiterRow aligns))) _) <- ts]
-  headerRow : bodyRows <- pure $ tableRows [(i, tkn) | (i, FormattedText (Just (Markup tkn)) _) <- ts, tkn == RowMark || tkn == CellMark]
+  cols <- L.nonEmpty $ concat [aligns | (_, FormattedText (Just (Markup (DelimiterRow aligns))) _ _) <- ts]
+  headerRow : bodyRows <- pure $ tableRows [(i, tkn) | (i, FormattedText (Just (Markup tkn)) _ _) <- ts, tkn == RowMark || tkn == CellMark]
   pure $ Table cols headerRow bodyRows
   where
     tableRows = \case
@@ -299,15 +299,19 @@ parseMarkdownList :: Text -> MarkdownList
 parseMarkdownList = markdownToList . parseMarkdown
 
 markdownToList :: Markdown -> MarkdownList
-markdownToList (Markdown f s) = [FormattedText f s]
+markdownToList (Markdown f s) = [FormattedText f s Nothing]
+markdownToList (StyledMarkdown st f s) = [FormattedText (Just f) s (Just st)]
 markdownToList (m1 :|: m2) = markdownToList m1 <> markdownToList m2
 
 joinMarkdown :: [Markdown] -> Markdown
-joinMarkdown ms = case map joinGroup $ L.groupBy sameFormat $ filter (\(FormattedText _ t) -> not $ T.null t) $ concatMap markdownToList ms of
+joinMarkdown ms = case map joinGroup $ L.groupBy sameFormat $ filter (\(FormattedText _ t _) -> not $ T.null t) $ concatMap markdownToList ms of
   [] -> mempty
-  fts -> foldr1 (:|:) [Markdown f t | FormattedText f t <- fts]
+  fts -> foldr1 (:|:) $ map fromFormatted fts
   where
-    sameFormat (FormattedText f _) (FormattedText f' _) = f == f'
+    sameFormat (FormattedText f _ s) (FormattedText f' _ s') = f == f' && s == s'
+    fromFormatted = \case
+      FormattedText (Just f) t (Just st) -> StyledMarkdown st f t
+      FormattedText f t _ -> Markdown f t
 
 parseMarkdown :: Text -> Markdown
 parseMarkdown s = fromRight (unmarked s) $ A.parseOnly (markdownP <* A.endOfInput) s
@@ -326,7 +330,7 @@ isLink = \case
   _ -> False
 
 hasLinks :: MarkdownList -> Bool
-hasLinks = any $ \(FormattedText f _) -> maybe False isLink f
+hasLinks = any $ \(FormattedText f _ _) -> maybe False isLink f
 
 hasObfuscatedSimplexLink :: Text -> Bool
 hasObfuscatedSimplexLink t =
@@ -370,7 +374,7 @@ markdownP = joinMarkdown <$> A.many' fragmentP
         delimitersP = A.takeWhile1 (== c) >>= \r -> r <$ (guard (T.length r > 1) <|> lookAhead (void $ A.satisfy $ notClosingBefore c))
         openedP = do
           s <- A.takeTill (\x -> x == c || x == '\n')
-          (markdown f <$> acrossLinesP s) <|> noFormat (c `T.cons` s)
+          (spanMD f <$> acrossLinesP s) <|> noFormat (c `T.cons` s)
         acrossLinesP s = do
           s' <- ((s <> "\n") <>) <$> (A.char '\n' *> A.takeTill (== c) <* A.char c)
           if T.null s || isSpace (T.head s) || isSpace (T.last s') then fail "not formatted" else pure s'
@@ -378,15 +382,31 @@ markdownP = joinMarkdown <$> A.many' fragmentP
     md c f s
       | T.null s || T.head s == ' ' || T.last s == ' ' =
           unmarked $ c `T.cons` s `T.snoc` c
-      | otherwise = markdown f s
+      | otherwise = spanMD f s
     doubleP :: Char -> Format -> Parser Markdown
     doubleP c f = do
       s <- A.string cc *> (T.concat <$> A.many' (A.takeWhile1 (\x -> x /= c && x /= '`') <|> codeTextP)) <* A.string cc <* notP (A.satisfy $ notClosingBefore c)
       if T.null s || isSpace (T.head s) || isSpace (T.last s)
         then fail "not formatted"
-        else pure $ markdown f s
+        else pure $ spanMD f s
       where
         cc = T.pack [c, c]
+    spanMD :: Format -> Text -> Markdown
+    spanMD f s = case concatMap markdownToList <$> A.parseOnly (A.many' spanPartP <* A.endOfInput) s of
+      Right fts | any (isJust . format) fts -> mconcat $ map spanPart fts
+      _ -> markdown f s
+      where
+        spanPart (FormattedText f' t _) = maybe (markdown f t) (\f'' -> StyledMarkdown f f'' t) f'
+    spanPartP :: Parser Markdown
+    spanPartP =
+      A.peekChar' >>= \case
+        ' ' -> unmarked <$> A.takeWhile1 (== ' ')
+        '\n' -> unmarked <$> A.string "\n"
+        '`' -> codeSpanP
+        '[' -> sowLinkP <|> spanWordP
+        '<' -> autolinkP <|> spanWordP
+        _ -> spanWordP
+    spanWordP = wordMD <$> A.takeWhile1 (\c -> c /= ' ' && c /= '\n')
     notClosingBefore :: Char -> Char -> Bool
     notClosingBefore c x = x == c || (c == '_' && isAlphaNum x)
     codeTextP :: Parser Text
@@ -448,12 +468,20 @@ markdownP = joinMarkdown <$> A.many' fragmentP
           res = markdown (format str) (pfx `T.cons` origStr)
       pure $ if T.null punct then res else res :|: unmarked punct
     sowLinkP = do
-      t <- enclosedP '[' ']' (\c -> c == '[' || c == '\n')
+      (st_, t) <- linkTextStyle <$> enclosedP '[' ']' (\c -> c == '[' || c == '\n')
       l <- enclosedP '(' ')' isSpace
       let hasPunct = T.any (\c -> isPunctuation c && c /= '-' && c /= '_') t
       when (hasPunct && t /= l && ("https://" <> t) /= l) $ fail "punctuation in hyperlink text"
       f <- hyperLinkFormat t l
-      pure $ markdown f $ T.concat ["[", t, "](", l, ")"]
+      let s = T.concat ["[", t, "](", l, ")"]
+      pure $ maybe (markdown f s) (\st -> StyledMarkdown st f s) st_
+    linkTextStyle t = fromMaybe (Nothing, t) $ listToMaybe $ mapMaybe wrapped spanDelimiters
+      where
+        wrapped (d, f) = do
+          inner <- T.stripPrefix d t >>= T.stripSuffix d
+          guard $ not (T.null inner) && not (isSpace $ T.head inner) && not (isSpace $ T.last inner) && T.all (/= T.head d) inner
+          pure (Just f, inner)
+    spanDelimiters = [("**", Bold $ BoolDef False), ("__", Bold $ BoolDef False), ("~~", StrikeThrough), ("*", Bold $ BoolDef True), ("_", Italic), ("~", StrikeThrough)]
     autolinkP = do
       l <- enclosedP '<' '>' (\c -> c == '<' || isSpace c)
       f <-if isEmail l then pure (HyperLink (Just l) ("mailto:" <> l)) else hyperLinkFormat l l
@@ -588,7 +616,7 @@ paragraphBreak :: Text -> FormattedText
 paragraphBreak t = markupText (ParagraphBreak $ T.count "\n" t) t
 
 markupText :: BlockToken -> Text -> FormattedText
-markupText = FormattedText . Just . Markup
+markupText tkn t = FormattedText (Just $ Markup tkn) t Nothing
 
 blockP :: Parser MarkdownList
 blockP = tableP <|> fenceP <|> headingP <|> ruleP <|> listItemP <|> quoteP <|> paragraphP
@@ -648,7 +676,7 @@ fenceP = do
   where
     codeLine col (br, cl) =
       let (ind, code) = dropColumns col cl
-       in markupText HardBreak br : [markupText Indent ind | not (T.null ind)] <> [FormattedText Nothing code | not (T.null code)]
+       in markupText HardBreak br : [markupText Indent ind | not (T.null ind)] <> [FormattedText Nothing code Nothing | not (T.null code)]
 
 fenceStartP :: Parser (Text, (Int, Int, Char, Maybe Text))
 fenceStartP = do
@@ -760,12 +788,12 @@ breakAfter l br
 
 insertBreaks :: [MarkdownList] -> MarkdownList -> MarkdownList
 insertBreaks breaks = \case
-  FormattedText f t : fts -> case (T.breakOn "\n" t, breaks) of
-    ((t1, t2), brk : breaks') | not (T.null t2) -> segment f t1 <> brk <> insertBreaks breaks' (FormattedText f (T.drop 1 t2) : fts)
-    _ -> segment f t <> insertBreaks breaks fts
+  FormattedText f t s : fts -> case (T.breakOn "\n" t, breaks) of
+    ((t1, t2), brk : breaks') | not (T.null t2) -> segment f t1 s <> brk <> insertBreaks breaks' (FormattedText f (T.drop 1 t2) s : fts)
+    _ -> segment f t s <> insertBreaks breaks fts
   [] -> []
   where
-    segment f t = [FormattedText f t | isJust f || not (T.null t)]
+    segment f t s = [FormattedText f t s | isJust f || not (T.null t)]
 
 lineTextP :: Parser Text
 lineTextP = T.concat <$> A.many' (A.takeWhile1 (\c -> c /= '\n' && c /= '\r') <|> (A.string "\r" <* (A.peekChar >>= guard . (/= Just '\n'))))
@@ -962,8 +990,23 @@ sanitizeUri safe uri@U.URI {uriAuthority, uriPath, uriQuery = U.Query originalQS
         "ycl"
       ]
 
+markdownListText :: MarkdownList -> Text
+markdownListText = T.concat . map runText . L.groupBy (\a b -> isJust (spanFormat a) && spanFormat a == spanFormat b)
+  where
+    spanFormat (FormattedText f _ s) = s <|> mfilter isSpanFormat f
+    isSpanFormat = \case
+      Bold {} -> True
+      Italic -> True
+      StrikeThrough -> True
+      _ -> False
+    runText g@(ft :| fts)
+      | null fts = markdownText ft
+      | otherwise = markdownText $ FormattedText (spanFormat ft) (T.concat $ map innerText $ L.toList g) Nothing
+    innerText (FormattedText f t s) = if isJust s then markdownText (FormattedText f t Nothing) else t
+
 markdownText :: FormattedText -> Text
-markdownText (FormattedText f_ t) = case f_ of
+markdownText (FormattedText f_ t (Just s)) = markdownText $ FormattedText (Just s) (markdownText $ FormattedText f_ t Nothing) Nothing
+markdownText (FormattedText f_ t Nothing) = case f_ of
   Nothing -> t
   Just f -> case f of
     Bold (BoolDef singleStar) -> if singleStar then around '*' else "**" <> t <> "**"
