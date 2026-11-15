@@ -264,7 +264,7 @@ private struct SnapshotScene {
 }
 
 private func dotsScenes() -> [SnapshotScene] {
-    let variants = [("x100", "agent.circle.fill"), ("x125", "agent.dots125"), ("x150", "agent.dots150")]
+    let variants = [("x100", "agent"), ("x125", "agent.dots125"), ("x150", "agent.dots150")]
     return variants.flatMap { variant, image in
         [CGFloat(1), CGFloat(3)].flatMap { scale in
             [
