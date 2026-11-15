@@ -310,7 +310,9 @@ extension ChatLayout: Codable {
     }
 }
 
-public func peerTypeIcon(_ peerType: ChatPeerType?, person: Image = Image(systemName: "person.crop.circle.fill"), agent: Image = Image("agent.circle.fill")) -> Image {
+public var agentAvatarImageName = "agent.circle.fill"
+
+public func peerTypeIcon(_ peerType: ChatPeerType?, person: Image = Image(systemName: "person.crop.circle.fill"), agent: Image = Image(agentAvatarImageName)) -> Image {
     switch peerType {
     case .bot: Image(systemName: "cube.fill")
     case .agent: agent

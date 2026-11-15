@@ -26,9 +26,10 @@ final class SnapshotTests: XCTestCase {
         for dark in [false, true] {
             let theme = snapshotTheme(dark)
             CurrentColors = theme
-            for scene in previewScenes() where scene.allSizes || size == "large" {
+            for scene in dotsScenes() where scene.allSizes || size == "large" {
                 let themeName = dark ? "dark" : "light"
                 let file = "\(scene.name)-\(themeName)-\(size).png"
+                agentAvatarImageName = scene.agentImage
                 let image = try renderScene(scene, theme.toAppTheme(), dark: dark, fixedQRCode: fixedQRCode, in: windowScene)
                 try XCTUnwrap(image.pngData()).write(to: dir.appendingPathComponent(file))
                 index.append([
@@ -242,12 +243,35 @@ private struct SnapshotScene {
     var allSizes: Bool
     var device: Bool
     var view: AnyView
+    var scale: CGFloat = 1
+    var agentImage = "agent.circle.fill"
 
     init<P: PreviewProvider>(_ preview: P.Type, allSizes: Bool = false, device: Bool = false, fitting: Bool = false) {
         name = String(describing: preview).replacingOccurrences(of: "_Previews", with: "")
         self.allSizes = allSizes
         self.device = device
         view = fitting ? AnyView(preview.previews.fixedSize(horizontal: false, vertical: true)) : AnyView(preview.previews)
+    }
+
+    init(name: String, view: AnyView, scale: CGFloat, agentImage: String) {
+        self.name = name
+        self.allSizes = false
+        self.device = false
+        self.view = view
+        self.scale = scale
+        self.agentImage = agentImage
+    }
+}
+
+private func dotsScenes() -> [SnapshotScene] {
+    let variants = [("x100", "agent.circle.fill"), ("x125", "agent.dots125"), ("x150", "agent.dots150")]
+    return variants.flatMap { variant, image in
+        [CGFloat(1), CGFloat(3)].flatMap { scale in
+            [
+                SnapshotScene(name: "DotsList-\(variant)-\(Int(scale))x", view: AnyView(SnapshotFixtures().dotsList()), scale: scale, agentImage: image),
+                SnapshotScene(name: "DotsSession-\(variant)-\(Int(scale))x", view: AnyView(SnapshotFixtures().session()), scale: scale, agentImage: image)
+            ]
+        }
     }
 }
 
@@ -437,7 +461,7 @@ private func renderScene(_ scene: SnapshotScene, _ theme: AppTheme, dark: Bool, 
     window.endEditing(true)
     removeAnimations(window.layer)
     let format = UIGraphicsImageRendererFormat.default()
-    format.scale = 1
+    format.scale = scene.scale
     format.preferredRange = .standard
     format.opaque = true
     let image = UIGraphicsImageRenderer(bounds: window.bounds, format: format).image { _ in
@@ -1174,6 +1198,24 @@ private final class SnapshotFixtures {
             msg(.groupRcv(groupMember: claude), "Done: the answer now quotes its own prompt.\n544 of 544 pass.\nCommitted as 1f3c2a9.", -2 + 10.0 / 60),
             msg(.groupRcv(groupMember: claude), "Coverage after the fix", -2 + 30.0 / 60, content: .image(text: "Coverage after the fix", image: landscape), file: imageFile("coverage.jpg"))
         ], terminal: true)
+    }
+
+    func dotsList() -> some View {
+        let rows: [(String, String?, ChatPeerType?)] = [("alice", nil, nil), ("bob", alice.image, nil), ("helper", nil, .bot), ("assistant", nil, .agent)]
+        return VStack(spacing: 0) {
+            ForEach(rows.indices, id: \.self) { i in
+                ChatListNavLink(chat: dotsChat(Int64(10 + i), rows[i].0, rows[i].1, rows[i].2), parentSheet: .constant(nil))
+                    .padding(.horizontal, 8)
+            }
+        }
+    }
+
+    private func dotsChat(_ id: Int64, _ name: String, _ image: String?, _ peerType: ChatPeerType?) -> Chat {
+        var c = Contact.sampleData
+        c.contactId = id
+        c.localDisplayName = name
+        c.profile = LocalProfile(profileId: id, displayName: name, fullName: "", image: image, peerType: peerType, localAlias: "")
+        return Chat(chatInfo: .direct(contact: c), chatItems: [ChatItem.getSample(id, .directRcv, previewDate, "See you at the call", .rcvRead)])
     }
 
     func paragraphs() -> some View {
