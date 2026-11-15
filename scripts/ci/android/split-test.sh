@@ -71,6 +71,10 @@ refused() {
   grep -qF "$expected" <<< "$output"
 }
 
+install_apks() {
+  adb install-multiple --no-incremental "$@"
+}
+
 code_dir() {
   adb shell pm path "$package" | sed -n 's|^package:\(.*\)/base.apk$|\1|p'
 }
@@ -137,7 +141,7 @@ run() {
   lib_sha=$(unzip -p "$dir/first/$split" "lib/$abi/libsimplex.so" | sha256sum | cut -d ' ' -f 1)
   base_sha=$(sha256sum "$dir/second/base.apk" | cut -d ' ' -f 1)
 
-  adb install-multiple -g "$dir/first/base.apk" "$dir/first/$split"
+  install_apks -g "$dir/first/base.apk" "$dir/first/$split"
   record installed
   code=$(code_dir)
   version_code=$(sed -n 's/^ *versionCode=\([0-9]*\) .*/\1/p' "$UI_OUT/installed.txt")
@@ -148,12 +152,12 @@ run() {
   check "the first build does not show \"$changed_button\"" not "$ui" find "$changed_button"
 
   check "a split of version code $next does not install over version code $version_code" \
-    refused "Existing version code $version_code inconsistent with $next" adb install-multiple -p "$package" "$dir/next/$split"
+    refused "Existing version code $version_code inconsistent with $next" install_apks -p "$package" "$dir/next/$split"
   check "a base APK signed with another key does not install" \
-    refused "Existing signatures are inconsistent" adb install-multiple -p "$package" "$dir/other/base.apk"
+    refused "Existing signatures are inconsistent" install_apks -p "$package" "$dir/other/base.apk"
   check "the refused updates keep the installed files" [ "$(code_dir)" = "$code" ]
 
-  adb install-multiple -p "$package" "$dir/second/base.apk"
+  install_apks -p "$package" "$dir/second/base.apk"
   record updated
   check "the update keeps version code $version_code" recorded updated "^ *versionCode=$version_code "
   check "the update keeps both APKs" recorded updated "$splits"
