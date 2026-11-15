@@ -264,7 +264,7 @@ private struct SnapshotScene {
 }
 
 private func dotsScenes() -> [SnapshotScene] {
-    let variants = [("x100", "agent"), ("x115", "agent.dots115"), ("x1175", "agent.dots1175"), ("x120", "agent.dots120"), ("x1225", "agent.dots1225")]
+    let variants = [("x100", "agent"), ("x115", "agent.dots115"), ("x1175", "agent.dots1175"), ("x120", "agent.dots120"), ("x1225", "agent.dots1225"), ("x125", "agent.dots125"), ("x150", "agent.dots150")]
     return variants.flatMap { variant, image in
         [CGFloat(1), CGFloat(3)].flatMap { scale in
             [
@@ -1202,9 +1202,10 @@ private final class SnapshotFixtures {
 
     func dotsList() -> some View {
         let rows: [(String, String?, ChatPeerType?)] = [("alice", nil, nil), ("bob", alice.image, nil), ("helper", nil, .bot), ("assistant", nil, .agent)]
+        let chats = rows.indices.map { i in dotsChat(Int64(10 + i), rows[i].0, rows[i].1, rows[i].2) }
         return VStack(spacing: 0) {
-            ForEach(rows.indices, id: \.self) { i in
-                ChatListNavLink(chat: dotsChat(Int64(10 + i), rows[i].0, rows[i].1, rows[i].2), parentSheet: .constant(nil))
+            ForEach(chats.indices, id: \.self) { i in
+                ChatListNavLink(chat: chats[i], parentSheet: .constant(nil))
                     .padding(.horizontal, 8)
             }
         }
