@@ -43,23 +43,34 @@ gh workflow run build-apps.yml --ref master -f ota=true
 - **Platforms:** the inputs `android`, `ios`, `linux`, `macos` and `windows`, on by default, choose the jobs, here as for a release build; a test job runs only when the jobs it needs ran.
 - **Commit:** the job `plan` checks out `refs/pull/<number>/head` and fails unless it is at `commit`; every other job builds that commit. With a branch, `commit` is optional and checked the same way. The run is named `build-apps pull request #<number> <commit>`, or `build-apps ota`.
 - **Android:** `build apk <arch> --ota <run number>` builds SimpleX dev, which installs beside the released app, with its own data: the init script `scripts/android/dev-app.gradle`, which the build runs from `~/.gradle/init.d` in its container, gives the release variant the id `chat.simplex.app.dev`, the name "SimpleX dev" and the file provider `chat.simplex.app.dev.provider`. The version code is the run number, the version name `<android.version_name>-ota.<run number>`, and the build fails unless `aapt2 dump badging` shows them. The artifact `android-<arch>-unsigned` has `simplex-dev-<arch>.apk`. In the emulator, `test apk` installs it as the package that `aapt2 dump packagename` reads from it and runs the smoke and previous release's database tests; the upgrade and quantum resistant contact tests, which install it over the previous release, and the Play bundle are skipped. The tests run without waiting for the Linux desktop jobs only when `linux` is off.
-- **iOS:** `build xcarchive --ota <run number>` numbers the archive `<CURRENT_PROJECT_VERSION>.<run number>`, such as `371.12`, which is unique in its version and below the next release's number. A pull request's archive has the default icons: its job runs the pull request's code, so it gets no brand assets key.
+- **iOS:** `build xcarchive --ota <run number>` numbers the archive `<CURRENT_PROJECT_VERSION>.<run number>`, such as `371.12`, which is unique in its version and below the next release's number. A pull request's archive has the default icons: its job runs the pull request's code, so it gets no brand assets key. In the simulator, ios-test runs the smoke and previous release's database tests; the quantum resistant contact test, which needs the macOS CLI, is skipped. The tests run without waiting for the macOS desktop jobs only when `macos` is off.
 - **Desktop:** the packages are the release's, with the commit's version.
 - **Reuse:** a run for a pull request runs that pull request's code under the branch's name, so `scripts/ci/desktop-linux/earlier-run.sh`, which android-emu, desktop-linux and ios-sim use to reuse builds, uses its artifacts only in runs for the same pull request.
 
 ## Core libraries built before
 
-Each run, a release build too, reuses the Nix core packages of an earlier run of the same branch or of master when their sources are unchanged: `plan` names them after a hash of `src/**`, `cabal.project`, `simplex-chat.cabal`, `PRIVACY.md`, the Nix files and the build tool, as android-emu does, and finds them with `earlier-run.sh`.
+Each run, a release build too, reuses the core libraries and Docker images of an earlier run of the same branch or of master when their sources are unchanged. Each is an artifact named after a hash of the files it is built from, which `earlier-run.sh` finds: `plan` finds the Nix core packages, each desktop job its core, and each job that builds in Docker its image, with the action `.github/actions/earlier-artifact`. A job that builds one uploads it.
 
 | Artifact | Made by | Used by |
 |---|---|---|
 | `android-core-<hash>`: `pkg-aarch64-android-libsimplex.zip`, `pkg-aarch64-android-libsupport.zip` | the aarch64 APK job when it builds them, or android-emu's job `core` | `build apk aarch64 --libs <dir>` |
 | `android-core-armv7a-<hash>`: the armv7a packages | the armv7a APK job when it builds them | `build apk armv7a --libs <dir>` |
 | `ios-core-<hash>`: `pkg-ios-aarch64-swift-json.zip` | the iOS archive job when it builds it | `build xcarchive --core <zip>` |
+| `desktop-core-ubuntu-<version>-<arch>-<hash>`, `desktop-core-macos-<arch>-ghc<version>-cabal<version>-<hash>`, `desktop-core-windows-x86_64-ghc<version>-cabal<version>-gcc<version>-<hash>`: `desktop-core.zip` | each desktop job, `build desktop <platform> --core-out <zip>`, when it builds them | `build desktop <platform> --core <zip>` |
+| `docker-image-android-<arch>-<uid>-<gid>-<hash>`, `docker-image-ubuntu-<version>-<arch>-<uid>-<gid>-<hash>`: `image.tar` | the aarch64 APK job and each Linux desktop job, `--docker-image <tar>`, when it builds the image | `build apk`, `build aab` and `build desktop linux` with `--docker-image <tar>` |
 
-With `--libs`, `build-android.sh` unpacks the packages of `LIBS_DIR` in place of building them with Nix; with `--core`, the archive links that package in place of the Nix build's. Either way the packages are the outputs of the same `flake.nix` jobs.
+The hashes are of these files:
 
-One set of the three takes about 170 MB (42, 49 and 78 MB), kept 30 days. They are artifacts, not Actions caches: a run for a pull request runs under the branch it starts on, so a cache that its code saved would be that branch's, while `earlier-run.sh` tells such a run's artifacts apart by the run's name.
+| Artifact | Files |
+|---|---|
+| Android core | `src/**`, `cabal.project`, `simplex-chat.cabal`, `PRIVACY.md`, `flake.nix`, `flake.lock`, `scripts/nix/**`, `scripts/android/build-android.sh`, `scripts/simplex-chat-build.py`, and `__init__.py`, `cli.py`, `common.py`, `nix.py`, `docker.py` and `android.py` in `scripts/simplex_build`, as android-emu names it |
+| iOS core | the same without `build-android.sh`, `docker.py` and `android.py`, with `apple.py`, `buildroot.py` and `ios.py` |
+| Desktop core | `src/**`, `apps/simplex-chat/**`, `cabal.project`, `simplex-chat.cabal`, `PRIVACY.md`, `flake.nix` and `libsimplex.dll.def`, which the build checks, `scripts/simplex-chat-build.py`, `__init__.py`, `cli.py`, `common.py` and `desktop.py`, with `Dockerfile.build`, `docker.py` and `linux.py` on Linux; `apple.py`, `buildroot.py`, `openssl.py`, `link_without_rpaths.py` and `macos.py` on macOS; `buildroot.py`, `openssl.py` and `windows.py` on Windows. The macOS and Windows names also have the versions of GHC, cabal and, on Windows, MSYS2's gcc, which the runner installs |
+| Docker image | `Dockerfile.build` and `docker.py`, with `linux.py` and `common.py` for the desktop images, which set its arguments; the name also has the runner's user and group ids, which the image's user takes |
+
+With `--libs`, `build-android.sh` unpacks the packages of `LIBS_DIR` in place of building them with Nix; with `--core`, the archive links that package in place of the Nix build's. Either way the packages are the outputs of the same `flake.nix` jobs. A desktop core is the CLI and the app's libraries directory before VLC joins it, with their modes: `build desktop --core` installs them in place of the CLI and library builds, and makes the rest as the build does, the libraries zip of the release among it. `--docker-image` loads the image from the file that `docker save` wrote, or builds it and saves it there.
+
+One set of the three Nix cores takes about 170 MB (42, 49 and 78 MB), kept 30 days. They are artifacts, not Actions caches: a run for a pull request runs under the branch it starts on, so a cache that its code saved would be that branch's, while `earlier-run.sh` tells such a run's artifacts apart by the run's name.
 
 ## Android: signing reproducibly
 

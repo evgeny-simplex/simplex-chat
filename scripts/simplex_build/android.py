@@ -144,7 +144,9 @@ def android_signing() -> AndroidSigning | None:
 
 
 @contextlib.contextmanager
-def android_container(source: Path, out: Path, set_pid_max: bool, signing: AndroidSigning | None = None) -> Iterator[Container]:
+def android_container(
+    source: Path, out: Path, set_pid_max: bool, signing: AndroidSigning | None = None, image: Path | None = None
+) -> Iterator[Container]:
     mounts = {source.resolve(): PROJECT, out.resolve(): OUT}
     if signing:
         mounts[signing.keystore] = f"{ANDROID_KEYSTORE_MOUNT}:ro"
@@ -159,6 +161,7 @@ def android_container(source: Path, out: Path, set_pid_max: bool, signing: Andro
             "--security-opt", "seccomp:unconfined",
             "--security-opt", "systempaths=unconfined",
         ],
+        image=image,
     ) as container:
         if set_pid_max:
             # 32-bit bionic aborts above pid 65535, which the armv7a GHC runs under qemu. Since Linux 6.14 pid_max
