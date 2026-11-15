@@ -621,6 +621,7 @@ VERSION is the plugin's version, as in `npx -y @simplex-chat/mcp@0.3.0 link`. Th
 - When someone joins or their role changes, Claude posts their rights. For an admin the post is `Bob is an admin and can send prompts to Claude and the group's commands, and approve tool use. You can change role to observer to stop it: /'observer #G ID'`, with the group's and the member's IDs. For a moderator, member or author it is `NAME is a ROLE and can send prompts to Claude; the group's commands and approvals need the role admin or owner.`, followed by the same command. The posts for an owner and for an observer have no command: `NAME is an owner and can send prompts to Claude and the group's commands, and approve tool use.` and `NAME is an observer and can't send messages.` Claude posts nothing for `User`.
 - `/observer #G ID` makes that member an observer, and Claude replies `NAME is an observer and can't send messages.` Admins and owners can use it on a member whose role isn't above their own. Standing approvals that the observer gave, of all messages to a chat or all files from it, stop counting while they aren't an admin or owner, and count again if they become one. For a member who was invited and hasn't joined yet, Claude replies `No member ID in this group.` That member joins with the role of the invitation, which can be changed after the join.
 - The group's description is `The Claude Code session N. Members send it prompts; admins and owners also send the group's commands and approve tool use.`, set when the group is created. Its short description shows the model and effort, see [Model, effort and usage](#model-effort-and-usage).
+- The group is created in the Flat layout, which SimpleX apps from v7.1.0 show. Each member can choose another layout for it in Group info › `Chat theme` › `Chat layout`, for their own app. The Main group is shown in each member's own layout.
 - The group has the commands of the agent control chat of `serve` (see [What the owner sees](#what-the-owner-sees)), without a session prefix, such as `/approve 7`, `/receive @3 9` and `/leave #2`. It also has `/give CHAT N`, `/observer #G ID`, and `/approve N all` and `/revoke TOOL` for tools, see [Tool use](#tool-use).
 - A chat belongs to the session that connected it, even when the other side accepts after `connect` returned. The tools of other sessions don't show it. Their `connect` to its address returns `The chat of LINK belongs to another session; an admin or owner of that session's group can give it to this session with /give.` For example, `/give @3 2` in the group of the session that owns chat @3 gives it to session 2.
 - `/list` and `/revoke` also work in the group of a closed session. A `/revoke` sent while the service is stopped applies when the service starts again.
@@ -720,10 +721,10 @@ The short description of a session's group shows `MODEL · effort LEVEL`. The mo
 
 When the model switches, Claude posts `Model changed to MODEL` in small print. When a known effort level changes, Claude posts `Effort changed to LEVEL`. The first model and the first effort level of a session get no line. Both lines are silent.
 
-The last line of each answer shows the turn's usage, from the session's transcript, in small print:
+The last line of each answer shows the turn's usage, from the session's transcript, and the machine's free memory and disk, in small print:
 
 ```
-Done in 2 min 51 s · 16K output tokens · 673K tokens in context · 5 h: 34% · week: 61%
+Done in 2 min 51 s · 16K output tokens · 673K tokens in context · 5 h: 34% · week: 61% · RAM 12 GB free · disk 7.3 GB free
 ```
 
 - The time runs from the turn's first entry in the transcript to the answer.
@@ -731,6 +732,8 @@ Done in 2 min 51 s · 16K output tokens · 673K tokens in context · 5 h: 34% ·
 - The tokens in context are the input, cache writes and cache reads of the turn's last response.
 - `5 h` and `week` are the plan's 5-hour and weekly usage, with the [status line](#status-line) only. A window whose reset time has passed is left out.
 - Token counts are shortened as in the line of a summary of the context: `861`, `1.6K`, `16K`, `673K`, `1.2M`.
+- `RAM` is the memory available to processes on the machine of the SimpleX service, within the limit of its container. `disk` is the free space of the volume with the plugin's data folder, `~/.simplex-mcp` or `SIMPLEX_MCP_HOME`. The service reads them when the answer ends, without the status line.
+- Sizes are in decimal units, rounded down: `850 MB`, `7.3 GB`, `12 GB`, `1.2 TB`. A part ends with ❗️ when less than 5% of the memory or less than 5 GB of disk is free, such as `disk 3.4 GB free❗️`.
 - When the transcript has no usage of the turn, as for a turn over 64 MB or a Claude Code version without prompt IDs, the line shows the time from the turn's prompt to its end, such as `Done in 2 min 14 s`, or only `Done` when the start of the turn is not known.
 
 #### Status line
@@ -748,7 +751,8 @@ Claude Code passes the plan's usage only to the status line command of your sett
 
 - The shell expands the command to the plugin's data folder of each machine or container, so one setting serves all of them when they share `~/.claude`.
 - The service writes `status-line.js` there at each start, pointing to its own version, so the setting stays the same across updates.
-- Claude Code shows the status line in the terminal, such as `Opus 5.5 · effort xhigh · 67% context · 5 h: 34% · week: 61%`: the model, the effort level, the share of the context window in use and the plan's usage, each when Claude Code passes it.
+- Claude Code shows the status line in the terminal, such as `Opus 5.5 · effort xhigh · 67% context · 5 h: 34% · week: 61% · RAM 12 GB free · disk 7.3 GB free`: the model, the effort level, the share of the context window in use and the plan's usage, each when Claude Code passes it, and the machine's memory and disk.
+- The memory and the disk are those of the answer's last line, read by the command on the machine of Claude Code.
 - The command also sends the effort level and the plan's usage to the service, so an effort change shows at once. It waits at most 1 second for the service, and starts none.
 - The setting replaces a status line command of your own. On Windows, it needs Git Bash as the shell of commands.
 - Claude Code runs `status-line.js` of the data folder also when no service could start there, so the data folder, `~/.simplex-mcp` or `SIMPLEX_MCP_HOME`, must be writable only by you.

@@ -53,6 +53,7 @@ async function hubWith(chat: FakeChat, mainMembers: T.GroupMember[] = [self, ali
   chat.chats.set("#10", {chatInfo: groupChat(main), items: []})
   chat.members.set(10, mainMembers)
   const hub = new (Hub as unknown as HubConstructor)(chat.api(), user, root, 23, main, "SimpleX MCP")
+  hub.machine = () => undefined
   await hub.main.load()
   await hub.main.start()
   return hub
@@ -109,6 +110,7 @@ describe("session groups", () => {
           fullName: "",
           description: "The Claude Code session 1. Members send it prompts; admins and owners also send the group's commands and approve tool use.",
           groupPreferences: {history: {enable: "on"}, directMessages: {enable: "off"}, commands: controlCommands, statusMessages: {enable: "on"}},
+          chatLayout: "terminal",
         },
       },
     ])
@@ -304,18 +306,19 @@ describe("session groups", () => {
     expect(chat.profiles.at(-1)?.groupProfile.groupPreferences).toMatchObject({statusMessages: {enable: "on"}})
   })
 
-  it("keep the profile an owner changed, its preference for files and media included, at the next update of the model and at a rename, from the group's current profile", async () => {
+  it("keep the profile an owner changed, its preference for files and media and its layout included, at the next update of the model and at a rename, from the group's current profile", async () => {
     const chat = new FakeChat()
     const hub = await hubWith(chat)
     const session = await openSession(hub, id1, stored(1, "auth"))
     const {groupInfo} = chat.chats.get("#20")!.chatInfo as T.ChatInfo.Group
     const files = {enable: T.GroupFeatureEnabled.Off}
-    groupInfo.groupProfile = {...groupInfo.groupProfile, description: "Release work", groupPreferences: {...groupInfo.groupProfile.groupPreferences, files}}
+    const chatLayout = T.ChatLayout.Classic
+    groupInfo.groupProfile = {...groupInfo.groupProfile, description: "Release work", groupPreferences: {...groupInfo.groupProfile.groupPreferences, files}, chatLayout}
     await session.turn({id: id1, model: "claude-opus-5"})
     await session.rename("deploy")
     expect(chat.profiles.filter(({groupId}) => groupId === 20).map(({groupProfile}) => groupProfile)).toEqual([
-      expect.objectContaining({shortDescr: "claude-opus-5", description: "Release work", groupPreferences: expect.objectContaining({files})}),
-      expect.objectContaining({displayName: "1 · deploy", shortDescr: "claude-opus-5", description: "Release work", groupPreferences: expect.objectContaining({files})}),
+      expect.objectContaining({shortDescr: "claude-opus-5", description: "Release work", groupPreferences: expect.objectContaining({files}), chatLayout}),
+      expect.objectContaining({displayName: "1 · deploy", shortDescr: "claude-opus-5", description: "Release work", groupPreferences: expect.objectContaining({files}), chatLayout}),
     ])
   })
 
@@ -806,7 +809,7 @@ describe("session channel", () => {
     const text = (value: string): object => ({type: "text", text: value})
     const card = "I want to use `Bash`: `Run shell command`\n`rm -rf build`\n/'approve 3' or /'reject 3'"
     const replies = [
-      reply(43, "No, the other test", quoted({type: "groupSnd"}, 41, text("Fixed: the build passes.\n!- Done in 2 min 51 s · 16K output tokens · 673K tokens in context · 5 h: 34% · week: 61%!"))),
+      reply(43, "No, the other test", quoted({type: "groupSnd"}, 41, text("Fixed: the build passes.\n!- Done in 2 min 51 s · 16K output tokens · 673K tokens in context · 5 h: 34% · week: 61% · RAM 12 GB free · disk 3.4 GB free❗️!"))),
       reply(44, "Why?", quoted({type: "groupSnd"}, 38, text(card))),
       reply(45, "Is it done?", quoted(from(member(8, "User")), 36, text("Fix the build"))),
       reply(46, "Agreed", quoted(from(bob), 35, text("Run the tests\n!- Done!"))),
@@ -1212,6 +1215,35 @@ describe("session channel", () => {
     await session.turn({id: id1, at: 6, answer: "Lint passes."})
     expect(sentTo(chat, 20)).toEqual([`Fixed.\n!- Done in ${usage}!`, `Tests pass.\n!- Done in ${usage} · 5 h: 34% · week: 61%!`, "Lint passes.\n!- Done · week: 62%!"])
     expect(priorities(chat)).toEqual([[1], [1], [1]])
+  })
+
+  it("ends the end line with the machine's free memory and the free disk of the data folder at the answer's time, each with ❗️ when low inside one small-print span, and reads the data folder of the hub", async () => {
+    const chat = new FakeChat()
+    const {hub, session} = await channel(chat)
+    const machines = [
+      {memoryFree: 12_400_000_000, memoryTotal: 32_000_000_000, diskFree: 7_380_000_000},
+      {memoryFree: 1_500_000_000, memoryTotal: 32_000_000_000, diskFree: 3_400_000_000},
+      {memoryFree: 9_900_000_000, memoryTotal: 16_000_000_000},
+    ]
+    hub.machine = () => machines.shift()
+    const later = Date.now() / 1_000 + 3_600
+    await session.turn({id: id1, at: 1, limits: {fiveHour: {percent: 34.7, resetsAt: later}, week: {percent: 61, resetsAt: later}}})
+    await session.turn({id: id1, at: 2, answer: "Fixed.", usage: "2 min 51 s · 16K output tokens · 673K tokens in context"})
+    await session.turn({id: id1, at: 3, answer: "Tests pass."})
+    await session.turn({id: id1, at: 4, answer: "Lint passes."})
+    await session.turn({id: id1, at: 5, answer: "Deployed."})
+    expect(sentTo(chat, 20)).toEqual([
+      "Fixed.\n!- Done in 2 min 51 s · 16K output tokens · 673K tokens in context · 5 h: 34% · week: 61% · RAM 12 GB free · disk 7.3 GB free!",
+      "Tests pass.\n!- Done · 5 h: 34% · week: 61% · RAM 1.5 GB free❗️ · disk 3.4 GB free❗️!",
+      "Lint passes.\n!- Done · 5 h: 34% · week: 61% · RAM 9.9 GB free!",
+      "Deployed.\n!- Done · 5 h: 34% · week: 61%!",
+    ])
+    const warned = sentTo(chat, 20)[1].split("\n")[1]
+    expect(warned).toMatch(/^!- [^!\n]+!$/)
+    expect([...warned.matchAll(/❗️/g)]).toHaveLength(2)
+    const real = new (Hub as unknown as HubConstructor)(chat.api(), user, root, 23, group(10, "SimpleX MCP", self), "SimpleX MCP").machine()
+    expect(real?.diskFree).toBeGreaterThan(0)
+    expect(real?.memoryFree).toBeGreaterThan(0)
   })
 
   it("posts a line when the model switches and when a known effort level changes, before the other posts of the request, and none for a first value, a model of an answer or a value older than the one taken last", async () => {
@@ -2477,6 +2509,7 @@ describe("Main group", () => {
     const texts = {shortDescr: "Everyone in this group can join the groups of your Claude Code sessions, prompt Claude and approve what it does.", description: "Everyone in this group can join the groups of your Claude Code sessions, prompt Claude and approve what it does. Invite only people you trust with that."}
     await createMainGroup(chat.api(), 1, "SimpleX MCP")
     expect(chat.newGroups.at(-1)!.groupProfile).toMatchObject(texts)
+    expect(chat.newGroups.at(-1)!.groupProfile.chatLayout).toBeUndefined()
     const {groupInfo} = chat.chats.get("#10")!.chatInfo as T.ChatInfo.Group
     const edited = {shortDescr: "Sessions of the team", description: "Ask Alice before you approve."}
     groupInfo.groupProfile = {...groupInfo.groupProfile, ...edited}
@@ -2776,6 +2809,7 @@ describe("Main group", () => {
     const session = await openSession(hub, id1, stored(1, "auth"))
     expect(hub.owner().owners).toEqual(["Alice"])
     expect(await hub.resetOwners()).toEqual({link: "https://simplex.chat/g#link"})
+    expect(chat.newGroups.at(-1)!.groupProfile.chatLayout).toBeUndefined()
     expect(sentTo(chat, 10)).toEqual([])
     expect(chat.deleted).toEqual([{chatType: T.ChatType.Group, chatId: 10, mode: {type: "full", notify: true}}])
     expect(hub.main.groupId).toBe(21)
