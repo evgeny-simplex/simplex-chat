@@ -1233,13 +1233,6 @@ jobs:
             desktop_asset_name: simplex-desktop-macos-aarch64.dmg
             openssl_dir: "/opt/homebrew/opt"
             should_run: ${{ needs.maybe-release.outputs.haskell == 'true' }}
-          - os: macos-15-intel
-            arch: x86_64
-            ghc: ${{ needs.variables.outputs.GHC_VER }}
-            cli_asset_name: simplex-chat-macos-x86-64
-            desktop_asset_name: simplex-desktop-macos-x86_64.dmg
-            openssl_dir: "/usr/local/opt"
-            should_run: ${{ needs.maybe-release.outputs.haskell == 'true' }}
     steps:
       - name: Checkout Code
         if: matrix.should_run == true
