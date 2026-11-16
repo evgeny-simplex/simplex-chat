@@ -26,8 +26,10 @@ import Data.Functor (($>))
 import Data.List (dropWhileEnd, find)
 import qualified Data.List.NonEmpty as L
 import Data.Maybe (isNothing)
+import qualified Data.ByteString as BS
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (getCurrentTime)
 import Network.Socket
 import Simplex.Chat
@@ -69,6 +71,7 @@ import Simplex.Messaging.Version
 import Simplex.Messaging.Version.Internal
 import System.Directory (createDirectoryIfMissing, listDirectory, removePathForcibly)
 import System.FilePath ((</>))
+import System.IO (stderr)
 import qualified System.Terminal as C
 import System.Terminal.Internal (Command (..), Terminal (..), VirtualTerminal (..), VirtualTerminalSettings (..), withVirtualTerminal)
 import System.Timeout (timeout)
@@ -266,23 +269,28 @@ data TestCC = TestCC
     ccParams :: TestParams
   }
 
-data TestTerminal = TestTerminal VirtualTerminal (TQueue String)
+data TestTerminal = TestTerminal String VirtualTerminal (TQueue String)
 
 instance Terminal TestTerminal where
-  termType (TestTerminal t _) = termType t
-  termEvent (TestTerminal t _) = termEvent t
-  termInterrupt (TestTerminal t _) = termInterrupt t
-  termCommand (TestTerminal t q) c = do
+  termType (TestTerminal _ t _) = termType t
+  termEvent (TestTerminal _ t _) = termEvent t
+  termInterrupt (TestTerminal _ t _) = termInterrupt t
+  termCommand (TestTerminal label t q) c = do
     case c of
-      PutLn -> atomically $ do
-        C.Position {row} <- readTVar $ virtualCursor t
-        rows <- readTVar $ virtualWindow t
-        writeTQueue q $ dropWhileEnd (== ' ') $ rows !! row
+      PutLn -> do
+        line <- atomically $ do
+          C.Position {row} <- readTVar $ virtualCursor t
+          rows <- readTVar $ virtualWindow t
+          let l = dropWhileEnd (== ' ') $ rows !! row
+          writeTQueue q l
+          pure l
+        ts <- getCurrentTime
+        BS.hPutStr stderr $ encodeUtf8 $ T.pack $ "TERM " <> show ts <> " " <> label <> ": " <> line <> "\n"
       _ -> pure ()
     termCommand t c
-  termFlush (TestTerminal t _) = termFlush t
-  termGetWindowSize (TestTerminal t _) = termGetWindowSize t
-  termGetCursorPosition (TestTerminal t _) = termGetCursorPosition t
+  termFlush (TestTerminal _ t _) = termFlush t
+  termGetWindowSize (TestTerminal _ t _) = termGetWindowSize t
+  termGetCursorPosition (TestTerminal _ t _) = termGetCursorPosition t
 
 instance WithTerminal TestTerminal where
   withTerm t = ($ t)
@@ -400,7 +408,7 @@ startTestChat_ :: TestParams -> ChatDatabase -> ChatConfig -> ChatOpts -> String
 startTestChat_ ps@TestParams {tmpPath, printOutput} db cfg_ opts_ dbPrefix user = do
   let (cfg, opts@ChatOpts {coreOptions = CoreChatOpts {maintenance}}) = testPortsCfg ps cfg_ opts_
   termQ <- newTQueueIO
-  t <- withVirtualTerminal termSettings $ pure . (`TestTerminal` termQ)
+  t <- withVirtualTerminal termSettings $ \vt -> pure $ TestTerminal (tmpPath </> dbPrefix) vt termQ
   ct <- newChatTerminal t opts
   Right cc <- newChatController db (Just user) cfg opts False
   void $ execChatCommand' (SetTempFolder (tmpPath </> dbPrefix)) 0 `runReaderT` cc

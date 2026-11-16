@@ -1991,6 +1991,7 @@ processChatCommand cxt nm = \case
         gInfo' <- case groupSLinkData_ of
           Just sLinkData -> fst <$> updateGroupFromLinkData user gInfo sLinkData Nothing
           _ -> pure gInfo
+        lift $ diagLog $ "getUpdatedGroupLinkData role " <> show (memberRole' (membership gInfo)) <> " current " <> show (memberCurrent (membership gInfo)) <> " relays " <> show (map diagLinkTail currentRelayLinks)
         when (memberRole' (membership gInfo) /= GROwner && memberCurrent (membership gInfo)) $
           withGroupLock "syncSubscriberRelays" groupId $
             syncSubscriberRelays user gInfo' currentRelayLinks
@@ -4032,13 +4033,15 @@ processChatCommand cxt nm = \case
       relayMember' <- withFastStore $ \db -> getGroupMember db cxt user (groupId' gInfo) (groupMemberId' relayMember)
       pure (relayLink, relayMember', r)
     syncSubscriberRelays :: User -> GroupInfo -> [ShortLinkContact] -> CM ()
-    syncSubscriberRelays user gInfo currentRelayLinks = void . tryAllErrors $ do
+    syncSubscriberRelays user gInfo currentRelayLinks = diagErrors "syncSubscriberRelays" $ do
       localRelayMembers <- withFastStore' $ \db -> getGroupRelayMembers db cxt user gInfo
       let activeRelayMembers = filter memberCurrent localRelayMembers
           memberRelayLink GroupMember {relayLink = rl} = rl
           localRelayLinks = mapMaybe memberRelayLink activeRelayMembers
           newRelayLinks = filter (`notElem` localRelayLinks) currentRelayLinks
-      forM_ newRelayLinks $ \rlnk -> void . tryAllErrors $
+          diagMember m@GroupMember {memberStatus = st, relayLink = rl, activeConn = ac} = (groupMemberId' m, st, diagLinkTail <$> rl, dbConnId <$> ac)
+      lift $ diagLog $ "syncSubscriberRelays current " <> show (map diagLinkTail currentRelayLinks) <> " local " <> show (map diagMember localRelayMembers) <> " new " <> show (map diagLinkTail newRelayLinks)
+      forM_ newRelayLinks $ \rlnk -> diagErrors "connectToRelayAsync" $
         connectToRelayAsync user gInfo rlnk
       forM_ localRelayMembers $ \m ->
         case memberRelayLink m of
@@ -6467,7 +6470,9 @@ agentSubscriber = do
       SAERcvFile -> processAgentMsgRcvFile corrId entId msg
       SAESndFile -> processAgentMsgSndFile corrId entId msg
       where
-        run action = action `catchAllOwnErrors'` eToView'
+        run action = action `catchAllOwnErrors'` \err -> do
+          diagLog $ "agent event error " <> show (aEventTag msg) <> " entId " <> show entId <> " corrId " <> show corrId <> ": " <> show err
+          eToView' err
 
 type AgentSubResult = Map ConnId (Either AgentErrorType ())
 

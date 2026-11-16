@@ -108,7 +108,7 @@ import qualified Simplex.Messaging.TMap as TM
 import Simplex.Messaging.Util
 import Simplex.Messaging.Version
 import System.FilePath (takeFileName, (</>))
-import System.IO (Handle, IOMode (..), hFlush)
+import System.IO (Handle, IOMode (..), hFlush, stderr)
 import UnliftIO.Concurrent (forkFinally, mkWeakThreadId)
 import UnliftIO.Directory
 import UnliftIO.IO (hClose, openFile)
@@ -122,6 +122,18 @@ maxRcvMentions = 5
 
 maxSndMentions :: Int
 maxSndMentions = 3
+
+diagLog :: String -> CM' ()
+diagLog s = do
+  tmp <- readTVarIO =<< asks tempDirectory
+  ts <- liftIO getCurrentTime
+  liftIO $ B.hPutStr stderr $ encodeUtf8 $ T.pack $ "DIAG " <> show ts <> " " <> fromMaybe "?" tmp <> " " <> s <> "\n"
+
+diagErrors :: String -> CM () -> CM ()
+diagErrors name a = tryAllErrors a >>= either (\e -> lift $ diagLog $ name <> " error " <> show e) pure
+
+diagLinkTail :: ShortLinkContact -> String
+diagLinkTail = reverse . take 10 . reverse . B.unpack . strEncode
 
 withChatLock :: Text -> CM a -> CM a
 withChatLock name action = asks chatLock >>= \l -> withLock l name action
@@ -1614,12 +1626,15 @@ connectToRelayAsync user gInfo relayLink = do
   cxt <- chatStoreCxt
   gVar <- asks random
   relayMember@GroupMember {activeConn} <- withFastStore $ \db -> getCreateRelayForMember db cxt gVar user gInfo relayLink
+  lift $ diagLog $ "connectToRelayAsync member " <> show (groupMemberId' relayMember) <> " status " <> show (memberStatus relayMember) <> " activeConn " <> show (dbConnId <$> activeConn) <> " link " <> diagLinkTail relayLink
   case activeConn of
     Just _ -> pure ()
     Nothing -> do
       subMode <- chatReadVar subscriptionMode
       newConnIds <- getAgentConnShortLinkAsync user CFGetRelayDataJoin Nothing relayLink
+      lift $ diagLog $ "connectToRelayAsync agent command enqueued " <> show newConnIds
       withFastStore' $ \db -> createRelayMemberConnectionAsync db user gInfo relayMember relayLink newConnIds subMode
+      lift $ diagLog $ "connectToRelayAsync connection stored " <> show newConnIds
 
 updatePublicGroupData :: User -> GroupInfo -> GroupKeys -> CM GroupInfo
 updatePublicGroupData user gInfo gks

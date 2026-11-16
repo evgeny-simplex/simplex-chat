@@ -458,7 +458,9 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       RcvDirectMsgConnection conn contact_ ->
         processDirectMessage agentMessage entity conn contact_
       RcvGroupMsgConnection conn _ m -> case gks_ of
-        Just gks -> processGroupMessage agentMessage entity conn gks m
+        Just gks -> do
+          when (isRelay m) $ lift $ diagLog $ "relay member conn event " <> show (aEventTag agentMessage) <> " member " <> show (groupMemberId' m) <> " status " <> show (memberStatus m) <> " conn " <> show (dbConnId conn) <> " corrId " <> show corrId
+          processGroupMessage agentMessage entity conn gks m
         Nothing -> throwChatError $ CEInternalError "group connection entity without group keys"
       UserContactConnection conn uc ->
         processContactConnMessage agentMessage entity conn uc
@@ -1409,6 +1411,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     processContactConnMessage agentMsg connEntity conn UserContact {userContactLinkId = uclId, groupId = ucGroupId_} = case agentMsg of
       REQ invId pqSupport _ connInfo binding rejectionSupported -> do
         (signedMsg_, ChatMessage {chatVRange, chatMsgEvent}) <- parseChatMessage' conn connInfo
+        lift $ diagLog $ "contact conn REQ " <> show (toCMEventTag chatMsgEvent) <> " uclId " <> show uclId <> " groupId " <> show ucGroupId_
         let reqHeader = directPresHeader binding
         case chatMsgEvent of
           XContact p memberKey_ xContactId_ welcomeMsgId_ requestMsg_ -> profileContactRequest invId chatVRange reqHeader p memberKey_ xContactId_ welcomeMsgId_ requestMsg_ pqSupport rejectionSupported
