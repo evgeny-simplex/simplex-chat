@@ -98,7 +98,7 @@ chatProfileTests = do
     it "supporter badge of member joining via group link, at request and after handshake" testUserBadgeGroupLinkJoiner
     mapM_ (\i -> it ("badge joiner fixed copy " <> show i) testUserBadgeGroupLinkJoiner) [1 .. 30 :: Int]
 #if !defined(dbPostgres)
-    mapM_ (\d -> it ("badge stop race delay " <> show d) $ testBadgeStopRace (d * 1000)) [0, 2 .. 120 :: Int]
+    mapM_ (\d -> it ("badge stop race delay " <> show d) $ testBadgeStopRace (d * 100)) [300 .. 400 :: Int]
 #endif
     it "supporter badge of introduced member is taken from the introduction" testUserBadgeIntroduced
     it "supporter badge of member invited via contact is forwarded in the introduction" testUserBadgeInvitedIntroduced
