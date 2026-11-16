@@ -80,6 +80,7 @@ chatDirectTests = do
     it "send large message" testLargeMessage
     it "initial chat pagination" testChatPaginationInitial
     it "skip handled message redelivered after failed acknowledgement" testRedeliveredMessage
+    mapM_ (\i -> it ("skip handled message redelivered after failed acknowledgement, copy " <> show i) testRedeliveredMessage) [1 .. 20 :: Int]
   describe "batch send messages" $ do
     it "send multiple messages api" testSendMulti
     it "send multiple timed messages" testSendMultiTimed

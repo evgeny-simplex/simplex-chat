@@ -203,6 +203,7 @@ chatGroupTests = do
     it "report duplicate when forwarded copy is received after direct copy" testGroupMsgForwardDuplicateEvent
     it "report duplicate when direct copy is received after forwarded copy" testGroupMsgDirectDuplicateEvent
     it "skip handled message redelivered after failed acknowledgement" testGroupRedeliveredMessage
+    mapM_ (\i -> it ("skip handled message redelivered after failed acknowledgement, copy " <> show i) testGroupRedeliveredMessage) [1 .. 20 :: Int]
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
