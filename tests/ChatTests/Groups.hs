@@ -341,7 +341,7 @@ chatGroupTests = do
       it "should not add relay when the invitation owner key differs from link data" testChannelAddRelayOwnerKeyMismatch
       it "should not add relay when the invitation group id differs from link data" testChannelAddRelayGroupIdMismatch
       it "should ignore relay invitation without the owner's signature" testChannelRelayInvUnsigned
-      it "should remove relay from channel" testChannelRemoveRelay
+      forM_ [1 .. 20 :: Int] $ \i -> it ("should remove relay from channel " <> show i) testChannelRemoveRelay
       it "should remove left relay from channel" testChannelRemoveLeftRelay
       describe "relay rejection" $ do
         it "relay rejects fresh invitation after leaving the same channel" testRelayRejectAfterLeave
