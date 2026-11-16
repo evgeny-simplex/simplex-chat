@@ -586,6 +586,8 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               logInfo $ "contact msg=" <> tshow tag <> " " <> eInfo
               (conn'', msg@RcvMessage {msgId, chatMsgEvent = ACME _ event}) <- saveDirectRcvMSG conn' msgMeta chatMsg
               atomically $ modifyTVar' savedMsgIds (msgId :)
+              let MsgMeta {recipient = (diagMsgId, _)} = msgMeta
+              diag $ "saved msg " <> show diagMsgId <> " " <> show tag
               let ct'' = ct' {activeConn = Just conn''} :: Contact
               case event of
                 XMsgNew mc -> newContentMessage ct'' mc msg msgMeta
@@ -2037,6 +2039,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           -- to prevent race condition with accept
           ft' <- getRcvFileTransfer db user fileId
           pure (rfd, ft')
+        diag $ "appended file " <> show fileId <> " complete " <> show fileDescrComplete
         when fileDescrComplete $ toView $ CEvtRcvFileDescrReady user aci ft' rfd
         maxSize <- asks $ noBadge . fileSizeLimits . config
         let descrBadgeRequired = fileDescrComplete && fileSize > maxSize && isNothing fileProhibited
@@ -2777,13 +2780,22 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
 
     rcvMsgRepeated :: Connection -> MsgMeta -> CM Bool
     rcvMsgRepeated Connection {connId} MsgMeta {recipient = (agentMsgId, _), redelivered}
-      | redelivered = withStore' $ \db -> checkMsgDeliveryExists db connId agentMsgId
+      | redelivered = do
+          saved <- withStore' $ \db -> checkMsgDeliveryExists db connId agentMsgId
+          diag $ "redelivered msg " <> show agentMsgId <> " saved " <> show saved
+          pure saved
       | otherwise = pure False
+
+    diag :: String -> CM ()
+    diag s = do
+      let User {localDisplayName = diagName} = user
+      liftIO $ putStrLn $ "diag " <> T.unpack diagName <> " conn " <> show agentConnId <> " " <> s
 
     createRcvMsgDeliveries :: Connection -> MsgMeta -> TVar [MessageId] -> CM ()
     createRcvMsgDeliveries Connection {connId} agentMsgMeta@MsgMeta {recipient = (agentMsgId, _)} savedMsgIds = do
       msgIds <- readTVarIO savedMsgIds
       unless (null msgIds) . withStore' $ \db -> forM_ (reverse msgIds) $ createRcvMsgDelivery db RcvMsgDelivery {connId, agentMsgId, agentMsgMeta}
+      diag $ "delivery rows msg " <> show agentMsgId <> " count " <> show (length msgIds)
 
     xInfo :: Contact -> Profile -> CM ()
     xInfo c p' = void $ processContactProfileUpdate c p' True
