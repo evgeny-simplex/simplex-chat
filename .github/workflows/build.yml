@@ -1233,6 +1233,13 @@ jobs:
             desktop_asset_name: simplex-desktop-macos-aarch64.dmg
             openssl_dir: "/opt/homebrew/opt"
             should_run: ${{ needs.maybe-release.outputs.haskell == 'true' }}
+          - os: macos-15-intel
+            arch: x86_64
+            ghc: ${{ needs.variables.outputs.GHC_VER }}
+            cli_asset_name: simplex-chat-macos-x86-64
+            desktop_asset_name: simplex-desktop-macos-x86_64.dmg
+            openssl_dir: "/usr/local/opt"
+            should_run: ${{ needs.maybe-release.outputs.haskell == 'true' }}
     steps:
       - name: Checkout Code
         if: matrix.should_run == true
@@ -1434,7 +1441,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Mount RAM disk for tests
-        if: matrix.should_run == true && matrix.arch == 'aarch64'
+        if: matrix.should_run == true
         shell: bash
         run: |
           disk=$(hdiutil attach -nomount ram://4194304 | tr -d '[:space:]')
@@ -1443,7 +1450,7 @@ jobs:
 
       - name: Run tests
         id: tests
-        if: matrix.should_run == true && matrix.arch == 'aarch64'
+        if: matrix.should_run == true
         timeout-minutes: 120
         shell: bash
         env:
