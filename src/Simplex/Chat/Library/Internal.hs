@@ -2922,23 +2922,27 @@ saveDirectRcvMSG conn@Connection {connId} agentMsgMeta chatMsg@ChatMessage {chat
   conn' <- case encoding @e of
     SJson -> updatePeerChatVRange conn chatVRange
     SBinary -> pure conn
-  let brokerTs = metaBrokerTs agentMsgMeta
+  let agentMsgId = fst $ recipient agentMsgMeta
+      brokerTs = metaBrokerTs agentMsgMeta
       newMsg = NewRcvMessage {chatMsgEvent, verifiedMsg = VMUnsigned chatMsg, brokerTs}
-  msg <- withStore $ \db -> createNewRcvMessage db (ConnectionId connId) newMsg sharedMsgId_ Nothing Nothing
+      rcvMsgDelivery = RcvMsgDelivery {connId, agentMsgId, agentMsgMeta}
+  msg <- withStore $ \db -> createNewMessageAndRcvMsgDelivery db (ConnectionId connId) newMsg sharedMsgId_ rcvMsgDelivery Nothing
   pure (conn', msg)
 
 saveGroupRcvMsg :: forall e. MsgEncodingI e => User -> GroupId -> GroupMember -> Connection -> MsgMeta -> VerifiedMsg e -> CM (GroupMember, Connection, RcvMessage)
-saveGroupRcvMsg user groupId authorMember conn agentMsgMeta verifiedMsg = do
+saveGroupRcvMsg user groupId authorMember conn@Connection {connId} agentMsgMeta verifiedMsg = do
   let ChatMessage {chatVRange, msgId = sharedMsgId_, chatMsgEvent} = verifiedChatMsg verifiedMsg
   -- binary messages (file chunks) carry only the initial-version sentinel, not the sender's range;
   -- applying it would downgrade the member's negotiated version and suppress version-gated delivery
   (am'@GroupMember {memberId = amMemId, groupMemberId = amGroupMemId}, conn') <- case encoding @e of
     SBinary -> pure (authorMember, conn)
     SJson -> updateMemberChatVRange authorMember conn chatVRange
-  let brokerTs = metaBrokerTs agentMsgMeta
+  let agentMsgId = fst $ recipient agentMsgMeta
+      brokerTs = metaBrokerTs agentMsgMeta
       newMsg = NewRcvMessage {chatMsgEvent, verifiedMsg, brokerTs}
+      rcvMsgDelivery = RcvMsgDelivery {connId, agentMsgId, agentMsgMeta}
   msg <-
-    withStore (\db -> createNewRcvMessage db (GroupId groupId) newMsg sharedMsgId_ (Just amGroupMemId) Nothing)
+    withStore (\db -> createNewMessageAndRcvMsgDelivery db (GroupId groupId) newMsg sharedMsgId_ rcvMsgDelivery $ Just amGroupMemId)
       `catchAllErrors` \e -> case e of
         ChatErrorStore (SEDuplicateGroupMessage _ _ _ forwardedByGroupMemberId_) -> do
           unlessM isMainApp $ toView $ CEvtDuplicateGroupMessage user am'
