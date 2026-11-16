@@ -100,6 +100,8 @@ remoteTests = describe "Remote" $ do
   describe "Mobile offers compression" $ aroundWith (. ((True, False),)) runRemoteTests
   describe "Desktop offers compression" $ aroundWith (. ((False, True),)) runRemoteTests
   describe "With compression" $ aroundWith (. ((True, True),)) runRemoteTests
+  describe "reject copies" $ aroundWith (. ((True, True),)) $
+    mapM_ (\i -> it ("refuses invalid client cert copy " <> show i) remoteHandshakeRejectTest) [1 .. 400 :: Int]
   where
     fileNames :: [FilePath]
     fileNames = ["", ".", "..", "...", "../x", "../../etc/passwd", "/etc/cron.d/x", "a/b", "x/", "test.pdf", ".hidden", "a b.tar.gz"]
@@ -202,6 +204,7 @@ remoteHandshakeRejectTest = testRemote3 $ \compress mobile desktop mobileBob -> 
   mobileBob <## ("connecting new remote controller: My desktop, v" <> versionNumber)
   getTermLine mobileBob >>= \case
     "new remote controller connected" -> do
+      putStrLn "DIAG late refusal"
       mobileBob <## "Compare session code with controller and use:"
       void $ getTermLine mobileBob
       mobileBob ##> "/stop remote ctrl"
