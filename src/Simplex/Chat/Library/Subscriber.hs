@@ -2040,6 +2040,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           ft' <- getRcvFileTransfer db user fileId
           pure (rfd, ft')
         diag $ "appended file " <> show fileId <> " complete " <> show fileDescrComplete
+        liftIO $ threadDelay' 300000
         when fileDescrComplete $ toView $ CEvtRcvFileDescrReady user aci ft' rfd
         maxSize <- asks $ noBadge . fileSizeLimits . config
         let descrBadgeRequired = fileDescrComplete && fileSize > maxSize && isNothing fileProhibited
