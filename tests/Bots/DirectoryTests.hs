@@ -87,6 +87,8 @@ directoryServiceTests = do
     it "should ask member to pass captcha screen" testCapthaScreening
     it "should send voice captcha on /audio command" testVoiceCaptchaScreening
     it "should retry with voice captcha after switching to audio mode" testVoiceCaptchaRetry
+    mapM_ (\i -> it ("should send voice captcha on /audio command, copy " <> show i) testVoiceCaptchaScreening) [1 .. 60 :: Int]
+    mapM_ (\i -> it ("should retry with voice captcha after switching to audio mode, copy " <> show i) testVoiceCaptchaRetry) [1 .. 60 :: Int]
     it "should send voice captcha when voice disabled but client supports v17" testVoiceCaptchaVoiceDisabled
     it "should show unavailable message for old client in voice-disabled group" testVoiceCaptchaOldClient
     it "should reject member after too many captcha attempts" testCaptchaTooManyAttempts

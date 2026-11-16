@@ -649,12 +649,16 @@ directoryServiceEvent opts@DirectoryOpts {adminUsers, superUsers, serviceName, o
     sendVoiceCaptcha sendRef s =
       forM_ (voiceCaptchaGenerator opts) $ \script ->
         void . forkIO $ do
+          let diag m = getCurrentTime >>= \t -> putStrLn ("VOICE-DIAG " <> show t <> " " <> m)
+          diag "start"
           voiceResult <- try $ readProcess script [s] "" :: IO (Either SomeException String)
+          diag $ "result " <> show voiceResult
           case voiceResult of
             Right r -> case lines r of
               (filePath : durationStr : _)
-                | not (null filePath), Just duration <- readMaybe durationStr ->
+                | not (null filePath), Just duration <- readMaybe durationStr -> do
                     sendComposedMessageFile cc sendRef Nothing (MCVoice "" duration) (CF.plain filePath)
+                    diag "sent"
               _ -> logError "voice captcha generator: unexpected output"
             Left e -> logError $ "voice captcha generator error: " <> tshow e
 
