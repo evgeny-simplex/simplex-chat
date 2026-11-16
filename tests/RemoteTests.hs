@@ -37,6 +37,7 @@ import Simplex.Messaging.Transport.HTTP2 (HTTP2BodyChunk (..), getHTTP2Body)
 import Simplex.Messaging.Util
 import Simplex.RemoteControl.Types (RCCtrlAddress (..))
 import System.FilePath (takeFileName, (</>))
+import System.Process (spawnCommand)
 import Test.Hspec hiding (it)
 import UnliftIO
 import UnliftIO.Concurrent
@@ -100,7 +101,8 @@ remoteTests = describe "Remote" $ do
   describe "Mobile offers compression" $ aroundWith (. ((True, False),)) runRemoteTests
   describe "Desktop offers compression" $ aroundWith (. ((False, True),)) runRemoteTests
   describe "With compression" $ aroundWith (. ((True, True),)) runRemoteTests
-  describe "reject copies" $ aroundWith (. ((True, True),)) $
+  describe "reject copies" $ aroundWith (. ((True, True),)) $ do
+    runIO $ void $ spawnCommand "for i in 1 2 3 4 5 6 7 8 9 10 11 12; do (yes > /dev/null &); done"
     mapM_ (\i -> it ("refuses invalid client cert copy " <> show i) remoteHandshakeRejectTest) [1 .. 400 :: Int]
   where
     fileNames :: [FilePath]
