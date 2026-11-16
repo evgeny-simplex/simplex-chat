@@ -16,6 +16,8 @@ import ChatTests.DBUtils
 import ChatTests.Utils
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (concurrently, concurrently_)
+import Control.Concurrent.STM (atomically, readTQueue)
+import System.Timeout (timeout)
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.Reader (runReaderT)
@@ -94,6 +96,10 @@ chatProfileTests = do
     it "supporter badge bound to another chat is ignored, stored badge is kept" testUserBadgeOtherBinding
     it "supporter badge of member bound to another member is ignored, stored badge is kept" testUserBadgeMemberOtherBinding
     it "supporter badge of member joining via group link, at request and after handshake" testUserBadgeGroupLinkJoiner
+    mapM_ (\i -> it ("badge joiner fixed copy " <> show i) testUserBadgeGroupLinkJoiner) [1 .. 30 :: Int]
+#if !defined(dbPostgres)
+    mapM_ (\d -> it ("badge stop race delay " <> show d) $ testBadgeStopRace (d * 1000)) [0, 2 .. 120 :: Int]
+#endif
     it "supporter badge of introduced member is taken from the introduction" testUserBadgeIntroduced
     it "supporter badge of member invited via contact is forwarded in the introduction" testUserBadgeInvitedIntroduced
     it "supporter badge of inviting host in the reply to the invited contact" testUserBadgeInvitingHost
@@ -939,6 +945,50 @@ testUserBadgeGroupLinkJoiner ps = do
                  ]
         ]
       memberBadgeHeader alice "team" "bob" `shouldReturn` Just ("CG", BSActive)
+
+testBadgeStopRace :: HasCallStack => Int -> TestParams -> IO ()
+testBadgeStopRace delay ps = do
+  Right (pk, sk) <- bbsKeyGen
+  testChatCfg2 (testCfg {badgePublicKeys = testBadgeKeys pk}) aliceProfile bobProfile (test sk) ps
+  where
+    test sk alice bob = do
+      addTestBadge bob =<< issueTestBadge sk futureDate
+      alice ##> "/g team"
+      alice <## "group #team is created"
+      alice <## "to add members use /a team <name> or /create link #team"
+      alice ##> "/create link #team"
+      gLink <- getGroupLink alice "team" GRMember True
+      bob ##> ("/c " <> gLink)
+      bob <## "connection request sent!"
+      alice <## "bob (Bob): accepting request to join group #team..."
+      threadDelay delay
+      bob `send` "/_stop"
+      stopLines <- linesUntil "chat stopped" bob
+      confsAtStop <- confirmations bob
+      connsAtStop <- connStatuses bob
+      bob `send` "/_start"
+      (bobLines, aliceLines) <- concurrently (drainLines bob) (drainLines alice)
+      confsAfter <- confirmations bob
+      connsAfter <- connStatuses bob
+      putStrLn $
+        "DIAG delay=" <> show delay
+          <> " joined=" <> show ("#team: bob joined the group" `elem` aliceLines)
+          <> " stop=" <> show stopLines
+          <> " confsAtStop=" <> show confsAtStop
+          <> " connsAtStop=" <> show connsAtStop
+          <> " bobAfterStart=" <> show bobLines
+          <> " aliceAfterStart=" <> show aliceLines
+          <> " confsAfter=" <> show confsAfter
+          <> " connsAfter=" <> show connsAfter
+      aliceLines `shouldContain` ["#team: bob joined the group"]
+    linesUntil l cc = do
+      s <- getTermLine cc
+      if s == l then pure [s] else (s :) <$> linesUntil l cc
+    drainLines cc = timeout 5000000 (atomically $ readTQueue $ termQ cc) >>= maybe (pure []) (\s -> (s :) <$> drainLines cc)
+    confirmations :: TestCC -> IO [(Int, T.Text)]
+    confirmations cc = withCCAgentTransaction cc $ \db -> DB.query_ db "SELECT accepted, created_at FROM conn_confirmations"
+    connStatuses :: TestCC -> IO [(Int, T.Text, T.Text)]
+    connStatuses cc = withCCTransaction cc $ \db -> DB.query_ db "SELECT connection_id, conn_type, conn_status FROM connections"
 
 testUserBadgeIntroduced :: HasCallStack => TestParams -> IO ()
 testUserBadgeIntroduced ps = do
