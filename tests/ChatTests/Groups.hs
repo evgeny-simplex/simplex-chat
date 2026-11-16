@@ -16,7 +16,7 @@ import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Profiles (addTestBadge, futureDate, issueTestBadge, testBadgeKeys)
 import ChatTests.Utils
-import Control.Concurrent (readMVar, threadDelay)
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Concurrent.STM (TVar, atomically, modifyTVar', newTVarIO, readTVarIO, writeTVar)
 import Control.Monad (forM_, void, when)
@@ -202,7 +202,7 @@ chatGroupTests = do
     it "deduplicate forwarded messages" testGroupMsgForwardDeduplicate
     it "report duplicate when forwarded copy is received after direct copy" testGroupMsgForwardDuplicateEvent
     it "report duplicate when direct copy is received after forwarded copy" testGroupMsgDirectDuplicateEvent
-    it "show message redelivered after chat stop once" testGroupRedeliveredMessage
+    it "skip handled message redelivered after failed acknowledgement" testGroupRedeliveredMessage
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
@@ -3762,6 +3762,7 @@ testGroupLinkIgnoreRelayJoinRequest ps =
       (gShortLink, _gLink) <- getGroupLinks alice "team" GRMember True
       sendMemberJoinRequest bob gShortLink
       alice <## "warning: memberJoinRequestViaRelay (group team): ignored relay join request from bob (group does not use relays)"
+      checkPendingInvitations alice 0
       alice ##> "/ms team"
       alice <## "alice (Alice): owner, you, created group"
 
@@ -6118,20 +6119,21 @@ testGroupMsgDirectDuplicateEvent ps = do
         readTVarIO dups `shouldReturn` ["bob"]
 
 testGroupRedeliveredMessage :: HasCallStack => TestParams -> IO ()
-testGroupRedeliveredMessage ps = do
-  (received, cfg) <- blockFirstEventCfg $ newItemText "hello"
-  withNewTestChat ps "alice" aliceProfile $ \alice ->
-    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
-      createGroup2 "team" alice bob
-      alice #> "#team hello"
-      readMVar received
-      bob ##> "/_stop"
-      bob <## "chat stopped"
-      bob ##> "/_start"
-      bob <### ["chat started", "subscribed 2 connections on server localhost"]
-      alice #> "#team hi"
-      bob <# "#team alice> hi"
-      bob #$> ("/_get chat #1 count=2", chat, [(0, "hello"), (0, "hi")])
+testGroupRedeliveredMessage =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    createGroup2 "team" alice bob
+    withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands RENAME TO commands_")
+    alice #> "#team hello"
+    bob <# "#team alice> hello"
+    bob <##. "internal error: "
+    withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands_ RENAME TO commands")
+    bob ##> "/_stop"
+    bob <## "chat stopped"
+    bob ##> "/_start"
+    bob <### ["chat started", "subscribed 2 connections on server localhost"]
+    alice #> "#team hi"
+    bob <# "#team alice> hi"
+    bob #$> ("/_get chat #1 count=2", chat, [(0, "hello"), (0, "hi")])
 
 testGroupMsgForwardEdit :: HasCallStack => TestParams -> IO ()
 testGroupMsgForwardEdit =
@@ -12224,6 +12226,7 @@ testChannelRelayInvUnsigned ps =
       (cathSLink, _cLink) <- getContactLinks cath True
       sendUnsignedRelayInv alice cathSLink
       cath <##. "error: x.grp.relay.inv: invitation is not signed by the owner"
+      checkPendingInvitations cath 0
 
 sendUnsignedRelayInv :: TestCC -> String -> IO ()
 sendUnsignedRelayInv cc relayAddress =
