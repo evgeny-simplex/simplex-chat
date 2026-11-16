@@ -79,7 +79,7 @@ chatDirectTests = do
     it "should send multiline message" testMultilineMessage
     it "send large message" testLargeMessage
     it "initial chat pagination" testChatPaginationInitial
-    it "show message redelivered after chat stop once" testRedeliveredMessage
+    it "skip saved message redelivered after chat stop" testRedeliveredMessage
   describe "batch send messages" $ do
     it "send multiple messages api" testSendMulti
     it "send multiple timed messages" testSendMultiTimed
