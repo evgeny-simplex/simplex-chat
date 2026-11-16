@@ -1855,7 +1855,11 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
         withLog eInfo' ack = do
           ts <- showTags
           logInfo $ T.unwords [label, "ack:", ts, eInfo']
-          ack
+          let User {localDisplayName = uName} = user
+              diag s = liftIO . putStrLn . T.unpack $ T.unwords ["DIAG", uName, label, s, ts, eInfo']
+          diag "ack:"
+          ack `catchAllErrors` \e -> diag ("ack=error: " <> tshow e) >> throwError e
+          diag "ack=success:"
           logInfo $ T.unwords [label, "ack=success:", ts, eInfo']
         showTags = do
           ts <- maybe (pure []) readTVarIO tags

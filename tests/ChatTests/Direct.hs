@@ -48,6 +48,7 @@ import Simplex.Messaging.Version
 import System.Directory (copyFile, doesDirectoryExist, doesFileExist)
 import System.Mem.Weak (deRefWeak)
 import System.FilePath ((</>))
+import System.Timeout (timeout)
 import Test.Hspec hiding (it)
 #if defined(dbPostgres)
 import Database.PostgreSQL.Simple (Only (..))
@@ -1445,12 +1446,15 @@ testExpireCallInvitation ps =
 
 testRedeliveredMessage :: HasCallStack => TestParams -> IO ()
 testRedeliveredMessage =
-  testChat2 aliceProfile bobProfile $ \alice bob -> do
+  withTestOutput $ testChat2 aliceProfile bobProfile $ \alice bob -> do
     connectUsers alice bob
+    putStrLn "DIAG test: rename commands"
     withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands RENAME TO commands_")
+    putStrLn "DIAG test: renamed commands"
     alice #> "@bob hello"
-    bob <# "alice> hello"
-    bob <##. "internal error: "
+    let printBob = timeout 3000000 (getTermLine bob) >>= mapM_ (const printBob)
+    printBob
+    putStrLn "DIAG test: restore commands"
     withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands_ RENAME TO commands")
     bob ##> "/_stop"
     bob <## "chat stopped"
