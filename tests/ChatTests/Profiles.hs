@@ -94,6 +94,7 @@ chatProfileTests = do
     it "supporter badge bound to another chat is ignored, stored badge is kept" testUserBadgeOtherBinding
     it "supporter badge of member bound to another member is ignored, stored badge is kept" testUserBadgeMemberOtherBinding
     it "supporter badge of member joining via group link, at request and after handshake" testUserBadgeGroupLinkJoiner
+    mapM_ (\i -> it ("supporter badge of member joining via group link, at request and after handshake, copy " <> show i) testUserBadgeGroupLinkJoiner) [1 .. 40 :: Int]
     it "supporter badge of introduced member is taken from the introduction" testUserBadgeIntroduced
     it "supporter badge of member invited via contact is forwarded in the introduction" testUserBadgeInvitedIntroduced
     it "supporter badge of inviting host in the reply to the invited contact" testUserBadgeInvitingHost
