@@ -4121,6 +4121,7 @@ public struct ChatItem: Identifiable, Decodable, Hashable {
     public func autoReceiveFile() -> CIFile? {
         if let file = file,
            let mc = content.msgContent,
+           meta.itemDeleted == nil,
            privacyAcceptImagesGroupDefault.get(),
            (mc.isImage && file.fileSize <= MAX_IMAGE_SIZE_AUTO_RCV)
             || (mc.isVideo && file.fileSize <= MAX_VIDEO_SIZE_AUTO_RCV)
@@ -4128,6 +4129,10 @@ public struct ChatItem: Identifiable, Decodable, Hashable {
             return file
         }
         return nil
+    }
+
+    public var chatLinkSigned: Bool {
+        if case let .chat(_, _, ownerSig) = content.msgContent { chatDir.sent && ownerSig != nil } else { false }
     }
 
     public var encryptedFile: Bool? {
