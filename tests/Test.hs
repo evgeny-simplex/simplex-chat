@@ -34,6 +34,8 @@ import Test.Hspec hiding (it)
 #if !MIN_VERSION_hspec(2,10,10)
 import Test.Hspec.Core.Spec (sequential)
 #endif
+import qualified Data.Text as T
+import Test.Hspec.Core.Spec (Item (..), mapSpecItem_)
 import UnliftIO.Temporary (withTempDirectory)
 import ValidNames
 import ViewTests
@@ -105,7 +107,7 @@ main = do
 #else
       around (testBracket chatQueryStats agentQueryStats portBases)
 #endif
-        $ do
+        $ mapSpecItem_ logTestDir $ do
 #if !defined(dbPostgres)
           describe "Mobile API Tests" mobileTests
 #endif
@@ -143,3 +145,7 @@ main = do
 
 logCfg :: LogConfig
 logCfg = LogConfig {lc_file = Nothing, lc_stderr = True}
+
+logTestDir :: Item TestParams -> Item TestParams
+logTestDir qtItem@Item {itemRequirement = qtName, itemExample = qtRun} =
+  qtItem {itemExample = \qtParams qtHook qtProgress -> qtRun qtParams (\qtAction -> qtHook (\qtPs@TestParams {tmpPath = qtDir} -> logError (T.pack $ "QTEST " <> qtDir <> " " <> qtName) >> qtAction qtPs)) qtProgress}

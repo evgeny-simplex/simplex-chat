@@ -881,6 +881,7 @@ test-suite simplex-chat-test
     build-depends:
         bytestring ==0.11.*
       , hspec ==2.11.*
+      , hspec-core ==2.11.*
       , process ==1.6.*
       , text >=2.0.1 && <2.2
   if impl(ghc < 9.6.2)

@@ -81,8 +81,10 @@ import Simplex.FileTransfer.Protocol (FileParty (..), FilePartyI, GrantedStorage
 import qualified Simplex.FileTransfer.Transport as XFTP
 import Simplex.FileTransfer.Types (FileErrorType (..), RcvFileId, SndFileId)
 import Simplex.Messaging.Agent
-import Simplex.Messaging.Agent.Client (getAgentWorker, temporaryOrHostError, waitForUserNetwork, waitForWork, waitWhileSuspended, withWorkItems, withWork_)
+import Simplex.Messaging.Agent.Client (agentClientStore, getAgentWorker, temporaryOrHostError, waitForUserNetwork, waitForWork, waitWhileSuspended, withWorkItems, withWork_)
 import Simplex.Messaging.Agent.Env.SQLite (Worker (..))
+import qualified Simplex.Messaging.Agent.Env.SQLite as AEnv
+import qualified Simplex.Messaging.Agent.Store.AgentStore as AS
 import Simplex.Messaging.Agent.Protocol
 import qualified Simplex.Messaging.Agent.Protocol as AP (AgentErrorType (..))
 import Simplex.Messaging.Agent.RetryInterval (RetryInterval (..), nextRetryDelay)
@@ -1015,6 +1017,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               || memberStatus membership == GSMemRejected
               || not (relayServesGroup gInfo)
       MSG msgMeta _msgFlags msgBody -> do
+        qdiag $ "MSG start " <> qdConn conn <> " " <> qdMeta msgMeta
         tags <- newTVarIO []
         withAckMessage "group msg" agentConnId msgMeta True (Just tags) $ \eInfo -> do
           -- possible improvement is to choose scope based on event (some events specify scope)
@@ -1184,14 +1187,18 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                   addWorkerScope workerScope acc
                     | workerScope `elem` acc = acc
                     | otherwise = workerScope : acc
-      RCVD msgMeta msgRcpt ->
+      RCVD msgMeta msgRcpt -> do
+        qdiag $ "RCVD start " <> qdConn conn <> " " <> qdMeta msgMeta
         withAckMessage' "group rcvd" agentConnId msgMeta $
           groupMsgReceived gInfo m conn msgMeta msgRcpt
+        qdiag $ "RCVD acked " <> qdConn conn
       MSGERR MsgMeta {integrity = MsgOk} -> logError "MSGERR with MsgOk integrity"
       MSGERR msgMeta -> do
+        qdiag $ "MSGERR " <> qdConn conn <> " " <> qdMeta msgMeta
         (gInfo', m', scopeInfo) <- mkGroupChatScope gInfo m
         checkIntegrityCreateItem (CDGroupRcv gInfo' scopeInfo m') msgMeta `catchAllErrors` \_ -> pure ()
       SENT msgId proxy -> do
+        qdiag $ "SENT msgId=" <> tshow msgId <> " " <> qdConn conn
         continued <- continueSending connEntity conn
         (fileEvent_, acis) <- withStore $ \db -> do
           liftIO $ sentMsgDeliveryEvent db conn msgId
@@ -1294,19 +1301,25 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                   messageError "relay link: relay member ID mismatch"
             _ -> throwChatError $ CECommandError "unexpected cmdFunction"
       QCONT -> do
+        qdiag $ "QCONT " <> qdConn conn
         continued <- continueSending connEntity conn
         when continued $ do
           when (isUserGrpFwdRelay gInfo) $ serveRoster user g m -- roster ahead of the resumed backlog
           sendPendingGroupMessages user gInfo m conn
       MWARN msgId err -> do
+        qdMsgInfo <- qdiagAgentMsg msgId
+        qdiagLog $ "MWARN group msgId=" <> tshow msgId <> " " <> qdConn conn <> " msg=" <> qdMsgInfo <> " err=" <> tshow err
         withStore' $ \db -> updateGroupItemsErrorStatus db msgId (groupMemberId' m) (GSSWarning $ agentSndError err)
         processConnMWARN connEntity conn err
       MERR msgId err -> do
+        qdMsgInfo <- qdiagAgentMsg msgId
+        qdiagLog $ "MERR group msgId=" <> tshow msgId <> " " <> qdConn conn <> " msg=" <> qdMsgInfo <> " err=" <> tshow err
         withStore' $ \db -> updateGroupItemsErrorStatus db msgId (groupMemberId' m) (GSSError $ agentSndError err)
         -- group errors are silenced to reduce load on UI event log
         -- eToView $ ChatErrorAgent err (AgentConnId agentConnId) (Just connEntity)
         processConnMERR connEntity conn err
       MERRS msgIds err -> do
+        qdiagLog $ "MERRS group msgIds=" <> tshow msgIds <> " " <> qdConn conn <> " err=" <> tshow err
         let newStatus = GSSError $ agentSndError err
         -- error cannot be AUTH error here
         withStore' $ \db -> forM_ msgIds $ \msgId ->
@@ -1764,8 +1777,35 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
         | memberRole > GRObserver || memberPending m -> a
         | otherwise -> messageError "member is not allowed to send messages" $> Nothing
 
+    qdiag :: Text -> CM ()
+    qdiag qdMsg = do
+      ChatConfig {agentConfig = AEnv.AgentConfig {AEnv.quotaExceededTimeout = qdQuotaTimeout}} <- asks config
+      when (qdQuotaTimeout == 1) $ qdiagLog qdMsg
+
+    qdiagLog :: Text -> CM ()
+    qdiagLog qdMsg = do
+      qdTmpDir <- readTVarIO =<< asks tempDirectory
+      qdTime <- liftIO getCurrentTime
+      let User {localDisplayName = qdUser} = user
+      logError $ "QDIAG " <> tshow qdTmpDir <> " " <> tshow qdTime <> " " <> qdUser <> " " <> qdMsg
+
+    qdiagAgentMsg :: AgentMsgId -> CM Text
+    qdiagAgentMsg qdMsgId = do
+      qdAgent <- asks smpAgent
+      qdRows <- liftIO $ AS.withTransaction (agentClientStore qdAgent) $ \db ->
+        DB.query db "SELECT msg_type, internal_ts FROM messages WHERE conn_id = ? AND internal_id = ?" (agentConnId, qdMsgId) :: IO [(AgentMessageType, UTCTime)]
+      pure $ tshow qdRows
+
+    qdConn :: Connection -> Text
+    qdConn Connection {connId = qdConnId, quotaErrCounter = qdCounter} = "conn=" <> tshow qdConnId <> " counter=" <> tshow qdCounter
+
+    qdMeta :: MsgMeta -> Text
+    qdMeta MsgMeta {integrity = qdIntegrity, recipient = (qdRcvId, _), sndMsgId = qdSndId} =
+      "rcvId=" <> tshow qdRcvId <> " sndId=" <> tshow qdSndId <> " integrity=" <> tshow qdIntegrity
+
     processConnMERR :: ConnectionEntity -> Connection -> AgentErrorType -> CM ()
     processConnMERR connEntity conn err = do
+      qdiagLog $ "processConnMERR " <> qdConn conn <> " err=" <> tshow err
       case err of
         SMP _ SMP.AUTH -> do
           authErrCounter' <- withStore' $ \db -> incAuthErrCounter db user conn
@@ -1781,10 +1821,12 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
 
     processConnMWARN :: ConnectionEntity -> Connection -> AgentErrorType -> CM ()
     processConnMWARN connEntity conn err = do
+      qdiagLog $ "processConnMWARN " <> qdConn conn <> " err=" <> tshow err
       case err of
         SMP _ SMP.QUOTA ->
           unless (connInactive conn) $ do
             quotaErrCounter' <- withStore' $ \db -> incQuotaErrCounter db user conn
+            qdiagLog $ "processConnMWARN incremented " <> qdConn conn <> " to=" <> tshow quotaErrCounter'
             when (quotaErrCounter' >= quotaErrInactiveCount) $
               toView (CEvtConnectionInactive connEntity True)
         _ -> pure ()
@@ -1793,6 +1835,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     continueSending connEntity conn =
       if connInactive conn
         then do
+          qdiagLog $ "continueSending reset " <> qdConn conn
           withStore' $ \db -> setQuotaErrCounter db user conn 0
           toView $ CEvtConnectionInactive connEntity False
           pure True
