@@ -140,7 +140,7 @@ chatProfileTests = do
     it "set connection incognito prohibited during negotiation" testSetConnectionIncognitoProhibitedDuringNegotiation
     it "connection incognito unchanged errors" testConnectionIncognitoUnchangedErrors
     it "set, reset, set connection incognito" testSetResetSetConnectionIncognito
-    it "set connection incognito returns the link error when the connection is deleted" testSetConnectionIncognitoDeleted
+    forM_ [1 .. 5 :: Int] $ \i -> it ("set connection incognito returns the link error when the connection is deleted " <> show i) testSetConnectionIncognitoDeleted
     it "join group incognito" testJoinGroupIncognito
     it "join group incognito as bot" $ testJoinGroupIncognitoPeerType (Just CPTBot)
     it "join group incognito as human" $ testJoinGroupIncognitoPeerType Nothing
@@ -202,7 +202,7 @@ shortLinkTests = do
   it "prepare contact via address and connect after it is deleted" testShortLinkDeletedAddress
   it "prepare contact via address and connect with retry after error" testShortLinkAddressConnectRetry
   it "prepare contact via address and connect incognito with retry" testShortLinkAddressConnectRetryIncognito
-  it "prepare contact via address and connect twice at once" testShortLinkAddressConnectTwice
+  forM_ [1 .. 5 :: Int] $ \i -> it ("prepare contact via address and connect twice at once " <> show i) testShortLinkAddressConnectTwice
   it "prepare business chat using address short link data and connect" testShortLinkAddressPrepareBusiness
   it "connect to business address with request message" testBusinessAddressRequestMessage
   it "prepare group using group short link data and connect" testShortLinkPrepareGroup
