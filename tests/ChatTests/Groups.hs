@@ -192,7 +192,7 @@ chatGroupTests = do
     it "re-create member contact after deletion, many groups" testRecreateMemberContactManyGroups
     it "manually accept contact with group member" testMemberContactAccept
     it "manually accept contact with group member incognito" testMemberContactAcceptIncognito
-    it "accept contact with group member twice at once" testMemberContactAcceptTwice
+    forM_ [1 .. 5 :: Int] $ \i -> it ("accept contact with group member twice at once " <> show i) testMemberContactAcceptTwice
   describe "invite member via group" $ do
     it "invite member of another group" testInviteMemberViaGroup
     it "auto-accept invitation from member of another group" testInviteMemberViaGroupAutoAccept
