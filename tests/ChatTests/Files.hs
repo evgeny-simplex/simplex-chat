@@ -7,6 +7,7 @@ module ChatTests.Files where
 
 import ChatClient
 import ChatTests.DBUtils
+import ChatTests.Groups (agentSendBody, contactAgentConnId, itemSharedMsgId, relayConnIdToMember)
 import ChatTests.Profiles (addTestBadge, futureDate, issueTestBadge, issueTestBadgeType, testBadgeKeys)
 import ChatTests.Utils
 import Control.Concurrent (threadDelay)
@@ -31,7 +32,7 @@ import Simplex.Chat.Messages (AChat (..), AChatItem (..), CChatItem (..), CIQuot
 import Simplex.Chat.Messages.CIContent (ciMsgContent)
 import Simplex.Chat.Mobile.File
 import Simplex.Chat.Options (ChatOpts (..))
-import Simplex.Chat.Protocol (MsgContent (MCImage, MCText))
+import Simplex.Chat.Protocol (ChatMessage (ChatMessage), ChatMsgEvent (XMsgUpdate), MsgContent (MCFile, MCImage, MCText), chatMsgToBody, supportedChatVRange)
 import Simplex.Chat.Types (ImageData (..))
 import Simplex.FileTransfer.Server.Env (XFTPServerConfig (..), XFTPStoreConfig (..))
 import Simplex.Messaging.Crypto.BBS (BBSPublicKey, bbsKeyGen)
@@ -55,6 +56,9 @@ chatFileTests = do
     it "image reply to voice message has quote parsed from its full text" testImageReplyToVoiceMessage
     it "send and receive image to group" testGroupSendImage
     it "send and receive image with text and quote to group" testGroupSendImageWithTextAndQuote
+    it "image of another file type in group gets the image extension" testGroupImageOfOtherFileType
+    it "ignore update of a file message to an image of another file type" testUpdateFileToImage
+    it "ignore update of a group file message to an image of another file type" testGroupUpdateFileToImage
   describe "batch send messages with files" $ do
     it "with files folder: send multiple files to contact" testSendMultiFilesDirect
     it "with files folder: send multiple files to group" testSendMultiFilesGroup
@@ -71,6 +75,7 @@ chatFileTests = do
     it "receive file marked to receive on chat start" testXFTPMarkToReceive
     it "error receiving file" testXFTPRcvError
     it "cancel receiving file, repeat receive" testXFTPCancelRcvRepeat
+    it "cancel receiving file before accepting it" testXFTPCancelNotAccepted
     it "should accept file automatically with CLI option" testAutoAcceptFile
     it "should prohibit file transfers in groups based on preference" testProhibitFiles
   describe "file transfer over XFTP without chat items" $ do
@@ -258,6 +263,69 @@ testFilesFoldersSendImage =
         bob <## "alice: contact is deleted"
         alice <## "bob (Bob) deleted contact with you"
 
+testGroupImageOfOtherFileType :: HasCallStack => TestParams -> IO ()
+testGroupImageOfOtherFileType =
+  testChat2 aliceProfile bobProfile $
+    \alice bob -> withXFTPServer alice $ do
+      createGroup2 "team" alice bob
+      alice ##> "/_send #1 json [{\"filePath\": \"./tests/fixtures/test.pdf\", \"msgContent\": {\"text\":\"\",\"type\":\"image\",\"image\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII=\"}}]"
+      alice <# "/f #team ./tests/fixtures/test.pdf"
+      alice <## "use /fc 1 to cancel sending"
+      bob <# "#team alice> sends file test.pdf.jpg (266.0 KiB / 272376 bytes)"
+      bob <## "use /fr 1 [<dir>/ | <path>] to receive it"
+      alice <## "completed uploading file 1 (test.pdf) for #team"
+      imageItemId <- lastItemId alice
+      alice ##> ("/_update item #1 " <> imageItemId <> " json {\"msgContent\": {\"type\": \"image\", \"text\": \"caption\", \"image\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII=\"}, \"mentions\": {}}")
+      alice <# "#team [edited] caption"
+      bob <# "#team alice> [edited] caption"
+
+testUpdateFileToImage :: HasCallStack => TestParams -> IO ()
+testUpdateFileToImage =
+  testChat2 aliceProfile bobProfile $
+    \alice bob -> withXFTPServer alice $ do
+      connectUsers alice bob
+      alice #> "/f @bob ./tests/fixtures/test.pdf"
+      alice <## "use /fc 1 to cancel sending"
+      bob <# "alice> sends file test.pdf (266.0 KiB / 272376 bytes)"
+      bob <## "use /fr 1 [<dir>/ | <path>] to receive it"
+      alice <## "completed uploading file 1 (test.pdf) for bob"
+      fileItemId <- lastItemId alice
+      alice ##> ("/_update item @2 " <> fileItemId <> " json {\"msgContent\": {\"type\": \"image\", \"text\": \"image\", \"image\": \"\"}, \"mentions\": {}}")
+      alice <## "cannot update this item"
+      connId <- contactAgentConnId alice "bob"
+      sendUpdate <- updateSender alice connId
+      sendUpdate $ MCImage "image" (ImageData "")
+      bob <## "error: x.msg.update: contact attempted invalid message update"
+      bob #$> ("/_get chat @2 count=1", chat, [(0, "")])
+      sendUpdate $ MCText "text"
+      bob <# "alice> [edited] text"
+
+testGroupUpdateFileToImage :: HasCallStack => TestParams -> IO ()
+testGroupUpdateFileToImage =
+  testChat2 aliceProfile bobProfile $
+    \alice bob -> withXFTPServer alice $ do
+      createGroup2 "team" alice bob
+      alice #> "/f #team ./tests/fixtures/test.pdf"
+      alice <## "use /fc 1 to cancel sending"
+      bob <# "#team alice> sends file test.pdf (266.0 KiB / 272376 bytes)"
+      bob <## "use /fr 1 [<dir>/ | <path>] to receive it"
+      alice <## "completed uploading file 1 (test.pdf) for #team"
+      fileItemId <- lastItemId alice
+      alice ##> ("/_update item #1 " <> fileItemId <> " json {\"msgContent\": {\"type\": \"image\", \"text\": \"image\", \"image\": \"\"}, \"mentions\": {}}")
+      alice <## "cannot update this item"
+      connId <- relayConnIdToMember alice "bob"
+      sendUpdate <- updateSender alice connId
+      sendUpdate $ MCImage "image" (ImageData "")
+      bob <## "error: x.msg.update: invalid message update"
+      bob #$> ("/_get chat #1 count=1", chat, [(0, "")])
+      sendUpdate $ MCFile "file"
+      bob <# "#team alice> [edited] file"
+
+updateSender :: TestCC -> B.ByteString -> IO (MsgContent -> IO ())
+updateSender cc connId = do
+  sharedId <- itemSharedMsgId cc
+  pure $ \mc -> agentSendBody cc connId $ chatMsgToBody $ ChatMessage supportedChatVRange Nothing (XMsgUpdate sharedId mc mempty Nothing Nothing Nothing Nothing)
+
 testFilesFoldersImageSndDelete :: HasCallStack => TestParams -> IO ()
 testFilesFoldersImageSndDelete =
   testChat2 aliceProfile bobProfile $
@@ -271,16 +339,16 @@ testFilesFoldersImageSndDelete =
       alice ##> "/_send @2 json [{\"filePath\": \"test_1MB.pdf\", \"msgContent\": {\"text\":\"\",\"type\":\"image\",\"image\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII=\"}}]"
       alice <# "/f @bob test_1MB.pdf"
       alice <## "use /fc 1 to cancel sending"
-      bob <# "alice> sends file test_1MB.pdf (1017.7 KiB / 1042157 bytes)"
+      bob <# "alice> sends file test_1MB.pdf.jpg (1017.7 KiB / 1042157 bytes)"
       bob <## "use /fr 1 [<dir>/ | <path>] to receive it"
       alice <## "completed uploading file 1 (test_1MB.pdf) for bob"
 
       bob ##> "/fr 1"
       bob
-        <### [ "saving file 1 from alice to test_1MB.pdf",
-               "started receiving file 1 (test_1MB.pdf) from alice"
+        <### [ "saving file 1 from alice to test_1MB.pdf.jpg",
+               "started receiving file 1 (test_1MB.pdf.jpg) from alice"
              ]
-      bob <## "completed receiving file 1 (test_1MB.pdf) from alice"
+      bob <## "completed receiving file 1 (test_1MB.pdf.jpg) from alice"
 
       -- deleting contact should remove file
       checkActionDeletesFile (aliceFiles </> "test_1MB.pdf") $ do
@@ -288,8 +356,8 @@ testFilesFoldersImageSndDelete =
         alice <## "bob: contact is deleted"
         bob <## "alice (Alice) deleted contact with you"
         bob ##> "/fs 1"
-        bob <##. "receiving file 1 (test_1MB.pdf) complete"
-      checkActionDeletesFile (bobFiles </> "test_1MB.pdf") $ do
+        bob <##. "receiving file 1 (test_1MB.pdf.jpg) complete"
+      checkActionDeletesFile (bobFiles </> "test_1MB.pdf.jpg") $ do
         bob ##> "/d alice"
         bob <## "alice: contact is deleted"
 
@@ -1277,6 +1345,21 @@ testXFTPCancelRcvRepeat =
       dest `shouldBe` src
   where
     cfg = testCfg {xftpDescrPartSize = 200}
+
+testXFTPCancelNotAccepted :: HasCallStack => TestParams -> IO ()
+testXFTPCancelNotAccepted =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    withXFTPServer alice $ do
+      connectUsers alice bob
+      alice #> "/f @bob ./tests/fixtures/test.pdf"
+      alice <## "use /fc 1 to cancel sending"
+      bob <# "alice> sends file test.pdf (266.0 KiB / 272376 bytes)"
+      bob <## "use /fr 1 [<dir>/ | <path>] to receive it"
+      alice <## "completed uploading file 1 (test.pdf) for bob"
+      alice <##> bob
+      apiFixture "files/cancel-not-accepted" bob [] FixtureRequests {frMarkdown = [], frUris = [], frCommands = ["/fcancel 1"]}
+      bob ##> "/fs 1"
+      bob <## "receiving file 1 (test.pdf) not accepted yet, use /fr 1 to receive file"
 
 testAutoAcceptFile :: HasCallStack => TestParams -> IO ()
 testAutoAcceptFile =
