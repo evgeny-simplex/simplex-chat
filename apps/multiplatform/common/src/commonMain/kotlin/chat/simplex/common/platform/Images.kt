@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import boofcv.struct.image.GrayU8
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -74,6 +75,9 @@ fun resizeImageToDataSize(image: ImageBitmap, usePng: Boolean, maxDataSize: Long
   stream.write(Base64.getDecoder().decode(str))
   return stream
 }
+
+@OptIn(ExperimentalCoroutinesApi::class)
+internal val base64ImageDecoder = Dispatchers.IO.limitedParallelism(1)
 
 @Composable
 fun Base64AsyncImage(
