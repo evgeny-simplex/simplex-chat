@@ -4,6 +4,7 @@
 module Simplex.Chat.Files where
 
 import Simplex.Chat.Controller
+import Simplex.Chat.Protocol (MsgContent)
 import Simplex.Messaging.Util (ifM)
 import System.FilePath (combine, makeValid, splitExtensions, takeFileName)
 import UnliftIO.Directory (doesDirectoryExist, doesFileExist, getHomeDirectory, getTemporaryDirectory)
@@ -12,6 +13,9 @@ safeFileNameStr :: String -> String
 safeFileNameStr = notDots . makeValid . takeFileName
   where
     notDots n = if n == "." || n == ".." then "_" else n
+
+mediaFileName :: MsgContent -> String -> String
+mediaFileName _ name = name
 
 -- | The file name is sanitized, so the combined path cannot escape the folder.
 uniqueCombine :: FilePath -> String -> IO FilePath
