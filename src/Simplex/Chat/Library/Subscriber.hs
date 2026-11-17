@@ -2004,7 +2004,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               -- we catch error, so that even if processFDMessage fails, message can still be forwarded.
               processFDMessage (rcvGroupChatBinding g m_ showGroupAsSender fileBadge) fileId aci fileDescr fileExpires fileBadge `catchAllErrors` \_ -> pure ()
               let ctx = infoToDeliveryContext g scopeInfo (isChannelDir chatDir)
-              withStore' $ \db -> forM_ (m_ >>= \m -> msgDeliveryTask g m msg ctx) $ createDeliveryTask db g
+              forM_ (m_ >>= \m -> msgDeliveryTask g m msg ctx) $ saveDeliveryTask g
               pure $ Just ctx
           | otherwise -> messageError "x.msg.file.descr: file/sender mismatch" $> Nothing
         _ -> messageError "x.msg.file.descr: invalid file description part" $> Nothing
@@ -2528,7 +2528,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                 | otherwise = maybe False (\m -> groupFeatureMemberAllowed SGFFullDelete m gInfo) m_
               sender_ = if onlyHistory && isNothing byGroupMember then Nothing else m_
               ctx = infoToDeliveryContext gInfo scopeInfo asGroup
-          withStore' $ \db -> forM_ (sender_ >>= \m -> msgDeliveryTask gInfo m rcvMsg ctx) $ createDeliveryTask db gInfo
+          forM_ (sender_ >>= \m -> msgDeliveryTask gInfo m rcvMsg ctx) $ saveDeliveryTask gInfo
           deletions <-
             if fullDelete
               then deleteGroupCIs user gInfo scopeInfo [cci] byGroupMember brokerTs
@@ -2690,7 +2690,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                 cancelRcvFileTransfer user ft
                 toView $ CEvtRcvFileSndCancelled user aci ft
               let ctx = infoToDeliveryContext g scopeInfo (isChannelDir chatDir)
-              withStore' $ \db -> forM_ (m_ >>= \m -> msgDeliveryTask g m msg ctx) $ createDeliveryTask db g
+              forM_ (m_ >>= \m -> msgDeliveryTask g m msg ctx) $ saveDeliveryTask g
               pure $ Just ctx
           | otherwise -> messageError "x.file.cancel: file cancel sender mismatch" $> Nothing
         _ -> messageError "x.file.cancel: group member attempted invalid file cancel" $> Nothing
@@ -2863,7 +2863,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     xInfoMember :: GroupInfo -> GroupMember -> Profile -> Maybe MemberKey -> RcvMessage -> UTCTime -> CM (Maybe DeliveryJobScope)
     xInfoMember gInfo m p' mKey msg@RcvMessage {signedMsg_} brokerTs = do
       let scope_ = memberEventDeliveryScope m
-      withStore' $ \db -> forM_ (scope_ >>= msgDeliveryTask gInfo m msg . jobScopeContext) $ createDeliveryTask db gInfo
+      forM_ (scope_ >>= msgDeliveryTask gInfo m msg . jobScopeContext) $ saveDeliveryTask gInfo
       m' <- maybe (pure m) (storeMemberKey gInfo m signedMsg_) mKey
       void $ processMemberProfileUpdate gInfo m' signedMsg_ p' (Just (msg, brokerTs))
       pure scope_
@@ -3289,7 +3289,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                     messageWarning $ "x.grp.mem.new: relay asserted key differs from roster-established key, keeping roster key, memberId=" <> safeDecodeUtf8 (strEncode memId)
                   updatedMember <- withStore $ \db -> do
                     updatedMember <- updateRosterMemberAnnounced db cxt user m unknownMember memInfo (memberPresHeader gInfo memId (memberPubKey unknownMember)) initialStatus
-                    liftIO $ createTask db updatedMember
+                    liftIO $ forM_ (memberTask updatedMember) $ createDeliveryTask db gInfo
                     pure updatedMember
                   -- roster members can't be pending, so no members-require-attention update
                   gInfo' <- updatePublicGroupData user gInfo gks
@@ -3302,7 +3302,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               | otherwise -> do
                   (updatedMember, gInfo') <- withStore $ \db -> do
                     updatedMember <- updateUnknownMemberAnnounced db cxt user m unknownMember memInfo presHeader_ initialStatus
-                    liftIO $ createTask db updatedMember
+                    liftIO $ forM_ (memberTask updatedMember) $ createDeliveryTask db gInfo
                     gInfo' <-
                       if memberPending updatedMember
                         then liftIO $ increaseGroupMembersRequireAttention db user gInfo
@@ -3321,7 +3321,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               | otherwise -> do
                   (newMember, gInfo') <- withStore $ \db -> do
                     newMember <- createNewGroupMember db cxt user gInfo m memInfo presHeader_ GCPostMember initialStatus
-                    liftIO $ createTask db newMember
+                    liftIO $ forM_ (memberTask newMember) $ createDeliveryTask db gInfo
                     gInfo' <-
                       if memberPending newMember
                         then liftIO $ increaseGroupMembersRequireAttention db user gInfo
@@ -3338,7 +3338,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
           | memberStatus == GSMemPendingApproval = Nothing
           | memberStatus == GSMemPendingReview = Just $ DJSMemberSupport groupMemberId
           | otherwise = Just DJSGroup {jobSpec = DJDeliveryJob {includePending = False}}
-        createTask db member = forM_ (deliveryJobScope member >>= msgDeliveryTask gInfo m msg . jobScopeContext) $ createDeliveryTask db gInfo
+        memberTask member = deliveryJobScope member >>= msgDeliveryTask gInfo m msg . jobScopeContext
         memberAnnouncedToView announcedMember@GroupMember {groupMemberId, memberProfile} gInfo' = do
           (announcedMember', scopeInfo) <- getMemNewChatScope announcedMember
           unless (useRelays' gInfo') $ do
@@ -3532,9 +3532,9 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               messageError "x.grp.mem.role: only the owner can change member, moderator and admin roles in relay groups" $> Nothing
           -- a forwarded role event the roster already applied is a no-op; suppress it.
           -- a just-created member is keyless here, so fall through to pin its owner-attested key.
-          | useRelays' gInfo && not created && fromRole == memRole = withStore' createTask $> scope_
+          | useRelays' gInfo && not created && fromRole == memRole = forM_ task_ (saveDeliveryTask gInfo) $> scope_
           | otherwise = do
-              withStore' $ \db -> applyMember db >> createTask db
+              withStore' $ \db -> applyMember db >> forM_ task_ (createDeliveryTask db gInfo)
               (gInfo'', m') <-
                 if createItem
                   then do
@@ -3547,7 +3547,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               pure scope_
           where
             scope_ = memberEventDeliveryScope member
-            createTask db = forM_ (scope_ >>= msgDeliveryTask gInfo m msg . jobScopeContext) $ createDeliveryTask db gInfo
+            task_ = scope_ >>= msgDeliveryTask gInfo m msg . jobScopeContext
 
     -- The header only starts the transfer; the roster is applied and the version bumped only at
     -- blob completion, so a withheld or corrupted blob leaves the last good roster intact.
@@ -3790,7 +3790,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       if membershipMemId == memId
         then applyAtRosterVersion g fwdRelay_ m rosterVer_ $ checkRole membership $ do
           let scope = DJSGroup {jobSpec = DJRelayRemoved}
-          withStore' $ \db -> forM_ (msgDeliveryTask gInfo m msg $ jobScopeContext scope) $ createDeliveryTask db gInfo
+          forM_ (msgDeliveryTask gInfo m msg $ jobScopeContext scope) $ saveDeliveryTask gInfo
           deleteGroupLinkIfExists user gInfo
           -- TODO [relays] possible improvement is to immediately delete rcv queues if isUserGrpFwdRelay
           unless (isUserGrpFwdRelay gInfo) $ deleteGroupConnections user gInfo False
@@ -3807,12 +3807,12 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
             Left _ -> do
               messageError "x.grp.mem.del with unknown member ID"
               let scope = DJSGroup {jobSpec = DJDeliveryJob {includePending = True}}
-              withStore' $ \db -> forM_ (msgDeliveryTask gInfo m msg $ jobScopeContext scope) $ createDeliveryTask db gInfo
+              forM_ (msgDeliveryTask gInfo m msg $ jobScopeContext scope) $ saveDeliveryTask gInfo
               pure $ Just scope
             Right deletedMember@GroupMember {groupMemberId, memberProfile, memberStatus} ->
               checkRole deletedMember $ do
                 let deliveryScope = memberEventDeliveryScope deletedMember
-                withStore' $ \db -> forM_ (deliveryScope >>= msgDeliveryTask gInfo m msg . jobScopeContext) $ createDeliveryTask db gInfo
+                forM_ (deliveryScope >>= msgDeliveryTask gInfo m msg . jobScopeContext) $ saveDeliveryTask gInfo
                 -- ? prohibit deleting member if it's the sender - sender should use x.grp.leave
                 let shouldForward = isUserGrpFwdRelay gInfo && not forwarded
                 if shouldForward
@@ -3886,6 +3886,9 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
         deleteGroupDeliveryJobs db gInfo
       createMsgDeliveryTask db gInfo task
 
+    saveDeliveryTask :: GroupInfo -> NewMessageDeliveryTask -> CM ()
+    saveDeliveryTask gInfo task = withStore' $ \db -> createDeliveryTask db gInfo task
+
     unknownMemberRole :: GroupInfo -> CM GroupMemberRole
     unknownMemberRole gInfo
       | useRelays' gInfo = asks $ channelSubscriberRole . config
@@ -3894,7 +3897,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     xGrpLeave :: GroupInfoKeys -> GroupMember -> RcvMessage -> UTCTime -> CM (Maybe DeliveryJobScope)
     xGrpLeave (GIK gInfo gks) m msg@RcvMessage {msgSigned} brokerTs = do
       let scope_ = memberEventDeliveryScope m
-      withStore' $ \db -> forM_ (scope_ >>= msgDeliveryTask gInfo m msg . jobScopeContext) $ createDeliveryTask db gInfo
+      forM_ (scope_ >>= msgDeliveryTask gInfo m msg . jobScopeContext) $ saveDeliveryTask gInfo
       deleteMemberConnection m
       -- member record is not deleted to allow creation of "member left" chat item
       gInfo' <- updateMemberRecordDeleted user gInfo m GSMemLeft
@@ -3910,7 +3913,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     xGrpDel gInfo@GroupInfo {membership} m@GroupMember {memberRole} msg@RcvMessage {msgSigned} brokerTs = do
       when (memberRole /= GROwner) $ throwChatError $ CEGroupUserRole gInfo GROwner
       let scope = DJSGroup {jobSpec = DJRelayRemoved}
-      withStore' $ \db -> forM_ (msgDeliveryTask gInfo m msg $ jobScopeContext scope) $ createDeliveryTask db gInfo
+      forM_ (msgDeliveryTask gInfo m msg $ jobScopeContext scope) $ saveDeliveryTask gInfo
       deleteGroupLinkIfExists user gInfo
       withStore' $ \db -> updateGroupMemberStatus db userId membership GSMemGroupDeleted
       -- TODO [relays] possible improvement is to immediately delete rcv queues if isUserGrpFwdRelay
@@ -3929,7 +3932,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       | not (useRelays' g) && isJust pg' = messageError "x.grp.info: publicGroup not allowed in p2p groups" $> Nothing
       | otherwise = do
           let scope = DJSGroup {jobSpec = DJDeliveryJob {includePending = True}}
-          withStore' $ \db -> forM_ (msgDeliveryTask g m msg $ jobScopeContext scope) $ createDeliveryTask db g
+          forM_ (msgDeliveryTask g m msg $ jobScopeContext scope) $ saveDeliveryTask g
           case businessChat of
             Nothing -> unless (p == p') $ do
               g' <- withStore $ \db -> updateGroupProfile db user g p'
@@ -3955,7 +3958,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       | memberRole < GROwner = messageError "x.grp.prefs with insufficient member permissions" $> Nothing
       | otherwise = do
           let scope = DJSGroup {jobSpec = DJDeliveryJob {includePending = True}}
-          withStore' $ \db -> forM_ (msgDeliveryTask g m msg $ jobScopeContext scope) $ createDeliveryTask db g
+          forM_ (msgDeliveryTask g m msg $ jobScopeContext scope) $ saveDeliveryTask g
           updateGroupPrefs_ msgSigned g m ps' $> Just scope
 
     updateGroupPrefs_ :: Maybe MsgSigStatus -> GroupInfo -> GroupMember -> GroupPreferences -> CM ()
@@ -3972,7 +3975,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       | memberRole < GROwner = messageError "x.grp.relay.new with insufficient member permissions" $> Nothing
       | otherwise = do
           let scope = DJSGroup {jobSpec = DJDeliveryJob {includePending = False}}
-          withStore' $ \db -> forM_ (msgDeliveryTask gInfo m msg $ jobScopeContext scope) $ createDeliveryTask db gInfo
+          forM_ (msgDeliveryTask gInfo m msg $ jobScopeContext scope) $ saveDeliveryTask gInfo
           unless (isUserGrpFwdRelay gInfo) $ connectToRelayAsync user gInfo rl
           pure $ Just scope
 

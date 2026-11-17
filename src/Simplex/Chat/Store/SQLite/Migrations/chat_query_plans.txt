@@ -6922,6 +6922,30 @@ Query:  SELECT chat_item_id FROM chat_items WHERE  user_id = ? AND note_folder_i
 Plan:
 SEARCH chat_items USING COVERING INDEX idx_chat_items_notes_created_at (user_id=? AND note_folder_id=?)
 
+Query: ALTER TABLE calls RENAME TO calls_
+Plan:
+
+Query: ALTER TABLE calls_ RENAME TO calls
+Error: SQLite3 returned ErrorError while attempting to perform prepare "explain query plan ALTER TABLE calls_ RENAME TO calls": no such table: calls_
+
+Query: ALTER TABLE chat_item_messages RENAME TO chat_item_messages_
+Plan:
+
+Query: ALTER TABLE chat_item_messages_ RENAME TO chat_item_messages
+Error: SQLite3 returned ErrorError while attempting to perform prepare "explain query plan ALTER TABLE chat_item_messages_ RENAME TO chat_item_messages": no such table: chat_item_messages_
+
+Query: ALTER TABLE chat_item_versions RENAME TO chat_item_versions_
+Plan:
+
+Query: ALTER TABLE chat_item_versions_ RENAME TO chat_item_versions
+Error: SQLite3 returned ErrorError while attempting to perform prepare "explain query plan ALTER TABLE chat_item_versions_ RENAME TO chat_item_versions": no such table: chat_item_versions_
+
+Query: ALTER TABLE chat_items RENAME COLUMN item_deleted_ts TO item_deleted_ts_
+Plan:
+
+Query: ALTER TABLE chat_items RENAME COLUMN item_deleted_ts_ TO item_deleted_ts
+Error: SQLite3 returned ErrorError while attempting to perform prepare "explain query plan ALTER TABLE chat_items RENAME COLUMN item_deleted_ts_ TO item_deleted_ts": no such column: "item_deleted_ts_"
+
 Query: ALTER TABLE groups RENAME COLUMN chat_item_id TO chat_item_id_
 Plan:
 
@@ -8032,6 +8056,10 @@ Query: SELECT item_content FROM chat_items WHERE item_content_tag = 'rcvGroupInv
 Plan:
 SCAN chat_items
 
+Query: SELECT item_edited FROM chat_items WHERE item_text = 'hello edited'
+Plan:
+SCAN chat_items
+
 Query: SELECT last_insert_rowid()
 Plan:
 SCAN CONSTANT ROW
@@ -8796,6 +8824,12 @@ SEARCH groups USING INTEGER PRIMARY KEY (rowid=?)
 Query: UPDATE groups SET via_group_link_uri = ?, via_group_link_uri_hash = ?, conn_link_prepared_connection = ?, public_member_count = ?, updated_at = ? WHERE group_id = ?
 Plan:
 SEARCH groups USING INTEGER PRIMARY KEY (rowid=?)
+
+Query: UPDATE messages SET msg_body = NULL WHERE message_id IN (SELECT message_id FROM chat_item_messages WHERE chat_item_id = ?)
+Plan:
+SEARCH messages USING INTEGER PRIMARY KEY (rowid=?)
+LIST SUBQUERY 1
+SEARCH chat_item_messages USING COVERING INDEX sqlite_autoindex_chat_item_messages_2 (chat_item_id=?)
 
 Query: UPDATE msg_deliveries SET delivery_status = 'rcv_agent' WHERE delivery_status = 'rcv_acknowledged'
 Plan:
