@@ -71,6 +71,7 @@ chatFileTests = do
     it "receive file marked to receive on chat start" testXFTPMarkToReceive
     mapM_ (\i -> it ("receive file marked to receive on chat start, copy " <> show i) testXFTPMarkToReceive) [1 .. 80 :: Int]
     it "receive file whose description was redelivered after chat stop" testXFTPRedeliveredDescription
+    mapM_ (\i -> it ("receive file whose description was redelivered after chat stop, copy " <> show i) testXFTPRedeliveredDescription) [1 .. 20 :: Int]
     it "error receiving file" testXFTPRcvError
     it "cancel receiving file, repeat receive" testXFTPCancelRcvRepeat
     it "should accept file automatically with CLI option" testAutoAcceptFile
