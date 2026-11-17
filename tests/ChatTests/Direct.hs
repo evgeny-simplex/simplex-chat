@@ -38,7 +38,7 @@ import Simplex.Messaging.Agent.Env.SQLite
 import Simplex.Messaging.Agent.RetryInterval
 import qualified Simplex.Messaging.Agent.Store.DB as DB
 import Simplex.Messaging.Client (NetworkTimeout (..))
-import Control.Concurrent.STM (atomically, readTVarIO)
+import Control.Concurrent.STM (atomically, readTQueue, readTVarIO)
 import qualified Simplex.Messaging.Crypto as C
 import Simplex.Messaging.Encoding.String (strEncode)
 import Simplex.Messaging.Server.Env.STM hiding (subscriptions)
@@ -48,6 +48,8 @@ import Simplex.Messaging.Version
 import System.Directory (copyFile, doesDirectoryExist, doesFileExist)
 import System.Mem.Weak (deRefWeak)
 import System.FilePath ((</>))
+import System.Process (spawnCommand)
+import System.Timeout (timeout)
 import Test.Hspec hiding (it)
 #if defined(dbPostgres)
 import Database.PostgreSQL.Simple (Only (..))
@@ -58,6 +60,12 @@ import Simplex.Chat.Options.DB
 
 chatDirectTests :: SpecWith TestParams
 chatDirectTests = do
+#if !defined(dbPostgres)
+  describe "auth diag" $ do
+    mapM_ (\i -> it ("plain copy " <> show i) $ testRepeatAuthDiag "plain" i) [1 .. 400 :: Int]
+  describe "auth diag loaded" $ beforeAll_ (void $ spawnCommand "for i in 1 2 3; do (yes > /dev/null &); done") $ do
+    mapM_ (\i -> it ("loaded copy " <> show i) $ testRepeatAuthDiag "loaded" i) [1 .. 200 :: Int]
+#endif
   describe "direct messages" $ do
     describe "add contact and send/receive messages" testAddContact
     it "retry connecting via the same link" testRetryConnecting
@@ -992,6 +1000,29 @@ testRepeatAuthErrorsDisableContact =
     sendAuth alice disabled = do
       alice `send` "@bob hey"
       alice <### (WithTime "@bob hey" : "[bob, contactId: 2, connId: 1] error: connection authorization failed - this could happen if connection was deleted, secured with different credentials, or due to a bug - please re-create the connection" : disabled)
+
+testRepeatAuthDiag :: HasCallStack => String -> Int -> TestParams -> IO ()
+testRepeatAuthDiag group copy =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    connectUsers alice bob
+    alice <##> bob
+    threadDelay 500000
+    bob ##> "/_delete @2 notify=off"
+    bob <## "alice: contact is deleted"
+    atSend <- bobConns bob
+    alice `send` "@bob hey"
+    echo <- getTermLine alice
+    auth <- timeout 20000000 $ atomically $ readTQueue $ termQ alice
+    status <- withCCTransaction alice $ \db -> DB.query_ db "SELECT item_status FROM chat_items ORDER BY chat_item_id DESC LIMIT 1" :: IO [[T.Text]]
+    afterWait <- bobConns bob
+    putStrLn $
+      "DIAG auth group=" <> group <> " copy=" <> show copy <> " auth=" <> show (isJust auth) <> " bobConnsAtSend=" <> show atSend
+        <> " bobConnsAfter=" <> show afterWait <> " status=" <> show status <> " echo=" <> show echo <> " next=" <> show auth
+    drain alice
+    drain bob
+  where
+    bobConns bob = withCCAgentTransaction bob $ \db -> DB.query_ db "SELECT count(1) FROM connections" :: IO [[Int]]
+    drain cc = timeout 500000 (atomically $ readTQueue $ termQ cc) >>= mapM_ (const $ drain cc)
 
 testMultilineMessage :: HasCallStack => TestParams -> IO ()
 testMultilineMessage = testChat3 aliceProfile bobProfile cathProfile $ \alice bob cath -> do
