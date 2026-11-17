@@ -1,0 +1,42 @@
+name: msi-check
+
+on:
+  push:
+    branches:
+      - ep/internal-release-test
+    paths:
+      - .github/workflows/msi-check.yml
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  msi:
+    name: Internal and public msi files replace each other
+    runs-on: windows-latest
+    steps:
+      - name: Download the internal msi of the build-number push
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-windows-unsigned
+          path: internal
+          run-id: 44049119850
+          github-token: ${{ github.token }}
+
+      - name: Install public, internal, public
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/simplex-chat/simplex-chat/releases/download/v7.1.4/simplex-desktop-windows-x86_64.msi -OutFile public-7.1.4.msi
+          function Install($msi) {
+            $path = (Resolve-Path $msi).Path
+            $process = Start-Process msiexec -ArgumentList "/i `"$path`" /qn /l*v `"$path.log`"" -Wait -PassThru
+            Write-Output "msiexec /i ${msi}: exit code $($process.ExitCode)"
+            Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* |
+              Where-Object DisplayName -like 'SimpleX*' |
+              Format-Table DisplayName, DisplayVersion, PSChildName -AutoSize | Out-String | Write-Output
+            if ($process.ExitCode -ne 0) { exit 1 }
+          }
+          Install public-7.1.4.msi
+          Install internal\simplex-desktop-windows-x86_64.msi
+          Install public-7.1.4.msi
