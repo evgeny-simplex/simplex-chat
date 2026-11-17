@@ -26,6 +26,7 @@ import java.io.File
 import java.lang.invoke.MethodHandles
 
 fun main(args: Array<String>) {
+  println("I: UI update base ${installedUiUpdateBase()}")
   val mainClass = MethodHandles.lookup().lookupClass().name
   if (!startUiUpdate(mainClass, args)) startUi(args)
   runReloadedUis(mainClass, args)
