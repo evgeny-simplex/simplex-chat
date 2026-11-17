@@ -150,7 +150,9 @@ processAgentMessage corrId connId msg = do
     -- Missing connection/entity errors here will be sent to the view but not shown as CRITICAL alert,
     -- as in this case no need to ACK message - we can't process messages for this connection anyway.
     critical connId (withStore $ getUserEntity cxt) >>= \case
-      Just (user, entity, gks_) -> processAgentMessageConn cxt user entity gks_ corrId connId msg `catchAllErrors` eToView
+      Just (user, entity, gks_) -> processAgentMessageConn cxt user entity gks_ corrId connId msg `catchAllErrors` \e -> do
+        lift $ diagLog $ "agent conn event error " <> show (aEventTag msg) <> " connId " <> show connId <> " corrId " <> show corrId <> ": " <> show e
+        eToView e
       _ -> throwChatError $ CENoConnectionUser (AgentConnId connId)
   where
     getUserEntity :: StoreCxt -> DB.Connection -> ExceptT StoreError IO (Maybe (User, ConnectionEntity, Maybe GroupInfoKeys))
@@ -459,9 +461,12 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       RcvDirectMsgConnection conn contact_ ->
         processDirectMessage agentMessage entity conn contact_
       RcvGroupMsgConnection conn _ m -> case gks_ of
-        Just gks -> processGroupMessage agentMessage entity conn gks m
+        Just gks -> do
+          when (isRelay m) $ lift $ diagLog $ "relay member conn event " <> show (aEventTag agentMessage) <> " member " <> show (groupMemberId' m) <> " status " <> show (memberStatus m) <> " conn " <> show (dbConnId conn) <> " corrId " <> show corrId
+          processGroupMessage agentMessage entity conn gks m
         Nothing -> throwChatError $ CEInternalError "group connection entity without group keys"
-      UserContactConnection conn uc ->
+      UserContactConnection conn uc -> do
+        lift $ diagLog $ "contact conn event " <> show (aEventTag agentMessage) <> " conn " <> show (dbConnId conn) <> " corrId " <> show corrId
         processContactConnMessage agentMessage entity conn uc
   where
     processCONFpqSupport :: Connection -> PQSupport -> CM Connection
@@ -1275,6 +1280,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                       subMode <- chatReadVar subscriptionMode
                       cmdId <- withStore' $ \db -> createCommand db user (Just $ dbConnId conn) CFJoinConn
                       joinAgentConnectionAsync cmdId True (aConnId conn) True cReq dm subMode
+                      lift $ diagLog $ "LDATA relay join sent member " <> show (groupMemberId' m) <> " conn " <> show (dbConnId conn)
             CFGetRelayDataAccept -> do
               let GroupMember {memberId = MemberId expectedMemberId} = m
               if linkEntityId == Just expectedMemberId
@@ -1416,6 +1422,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
     processContactConnMessage agentMsg connEntity conn UserContact {userContactLinkId = uclId, groupId = ucGroupId_} = case agentMsg of
       REQ invId pqSupport _ connInfo binding rejectionSupported -> do
         (signedMsg_, ChatMessage {chatVRange, chatMsgEvent}) <- parseChatMessage' conn connInfo `onChatError` dropRequest invId
+        lift $ diagLog $ "contact conn REQ " <> show (toCMEventTag chatMsgEvent) <> " uclId " <> show uclId <> " groupId " <> show ucGroupId_
         let reqHeader = directPresHeader binding
         case chatMsgEvent of
           XContact p memberKey_ xContactId_ welcomeMsgId_ requestMsg_ -> profileContactRequest invId chatVRange reqHeader p memberKey_ xContactId_ welcomeMsgId_ requestMsg_ pqSupport rejectionSupported
