@@ -16,7 +16,7 @@ import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Profiles (addTestBadge, futureDate, issueTestBadge, testBadgeKeys)
 import ChatTests.Utils
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Concurrent.STM (TVar, atomically, modifyTVar', newTVarIO, readTVarIO, writeTVar)
 import Control.Monad (forM_, void, when)
@@ -202,6 +202,12 @@ chatGroupTests = do
     it "deduplicate forwarded messages" testGroupMsgForwardDeduplicate
     it "report duplicate when forwarded copy is received after direct copy" testGroupMsgForwardDuplicateEvent
     it "report duplicate when direct copy is received after forwarded copy" testGroupMsgDirectDuplicateEvent
+    it "skip handled message redelivered after failed acknowledgement" testGroupRedeliveredMessage
+    it "skip saved message redelivered after chat stop" testGroupRedeliveredSavedMessage
+    it "handle saved message without item redelivered after chat stop" testGroupRedeliveredMessageWithoutItem
+    it "skip forwarded message redelivered after chat stop" testGroupRedeliveredForwardedMessage
+    it "accept group invitation redelivered after its save failed" testGroupRedeliveredInvitation
+    it "accept invitation via group redelivered after its save failed" testGroupRedeliveredInvitationViaGroup
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
@@ -6113,6 +6119,142 @@ testGroupMsgDirectDuplicateEvent ps = do
         agentSendBody bob bobConnId $ chatMsgToBody chatMsg
         cath <##. "duplicate group message, group id: 1"
         readTVarIO dups `shouldReturn` ["bob"]
+
+testGroupRedeliveredMessage :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredMessage =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    alice ##> "/set receipts all off"
+    alice <## "ok"
+    createGroup2 "team" bob alice
+    withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands RENAME TO commands_")
+    alice #> "#team hello"
+    bob <# "#team alice> hello"
+    bob <##. "internal error: "
+    withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands_ RENAME TO commands")
+    bob ##> "/_stop"
+    bob <## "chat stopped"
+    bob ##> "/_start"
+    bob <### ["chat started", "subscribed 2 connections on server localhost"]
+    alice #> "#team hi"
+    bob <# "#team alice> hi"
+    bob #$> ("/_get chat #1 count=2", chat, [(0, "hello"), (0, "hi")])
+
+testGroupRedeliveredSavedMessage :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredSavedMessage ps = do
+  (received, cfg) <- blockFirstEventCfg $ newItemText ("hello" ==)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      createGroup2 "team" alice bob
+      alice #> "#team hello"
+      readMVar received
+      bob ##> "/_stop"
+      bob <## "chat stopped"
+      bob ##> "/_start"
+      bob <### ["chat started", "subscribed 2 connections on server localhost"]
+      alice #> "#team hi"
+      bob <# "#team alice> hi"
+      bob #$> ("/_get chat #1 count=2", chat, [(0, "hello"), (0, "hi")])
+
+testGroupRedeliveredMessageWithoutItem :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredMessageWithoutItem ps = do
+  (received, cfg) <- blockFirstEventCfg $ newItemText ("hello" ==)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
+      createGroup2 "team" alice bob
+      alice #> "#team hello"
+      readMVar received
+      withCCTransaction bob (`DB.execute_` "DELETE FROM chat_items WHERE item_text = 'hello'")
+      bob ##> "/_stop"
+      bob <## "chat stopped"
+      bob ##> "/_start"
+      bob <### ["chat started", "subscribed 2 connections on server localhost", WithTime "#team alice> hello"]
+      bob #$> ("/_get chat #1 count=1", chat, [(0, "hello")])
+
+testGroupRedeliveredForwardedMessage :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredForwardedMessage ps = do
+  (received, cfg) <- blockFirstEventCfg $ newItemText ("hi there" ==)
+  withNewTestChat ps "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob ->
+      withNewTestChatCfg ps cfg "cath" cathProfile $ \cath -> do
+        createGroup3 "team" alice bob cath
+        setupGroupForwarding alice bob cath
+        bob #> "#team hi there"
+        alice <# "#team bob> hi there"
+        readMVar received
+        cath ##> "/_stop"
+        cath <## "chat stopped"
+        cath ##> "/_start"
+        cath <### ["chat started", StartsWith "subscribed "]
+        alice #> "#team hey"
+        bob <# "#team alice> hey"
+        cath <# "#team alice> hey"
+        cath #$> ("/_get chat #1 count=2", chat, [(0, "hi there"), (0, "hey")])
+
+testGroupRedeliveredInvitation :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredInvitation =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    connectUsers bob alice
+    alice ##> "/g team"
+    alice <## "group #team is created"
+    alice <## "to add members use /a team <name> or /create link #team"
+    withCCTransaction bob (`DB.execute_` "ALTER TABLE groups RENAME COLUMN chat_item_id TO chat_item_id_")
+    withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands RENAME TO commands_")
+    alice ##> "/a team bob admin"
+    alice <## "invitation to join the group #team sent to bob"
+    bob <##. "chat db error: "
+    bob <##. "internal error: "
+    withCCTransaction bob (`DB.execute_` "ALTER TABLE groups RENAME COLUMN chat_item_id_ TO chat_item_id")
+    withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands_ RENAME TO commands")
+    withCCTransaction bob (`DB.execute_` "UPDATE msg_deliveries SET delivery_status = 'rcv_agent' WHERE delivery_status = 'rcv_acknowledged'")
+    bob ##> "/_stop"
+    bob <## "chat stopped"
+    bob ##> "/_start"
+    bob
+      <### [ "chat started",
+             "subscribed 1 connections on server localhost",
+             "#team: alice invites you to join the group as admin",
+             "use /j team to accept"
+           ]
+    bob ##> "/j team"
+    concurrently_
+      (alice <## "#team: bob joined the group")
+      (bob <## "#team: you joined the group")
+    [Only content] <- withCCTransaction bob $ \db ->
+      DB.query_ db "SELECT item_content FROM chat_items WHERE item_content_tag = 'rcvGroupInvitation'" :: IO [Only String]
+    content `shouldContain` "\"status\":\"accepted\""
+
+testGroupRedeliveredInvitationViaGroup :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredInvitationViaGroup =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    alice ##> "/set receipts all off"
+    alice <## "ok"
+    createGroup2 "team" bob alice
+    createClub alice
+    threadDelay 1000000
+    GroupMember {groupMemberId = bobId} <- getTestMember alice "team" "bob"
+    withCCTransaction bob (`DB.execute_` "ALTER TABLE groups RENAME COLUMN chat_item_id TO chat_item_id_")
+    withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands RENAME TO commands_")
+    alice ##> ("/_add #2 #1 " <> show bobId <> " member")
+    alice <## "invitation to join the group #club sent to bob in #team"
+    bob <##. "chat db error: "
+    bob <##. "internal error: "
+    withCCTransaction bob (`DB.execute_` "ALTER TABLE groups RENAME COLUMN chat_item_id_ TO chat_item_id")
+    withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands_ RENAME TO commands")
+    withCCTransaction bob (`DB.execute_` "UPDATE msg_deliveries SET delivery_status = 'rcv_agent' WHERE delivery_status = 'rcv_acknowledged'")
+    bob ##> "/_stop"
+    bob <## "chat stopped"
+    bob ##> "/_start"
+    bob
+      <### [ "chat started",
+             "subscribed 2 connections on server localhost",
+             "#club: alice in #team invites you to join the group as member",
+             "use /j club to accept"
+           ]
+    bob ##> "/j club"
+    concurrently_
+      (alice <## "#club: bob_1 joined the group")
+      (bob <## "#club: you joined the group")
+    checkInvitationStatus bob "accepted"
 
 testGroupMsgForwardEdit :: HasCallStack => TestParams -> IO ()
 testGroupMsgForwardEdit =
