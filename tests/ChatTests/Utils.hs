@@ -1036,7 +1036,7 @@ writeFixture fixture = testGenerate ("tests/fixtures/api/" <> fixture <> ".json"
 
 stableJSON :: J.Value -> J.Value
 stableJSON = \case
-  J.Object o -> J.Object $ JM.mapWithKey stableField o
+  J.Object o -> J.Object $ JM.mapWithKey stableField $ JM.delete "rosterVersion" o
   J.Array a -> J.Array $ fmap stableJSON a
   v -> v
   where
