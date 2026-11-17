@@ -43,7 +43,7 @@ class Base64BitmapTest {
   }
 
   @Test
-  fun testPicturesOverTheSizeLimitAreShownAsTheErrorPicture() {
+  fun testPicturesOutsideTheSizeLimitsAreShownAsTheErrorPicture() {
     assertEquals(IntSize(4320, 1), base64ToBitmap(base64Png(4320, 1)).size)
     assertEquals(IntSize(17, 4320), base64ToBitmap(base64Png(17, 4320)).size)
     for (picture in listOf(base64Png(4321, 1), base64Png(17, 4321), base64PngHeader(0, 1))) {
