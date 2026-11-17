@@ -17,8 +17,8 @@ import ChatTests.DBUtils
 import ChatTests.Profiles (addTestBadge, futureDate, issueTestBadge, testBadgeKeys)
 import ChatTests.Utils
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async (concurrently_)
-import Control.Concurrent.STM (TVar, atomically, modifyTVar', newTVarIO, readTVarIO, writeTVar)
+import Control.Concurrent.Async (concurrently, concurrently_)
+import Control.Concurrent.STM (TVar, atomically, modifyTVar', newTVarIO, readTQueue, readTVarIO, writeTVar)
 import Control.Monad (forM_, void, when)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (runReaderT)
@@ -28,7 +28,7 @@ import qualified Data.ByteString.Char8 as B
 import Data.Maybe (fromMaybe, isJust, maybeToList)
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Int (Int64)
-import Data.List (intercalate, isInfixOf, isSubsequenceOf, isSuffixOf)
+import Data.List (intercalate, isInfixOf, isPrefixOf, isSubsequenceOf, isSuffixOf)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Simplex.Chat.Badges (FileSizeLimits (..))
@@ -54,13 +54,14 @@ import qualified Simplex.Messaging.Crypto as C
 import Simplex.Messaging.Crypto.BBS (bbsKeyGen)
 import Simplex.Messaging.Client (pattern NRMInteractive)
 import Simplex.Messaging.Crypto.Ratchet (pattern IKPQOff, pattern PQEncOff, pattern PQSupportOff)
-import Simplex.Messaging.Encoding.String (strDecode)
+import Simplex.Messaging.Encoding.String (strDecode, strEncode)
 import Simplex.Messaging.Protocol (MsgFlags (..), SubscriptionMode (..))
 import Simplex.Messaging.Server.Env.STM hiding (subscriptions)
 import Simplex.Messaging.Transport
 import Simplex.Messaging.Version
 import System.Directory (copyFile, doesFileExist)
 import System.FilePath ((</>))
+import System.Timeout (timeout)
 import Test.Hspec hiding (it)
 #if defined(dbPostgres)
 import Database.PostgreSQL.Simple (Only (..))
@@ -252,6 +253,11 @@ chatGroupTests = do
     it "replies of blocked member are not mentions" testBlockedMemberReplyNotMention
   describe "group member inactivity" $ do
     it "mark member inactive on reaching quota" testGroupMemberInactive
+#if !defined(dbPostgres)
+  describe "inactivity diag" $ do
+    mapM_ (\i -> it ("alice on quota server copy " <> show i) $ testGroupMemberInactiveDiag True i) [1 .. 200 :: Int]
+    mapM_ (\i -> it ("alice on default server copy " <> show i) $ testGroupMemberInactiveDiag False i) [1 .. 120 :: Int]
+#endif
   describe "group member reports" $ do
     it "should send report to group owner, admins and moderators, but not other users" testGroupMemberReports
   describe "group member mentions" $ do
@@ -8297,6 +8303,86 @@ testGroupMemberInactive ps = do
           msgQueueQuota = 2
         }
     fastRetryInterval = defaultReconnectInterval {initialInterval = 50_000} -- same as in agent tests
+    cfg' =
+      testCfg
+        { agentConfig =
+            testAgentCfg
+              { quotaExceededTimeout = 1,
+                messageRetryInterval = RetryInterval2 {riFast = fastRetryInterval, riSlow = fastRetryInterval}
+              }
+        }
+    opts' =
+      testOpts
+        { coreOptions =
+            testCoreOpts
+              { smpServers = ["smp://LcJUMfVhwD8yxjAiSaDzzGF3-kLG4Uh0Fl_ZIjrRwjI=:server_password@localhost:7003"]
+              }
+        }
+
+testGroupMemberInactiveDiag :: HasCallStack => Bool -> Int -> TestParams -> IO ()
+testGroupMemberInactiveDiag aliceOnQuotaServer copy ps = do
+  withSmpServer' serverCfg' $ do
+    withNewTestChatCfgOpts ps cfg' aliceOpts "alice" aliceProfile $ \alice -> do
+      withNewTestChatCfgOpts ps cfg' opts' "bob" bobProfile $ \bob -> do
+        createGroup2 "team" alice bob
+
+        alice #> "#team hi"
+        bob <# "#team alice> hi"
+        bob #> "#team hey"
+        alice <# "#team bob> hey"
+        threadDelay 1000000
+
+      alice #> "#team 1"
+      alice #> "#team 2"
+      alice #> "#team 3"
+      alice <## "[#team bob] connection is marked as inactive"
+      alice #> "#team 4"
+      alice #> "#team 5"
+
+      pgmCount <- withCCTransaction alice $ \db ->
+        DB.query_ db "SELECT count(1) FROM pending_group_messages" :: IO [[Int]]
+      pgmCount `shouldBe` [[2]]
+
+      threadDelay 1500000
+
+      withTestChatCfgOpts ps cfg' opts' "bob" $ \bob -> do
+        (bobLines, aliceLines) <- concurrently (linesUntil "#team alice> 5" bob) (linesUntil "[#team bob] inactive connection is marked as active" alice)
+        bobConns <- memberConns bob
+        aliceConns <- memberConns alice
+        bobRcvd <- rcvDeliveries bob
+        let bobMsgs = filter (/= "subscribed 2 connections on server localhost") $ map (\l -> fromMaybe l $ dropTime_ l) bobLines
+            ok = case bobMsgs of
+              ["#team alice> 1", "#team alice> 2", skipped, "#team alice> 4", "#team alice> 5"] -> "#team alice> skipped message ID" `isPrefixOf` skipped
+              _ -> False
+        B.putStr $ B.pack $
+          "DIAG inactive aliceOnQuotaServer=" <> show aliceOnQuotaServer <> " copy=" <> show copy <> " ok=" <> show ok
+            <> " bobConns=" <> show bobConns <> " aliceConns=" <> show aliceConns
+            <> " bobLines=" <> show bobLines <> " aliceLines=" <> show aliceLines <> " bobRcvd=" <> show bobRcvd <> "\n"
+        ok `shouldBe` True
+  where
+    aliceOpts = if aliceOnQuotaServer then opts' else testOpts
+    linesUntil :: String -> TestCC -> IO [String]
+    linesUntil target cc = do
+      l_ <- timeout 10000000 $ atomically $ readTQueue $ termQ cc
+      case l_ of
+        Nothing -> pure ["<no output for 10 seconds>"]
+        Just l
+          | fromMaybe l (dropTime_ l) == target -> pure [l]
+          | otherwise -> (l :) <$> linesUntil target cc
+    memberConns :: TestCC -> IO [(String, Int)]
+    memberConns cc =
+      map (\(aci, n) -> (B.unpack $ strEncode (aci :: AgentConnId), n))
+        <$> withCCTransaction cc (\db -> DB.query_ db "SELECT agent_conn_id, quota_err_counter FROM connections WHERE conn_type = 'member'")
+    rcvDeliveries :: TestCC -> IO [(T.Text, Maybe T.Text)]
+    rcvDeliveries cc =
+      withCCTransaction cc $ \db ->
+        DB.query_ db "SELECT m.chat_msg_event, d.agent_msg_meta FROM msg_deliveries d JOIN messages m ON m.message_id = d.message_id WHERE m.msg_sent = 0 ORDER BY d.msg_delivery_id"
+    serverCfg' =
+      (smpServerCfg ps)
+        { transports = [(smpTestPort2 ps, transport @TLS, False)],
+          msgQueueQuota = 2
+        }
+    fastRetryInterval = defaultReconnectInterval {initialInterval = 50_000}
     cfg' =
       testCfg
         { agentConfig =

@@ -448,6 +448,15 @@ processAgentMsgRcvFile _corrId aFileId msg = do
 
 type ShouldDeleteGroupConns = Bool
 
+diagGroupEvent :: AEvent 'AEConn -> String
+diagGroupEvent = \case
+  MSG MsgMeta {sndMsgId = s, integrity = i} _ _ -> "MSG " <> show s <> " " <> show i
+  RCVD MsgMeta {sndMsgId = s, integrity = i} rcpts -> "RCVD " <> show s <> " " <> show i <> " " <> show rcpts
+  MSGERR MsgMeta {sndMsgId = s, integrity = i} -> "MSGERR " <> show s <> " " <> show i
+  CONF {} -> "CONF"
+  INFO {} -> "INFO"
+  e -> show e
+
 processAgentMessageConn :: StoreCxt -> User -> ConnectionEntity -> Maybe GroupInfoKeys -> ACorrId -> ConnId -> AEvent 'AEConn -> CM ()
 processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId agentMessage =
   case agentMessage of
@@ -459,7 +468,9 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       RcvDirectMsgConnection conn contact_ ->
         processDirectMessage agentMessage entity conn contact_
       RcvGroupMsgConnection conn _ m -> case gks_ of
-        Just gks -> processGroupMessage agentMessage entity conn gks m
+        Just gks -> do
+          liftIO $ B.putStr $ B.pack $ "DIAGEV " <> B.unpack (strEncode agentConnId) <> " " <> diagGroupEvent agentMessage <> "\n"
+          processGroupMessage agentMessage entity conn gks m
         Nothing -> throwChatError $ CEInternalError "group connection entity without group keys"
       UserContactConnection conn uc ->
         processContactConnMessage agentMessage entity conn uc

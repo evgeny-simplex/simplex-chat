@@ -229,6 +229,12 @@ badgeServiceTests = do
       it "should give a move held for a deleted profile back to the profile whose purchase it funds" testRestoreHeldProfileDeleted
       it "should take a purchase hand-over held for one profile to the profile that restores it, and credit it there" testRestoreTakesHeldPurchase
       it "should move a subscription on Restore on the same profile when its purchase is neither shown nor the profile's newest" testRestoreOnSameProfile
+#if !defined(dbPostgres)
+    describe "restore diag" $ do
+      mapM_ (\i -> it ("shared clock copy " <> show i) $ testRestoreMovesBackDiag 0 i) [1 .. 120 :: Int]
+      mapM_ (\i -> it ("forced pass copy " <> show i) $ testRestoreMovesBackDiag 1 i) [1 .. 3 :: Int]
+      mapM_ (\i -> it ("waited pass copy " <> show i) $ testRestoreMovesBackDiag 2 i) [1 .. 80 :: Int]
+#endif
   describe "subscriptions" $ do
     it "should credit a subscription's charge from the store's period start, and answer replays from the record" testSubscriptionPurchase
     it "should credit nothing for a subscription with no charge it can grant, retrying as the charge may still come" testSubscriptionPurchaseNotGrantable
@@ -3162,6 +3168,57 @@ testRestoreMovesBack ps =
         bob `send` "/_app activate"
         waitShownBadge (chatController bob) Nothing
         mapM_ dropOutput [alice, bob]
+
+testRestoreMovesBackDiag :: HasCallStack => Int -> Int -> TestParams -> IO ()
+testRestoreMovesBackDiag mode copy ps =
+  withBadgeServiceEnv ps $ \env@BadgeServiceEnv {bsClock, bsClientCfg, bsStore = store} ->
+    withNewTestChatCfg ps bsClientCfg "alice" aliceProfile $ \alice ->
+      withNewTestChatCfg ps bsClientCfg "bob" bobProfile $ \bob -> do
+        let a = chatController alice
+            b = chatController bob
+        firstStart <- addUTCTime (-3600) <$> serviceNow env
+        storeReports store $ subscriptionCheck SSRenewing $ Just $ storeCharge "subscr-badge-supporter-month-02" firstStart 1
+        alice `send` ("/_badge purchase 1 " <> paymentArg subscriptionPlay)
+        waitShownBadge a (Just 1)
+        (renewalAt, firstExpiry) <- renewalMoments <$> ledgerRows a "badge_ledger"
+        nextClaimCheck env
+        bob `send` restoredCmd 1 subscriptionPlay
+        waitShownBadge b (Just 1)
+        when (mode == 2) $ waitWakeArmed b
+        wakeBeforeMove <- nextWakes b
+        setClockAt bsClock renewalAt
+        when (mode == 1) $ do
+          bob `send` "/_app activate"
+          waitIssuances b 2
+        alice `send` "/_app activate"
+        aliceRetired <- shownAfterWait a Nothing
+        storeReports store $ subscriptionCheck SSRenewing $ Just $ monthlyCharge "subscr-badge-supporter-month-02" firstStart 1
+        setClockAt bsClock $ addUTCTime 3600 firstExpiry
+        alice `send` restoredCmd 1 subscriptionPlay
+        aliceBack <- shownAfterWait a (Just 2)
+        bobIssued <- issuances b
+        bob `send` "/_app activate"
+        bobRetired <- shownAfterWait b Nothing
+        let shown = (aliceRetired, aliceBack, bobRetired)
+            ok = shown == (Nothing, Just 2, Nothing)
+        B.putStr $ B.pack $
+          "DIAG restore mode=" <> show mode <> " copy=" <> show copy <> " ok=" <> show ok <> " shown=" <> show shown
+            <> " wakeBeforeMove=" <> show wakeBeforeMove <> " renewalAt=" <> show renewalAt <> " firstExpiry=" <> show firstExpiry
+            <> " bobIssued=" <> show bobIssued <> "\n"
+        mapM_ dropOutput [alice, bob]
+        shown `shouldBe` (if mode == 1 then (Nothing, Just 2, Just 1) else (Nothing, Just 2, Nothing))
+  where
+    issuances :: ChatController -> IO [(UTCTime, UTCTime)]
+    issuances ChatController {chatStore} =
+      withTransaction chatStore $ \db -> DB.query_ db "SELECT expiry, created_at FROM badge_issuances ORDER BY created_at"
+    waitIssuances :: ChatController -> Int -> IO ()
+    waitIssuances cc n = loop (100 :: Int)
+      where
+        loop i = issuances cc >>= \rs -> if length rs >= n || i == 0 then pure () else threadDelay 50000 >> loop (i - 1)
+    shownAfterWait :: ChatController -> Maybe Int64 -> IO (Maybe Int64)
+    shownAfterWait cc expected = loop (100 :: Int)
+      where
+        loop i = shownBadgeId cc >>= \actual -> if actual == expected || i == 0 then pure actual else threadDelay 50000 >> loop (i - 1)
 
 testRestoreLimitedOnNewDevice :: HasCallStack => TestParams -> IO ()
 testRestoreLimitedOnNewDevice ps =
