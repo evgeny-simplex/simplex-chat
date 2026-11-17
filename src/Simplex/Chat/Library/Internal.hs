@@ -3049,32 +3049,39 @@ ciContentNoParse :: CIContent 'MDRcv -> (CIContent 'MDRcv, (Text, ParsedMarkdown
 ciContentNoParse content = (content, (ciContentToText content, ParsedMarkdown Nothing Nothing))
 
 saveRcvChatItem' :: (ChatTypeI c, ChatTypeQuotable c) => User -> ChatDirection c 'MDRcv -> RcvMessage -> Maybe SharedMsgId -> UTCTime -> (CIContent 'MDRcv, (Text, ParsedMarkdown)) -> Maybe (CIFile 'MDRcv) -> Maybe CITimed -> Bool -> Map MemberName MsgMention -> CM (ChatItem c 'MDRcv, ChatInfo c)
-saveRcvChatItem' user cd msg@RcvMessage {chatMsgEvent, msgSigned, forwardedByMember} sharedMsgId_ brokerTs (content, ts@(_, ParsedMarkdown ft_ _)) ciFile itemTimed live mentions = do
-  createdAt <- liftIO getCurrentTime
+saveRcvChatItem' user cd msg sharedMsgId_ brokerTs content ciFile itemTimed live mentions = do
   cxt <- chatStoreCxt
-  withStore' $ \db -> do
-    (mentions' :: Map MemberName CIMention, userMention) <- case toChatInfo cd of
-      GroupChat g@GroupInfo {membership} _ -> groupMentions db g membership
-      _ -> pure (M.empty, False)
-    cInfo' <-
-      if (ciRequiresAttention content || contactChatDeleted cd)
-        then updateChatTsStats db cxt user cd createdAt (memberChatStats userMention)
-        else pure $ toChatInfo cd
-    let showAsGroup = case cd of CDChannelRcv {} -> True; _ -> False
-        hasLink_ = ciContentHasLink content ft_
-    itemForwarded <- rcvForwardedFrom db user cd msg
-    (ciId, quotedItem) <- createNewRcvChatItem db user cd msg sharedMsgId_ content itemForwarded itemTimed live userMention hasLink_ brokerTs createdAt
-    forM_ ciFile $ \CIFile {fileId} -> updateFileTransferChatItemId db fileId ciId createdAt
-    case content of
-      CIRcvGroupInvitation CIGroupInvitation {groupId} _ -> setGroupInvitationChatItemId db user groupId ciId
-      _ -> pure ()
-    let ci = mkChatItem_ cd showAsGroup ciId content ts ciFile quotedItem sharedMsgId_ itemForwarded itemTimed live userMention hasLink_ brokerTs forwardedByMember (toMsgVerified (signMessagesRequired cd) msgSigned) createdAt
-    ci' <- case toChatInfo cd of
-      GroupChat g _ | not (null mentions') -> createGroupCIMentions db g ci mentions'
-      _ -> pure ci
-    pure (ci', cInfo')
+  withStore' $ \db -> createRcvChatItem db cxt user cd msg sharedMsgId_ brokerTs content ciFile itemTimed live mentions
+
+createRcvChatItemNoParse :: (ChatTypeI c, ChatTypeQuotable c) => DB.Connection -> StoreCxt -> User -> ChatDirection c 'MDRcv -> RcvMessage -> UTCTime -> CIContent 'MDRcv -> IO (ChatItem c 'MDRcv, ChatInfo c)
+createRcvChatItemNoParse db cxt user cd msg@RcvMessage {sharedMsgId_} brokerTs content =
+  createRcvChatItem db cxt user cd msg sharedMsgId_ brokerTs (ciContentNoParse content) Nothing Nothing False M.empty
+
+createRcvChatItem :: (ChatTypeI c, ChatTypeQuotable c) => DB.Connection -> StoreCxt -> User -> ChatDirection c 'MDRcv -> RcvMessage -> Maybe SharedMsgId -> UTCTime -> (CIContent 'MDRcv, (Text, ParsedMarkdown)) -> Maybe (CIFile 'MDRcv) -> Maybe CITimed -> Bool -> Map MemberName MsgMention -> IO (ChatItem c 'MDRcv, ChatInfo c)
+createRcvChatItem db cxt user cd msg@RcvMessage {chatMsgEvent, msgSigned, forwardedByMember} sharedMsgId_ brokerTs (content, ts@(_, ParsedMarkdown ft_ _)) ciFile itemTimed live mentions = do
+  createdAt <- getCurrentTime
+  (mentions' :: Map MemberName CIMention, userMention) <- case toChatInfo cd of
+    GroupChat g@GroupInfo {membership} _ -> groupMentions g membership
+    _ -> pure (M.empty, False)
+  cInfo' <-
+    if (ciRequiresAttention content || contactChatDeleted cd)
+      then updateChatTsStats db cxt user cd createdAt (memberChatStats userMention)
+      else pure $ toChatInfo cd
+  let showAsGroup = case cd of CDChannelRcv {} -> True; _ -> False
+      hasLink_ = ciContentHasLink content ft_
+  itemForwarded <- rcvForwardedFrom db user cd msg
+  (ciId, quotedItem) <- createNewRcvChatItem db user cd msg sharedMsgId_ content itemForwarded itemTimed live userMention hasLink_ brokerTs createdAt
+  forM_ ciFile $ \CIFile {fileId} -> updateFileTransferChatItemId db fileId ciId createdAt
+  case content of
+    CIRcvGroupInvitation CIGroupInvitation {groupId} _ -> setGroupInvitationChatItemId db user groupId ciId
+    _ -> pure ()
+  let ci = mkChatItem_ cd showAsGroup ciId content ts ciFile quotedItem sharedMsgId_ itemForwarded itemTimed live userMention hasLink_ brokerTs forwardedByMember (toMsgVerified (signMessagesRequired cd) msgSigned) createdAt
+  ci' <- case toChatInfo cd of
+    GroupChat g _ | not (null mentions') -> createGroupCIMentions db g ci mentions'
+    _ -> pure ci
+  pure (ci', cInfo')
   where
-    groupMentions db g membership = do
+    groupMentions g membership = do
       mentions' <- getRcvCIMentions db user g ft_ mentions
       -- messages of blocked members are hidden, they should not mention user
       let senderBlocked = case cd of

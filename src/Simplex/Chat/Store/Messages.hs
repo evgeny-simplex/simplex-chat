@@ -65,6 +65,7 @@ module Simplex.Chat.Store.Messages
     createGroupCIMentions,
     updateGroupCIMentions,
     deleteGroupChatItem,
+    clearChatItemMessages,
     updateGroupChatItemModerated,
     deleteMemberCIs,
     updateGroupCIBlockedByAdmin,
@@ -2694,6 +2695,13 @@ deleteChatItemMessagesQuery =
     )
   |]
 
+clearChatItemMessages :: DB.Connection -> ChatItemId -> IO ()
+clearChatItemMessages db itemId =
+  DB.execute
+    db
+    "UPDATE messages SET msg_body = NULL WHERE message_id IN (SELECT message_id FROM chat_item_messages WHERE chat_item_id = ?)"
+    (Only itemId)
+
 deleteChatItemVersions_ :: DB.Connection -> ChatItemId -> IO ()
 deleteChatItemVersions_ db itemId =
   DB.execute db "DELETE FROM chat_item_versions WHERE chat_item_id = ?" (Only itemId)
@@ -2965,7 +2973,7 @@ updateGroupCIBlockedByAdmin :: DB.Connection -> User -> GroupInfo -> ChatItem 'C
 updateGroupCIBlockedByAdmin db User {userId} GroupInfo {groupId} ci deletedTs = do
   currentTs <- getCurrentTime
   let itemId = chatItemId' ci
-  deleteChatItemMessages_ db itemId
+  clearChatItemMessages db itemId
   deleteChatItemVersions_ db itemId
   liftIO $
     DB.execute

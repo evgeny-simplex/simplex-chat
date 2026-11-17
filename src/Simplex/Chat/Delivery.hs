@@ -112,6 +112,9 @@ infoToDeliveryContext GroupInfo {membership} scopeInfo sentAsGroup = DeliveryTas
         let supportGMId = groupMemberId' $ fromMaybe membership groupMember_
          in DJSMemberSupport {supportGMId}
 
+jobScopeContext :: DeliveryJobScope -> DeliveryTaskContext
+jobScopeContext jobScope = DeliveryTaskContext {jobScope, sentAsGroup = False}
+
 memberEventDeliveryScope :: GroupMember -> Maybe DeliveryJobScope
 memberEventDeliveryScope m@GroupMember {memberRole, memberStatus}
   | memberStatus == GSMemPendingApproval = Nothing
@@ -121,6 +124,7 @@ memberEventDeliveryScope m@GroupMember {memberRole, memberStatus}
 
 data NewMessageDeliveryTask = NewMessageDeliveryTask
   { messageId :: MessageId,
+    senderGMId :: GroupMemberId,
     taskContext :: DeliveryTaskContext
   }
   deriving (Show)
