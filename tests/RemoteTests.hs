@@ -83,6 +83,8 @@ remoteTests = describe "Remote" $ do
           (video, "test.txt.mp4"),
           (video, "VIDEO_1.MP4"),
           (video, "test.dif"),
+          (video, "video_1.wmv"),
+          (video, "video_1.asf"),
           (voice, "voice_1.m4a"),
           (voice, "test.pdf"),
           (voice, "test.pdf.m4a"),
@@ -90,7 +92,7 @@ remoteTests = describe "Remote" $ do
           (image, safeFileNameStr "x/"),
           (MCFile "", "test.pdf")
         ]
-        `shouldBe` ["IMG_1.jpg", "IMG_1.WEBP", "IMG_1.heic", "test.pdf.jpg", "test.pdf.jpg", "test.jpg", "video_1.3gp", "video_1.mkv", "video_1.divx", "test.txt.mp4", "test.txt.mp4", "VIDEO_1.MP4", "test.dif.mp4", "voice_1.m4a", "test.pdf.m4a", "test.pdf.m4a", "test.pdf..jpg", "_.jpg", "test.pdf"]
+        `shouldBe` ["IMG_1.jpg", "IMG_1.WEBP", "IMG_1.heic", "test.pdf.jpg", "test.pdf.jpg", "test.jpg", "video_1.3gp", "video_1.mkv", "video_1.divx", "test.txt.mp4", "test.txt.mp4", "VIDEO_1.MP4", "test.dif.mp4", "video_1.wmv.mp4", "video_1.asf.mp4", "voice_1.m4a", "test.pdf.m4a", "test.pdf.m4a", "test.pdf..jpg", "_.jpg", "test.pdf"]
     it "accepts media file extensions in ASCII only" $ \_ ->
       map (uncurry mediaFileName) [(video, "test.m\x212Av"), (image, "test.g\x130\&f")]
         `shouldBe` ["test.m\x212Av.mp4", "test.g\x130\&f.jpg"]

@@ -817,10 +817,10 @@ mediaFileExtensions = \case
   MCVideo {} ->
     Just $
       ".mp4"
-        :| [ ".3g2", ".3gp", ".3gp2", ".3gpp", ".3gpp2", ".asf", ".avi", ".axv", ".divx", ".dl", ".dv", ".f4v",
-             ".fli", ".flv", ".gl", ".lsf", ".m1v", ".m2t", ".m2ts", ".m2v", ".m4v", ".mkv", ".mng", ".mov",
+        :| [ ".3g2", ".3gp", ".3gp2", ".3gpp", ".3gpp2", ".avi", ".axv", ".divx", ".dl", ".dv", ".f4v",
+             ".fli", ".flv", ".gl", ".m1v", ".m2t", ".m2ts", ".m2v", ".m4v", ".mkv", ".mng", ".mov",
              ".movie", ".mp1v", ".mp2v", ".mp4v", ".mpe", ".mpeg", ".mpeg1", ".mpeg2", ".mpeg4", ".mpg", ".mpv",
-             ".mpv1", ".mpv2", ".mts", ".ogv", ".qt", ".rm", ".rmvb", ".ts", ".vob", ".webm", ".wm", ".wmv", ".yt"
+             ".mpv1", ".mpv2", ".mts", ".ogv", ".qt", ".rm", ".rmvb", ".ts", ".vob", ".webm", ".yt"
            ]
   MCVoice {} -> Just $ ".m4a" :| []
   MCText {} -> Nothing
