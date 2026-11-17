@@ -8505,15 +8505,17 @@ testMemberMentionEdited ps = do
   withNewTestChatCfgOpts ps testCfg {chatHooks = defaultChatHooks {eventHook = Just hook}} testOpts {markRead = False} "alice" aliceProfile $ \alice ->
     withNewTestChat ps "bob" bobProfile $ \bob -> do
       createGroup2 "team" alice bob
+      alice ##> "/unmute mentions #team"
+      alice <## "ok"
       eventsFixture "updates/group-mention" events $ do
         bob #> "#team hello"
-        alice <# "#team bob> hello"
+        alice <# "#team bob> hello <muted>"
         bob ##> "! #team hello @alice"
         bob <# "#team [edited] hello @alice"
         alice <# "#team bob> [edited] hello @alice"
         bob ##> "! #team hello"
         bob <# "#team [edited] hello"
-        alice <# "#team bob> [edited] hello"
+        alice <# "#team bob> [edited] hello <muted>"
       readTVarIO updates `shouldReturn` [(([], False), (["alice"], True)), ((["alice"], True), ([], False))]
 
 testForwardQuoteMention :: HasCallStack => TestParams -> IO ()
