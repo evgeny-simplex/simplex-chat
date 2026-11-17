@@ -85,6 +85,8 @@ chatDirectTests = do
     it "skip integrity error of redelivered receipt" testRedeliveredReceiptIntegrity
     it "create integrity error of unsaved message redelivered after chat stop" testRedeliveredUnsavedIntegrity
     it "skip integrity error of saved message redelivered after chat stop" testRedeliveredSavedIntegrity
+    it "save call invitation redelivered after its save failed" testRedeliveredCallInvitation
+    it "save edited message redelivered after its save failed" testRedeliveredMissingItemUpdate
   describe "batch send messages" $ do
     it "send multiple messages api" testSendMulti
     it "send multiple timed messages" testSendMultiTimed
@@ -1548,6 +1550,46 @@ testRedeliveredSavedIntegrity ps = do
       alice #> "@bob hey"
       bob <# "alice> hey"
       withCCTransaction bob (\db -> DB.query_ db "SELECT count(1) FROM chat_items WHERE item_content LIKE '%rcvIntegrityError%'") `shouldReturn` [Only (1 :: Int)]
+
+testRedeliveredCallInvitation :: HasCallStack => TestParams -> IO ()
+testRedeliveredCallInvitation =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    connectUsers bob alice
+    threadDelay 1000000
+    redeliverAfterFailedWrite
+      bob
+      (`DB.execute_` "ALTER TABLE calls RENAME TO calls_")
+      (`DB.execute_` "ALTER TABLE calls_ RENAME TO calls")
+      ( do
+          alice ##> ("/_call invite @2 " <> serialize testCallType)
+          alice <## "ok"
+      )
+      [ "subscribed 1 connections on server localhost",
+        "alice wants to connect with you via WebRTC video call (e2e encrypted)",
+        StartsWith "To accept the call, please open the link below in your browser",
+        "",
+        StartsWith "https://simplex.chat/call#"
+      ]
+    callRowCount bob `shouldReturn` 1
+
+testRedeliveredMissingItemUpdate :: HasCallStack => TestParams -> IO ()
+testRedeliveredMissingItemUpdate =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    connectUsers bob alice
+    alice #> "@bob hello"
+    bob <# "alice> hello"
+    threadDelay 1000000
+    withCCTransaction bob (`DB.execute_` "DELETE FROM chat_items WHERE item_text = 'hello'")
+    redeliverAfterFailedWrite
+      bob
+      (`DB.execute_` "ALTER TABLE chat_item_versions RENAME TO chat_item_versions_")
+      (`DB.execute_` "ALTER TABLE chat_item_versions_ RENAME TO chat_item_versions")
+      ( do
+          alice ##> "! @bob hello edited"
+          alice <# "@bob [edited] hello edited"
+      )
+      ["subscribed 1 connections on server localhost", WithTime "alice> [edited] hello edited"]
+    withCCTransaction bob (\db -> DB.query_ db "SELECT item_edited FROM chat_items WHERE item_text = 'hello edited'") `shouldReturn` [Only (1 :: Int)]
 
 testStopStartChat :: HasCallStack => TestParams -> IO ()
 testStopStartChat ps =

@@ -32,7 +32,7 @@ import Data.List (intercalate, isInfixOf, isSubsequenceOf, isSuffixOf)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Simplex.Chat.Badges (FileSizeLimits (..))
-import Simplex.Chat.Controller (ChatController (ChatController, smpAgent, subscriptionMode), ChatConfig (..), ChatEvent (CEvtDuplicateGroupMessage), ChatHooks (..), ChatLogLevel (..), defaultChatHooks, withAgent)
+import Simplex.Chat.Controller (ChatController (ChatController, smpAgent, subscriptionMode), ChatConfig (..), ChatEvent (CEvtChatItemReaction, CEvtChatItemUpdated, CEvtChatItemsDeleted, CEvtDuplicateGroupMessage, CEvtGroupDeleted, CEvtLeftMember, CEvtMemberRole), ChatHooks (..), ChatLogLevel (..), defaultChatHooks, withAgent)
 import Simplex.Chat.Library.Internal (encodeConnInfo, getShortLinkConnReq, sendDirectMemberMessage, uniqueMsgMentions, updatedMentionNames)
 import Simplex.Chat.Markdown (parseMaybeMarkdownList)
 import Simplex.Chat.Messages (CIMention (..), CIMentionMember (..), ChatItemId)
@@ -208,6 +208,18 @@ chatGroupTests = do
     it "skip forwarded message redelivered after chat stop" testGroupRedeliveredForwardedMessage
     it "accept group invitation redelivered after its save failed" testGroupRedeliveredInvitation
     it "accept invitation via group redelivered after its save failed" testGroupRedeliveredInvitationViaGroup
+    it "join group via auto-accepted invitation redelivered after its save failed" testGroupRedeliveredAcceptedInvitation
+    it "mark message of blocked member redelivered after its save failed" testGroupRedeliveredBlockedMemberMessage
+    it "mark message of member blocked by admin redelivered after its save failed" testGroupRedeliveredBlockedByAdminMessage
+    it "skip acknowledged message of member blocked by admin redelivered after chat stop" testGroupRedeliveredBlockedByAdminAck
+    it "block member for all by event redelivered after its save failed" testGroupRedeliveredMemberBlock
+    it "forward message after forwarding member stopped at its item" testGroupForwardRedeliveredMessage
+    it "forward message edit after forwarding member stopped at its item" testGroupForwardRedeliveredEdit
+    it "forward reaction after forwarding member stopped at its save" testGroupForwardRedeliveredReaction
+    it "forward message deletion after forwarding member stopped at its deletion" testGroupForwardRedeliveredDeletion
+    it "forward role change after forwarding member stopped at its item" testGroupForwardRedeliveredRoleChange
+    it "forward member leave after forwarding member stopped at its item" testGroupForwardRedeliveredLeave
+    it "forward group deletion after forwarding member stopped at its item" testGroupForwardRedeliveredGroupDeletion
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
@@ -6244,6 +6256,215 @@ testGroupRedeliveredInvitationViaGroup =
       (alice <## "#club: bob_1 joined the group")
       (bob <## "#club: you joined the group")
     checkInvitationStatus bob "accepted"
+
+testGroupRedeliveredAcceptedInvitation :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredAcceptedInvitation =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    connectUsers bob alice
+    bob ##> "/set accept group invitations on"
+    bob <## "ok"
+    alice ##> "/g team"
+    alice <## "group #team is created"
+    alice <## "to add members use /a team <name> or /create link #team"
+    redeliverAfterFailedWrite
+      bob
+      (`DB.execute_` "ALTER TABLE groups RENAME COLUMN chat_item_id TO chat_item_id_")
+      (`DB.execute_` "ALTER TABLE groups RENAME COLUMN chat_item_id_ TO chat_item_id")
+      ( do
+          alice ##> "/a team bob admin"
+          alice <## "invitation to join the group #team sent to bob"
+      )
+      ["subscribed 1 connections on server localhost"]
+    concurrently_
+      (alice <## "#team: bob joined the group")
+      (bob <## "#team: you joined the group")
+    [Only content] <- withCCTransaction bob $ \db ->
+      DB.query_ db "SELECT item_content FROM chat_items WHERE item_content_tag = 'rcvGroupInvitation'" :: IO [Only String]
+    content `shouldContain` "\"status\":\"accepted\""
+
+testGroupRedeliveredBlockedMemberMessage :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredBlockedMemberMessage =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    createGroup2 "team" bob alice
+    GroupMember {groupMemberId = aliceId} <- getTestMember bob "team" "alice"
+    bob ##> ("/_member settings #1 " <> show aliceId <> " {\"showMessages\": false}")
+    bob <## "ok"
+    threadDelay 1000000
+    redeliverAfterFailedWrite
+      bob
+      (`DB.execute_` "ALTER TABLE chat_items RENAME COLUMN item_deleted_ts TO item_deleted_ts_")
+      (`DB.execute_` "ALTER TABLE chat_items RENAME COLUMN item_deleted_ts_ TO item_deleted_ts")
+      (alice #> "#team hello")
+      ["subscribed 2 connections on server localhost", WithTime "#team alice> hello [blocked] <muted>"]
+    bob #$> ("/_get chat #1 count=1", chat, [(0, "hello [blocked]")])
+
+testGroupRedeliveredBlockedByAdminMessage :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredBlockedByAdminMessage =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    createGroup2 "team" alice bob
+    alice ##> "/block for all #team bob"
+    alice <## "#team: you blocked bob (signed)"
+    threadDelay 1000000
+    redeliverAfterFailedWrite
+      alice
+      (`DB.execute_` "ALTER TABLE chat_items RENAME COLUMN item_deleted_ts TO item_deleted_ts_")
+      (`DB.execute_` "ALTER TABLE chat_items RENAME COLUMN item_deleted_ts_ TO item_deleted_ts")
+      (bob #> "#team hello")
+      ["subscribed 2 connections on server localhost", WithTime "#team bob> hello [blocked by admin] <muted>"]
+    alice #$> ("/_get chat #1 count=1", chat, [(0, "hello [blocked by admin]")])
+
+testGroupRedeliveredBlockedByAdminAck :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredBlockedByAdminAck =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    createGroup2 "team" alice bob
+    alice ##> "/set delete #team on"
+    alice <## "updated group preferences:"
+    alice <## "Full deletion: on"
+    bob <## "alice updated group #team: (signed)"
+    bob <## "updated group preferences:"
+    bob <## "Full deletion: on"
+    alice ##> "/block for all #team bob"
+    alice <## "#team: you blocked bob (signed)"
+    threadDelay 1000000
+    withCCAgentTransaction alice (`DB.execute_` "ALTER TABLE commands RENAME TO commands_")
+    bob #> "#team hello"
+    alice <# "#team bob> blocked [blocked by admin] <muted>"
+    alice <##. "internal error: "
+    withCCAgentTransaction alice (`DB.execute_` "ALTER TABLE commands_ RENAME TO commands")
+    restartChat alice ["subscribed 2 connections on server localhost"]
+    bob #> "#team hi"
+    alice <# "#team bob> blocked [blocked by admin] <muted>"
+    alice #$> ("/_get chat #1 count=3", chat, [(1, "blocked bob (signed)"), (0, "blocked [blocked by admin]"), (0, "blocked [blocked by admin]")])
+
+testGroupRedeliveredMemberBlock :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredMemberBlock =
+  testChat3 aliceProfile bobProfile cathProfile $ \alice bob cath -> do
+    createGroup3 "team" bob alice cath
+    threadDelay 1000000
+    redeliverAfterFailedWrite
+      bob
+      (`DB.execute_` "ALTER TABLE chat_item_messages RENAME TO chat_item_messages_")
+      (`DB.execute_` "ALTER TABLE chat_item_messages_ RENAME TO chat_item_messages")
+      ( do
+          alice ##> "/block for all #team cath"
+          alice <## "#team: you blocked cath (signed)"
+      )
+      [StartsWith "subscribed ", "#team: alice blocked cath (signed)"]
+    bob ##> "/ms team"
+    bob
+      <### [ "bob (Bob): owner, you, created group",
+             "alice (Alice): admin, invited, connected",
+             "cath (Catherine): admin, invited, connected, blocked by admin"
+           ]
+
+testGroupForwardRedeliveredMessage :: HasCallStack => TestParams -> IO ()
+testGroupForwardRedeliveredMessage ps = do
+  (received, cfg) <- blockFirstEventCfg $ newItemText ("hi there" ==)
+  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob ->
+      withNewTestChat ps "cath" cathProfile $ \cath -> do
+        createGroup3 "team" alice bob cath
+        setupGroupForwarding alice bob cath
+        bob #> "#team hi there"
+        readMVar received
+        restartChat alice [StartsWith "subscribed "]
+        cath <# "#team bob> hi there [>>]"
+
+testGroupForwardRedeliveredEdit :: HasCallStack => TestParams -> IO ()
+testGroupForwardRedeliveredEdit ps = do
+  (received, cfg) <- blockFirstEventCfg $ \e -> case e of CEvtChatItemUpdated {} -> True; _ -> False
+  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob ->
+      withNewTestChat ps "cath" cathProfile $ \cath -> do
+        createGroup3 "team" alice bob cath
+        setupGroupForwarding alice bob cath
+        bob #> "#team hi there"
+        alice <# "#team bob> hi there"
+        cath <# "#team bob> hi there [>>]"
+        bob ##> "! #team hello there"
+        bob <# "#team [edited] hello there"
+        readMVar received
+        restartChat alice [StartsWith "subscribed "]
+        cath <# "#team bob> [edited] hello there"
+
+testGroupForwardRedeliveredReaction :: HasCallStack => TestParams -> IO ()
+testGroupForwardRedeliveredReaction ps = do
+  (received, cfg) <- blockFirstEventCfg $ \e -> case e of CEvtChatItemReaction {} -> True; _ -> False
+  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob ->
+      withNewTestChat ps "cath" cathProfile $ \cath -> do
+        createGroup3 "team" alice bob cath
+        setupGroupForwarding alice bob cath
+        bob #> "#team hi there"
+        alice <# "#team bob> hi there"
+        cath <# "#team bob> hi there [>>]"
+        cath ##> "+1 #team hi there"
+        cath <## "added 👍"
+        readMVar received
+        restartChat alice [StartsWith "subscribed "]
+        bob <# "#team cath> > bob hi there"
+        bob <## "    + 👍"
+
+testGroupForwardRedeliveredDeletion :: HasCallStack => TestParams -> IO ()
+testGroupForwardRedeliveredDeletion ps = do
+  (received, cfg) <- blockFirstEventCfg $ \e -> case e of CEvtChatItemsDeleted {} -> True; _ -> False
+  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob ->
+      withNewTestChat ps "cath" cathProfile $ \cath -> do
+        createGroup3 "team" alice bob cath
+        setupGroupForwarding alice bob cath
+        bob #> "#team hi there"
+        alice <# "#team bob> hi there"
+        cath <# "#team bob> hi there [>>]"
+        bob ##> "\\ #team hi there"
+        bob <## "message marked deleted"
+        readMVar received
+        restartChat alice [StartsWith "subscribed ", "error: x.msg.del: member attempted invalid message delete"]
+        cath <# "#team bob> [marked deleted] hi there"
+
+testGroupForwardRedeliveredRoleChange :: HasCallStack => TestParams -> IO ()
+testGroupForwardRedeliveredRoleChange ps = do
+  (received, cfg) <- blockFirstEventCfg $ \e -> case e of CEvtMemberRole {} -> True; _ -> False
+  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob ->
+      withNewTestChat ps "cath" cathProfile $ \cath -> do
+        createGroup3 "team" alice bob cath
+        setupGroupForwarding alice bob cath
+        cath ##> "/mr #team bob member"
+        cath <## "#team: you changed the role of bob to member (signed)"
+        readMVar received
+        restartChat alice [StartsWith "subscribed "]
+        bob <## "#team: cath changed your role from admin to member (signed)"
+
+testGroupForwardRedeliveredLeave :: HasCallStack => TestParams -> IO ()
+testGroupForwardRedeliveredLeave ps = do
+  (received, cfg) <- blockFirstEventCfg $ \e -> case e of CEvtLeftMember {} -> True; _ -> False
+  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob ->
+      withNewTestChat ps "cath" cathProfile $ \cath -> do
+        createGroup3 "team" alice bob cath
+        setupGroupForwarding alice bob cath
+        bob ##> "/leave #team"
+        bob <## "#team: you left the group"
+        bob <## "use /d #team to delete the group"
+        readMVar received
+        restartChat alice [StartsWith "subscribed "]
+        cath <## "#team: bob left the group (signed)"
+
+testGroupForwardRedeliveredGroupDeletion :: HasCallStack => TestParams -> IO ()
+testGroupForwardRedeliveredGroupDeletion ps = do
+  (received, cfg) <- blockFirstEventCfg $ \e -> case e of CEvtGroupDeleted {} -> True; _ -> False
+  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob ->
+      withNewTestChat ps "cath" cathProfile $ \cath -> do
+        createGroup3' "team" alice (bob, GROwner) (cath, GRMember)
+        setupGroupForwarding alice bob cath
+        bob ##> "/d #team"
+        bob <## "#team: you deleted the group (signed)"
+        readMVar received
+        restartChat alice [StartsWith "subscribed "]
+        cath <## "#team: bob deleted the group (signed)"
+        cath <## "use /d #team to delete the local copy of the group"
 
 testGroupMsgForwardEdit :: HasCallStack => TestParams -> IO ()
 testGroupMsgForwardEdit =

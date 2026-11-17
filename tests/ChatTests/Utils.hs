@@ -1002,3 +1002,22 @@ blockFirstEventCfg blocks = do
 newItemText :: (T.Text -> Bool) -> ChatEvent -> Bool
 newItemText p (CEvtNewChatItems _ [AChatItem _ _ _ ChatItem {meta = CIMeta {itemText}}]) = p itemText
 newItemText _ _ = False
+
+restartChat :: HasCallStack => TestCC -> [ConsoleResponse] -> IO ()
+restartChat cc started = do
+  cc ##> "/_stop"
+  cc <## "chat stopped"
+  cc ##> "/_start"
+  cc <### ("chat started" : started)
+
+redeliverAfterFailedWrite :: HasCallStack => TestCC -> (DB.Connection -> IO ()) -> (DB.Connection -> IO ()) -> IO () -> [ConsoleResponse] -> IO ()
+redeliverAfterFailedWrite cc failWrite restoreWrite receive started = do
+  withCCTransaction cc failWrite
+  withCCAgentTransaction cc (`DB.execute_` "ALTER TABLE commands RENAME TO commands_")
+  receive
+  cc <##. "chat db error: "
+  cc <##. "internal error: "
+  withCCTransaction cc restoreWrite
+  withCCAgentTransaction cc (`DB.execute_` "ALTER TABLE commands_ RENAME TO commands")
+  withCCTransaction cc (`DB.execute_` "UPDATE msg_deliveries SET delivery_status = 'rcv_agent' WHERE delivery_status = 'rcv_acknowledged'")
+  restartChat cc started
