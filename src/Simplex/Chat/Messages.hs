@@ -709,6 +709,9 @@ data CIFile (d :: MsgDirection) = CIFile
   }
   deriving (Show)
 
+allowedContentUpdate :: MsgContent -> MsgContent -> Maybe (CIFile d) -> Bool
+allowedContentUpdate _ _ _ = True
+
 data FileProtocol = FPSMP | FPXFTP | FPLocal
   deriving (Eq, Show, Ord)
 
