@@ -61,6 +61,26 @@ final class ChatItemUpdateTests: XCTestCase {
     }
 
     @MainActor
+    func testMentionEditsInAnotherProfileChangeItsUnreadCount() async throws {
+        let events = try recordedEvents("updates/group-mention")
+        var otherUser = User.sampleData
+        otherUser.userId = 2
+        ChatModel.shared.currentUser = otherUser
+        await processReceivedMsg(events[0])
+        await processReceivedMsg(events[1])
+        XCTAssertEqual(ChatModel.shared.users.first?.unreadCount, 1)
+        await processReceivedMsg(events[2])
+        XCTAssertEqual(ChatModel.shared.users.first?.unreadCount, 0)
+    }
+
+    @MainActor
+    func testUpdateOfChatNotListedAddsIt() async throws {
+        let events = try recordedEvents("updates/direct-edit")
+        await processReceivedMsg(events[1])
+        XCTAssertEqual(previewText(), "hello there")
+    }
+
+    @MainActor
     func testRecreatedItemIsCounted() async throws {
         let events = try recordedEvents("updates/direct-recreated")
         try listChat(events[0])
