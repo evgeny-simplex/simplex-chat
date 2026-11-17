@@ -85,7 +85,9 @@ chatDirectTests = do
     it "handle unsaved messages of redelivered batch" testRedeliveredBatch
     it "skip integrity error of redelivered receipt" testRedeliveredReceiptIntegrity
     it "create integrity error of unsaved message redelivered after chat stop" testRedeliveredUnsavedIntegrity
+    mapM_ (\i -> it ("create integrity error of unsaved message redelivered after chat stop, copy " <> show i) testRedeliveredUnsavedIntegrity) [1 .. 20 :: Int]
     it "skip integrity error of saved message redelivered after chat stop" testRedeliveredSavedIntegrity
+    mapM_ (\i -> it ("skip integrity error of saved message redelivered after chat stop, copy " <> show i) testRedeliveredSavedIntegrity) [1 .. 20 :: Int]
   describe "batch send messages" $ do
     it "send multiple messages api" testSendMulti
     it "send multiple timed messages" testSendMultiTimed
