@@ -80,12 +80,29 @@ class ChatItemUpdateTest {
   fun countersFollowPreviousAndNewItem() = recorded("updates/group-mention") { (received, mentioned, unmentioned) ->
     listChat(received)
     receive(received)
-    assertNotified("hello")
-    assertEquals(Triple(1, 0, 1), counts())
+    assertEventually(Triple(1, 0, 1)) { counts() }
     receive(mentioned)
     assertEquals(Triple(1, 1, 1), counts())
     receive(unmentioned)
     assertEquals(Triple(1, 0, 1), counts())
+  }
+
+  @Test
+  fun mentionEditsInAnotherProfileChangeItsUnreadCount() = recorded("updates/group-mention") { (received, mentioned, unmentioned) ->
+    ChatModel.currentUser.value = User.sampleData.copy(userId = 2)
+    receive(received)
+    receive(mentioned)
+    assertEquals(1, ChatModel.users[0].unreadCount)
+    receive(unmentioned)
+    assertEquals(0, ChatModel.users[0].unreadCount)
+    assertNotified()
+  }
+
+  @Test
+  fun updateOfChatNotListedAddsItAndNotifies() = recorded("updates/direct-edit") { (_, edited) ->
+    receive(edited)
+    assertEquals("hello there", previewText())
+    assertNotified("hello there")
   }
 
   @Test
