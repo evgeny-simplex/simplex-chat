@@ -75,8 +75,8 @@ toJobScope_ = \case
   (DWSMemberSupport, Nothing, Nothing, Just supportGMId) -> Just $ DJSMemberSupport {supportGMId}
   _ -> Nothing
 
-createMsgDeliveryTask :: DB.Connection -> GroupInfo -> GroupMember -> NewMessageDeliveryTask -> IO ()
-createMsgDeliveryTask db gInfo sender newTask = do
+createMsgDeliveryTask :: DB.Connection -> GroupInfo -> NewMessageDeliveryTask -> IO ()
+createMsgDeliveryTask db gInfo newTask = do
   currentTs <- getCurrentTime
   DB.execute
     db
@@ -88,10 +88,10 @@ createMsgDeliveryTask db gInfo sender newTask = do
         created_at, updated_at
       ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
     |]
-    ((Only groupId) :. jobScopeRow_ jobScope :. (groupMemberId' sender, messageId, BI sentAsGroup, DTSNew, currentTs, currentTs))
+    ((Only groupId) :. jobScopeRow_ jobScope :. (senderGMId, messageId, BI sentAsGroup, DTSNew, currentTs, currentTs))
   where
     GroupInfo {groupId} = gInfo
-    NewMessageDeliveryTask {messageId, taskContext = DeliveryTaskContext {jobScope, sentAsGroup}} = newTask
+    NewMessageDeliveryTask {messageId, senderGMId, taskContext = DeliveryTaskContext {jobScope, sentAsGroup}} = newTask
 
 deleteGroupDeliveryTasks :: DB.Connection -> GroupInfo -> IO ()
 deleteGroupDeliveryTasks db GroupInfo {groupId} =
