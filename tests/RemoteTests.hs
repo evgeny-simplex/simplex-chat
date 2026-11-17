@@ -18,13 +18,16 @@ import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy.Char8 as LB
 import Data.List (find, isPrefixOf)
 import qualified Data.Map.Strict as M
+import Data.Maybe (isNothing)
+import Data.Version (makeVersion)
 import Data.Word (Word32)
 import Simplex.Chat.Controller (ChatCommand (..), ChatConfig (..), versionNumber)
 import Simplex.Chat.Files (safeFileNameStr)
 import Simplex.Chat.Library.Commands (parseChatCommand)
 import qualified Simplex.Chat.Controller as Controller
 import Simplex.Chat.Mobile.File
-import Simplex.Chat.Remote (remoteFilesFolder, validRemoteFileName)
+import Simplex.Chat.Remote (ctrlAppVersionRange, hostAppVersionRange, remoteFilesFolder, validRemoteFileName)
+import Simplex.Chat.Remote.AppVersion (AppVersion (AppVersion), compatibleAppVersion, isAppCompatible, mkAppVersionRange)
 import Simplex.Chat.Remote.Protocol (encryptEncodeHTTP2Body, parseDecryptHTTP2Body, remoteStoreFile)
 import Simplex.Chat.Remote.Types
 import qualified Simplex.Messaging.Crypto as C
@@ -96,6 +99,11 @@ remoteTests = describe "Remote" $ do
       r `shouldSatisfy` \case
         Left (RPEInvalidBody _) -> True
         _ -> False
+  describe "app version" $
+    it "refuses a controller and a host below the minimum version" $ \_ -> do
+      let olderVersion = AppVersion $ makeVersion [7, 1, 4, 0]
+      isNothing (compatibleAppVersion hostAppVersionRange $ mkAppVersionRange (AppVersion $ makeVersion [7, 1, 0, 16]) olderVersion) `shouldBe` True
+      isAppCompatible olderVersion ctrlAppVersionRange `shouldBe` False
   xdescribe "No compression" $ aroundWith (. ((False, False),)) runRemoteTests
   xdescribe "Mobile offers compression" $ aroundWith (. ((True, False),)) runRemoteTests
   xdescribe "Desktop offers compression" $ aroundWith (. ((False, True),)) runRemoteTests
