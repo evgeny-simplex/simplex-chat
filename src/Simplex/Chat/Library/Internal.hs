@@ -3065,6 +3065,9 @@ saveRcvChatItem' user cd msg@RcvMessage {chatMsgEvent, msgSigned, forwardedByMem
     itemForwarded <- rcvForwardedFrom db user cd msg
     (ciId, quotedItem) <- createNewRcvChatItem db user cd msg sharedMsgId_ content itemForwarded itemTimed live userMention hasLink_ brokerTs createdAt
     forM_ ciFile $ \CIFile {fileId} -> updateFileTransferChatItemId db fileId ciId createdAt
+    case content of
+      CIRcvGroupInvitation CIGroupInvitation {groupId} _ -> setGroupInvitationChatItemId db user groupId ciId
+      _ -> pure ()
     let ci = mkChatItem_ cd showAsGroup ciId content ts ciFile quotedItem sharedMsgId_ itemForwarded itemTimed live userMention hasLink_ brokerTs forwardedByMember (toMsgVerified (signMessagesRequired cd) msgSigned) createdAt
     ci' <- case toChatInfo cd of
       GroupChat g _ | not (null mentions') -> createGroupCIMentions db g ci mentions'
