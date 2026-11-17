@@ -1,6 +1,8 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | The reveal's checks, in the contract's order: the signed label, the order's own label and links,
 -- the commitment, the owner's intent, the terms acceptance, and the links' kinds last.
@@ -19,6 +21,8 @@ import Control.Monad (unless)
 import Control.Monad.Except (ExceptT (..), liftEither, runExceptT)
 import Data.Aeson ((.:))
 import qualified Data.Aeson as J
+import qualified Data.Aeson.TH as JQ
+import qualified Data.Aeson.Types as JT
 import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
@@ -27,18 +31,21 @@ import Data.Time.Clock (UTCTime)
 import Data.Word (Word64)
 import Simplex.Chat.Badges.Code (nameLengthInt)
 import Simplex.Messaging.Crypto.Secp256k1 (RecoverableSignature)
+import Simplex.Messaging.Encoding.String (strParseJSON)
+import Simplex.Messaging.Parsers (dropPrefix, taggedObjectJSON)
 import Simplex.Messaging.SimplexName (labelHash)
 import Simplex.Messaging.Util (tshow)
 import StoreService.Config (ChainConfig (..), NamesConfig (..))
 import StoreService.Names.Chain (ChainSeconds, chainSeconds)
 import StoreService.Names.Community (AcceptanceAsked (..), currentAcceptance)
 import StoreService.Names.Contracts (Contracts, sponsorNonce)
-import StoreService.Names.Orders (boundedInteger, hexHash, hexSignature, jsonField)
-import StoreService.Names.Registration (LinkKind (..), RegisterIntent (..), Registration (..), TermsAcceptance (..), makeCommitment, nameLink, policyDomain, sponsorDomain, termsKind, validLabel, verifyAcceptance, verifyRegisterIntent)
+import StoreService.Names.Registration (LinkKind (..), RegisterIntent (..), Registration (..), TermsAcceptance (..), hexHash, makeCommitment, nameLink, policyDomain, sponsorDomain, termsKind, validLabel, verifyAcceptance, verifyRegisterIntent)
 import StoreService.Names.Store (NameRegistration (..), NameReveal (..))
 
-data RevealRefusal = RVBadRequest Text | RVInvalidLink | RVChainUnavailable
+data RevealRefusal = RVBadRequest {reason :: Text} | RVInvalidLink | RVChainUnavailable
   deriving (Eq, Show)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "RV") ''RevealRefusal)
 
 -- | The links of each key as sent, however many; at most one per key is a check of its own.
 data RevealRequest = RevealRequest
@@ -55,19 +62,21 @@ data RevealRequest = RevealRequest
 instance J.FromJSON RevealRequest where
   parseJSON = J.withObject "reveal" $ \o -> do
     rqLabel <- o .: "label"
-    rqSignature <- jsonField o "signature" hexSignature
-    rqSecret <- jsonField o "secret" hexHash
+    rqSignature <- JT.explicitParseField (strParseJSON "signature") o "signature"
+    rqSecret <- JT.explicitParseField hexHash o "secret"
     records <- o .: "records"
     rqContactLinks <- records .: "contact"
     rqChannelLinks <- records .: "channel"
-    rqNonce <- jsonField o "nonce" boundedInteger
-    rqDeadline <- jsonField o "deadline" boundedInteger
-    rqAcceptance <- jsonField o "acceptance" $ J.withObject "acceptance" $ \a -> do
-      taTermsHash <- jsonField a "termsHash" hexHash
-      taNonce <- jsonField a "nonce" boundedInteger
-      taSignature <- jsonField a "signature" hexSignature
-      pure TermsAcceptance {taTermsHash, taNonce, taSignature}
+    rqNonce <- o .: "nonce"
+    rqDeadline <- o .: "deadline"
+    rqAcceptance <- JT.explicitParseField acceptance o "acceptance"
     pure RevealRequest {rqLabel, rqSignature, rqSecret, rqContactLinks, rqChannelLinks, rqNonce, rqDeadline, rqAcceptance}
+    where
+      acceptance = J.withObject "acceptance" $ \a -> do
+        taTermsHash <- JT.explicitParseField hexHash a "termsHash"
+        taNonce <- a .: "nonce"
+        taSignature <- JT.explicitParseField (strParseJSON "signature") a "signature"
+        pure TermsAcceptance {taTermsHash, taNonce, taSignature}
 
 isRepeat :: RevealRequest -> NameReveal -> Bool
 isRepeat RevealRequest {rqLabel, rqSignature} NameReveal {rvLabel, rvSignature} = rqLabel == rvLabel && rqSignature == rvSignature

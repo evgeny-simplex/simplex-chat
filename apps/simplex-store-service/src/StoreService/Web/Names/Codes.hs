@@ -1,50 +1,55 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module StoreService.Web.Names.Codes (codeCheckHandler, codeRefusalResponse) where
+module StoreService.Web.Names.Codes (codeCheckHandler, codeRefusalStatus) where
 
 import Control.Logger.Simple (logNote)
-import Data.Aeson ((.:), (.=))
 import qualified Data.Aeson as J
-import qualified Data.Aeson.Types as JT
-import qualified Data.ByteString.Lazy as LB
+import qualified Data.Aeson.TH as JQ
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Clock (UTCTime, getCurrentTime)
-import Network.HTTP.Types (status200, status400, status409)
+import Network.HTTP.Types (Status, status200, status400, status409)
 import Network.Wai (Request, Response, ResponseReceived)
 import Simplex.Chat.Badges.Code (parseNameCode)
 import Simplex.Messaging.Agent.Store.Common (DBStore)
-import Simplex.Messaging.Encoding.String (textEncode)
-import StoreService.Names.Codes (CodeRefusal (..), codeRefusalTag, codeState, readPrepaidCode)
+import Simplex.Messaging.Parsers (defaultJSON)
+import StoreService.Names.Codes (CodeRefusal (..), CodeState, codeState, readPrepaidCode)
+import StoreService.Names.Orders (OrderRefusal (..))
 import StoreService.Names.Store (PrepaidCode (..))
-import StoreService.Web.Http (Respond, badRequest, jsonError, jsonResponse, maxBodyBytes, readBoundedBody)
+import StoreService.Web.Http (Respond, badRequest, jsonResponse, maxBodyBytes, readBoundedBody)
+
+newtype CodeCheck = CodeCheck {code :: Text}
+
+data CodeAnswer = CodeAnswer {minLength :: Int, years :: Int, state :: CodeState}
+
+$(JQ.deriveFromJSON defaultJSON ''CodeCheck)
+
+$(JQ.deriveToJSON defaultJSON ''CodeAnswer)
 
 -- | It names no registration, even for a reserved code: holding a code proves nothing about an order.
 codeCheckHandler :: DBStore -> Request -> Respond -> IO ResponseReceived
 codeCheckHandler st req respond =
   readBoundedBody maxBodyBytes req >>= \case
-    Just body -> case codeField body of
-      Right text -> case parseNameCode text of
-        Just code -> do
+    Just body -> case J.eitherDecode body of
+      Right CodeCheck {code} -> case parseNameCode code of
+        Just nameCode -> do
           now <- getCurrentTime
-          readPrepaidCode st code >>= respond . maybe (codeRefusalResponse CRInvalid) (codeAnswer now)
-        Nothing -> respond $ codeRefusalResponse CRInvalid
+          readPrepaidCode st nameCode >>= respond . maybe invalidCode (codeAnswer now)
+        Nothing -> respond invalidCode
       Left e -> logNote ("POST /api/code/check refused: a malformed code check: " <> T.pack e) >> respond badRequest
     Nothing -> respond badRequest
-
-codeField :: LB.ByteString -> Either String Text
-codeField body = J.eitherDecode body >>= JT.parseEither (J.withObject "code check" (.: "code"))
+  where
+    invalidCode = jsonResponse status400 ORCode {refusal = CRInvalid}
 
 codeAnswer :: UTCTime -> PrepaidCode -> Response
-codeAnswer now code@PrepaidCode {pcMinLength, pcYears} =
-  jsonResponse status200 $ J.object ["minLength" .= pcMinLength, "years" .= pcYears, "state" .= (textEncode (codeState now code) :: Text)]
+codeAnswer now code@PrepaidCode {pcMinLength, pcYears} = jsonResponse status200 CodeAnswer {minLength = pcMinLength, years = pcYears, state = codeState now code}
 
--- | Not 404 for an unknown code, which the page reads as not_found whatever the body.
-codeRefusalResponse :: CodeRefusal -> Response
-codeRefusalResponse refusal = jsonError status (codeRefusalTag refusal)
-  where
-    status = case refusal of
-      CRInvalid -> status400
-      _ -> status409
+-- | Not 404 for an unknown code, which the page reads as not found whatever the body.
+codeRefusalStatus :: CodeRefusal -> Status
+codeRefusalStatus = \case
+  CRInvalid -> status400
+  _ -> status409

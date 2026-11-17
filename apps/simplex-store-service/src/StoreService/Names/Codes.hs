@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 
 module StoreService.Names.Codes
@@ -8,7 +9,6 @@ module StoreService.Names.Codes
     codeState,
     CodeRefusal (..),
     codeRefusal,
-    codeRefusalTag,
     reserveRefusal,
     readPrepaidCode,
     reserveCode,
@@ -22,6 +22,7 @@ where
 import Control.Applicative ((<|>))
 import qualified Control.Exception as E
 import Control.Logger.Simple (logError, logWarn)
+import qualified Data.Aeson.TH as JQ
 import Data.Functor ((<&>))
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
@@ -34,6 +35,7 @@ import Simplex.Chat.Controller (ChatController (..))
 import Simplex.Messaging.Agent.Store.Common (DBStore, withTransaction)
 import qualified Simplex.Messaging.Agent.Store.DB as DB
 import Simplex.Messaging.Encoding.String (TextEncoding (..))
+import Simplex.Messaging.Parsers (dropPrefix, enumJSON, taggedObjectJSON)
 import StoreService.Group.Command (CmdSource, maxNameYears)
 import StoreService.Names.Registration (RegistrationId)
 import StoreService.Names.Store (CodeHash, CodeHashTaken (..), CodeId, NewPrepaidCode (..), PrepaidCode (..), enumTextDecode, getPrepaidCode, getPrepaidCodeById, insertPrepaidCode, releasePrepaidCode, reservePrepaidCode, revokePrepaidCode, spendLandedPrepaidCode)
@@ -66,14 +68,9 @@ instance TextEncoding CodeState where
 data CodeRefusal = CRInvalid | CRUsed | CRReserved | CRExpired | CRPaymentPending | CRNotCovering
   deriving (Eq, Show)
 
-codeRefusalTag :: CodeRefusal -> Text
-codeRefusalTag = \case
-  CRInvalid -> "code_invalid"
-  CRUsed -> "code_used"
-  CRReserved -> "code_reserved"
-  CRExpired -> "code_expired"
-  CRPaymentPending -> "payment_pending"
-  CRNotCovering -> "code_not_covering"
+$(JQ.deriveToJSON (enumJSON $ dropPrefix "CS") ''CodeState)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "CR") ''CodeRefusal)
 
 -- | Why the code cannot pay for the registration's name of this length. A code the registration
 -- already holds stays good for it until spent, even if revoked or expired since.

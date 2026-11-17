@@ -1,8 +1,10 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
 module StoreService.Names.Store
@@ -131,7 +133,7 @@ where
 
 import qualified Control.Exception as E
 import Control.Monad (when)
-import Data.Aeson (ToJSON (toJSON))
+import qualified Data.Aeson.TH as JQ
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.Int (Int64)
@@ -153,9 +155,10 @@ import qualified Simplex.Messaging.Agent.Store.DB as DB
 import Simplex.Messaging.Crypto (sha256Hash)
 import Simplex.Messaging.Crypto.Secp256k1 (RecoverableSignature)
 import Simplex.Messaging.Encoding (Encoding (..), Large (..))
-import Simplex.Messaging.Encoding.String (TextEncoding (..), textToJSON)
+import Simplex.Messaging.Encoding.String (TextEncoding (..))
 import Simplex.Messaging.Eth.Address (Address, unAddress)
 import Simplex.Messaging.Names.Record (USDCents)
+import Simplex.Messaging.Parsers (defaultJSON, dropPrefix, enumJSON, taggedObjectJSON)
 import Simplex.Messaging.SimplexName (LabelHash (..))
 import Simplex.Messaging.Util (maybeFirstRow, maybeFirstRow', tshow)
 import StoreService.Group.Command (CmdSource (..))
@@ -216,14 +219,14 @@ instance ToField NamePhase where toField = toField . textEncode
 type Live = Bool
 
 data Commit = Commit
-  { cmTx :: Maybe (TxHash, Word64),
-    cmRevealAfter :: ChainSeconds,
-    cmRevealBefore :: ChainSeconds,
-    cmLinksRefusedAt :: Maybe UTCTime
+  { tx :: Maybe (TxHash, Word64),
+    revealAfter :: ChainSeconds,
+    revealBefore :: ChainSeconds,
+    linksRefusedAt :: Maybe UTCTime
   }
   deriving (Eq, Show)
 
-data CommitStep = CSSent TxHash | CSCommitted Commit
+data CommitStep = CSSent {tx :: TxHash} | CSCommitted {commit :: Commit}
   deriving (Eq, Show)
 
 data OrderPhase
@@ -272,8 +275,8 @@ phaseRegisterTx = \case
 
 commitTxOf :: CommitStep -> Maybe TxHash
 commitTxOf = \case
-  CSSent tx -> Just tx
-  CSCommitted Commit {cmTx} -> fst <$> cmTx
+  CSSent sent -> Just sent
+  CSCommitted Commit {tx} -> fst <$> tx
 
 failedFrom :: UTCTime -> FailReason -> OrderPhase -> OrderPhase
 failedFrom failedAt reason p = OFailed (phaseCommit p) (phaseRegisterTx p) failedAt reason
@@ -283,8 +286,8 @@ data FailReason = FRNotSignedInTime | FRNotRegistered
 
 instance TextEncoding FailReason where
   textEncode = \case
-    FRNotSignedInTime -> "The name was not signed in time"
-    FRNotRegistered -> "The name could not be registered"
+    FRNotSignedInTime -> "not_signed_in_time"
+    FRNotRegistered -> "not_registered"
   textDecode = enumTextDecode
 
 instance FromField FailReason where fromField = fromTextField_ textDecode
@@ -417,7 +420,7 @@ data BalanceHold = BalanceHold
   }
   deriving (Eq, Show)
 
-data HoldState = HSOpen UTCTime | HSFunded | HSOverdue UTCTime
+data HoldState = HSOpen {until :: UTCTime} | HSFunded | HSOverdue {until :: UTCTime}
   deriving (Eq, Show)
 
 -- | An order the money of a balance came through. lkPaid and lkFromBalance count only an order that went past unpaid,
@@ -508,8 +511,6 @@ instance TextEncoding LateWait where
     LWCrediting -> "crediting"
     LWSupport -> "support"
   textDecode = enumTextDecode
-
-instance ToJSON LateWait where toJSON = textToJSON
 
 -- | Why a closed order's money will not be credited by itself: the provider's reason it is uncreditable, a current rate below the floor,
 -- or unconfirmed money alerted past the read window.
@@ -686,6 +687,18 @@ data NamesCounts = NamesCounts
   }
   deriving (Eq, Show)
 
+$(JQ.deriveToJSON (enumJSON $ dropPrefix "P") ''NamePhase)
+
+$(JQ.deriveToJSON defaultJSON ''Commit)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "CS") ''CommitStep)
+
+$(JQ.deriveToJSON (enumJSON $ dropPrefix "FR") ''FailReason)
+
+$(JQ.deriveToJSON (enumJSON $ dropPrefix "LW") ''LateWait)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "HS") ''HoldState)
+
 findLimit :: Int
 findLimit = 50
 
@@ -813,8 +826,8 @@ toRegistration
     commitStep <- case (commitTx, commitBlock, revealAfter, revealBefore, linksRefusedAt) of
       (Nothing, Nothing, Nothing, Nothing, Nothing) -> Right Nothing
       (Just tx, Nothing, Nothing, Nothing, Nothing) -> Right $ Just $ CSSent tx
-      (Just tx, Just block, Just after, Just before, _) -> Right $ Just $ CSCommitted Commit {cmTx = Just (tx, word64 block), cmRevealAfter = word64 after, cmRevealBefore = word64 before, cmLinksRefusedAt = linksRefusedAt}
-      (Nothing, Nothing, Just after, Just before, _) -> Right $ Just $ CSCommitted Commit {cmTx = Nothing, cmRevealAfter = word64 after, cmRevealBefore = word64 before, cmLinksRefusedAt = linksRefusedAt}
+      (Just tx, Just block, Just after, Just before, _) -> Right $ Just $ CSCommitted Commit {tx = Just (tx, word64 block), revealAfter = word64 after, revealBefore = word64 before, linksRefusedAt}
+      (Nothing, Nothing, Just after, Just before, _) -> Right $ Just $ CSCommitted Commit {tx = Nothing, revealAfter = word64 after, revealBefore = word64 before, linksRefusedAt}
       _ -> Left $ "name_registrations commit: " <> rid
     nrPhase <- case phase of
       PUnpaid -> Right $ OUnpaid live
@@ -985,7 +998,7 @@ updateRegistration db r now = do
     (commitTx, commitBlock, revealAfter, revealBefore, linksRefusedAt) = case phaseCommit nrPhase of
       Nothing -> (Nothing, Nothing, Nothing, Nothing, Nothing)
       Just (CSSent tx) -> (Just tx, Nothing, Nothing, Nothing, Nothing)
-      Just (CSCommitted Commit {cmTx, cmRevealAfter, cmRevealBefore, cmLinksRefusedAt}) -> (fst <$> cmTx, snd <$> cmTx, Just cmRevealAfter, Just cmRevealBefore, cmLinksRefusedAt)
+      Just (CSCommitted Commit {tx = mined, revealAfter = after, revealBefore = before, linksRefusedAt = refusedAt}) -> (fst <$> mined, snd <$> mined, Just after, Just before, refusedAt)
     (expiresAt, registeredAt, registerBlock, failedAt, failReason) = case nrPhase of
       ORegistered _ tx expiry at -> (Just expiry, Just at, snd =<< tx, Nothing, Nothing)
       OFailed _ _ at reason -> (Nothing, Nothing, Nothing, Just at, Just reason)

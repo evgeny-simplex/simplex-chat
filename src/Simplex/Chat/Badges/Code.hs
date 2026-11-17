@@ -48,6 +48,7 @@ import Control.Applicative ((<|>))
 import Control.Concurrent.STM
 import Control.Monad (guard, unless)
 import Crypto.Random (ChaChaDRG)
+import Data.Aeson (FromJSON (..))
 import qualified Data.Attoparsec.ByteString.Char8 as A
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as B
@@ -158,6 +159,9 @@ minNameYears = 2
 
 newtype NameLength = NameLength Int
   deriving (Eq, Ord, Show)
+
+instance FromJSON NameLength where
+  parseJSON v = parseJSON v >>= maybe (fail "name length out of range") pure . nameLength
 
 nameLength :: Int -> Maybe NameLength
 nameLength n = NameLength n <$ guard (n >= minNameLength && n <= maxNameLength)

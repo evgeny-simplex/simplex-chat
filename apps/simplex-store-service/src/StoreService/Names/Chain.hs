@@ -150,6 +150,8 @@ instance FromField TxHash where fromField = blobFieldDecoder (Right . TxHash)
 
 instance ToField TxHash where toField (TxHash h) = toField (Binary h)
 
+instance J.ToJSON TxHash where toJSON (TxHash h) = J.toJSON (hex h)
+
 data SignedTx = SignedTx {stRaw :: ByteString, stHash :: TxHash}
   deriving (Eq, Show)
 

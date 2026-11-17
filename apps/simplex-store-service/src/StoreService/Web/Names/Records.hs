@@ -1,12 +1,13 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module StoreService.Web.Names.Records (EditInvalid (..), recordsHandler, editRequest, editResponse, editsLeftJSON) where
+module StoreService.Web.Names.Records (EditInvalid (..), recordsHandler, editRequest, editResponse) where
 
 import Control.Logger.Simple (logNote)
 import Control.Monad (forM_, unless)
-import Data.Aeson ((.:), (.:?), (.=))
+import Data.Aeson ((.:), (.:?))
 import qualified Data.Aeson as J
 import qualified Data.Aeson.Types as JT
 import Data.List (nub)
@@ -14,16 +15,15 @@ import qualified Data.List.NonEmpty as L
 import Data.Maybe (isJust, mapMaybe)
 import Data.Text (Text)
 import Data.Word (Word64)
-import Network.HTTP.Types (status200, status409, status429, status504)
+import Network.HTTP.Types (status200, status400, status409, status429, status503, status504)
 import Network.Wai (Request, Response, ResponseReceived)
 import Simplex.Messaging.Encoding.String (textDecode)
 import Simplex.Messaging.SimplexName (LabelHash (..))
-import StoreService.Names.Chain (TxHash (..), bytes32FromHex, hex)
-import StoreService.Names.Records (EditAnswer (..), EditRequest (..), EditsLeft (..), Records, relayEdit)
+import StoreService.Names.Chain (bytes32FromHex)
+import StoreService.Names.Records (EditAnswer (..), EditRequest (..), Records, relayEdit)
 import StoreService.Names.Registration (LinkKind, nameLink, parseSignature)
-import StoreService.Names.Store (EditOutcome (..), RecordChange (..), SignedChange (..))
-import StoreService.Store.Invoices (unixSeconds)
-import StoreService.Web.Http (Respond, badRequest, invalidLink, jsonError, jsonResponse, maxBodyBytes, providerUnavailable, rateLimited, readBoundedBody)
+import StoreService.Names.Store (RecordChange (..), SignedChange (..))
+import StoreService.Web.Http (Respond, badRequest, invalidLink, jsonResponse, maxBodyBytes, rateLimited, readBoundedBody)
 
 data EditInvalid = EIBadRequest | EIInvalidLink
   deriving (Eq, Show)
@@ -72,18 +72,19 @@ editRequest o = do
       scSignature <- either (const $ Left EIBadRequest) Right $ parseSignature seSignature
       pure SignedChange {scChange = maybe RCClear (uncurry RCSetText) seChange, scNonce = seNonce, scDeadline = seDeadline, scSignature}
 
+-- | The per-name cap is a rate limit, waited out as any other.
 editResponse :: EditAnswer -> Response
-editResponse = \case
-  EASettled (EOApplied tx) -> jsonResponse status200 $ J.object ["tx" .= ((\(TxHash h) -> hex h) <$> tx)]
-  EASettled (EOReverted revert) -> jsonResponse status409 $ J.object ["error" .= ("record_reverted" :: Text), "revert" .= revert]
-  EAPending -> jsonError status504 "edit_pending"
-  EARefused _ -> badRequest
-  EAStaleNonce -> jsonError status409 "stale_nonce"
-  EAUnavailable -> providerUnavailable
-  EACapped seconds -> rateLimited seconds
-  EALimited nextAt -> jsonResponse status429 $ J.object ["error" .= ("edit_limit" :: Text), "nextAt" .= unixSeconds nextAt]
-
--- | The search answer's recordEdits.
-editsLeftJSON :: EditsLeft -> J.Value
-editsLeftJSON EditsLeft {elLeft, elNextAt} = J.object ["left" .= elLeft, "nextAt" .= (unixSeconds <$> elNextAt)]
+editResponse answer = case answer of
+  EACapped {seconds} -> rateLimited seconds
+  _ -> jsonResponse status answer
+  where
+    status = case answer of
+      EAApplied {} -> status200
+      EAReverted -> status409
+      EAPending -> status504
+      EARefused {} -> status400
+      EAStaleNonce -> status409
+      EAUnavailable -> status503
+      EACapped {} -> status429
+      EALimited {} -> status409
 

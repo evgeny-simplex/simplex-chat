@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -6,11 +8,17 @@
 module StoreService.Names.View
   ( ViewReads (..),
     ViewRead (..),
-    RegistrationView (..),
-    registrationView,
+    OrderView (..),
+    PhaseView (..),
+    PaidWith (..),
+    BalanceView (..),
+    SignedTerms (..),
+    RegistrationRefusal (..),
+    orderView,
+    phaseView,
     readViewChain,
-    toRegistrationView,
-    balanceJSON,
+    toOrderView,
+    balanceView,
     addressText,
     registrationAt,
     lapseMoment,
@@ -20,167 +28,173 @@ where
 
 import Control.Concurrent.Async (concurrently)
 import Control.Logger.Simple (logWarn)
-import Data.Aeson ((.=))
-import qualified Data.Aeson as J
 import qualified Data.Aeson.TH as JQ
 import Data.Int (Int64)
-import Data.Maybe (isJust, isNothing)
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
 import Data.Word (Word64)
 import Simplex.Messaging.Agent.Store.Common (DBStore, withTransaction)
-import Simplex.Messaging.Encoding.String (strEncode, textEncode)
+import Simplex.Messaging.Encoding.String (strEncode)
 import Simplex.Messaging.Eth.Address (Address)
 import Simplex.Messaging.Names.Record (USDCents)
-import Simplex.Messaging.Parsers (defaultJSON, dropPrefix)
+import Simplex.Messaging.Parsers (defaultJSON, dropPrefix, taggedObjectJSON)
 import Simplex.Messaging.SimplexName (LabelHash (..))
 import Simplex.Messaging.Util (safeDecodeUtf8, tshow)
-import StoreService.Config (ChainConfig (..), NamesConfig (..))
-import StoreService.Names.Chain (ChainError, ChainSeconds, TxHash (..), chainTime, hex)
-import StoreService.Names.Community (AcceptanceAsked (..), communityJSON, currentAcceptance)
+import Simplex.Chat.PaymentService.Types (ServicePaymentMethod)
+import StoreService.Config (NamesConfig)
+import StoreService.Names.Chain (ChainError, ChainSeconds, TxHash, chainTime, hex)
+import StoreService.Names.Community (Acceptance, AcceptanceAsked, Community, acceptanceOf, communityOf, currentAcceptance)
 import StoreService.Names.Contracts (Contracts (ctDeadline, ctViewSlots), sponsorNonce)
 import StoreService.Names.Profiles (deadlineIn, withSlot)
-import StoreService.Names.Registration (AgreedTerms (..), RegistrationId (..), termsKindText, tldLabel)
-import StoreService.Names.Store (Balance (..), BalanceHold (..), BalanceUse (..), Commit (..), CommitStep (..), FailReason (..), HoldState (..), LateWait, NameRegistration (..), NameReveal (..), OrderPhase (..), commitTxOf, failedFrom, getBalance, getRegistration, heldBy, lateWait, namePhase, paymentBalance, paymentInvoice, phaseCommit, phaseRegisterTx)
+import StoreService.Names.Registration (AgreedTerms (..), CommunityName, RegistrationId (..))
+import StoreService.Names.Store (Balance (..), BalanceHold (..), BalanceUse (..), Commit (..), CommitStep, FailReason (..), HoldState, LateWait, NameRegistration (..), NameReveal (..), OrderPayment (..), OrderPhase (..), failedFrom, getBalance, getRegistration, heldBy, lateWait, paymentInvoice)
 
--- | The view's chain reads; a field whose read failed is null and named in unread.
+-- | A committed order's chain reads: the sponsor's nonce, and the acceptance of the terms of the name's kind until a reveal is stored.
 data ViewReads = ViewReads
   { vrIntentNonce :: ViewRead Word64,
     vrAcceptance :: ViewRead AcceptanceAsked
   }
   deriving (Eq, Show)
 
-data ViewRead a = VRNotAsked | VRUnread | VRRead a
-  deriving (Eq, Show)
+-- | A read that failed is logged once, as it becomes VRUnread.
+data ViewRead a = VRNotAsked | VRUnread | VRRead {value :: a}
+  deriving (Eq, Show, Functor)
 
-data RegistrationView = RegistrationView
-  { vwId :: Text,
-    vwVersion :: Int64,
-    vwMoves :: Int,
-    vwLinksRefused :: Bool,
-    vwPhase :: Text,
-    vwLabelHash :: Text,
-    vwLabel :: Maybe Text,
-    vwOwner :: Address,
-    vwCommitment :: Text,
-    vwSealed :: Text,
-    vwResolver :: Address,
-    vwSponsor :: Address,
-    vwChainId :: Word64,
-    vwTld :: Text,
-    vwYears :: Int,
-    vwDuration :: Word64,
-    vwPrice :: USDCents,
-    vwFromBalance :: USDCents,
-    vwBalance :: Maybe J.Value,
-    vwLatePayment :: Maybe J.Value,
-    vwCommitTx :: Maybe Text,
-    vwRegisterTx :: Maybe Text,
-    vwRevealAfter :: Maybe ChainSeconds,
-    vwRevealBefore :: Maybe ChainSeconds,
-    vwIntentNonce :: Maybe Word64,
-    vwAcceptance :: Maybe J.Value,
-    vwUnread :: [Text],
-    vwExpiresAt :: Maybe ChainSeconds,
-    vwError :: Maybe Text,
-    vwCommunity :: J.Value,
-    vwTerms :: Text
+-- | An order as its link shows it. The secret, the signatures and the links of its reveal, and the ids of other orders, are not shown.
+data OrderView = OrderView
+  { registrationId :: RegistrationId,
+    version :: Int64,
+    labelHash :: Text,
+    label :: Maybe Text,
+    owner :: Address,
+    commitment :: Text,
+    sealed :: Text,
+    terms :: SignedTerms,
+    years :: Int,
+    duration :: Word64,
+    price :: USDCents,
+    moves :: Int,
+    payment :: PaidWith,
+    balance :: Maybe BalanceView,
+    latePayment :: Maybe LateWait,
+    phase :: PhaseView,
+    community :: Maybe Community
   }
+  deriving (Show)
+
+-- | The terms an order agreed to, with the hash in its 0x form.
+data SignedTerms = SignedTerms {communityName :: CommunityName, termsHash :: Text}
+  deriving (Show)
+
+-- | The order's phase, with the chain reads of a committed order.
+data PhaseView
+  = PVUnpaid {live :: Bool}
+  | PVQueued {commitStep :: Maybe CommitStep}
+  | PVCommitting {commitTx :: Maybe TxHash}
+  | PVCommitted {commit :: Commit, intentNonce :: ViewRead Word64, acceptance :: ViewRead Acceptance}
+  | PVRegistering {commit :: Commit, registerTx :: TxHash}
+  | PVRegistered {commitStep :: Maybe CommitStep, registeredTx :: Maybe (TxHash, Maybe Word64), expiresAt :: ChainSeconds, registeredAt :: UTCTime}
+  | PVTaken {commitStep :: Maybe CommitStep, lastRegisterTx :: Maybe TxHash}
+  | PVFailed {commitStep :: Maybe CommitStep, lastRegisterTx :: Maybe TxHash, failedAt :: UTCTime, reason :: FailReason}
+  deriving (Show)
+
+-- | What paid the order, without the ids of the paying order, its invoice and its code.
+data PaidWith
+  = PWInvoice {method :: ServicePaymentMethod}
+  | PWDifference {method :: ServicePaymentMethod, fromBalance :: USDCents}
+  | PWBalance {fromBalance :: USDCents}
+  | PWCode
+  deriving (Show)
+
+-- | The holder is not named, so an order's link discloses no other order; an overdue hold reads as none.
+data BalanceView = BalanceView {amount :: USDCents, hold :: Maybe HoldState, refunded :: USDCents}
   deriving (Eq, Show)
 
-$(JQ.deriveToJSON defaultJSON {J.omitNothingFields = False, J.fieldLabelModifier = dropPrefix "vw"} ''RegistrationView)
+-- | A request that met the order changed, or at its limit of moves, answered with the order as it reads now.
+data RegistrationRefusal
+  = RRRegistrationChanged {registration :: OrderView}
+  | RRMoveLimit {registration :: OrderView}
+  deriving (Show)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "VR") ''ViewRead)
+
+$(JQ.deriveToJSON defaultJSON ''SignedTerms)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "PV") ''PhaseView)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "PW") ''PaidWith)
+
+$(JQ.deriveToJSON defaultJSON ''BalanceView)
+
+$(JQ.deriveToJSON defaultJSON ''OrderView)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "RR") ''RegistrationRefusal)
 
 -- | The balance as it reads at the given time, when a hold may have become overdue, and what a closed order's late money waits on.
-registrationView :: DBStore -> NamesConfig -> Contracts -> UTCTime -> NameRegistration -> IO RegistrationView
-registrationView st cfg ct now r = do
+orderView :: DBStore -> NamesConfig -> Contracts -> UTCTime -> NameRegistration -> IO OrderView
+orderView st cfg ct now r = do
   (balance, late) <- withTransaction st $ \db -> do
     balance <- getBalance db (nrId r) now
     late <- maybe (pure Nothing) (lateWait db) (paymentInvoice $ nrPayment r)
     pure (balance, late)
-  toRegistrationView cfg r balance late <$> readViewChain ct r
+  toOrderView cfg r balance late <$> phaseView ct r
 
--- | The intent nonce only in committed; the acceptance too, until a reveal is stored.
+-- | Only a committed order's view reads the chain.
+phaseView :: Contracts -> NameRegistration -> IO PhaseView
+phaseView ct r = case nrPhase r of
+  OUnpaid live -> pure PVUnpaid {live}
+  OQueued commitStep -> pure PVQueued {commitStep}
+  OCommitting commitTx -> pure PVCommitting {commitTx}
+  OCommitted commit -> (\ViewReads {vrIntentNonce, vrAcceptance} -> PVCommitted {commit, intentNonce = vrIntentNonce, acceptance = acceptanceOf <$> vrAcceptance}) <$> readViewChain ct r
+  ORegistering commit registerTx -> pure PVRegistering {commit, registerTx}
+  ORegistered commitStep registeredTx expiresAt registeredAt -> pure PVRegistered {commitStep, registeredTx, expiresAt, registeredAt}
+  OTaken commitStep lastRegisterTx -> pure PVTaken {commitStep, lastRegisterTx}
+  OFailed commitStep lastRegisterTx failedAt reason -> pure PVFailed {commitStep, lastRegisterTx, failedAt, reason}
+
+-- | The intent nonce, and the acceptance until a reveal is stored, of a committed order.
 readViewChain :: Contracts -> NameRegistration -> IO ViewReads
-readViewChain ct NameRegistration {nrId = RegistrationId rid, nrPhase, nrOwner, nrLabelHash, nrReveal} = case nrPhase of
-  OCommitted _ -> do
-    deadline <- deadlineIn $ ctDeadline ct
-    withSlot deadline (ctViewSlots ct) (concurrently (sponsorNonce ct nrOwner) acceptanceRead) >>= \case
-      Just (nonce, acceptance_) -> ViewReads <$> readOf "intent nonce" nonce <*> maybe (pure VRNotAsked) (readOf "terms acceptance") acceptance_
-      Nothing -> unread <$ logWarn ("names: the view of registration " <> rid <> " read the chain in no slot within its deadline")
-  _ -> pure none
+readViewChain ct NameRegistration {nrId = RegistrationId rid, nrOwner, nrLabelHash, nrReveal} = do
+  deadline <- deadlineIn $ ctDeadline ct
+  withSlot deadline (ctViewSlots ct) (concurrently (sponsorNonce ct nrOwner) acceptanceRead) >>= \case
+    Just (nonce, acceptance_) -> ViewReads <$> readOf "intent nonce" nonce <*> maybe (pure VRNotAsked) (readOf "terms acceptance") acceptance_
+    Nothing -> unread <$ logWarn ("names: the view of registration " <> rid <> " read the chain in no slot within its deadline")
   where
-    none = ViewReads {vrIntentNonce = VRNotAsked, vrAcceptance = VRNotAsked}
-    acceptanceRead = if isJust nrReveal then pure Nothing else Just <$> currentAcceptance ct nrLabelHash nrOwner
+    acceptanceRead = maybe (Just <$> currentAcceptance ct nrLabelHash nrOwner) (const $ pure Nothing) nrReveal
     readOf :: Text -> Either ChainError a -> IO (ViewRead a)
     readOf what = either (\e -> VRUnread <$ logWarn ("names: the view of registration " <> rid <> " could not read the " <> what <> ": " <> tshow e)) (pure . VRRead)
-    unread = ViewReads {vrIntentNonce = VRUnread, vrAcceptance = if isNothing nrReveal then VRUnread else VRNotAsked}
+    unread = ViewReads {vrIntentNonce = VRUnread, vrAcceptance = maybe VRUnread (const VRNotAsked) nrReveal}
 
-toRegistrationView :: NamesConfig -> NameRegistration -> Maybe Balance -> Maybe LateWait -> ViewReads -> RegistrationView
-toRegistrationView cfg@NamesConfig {nTLD, nChain = ChainConfig {cChainId, cResolver, cSponsor}} r balance late ViewReads {vrIntentNonce, vrAcceptance} =
-  RegistrationView
-    { vwId = rid,
-      vwVersion = nrVersion,
-      vwMoves = nrMoves,
-      vwLinksRefused = isJust (cmLinksRefusedAt =<< commit),
-      vwPhase = textEncode (namePhase nrPhase),
-      vwLabelHash = hex lh,
-      vwLabel = rvLabel <$> nrReveal,
-      vwOwner = nrOwner,
-      vwCommitment = hex nrCommitment,
-      vwSealed = nrSealed,
-      vwResolver = cResolver,
-      vwSponsor = cSponsor,
-      vwChainId = cChainId,
-      vwTld = tldLabel nTLD,
-      vwYears = nrYears,
-      vwDuration = nrDuration,
-      vwPrice = nrPrice,
-      vwFromBalance = maybe 0 buUsed (paymentBalance nrPayment),
-      vwBalance = balanceJSON <$> balance,
-      vwLatePayment = (\w -> J.object ["waiting" .= w]) <$> late,
-      vwCommitTx = txText <$> (commitTxOf =<< commitStep),
-      vwRegisterTx = txText <$> phaseRegisterTx nrPhase,
-      vwRevealAfter = cmRevealAfter <$> commit,
-      vwRevealBefore = cmRevealBefore <$> commit,
-      vwIntentNonce = readValue vrIntentNonce,
-      vwAcceptance = acceptanceJSON <$> readValue vrAcceptance,
-      vwUnread = ["intentNonce" | isUnread vrIntentNonce] <> ["acceptance" | isUnread vrAcceptance],
-      vwExpiresAt = expiresAt,
-      vwError = textEncode <$> failReason,
-      vwCommunity = communityJSON cfg (nrLabelHash r) (atCommunityName nrAgreedTerms),
-      vwTerms = textEncode nrAgreedTerms
+toOrderView :: NamesConfig -> NameRegistration -> Maybe Balance -> Maybe LateWait -> PhaseView -> OrderView
+toOrderView cfg r balance latePayment phase =
+  OrderView
+    { registrationId = nrId,
+      version = nrVersion,
+      labelHash = hex lh,
+      label = rvLabel <$> nrReveal,
+      owner = nrOwner,
+      commitment = hex nrCommitment,
+      sealed = nrSealed,
+      terms = SignedTerms {communityName = atCommunityName, termsHash = hex atTermsHash},
+      years = nrYears,
+      duration = nrDuration,
+      price = nrPrice,
+      moves = nrMoves,
+      payment = case nrPayment of
+        OPInvoice method _ -> PWInvoice {method}
+        OPDifference BalanceUse {buUsed} method _ -> PWDifference {method, fromBalance = buUsed}
+        OPBalance BalanceUse {buUsed} -> PWBalance {fromBalance = buUsed}
+        OPCode _ -> PWCode,
+      balance = balanceView <$> balance,
+      latePayment,
+      phase,
+      community = communityOf cfg (nrLabelHash r) atCommunityName
     }
   where
-    NameRegistration {nrId = RegistrationId rid, nrVersion, nrMoves, nrPhase, nrLabelHash = LabelHash lh, nrReveal, nrOwner, nrCommitment, nrSealed} = r
-    NameRegistration {nrYears, nrDuration, nrPrice, nrPayment, nrAgreedTerms} = r
-    commitStep = phaseCommit nrPhase
-    commit = case commitStep of
-      Just (CSCommitted c) -> Just c
-      _ -> Nothing
-    (expiresAt, failReason) = case nrPhase of
-      ORegistered _ _ expiry _ -> (Just expiry, Nothing)
-      OFailed _ _ _ reason -> (Nothing, Just reason)
-      _ -> (Nothing, Nothing)
-    txText (TxHash h) = hex h
-    readValue = \case
-      VRRead a -> Just a
-      _ -> Nothing
-    isUnread = \case
-      VRUnread -> True
-      _ -> False
-    acceptanceJSON AcceptanceAsked {acCommunity, acPolicy, acTermsHash, acNonce} =
-      J.object ["kind" .= termsKindText acCommunity, "policy" .= acPolicy, "termsHash" .= hex acTermsHash, "nonce" .= acNonce]
+    NameRegistration {nrId, nrVersion, nrLabelHash = LabelHash lh, nrReveal, nrOwner, nrCommitment, nrSealed} = r
+    NameRegistration {nrYears, nrDuration, nrPrice, nrPayment, nrMoves, nrAgreedTerms = AgreedTerms {atCommunityName, atTermsHash}} = r
 
--- | The holder is not named, so an order's link discloses no other order. A funded hold has no end time.
-balanceJSON :: Balance -> J.Value
-balanceJSON b@Balance {blAmount, blRefunded} =
-  J.object ["amount" .= blAmount, "held" .= isJust hold, "heldUntil" .= (heldUntil . bhState =<< hold), "refunded" .= blRefunded]
-  where
-    hold = heldBy b
-    heldUntil = \case
-      HSOpen t -> Just t
-      HSFunded -> Nothing
-      HSOverdue _ -> Nothing
+balanceView :: Balance -> BalanceView
+balanceView b@Balance {blAmount, blRefunded} = BalanceView {amount = blAmount, hold = bhState <$> heldBy b, refunded = blRefunded}
 
 -- | EIP-55, as the page compares owners.
 addressText :: Address -> Text
@@ -198,5 +212,5 @@ registrationAt now r = case lapseMoment r of
 
 lapseMoment :: NameRegistration -> Maybe UTCTime
 lapseMoment = \case
-  NameRegistration {nrPhase = OCommitted Commit {cmRevealBefore}, nrReveal = Nothing} -> Just $ chainTime cmRevealBefore
+  NameRegistration {nrPhase = OCommitted Commit {revealBefore}, nrReveal = Nothing} -> Just $ chainTime revealBefore
   _ -> Nothing

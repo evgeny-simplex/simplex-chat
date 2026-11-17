@@ -223,3 +223,5 @@ $(JQ.deriveJSON (enumJSON $ dropPrefix "CC") ''CryptoCurrency)
 $(JQ.deriveJSON (taggedObjectJSON $ dropPrefix "SPM") ''ServicePaymentMethod)
 
 $(JQ.deriveJSON (taggedObjectJSON $ dropPrefix "SPD") ''ServicePaymentDestination)
+
+$(JQ.deriveJSON (enumJSON $ dropPrefix "IS") ''InvoiceStatus)

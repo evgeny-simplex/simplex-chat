@@ -24,6 +24,7 @@ import StoreService.Names.Orders (OrderRefusal (..))
 import StoreService.Names.Registration (RegistrationId (..))
 import StoreService.Names.Store (Balance (..), BalanceHold (..), BalanceInsertRefused (..), BalanceLink, BalanceUse (..), BrokenInvariant (..), NameRegistration, NewRegistration, PaidOrder, Spend (..), balanceByReference, balanceChain, createBalanceRegistration, createPaidRegistration, getBalance, getRegistration, heldBy, refundBalance)
 import StoreService.Names.Turns (Turns, withBalanceTurn)
+import StoreService.Names.View (balanceView)
 
 -- | RefundAmount: the balance's amount now, which is not the cents given. RefundHeld: an order holds it, overdue or not,
 -- since only the poller's sweep can close a holder and cancel its invoice at the provider.
@@ -71,7 +72,7 @@ checkSpendBalance st Spend {spSource, spBalance} now =
     getBalance db spSource now >>= \case
       Just balance@Balance {blAmount, blHold}
         | blAmount == spBalance && isNothing (heldBy balance) -> Right <$> maybe (pure Nothing) (getRegistration db . bhHolder) blHold
-      balance -> pure $ Left $ ORBalanceChanged balance
+      balance -> pure $ Left $ ORBalanceChanged $ balanceView <$> balance
 
 -- | The order queued, its price spent from the balance read.
 coveredOrderInsert :: Spend -> NewRegistration -> DB.Connection -> UTCTime -> IO (Either OrderRefusal ())
@@ -87,5 +88,5 @@ differenceOrderInsert Spend {spSource, spBalance} new paid db now =
 balanceRefusal :: DB.Connection -> RegistrationId -> UTCTime -> Either BalanceInsertRefused () -> IO (Either OrderRefusal ())
 balanceRefusal db source now = \case
   Right () -> pure $ Right ()
-  Left BIRBalanceChanged -> Left . ORBalanceChanged <$> getBalance db source now
+  Left BIRBalanceChanged -> Left . ORBalanceChanged . fmap balanceView <$> getBalance db source now
   Left BIRLiveOrder -> pure $ Left OROrderExists

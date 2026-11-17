@@ -1,7 +1,9 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 
 -- | Record edits signed by a name's owner, each request relayed as one transaction through the registrar key's sender and followed to its outcome.
@@ -21,10 +23,11 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
 import Control.Exception (bracket, onException)
-import Control.Logger.Simple (logError, logWarn)
+import Control.Logger.Simple (logError, logNote, logWarn)
 import Control.Monad (forM, forM_, forever, unless, void, when)
 import Control.Monad.Except (ExceptT (..), runExceptT)
 import Control.Monad.IO.Class (liftIO)
+import qualified Data.Aeson.TH as JQ
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.IORef (newIORef, readIORef, writeIORef)
@@ -42,6 +45,7 @@ import Simplex.Messaging.Crypto (sha256Hash)
 import Simplex.Messaging.Encoding (Encoding (..))
 import Simplex.Messaging.Eth.Address (Address, recoverAddress)
 import Simplex.Messaging.Eth.EIP712 (Eip712Domain)
+import Simplex.Messaging.Parsers (defaultJSON, dropPrefix, taggedObjectJSON)
 import Simplex.Messaging.SimplexName (LabelHash, SimplexTLD)
 import Simplex.Messaging.Util (catchOwn', tshow)
 import StoreService.Names.Chain
@@ -76,24 +80,31 @@ data EditRequest = EditRequest
   }
   deriving (Eq, Show)
 
+-- | A reverted edit's revert is logged, not answered.
 data EditAnswer
-  = EASettled EditOutcome
+  = -- | mined, Nothing when found applied with the applying transaction unknown
+    EAApplied {tx :: Maybe TxHash}
+  | EAReverted
   | -- | not settled within the wait, or the chain stopped answering after the send; the edit goes on
     EAPending
   | -- | the signers, the deadline, the name's state, owner or resolver, or another edit holding the nonce
-    EARefused Text
+    EARefused {reason :: Text}
   | EAStaleNonce
   | -- | the chain failed before anything was sent, and nothing is stored
     EAUnavailable
   | -- | the per-name cap, with the seconds until another edit fits
-    EACapped Int
+    EACapped {seconds :: Int}
   | -- | the name's yearly limit is used up until this time
-    EALimited UTCTime
+    EALimited {nextAt :: UTCTime}
   deriving (Eq, Show)
 
 -- | The edits a name has left in its window, and when the next one returns; Nothing while none counts.
-data EditsLeft = EditsLeft {elLeft :: Int, elNextAt :: Maybe UTCTime}
+data EditsLeft = EditsLeft {left :: Int, nextAt :: Maybe UTCTime}
   deriving (Eq, Show)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "EA") ''EditAnswer)
+
+$(JQ.deriveToJSON defaultJSON ''EditsLeft)
 
 -- | What the chain shows of an edit none of whose transactions mined.
 data Judgment
@@ -143,13 +154,13 @@ nameEditsLeft db perYear lh now = editsLeft perYear <$> relayedEditTimes db lh (
 editsLeft :: Int -> [UTCTime] -> EditsLeft
 editsLeft perYear times =
   -- the oldest edit returns one, unless a lowered limit is overrun and later ones must go too
-  EditsLeft {elLeft = max 0 $ perYear - counted, elNextAt = addUTCTime editLimitWindow <$> listToMaybe (drop (counted - perYear) times)}
+  EditsLeft {left = max 0 $ perYear - counted, nextAt = addUTCTime editLimitWindow <$> listToMaybe (drop (counted - perYear) times)}
   where
     counted = length times
 
 -- | When the name's yearly limit is used up, the time the next edit fits.
 usedUpUntil :: EditsLeft -> Maybe UTCTime
-usedUpUntil EditsLeft {elLeft, elNextAt} = if elLeft == 0 then elNextAt else Nothing
+usedUpUntil EditsLeft {left, nextAt} = if left == 0 then nextAt else Nothing
 
 -- | An identical repeat of a sent edit is answered from it, and the yearly limit is checked, before any chain read.
 -- The wait for an outcome is bounded from the request's arrival, so the checks and the send count toward it.
@@ -232,7 +243,7 @@ sendNew rs editId = withStore rs (`getRecordEdit` editId) >>= maybe (pure Nothin
             SEChain (ChainReverted name) ->
               fmap judgmentOutcome <$> judge rs edit >>= \case
                 Left e' -> EAUnavailable <$ logWarn ("names records: edit " <> tshow editId <> " reverted in its dry run and was not judged: " <> tshow e')
-                Right outcome -> pure $ EASettled $ fromMaybe (EOReverted $ revertReasonText name) outcome
+                Right outcome -> settledAnswer editId $ fromMaybe (EOReverted $ revertReasonText name) outcome
             _ -> EAUnavailable <$ logWarn ("names records: edit " <> tshow editId <> " not sent: " <> tshow e)
           Just answer <$ forget rs editId
 
@@ -257,7 +268,7 @@ awaitEdit rs@Records {rsChanges, rsStalled} timer editId = loop
       seen <- readTVarIO rsChanges
       withStore rs (`getRecordEdit` editId) >>= \case
         Nothing -> pure EAUnavailable
-        Just RecordEdit {reState = ESSettled outcome} -> pure $ EASettled outcome
+        Just RecordEdit {reState = ESSettled outcome} -> settledAnswer editId outcome
         Just RecordEdit {reState = ESPending} -> do
           stalled <- S.member editId <$> readTVarIO rsStalled
           if stalled
@@ -265,6 +276,11 @@ awaitEdit rs@Records {rsChanges, rsStalled} timer editId = loop
             else do
               changed <- atomically $ (True <$ (readTVar rsChanges >>= check . (/= seen))) `orElse` (False <$ (readTVar timer >>= check))
               if changed then loop else pure EAPending
+
+settledAnswer :: RecordEditId -> EditOutcome -> IO EditAnswer
+settledAnswer editId = \case
+  EOApplied tx -> pure EAApplied {tx}
+  EOReverted revert -> EAReverted <$ logNote ("names records: edit " <> tshow editId <> " reverted" <> maybe "" (": " <>) revert)
 
 runRecordEdits :: Records -> IO ()
 runRecordEdits rs = forever $ recordsRound rs >> threadDelay recordsInterval

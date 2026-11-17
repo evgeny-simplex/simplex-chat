@@ -1,6 +1,8 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 
 -- | Each registration from queued to registered, taken or failed: its commit, the wait for the page's reveal, its acceptance relay, and its register;
@@ -35,6 +37,7 @@ import qualified Control.Exception as E
 import Control.Logger.Simple (logError, logNote, logWarn)
 import Control.Monad (forM, forM_, forever, void, when)
 import Control.Monad.Except (ExceptT (..), runExceptT)
+import qualified Data.Aeson.TH as JQ
 import Data.Containers.ListUtils (nubOrd)
 import Data.Functor ((<&>))
 import Data.Int (Int64)
@@ -45,6 +48,7 @@ import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, diffUTCTime)
 import Data.Word (Word64)
 import Simplex.Messaging.Agent.Store.Common (DBStore, withTransaction)
 import qualified Simplex.Messaging.Agent.Store.DB as DB
+import Simplex.Messaging.Parsers (dropPrefix, taggedObjectJSON)
 import Simplex.Messaging.TMap (TMap)
 import qualified Simplex.Messaging.TMap as TM
 import Simplex.Messaging.Util (catchOwn', tshow, ($>>=))
@@ -58,7 +62,7 @@ import StoreService.Names.Phases (awaitChange, publish)
 import StoreService.Names.Registration (RegistrationId (..), TermsAcceptance (..), acceptCalldata, commitCalldata, policyDomain, registerWithCreditCalldata, sponsorDomain, termsKind, verifyAcceptance, verifyRegisterIntent)
 import StoreService.Names.Reveal (intentOf)
 import StoreService.Names.Sender (PendingTx, SendError (..), Sender, awaitOutcome, inFlightTransaction, ptHash, submitTransaction)
-import StoreService.Names.Store
+import StoreService.Names.Store hiding (commit)
 import StoreService.Names.Turns (Turns, withBalanceTurn, withLabelTurn, withRegistrationTurn)
 import StoreService.Names.View (lapseMoment, registrationAt, registrationVersion)
 
@@ -93,6 +97,14 @@ data StepFailure
   | SFTakenAboveDepth
   | SFGoneButAvailable
   deriving (Eq, Show)
+
+-- | What Try again did: the version it wrote, the order changed since it was read, or a refusal.
+data Retried = RTWritten Int64 | RTChanged | RTRefused RetryRefusal
+
+data RetryRefusal = RFNotFailed | RFLinksRefused | RFCode {refusal :: CodeRefusal} | RFUnread | RFSendsUsedUp
+  deriving (Eq, Show)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "RF") ''RetryRefusal)
 
 -- | How often the stored registrations are scanned for one without a thread, such as an order just paid or requeued.
 scanInterval :: Int
@@ -225,7 +237,7 @@ toCommitted :: Worker -> UTCTime -> NameRegistration -> (ChainSeconds, ChainSeco
 toCommitted w now r (revealAfter, revealBefore) t =
   ourCommit w r t >>= \case
     Left e -> pure $ failure r $ SFChain e
-    Right ours -> save w now r {nrPhase = OCommitted Commit {cmTx = ours, cmRevealAfter = revealAfter, cmRevealBefore = revealBefore, cmLinksRefusedAt = Nothing}}
+    Right ours -> save w now r {nrPhase = OCommitted Commit {tx = ours, revealAfter, revealBefore, linksRefusedAt = Nothing}}
 
 -- | Among the signatures of the commit last sent, the one mined with status 1 at the commitment's time.
 ourCommit :: Worker -> NameRegistration -> ChainSeconds -> IO (Either ChainError (Maybe (TxHash, Word64)))
@@ -253,7 +265,7 @@ commitSent w now r@NameRegistration {nrPhase} p
 
 -- | Waits for the page's reveal until the lapse, has its acceptance held by the name policy, waits for revealAfter, then registers.
 committed :: Worker -> UTCTime -> NameRegistration -> Commit -> IO Next
-committed w@Worker {wkSender} now r@NameRegistration {nrId, nrReveal} c@Commit {cmRevealAfter} =
+committed w@Worker {wkSender} now r@NameRegistration {nrId, nrReveal} c@Commit {revealAfter} =
   inFlightTransaction wkSender (TxRegistration RTRegister nrId) >>= \case
     Just p -> registerSent w now r c p
     Nothing -> case nrReveal of
@@ -265,11 +277,11 @@ committed w@Worker {wkSender} now r@NameRegistration {nrId, nrReveal} c@Commit {
         (if unlapsed now c then relayAcceptance w now r c rvDeadline rvAcceptance else pure Nothing) >>= \case
           Just next -> pure next
           Nothing
-            | now < chainTime cmRevealAfter -> pure $ waitUntil r $ chainTime cmRevealAfter
+            | now < chainTime revealAfter -> pure $ waitUntil r $ chainTime revealAfter
             | otherwise -> sendRegister w now r c rv
 
 unlapsed :: UTCTime -> Commit -> Bool
-unlapsed now Commit {cmRevealBefore} = now <= chainTime cmRevealBefore
+unlapsed now Commit {revealBefore} = now <= chainTime revealBefore
 
 -- | The relay of the reveal's acceptance to the name policy, sent without waiting for revealAfter; Nothing once the policy
 -- stores that acceptance. One signed for another policy, before a setNamePolicy, or for the other kind of terms, clears the
@@ -427,12 +439,6 @@ failure r = Retry (nrVersion r)
 waitUntil :: NameRegistration -> UTCTime -> Next
 waitUntil r = WaitUntil (nrVersion r)
 
--- | What Try again did: the version it wrote, the order changed since it was read, or a refusal.
-data Retried = RTWritten Int64 | RTChanged | RTRefused RetryRefusal
-
-data RetryRefusal = RFNotFailed | RFLinksRefused | RFCode CodeRefusal | RFUnread | RFSendsUsedUp
-  deriving (Eq, Show)
-
 -- | Try again, in the caller's turn of the order's name: registered when its register went through; else a code order's code
 -- must still pay for it; else queued again at no charge, a released code reserved again in the code's turn.
 retryRegistration :: OrdersEnv -> NameRegistration -> IO Retried
@@ -440,7 +446,7 @@ retryRegistration oe@OrdersEnv {oeNow} current = do
   now <- oeNow
   case registrationAt now current of
     -- its commitment fixes the refused links, so only another name can register
-    NameRegistration {nrPhase = OFailed (Just (CSCommitted Commit {cmLinksRefusedAt = Just _})) _ _ _} -> pure $ RTRefused RFLinksRefused
+    NameRegistration {nrPhase = OFailed (Just (CSCommitted Commit {linksRefusedAt = Just _})) _ _ _} -> pure $ RTRefused RFLinksRefused
     r@NameRegistration {nrPhase = OFailed {}} ->
       checkFailedOrder oe r >>= \case
         Left retried -> pure retried

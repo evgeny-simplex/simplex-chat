@@ -1,8 +1,11 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
 module StoreService.Names.Registration
@@ -46,8 +49,10 @@ module StoreService.Names.Registration
     multicallCalldata,
     AddressError (..),
     OrderFields (..),
+    maxSealedChars,
     AgreedTerms (..),
     communityTermsPrefix,
+    hexHash,
     parseSignature,
     personalDigest,
     orderMessage,
@@ -63,8 +68,13 @@ import Control.Applicative ((<|>))
 import Control.Monad (unless, when)
 import Control.Monad.Except (ExceptT (..), runExceptT, throwError)
 import Crypto.Number.Serialize (os2ip)
+import Data.Aeson (FromJSON (..), ToJSON, (.:))
+import qualified Data.Aeson as J
+import qualified Data.Aeson.TH as JQ
+import qualified Data.Aeson.Types as JT
 import qualified Data.Attoparsec.ByteString.Char8 as A
 import Data.Bifunctor (first)
+import Data.ByteArray.Encoding (Base (Base16), convertToBase)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
@@ -83,12 +93,14 @@ import Simplex.Messaging.Encoding (Encoding (..))
 import Simplex.Messaging.Encoding.String (StrEncoding (..), TextEncoding (..))
 import Simplex.Messaging.Eth.Address (Address, recoverAddress, unAddress)
 import Simplex.Messaging.Eth.EIP712 (Eip712Domain (..), Eip712Value (..), hashTypedData)
+import Simplex.Messaging.Parsers (dropPrefix, enumJSON)
 import Simplex.Messaging.SimplexName (LabelHash (..), SimplexDomain (..), SimplexTLD (..), labelHash)
 import Simplex.Messaging.Util (eitherToMaybe, tshow)
-import StoreService.Names.Chain (AbiValue (..), ChainSeconds, abiArray, abiBytes, abiTuple, abiWordSize, addressWord, hex, lowerHexP, parseText, selector, uint256)
+import StoreService.Names.Chain (AbiValue (..), ChainSeconds, abiArray, abiBytes, abiTuple, abiWordSize, addressWord, bytes32FromHex, hex, lowerHexP, selector, uint256)
 
 newtype RegistrationId = RegistrationId Text
   deriving (Eq, Ord, Show)
+  deriving newtype (ToJSON)
 
 data Registration = Registration
   { rLabel :: Text,
@@ -124,11 +136,14 @@ validLabel tld label
 data LinkKind = LKContact | LKChannel
   deriving (Eq, Show)
 
+-- | The record key a link is set under.
 instance TextEncoding LinkKind where
   textEncode = \case
     LKContact -> "simplex.contact"
     LKChannel -> "simplex.channel"
   textDecode t = find ((t ==) . textEncode) [LKContact, LKChannel]
+
+$(JQ.deriveJSON (enumJSON $ dropPrefix "LK") ''LinkKind)
 
 recordKey :: LinkKind -> ByteString
 recordKey = encodeUtf8 . textEncode
@@ -344,21 +359,43 @@ data OrderFields = OrderFields
   }
   deriving (Eq)
 
+-- | Each field in its format; the sealed name within its limit.
+instance FromJSON OrderFields where
+  parseJSON = J.withObject "OrderFields" $ \o -> do
+    ofLabelHash <- LabelHash <$> JT.explicitParseField hexHash o "labelHash"
+    ofLength <- o .: "length"
+    ofDuration <- o .: "duration"
+    ofCommitment <- JT.explicitParseField hexHash o "commitment"
+    ofSealed <- o .: "sealed"
+    when (T.length ofSealed > maxSealedChars) $ fail "sealed: longer than its limit"
+    ofAgreedTerms <- o .: "terms"
+    pure OrderFields {ofLabelHash, ofLength, ofDuration, ofCommitment, ofSealed, ofAgreedTerms}
+
+maxSealedChars :: Int
+maxSealedChars = 11095
+
 -- | The hash of the terms an order agreed to, the community terms for a name the policy lists.
 data AgreedTerms = AgreedTerms {atCommunityName :: CommunityName, atTermsHash :: TermsHash}
   deriving (Eq, Show)
 
 -- | As the order signs it: the hash in 64 lowercase hex digits, after communityTermsPrefix for the community terms.
-instance TextEncoding AgreedTerms where
-  textEncode AgreedTerms {atCommunityName, atTermsHash} = (if atCommunityName then communityTermsPrefix else "") <> T.drop 2 (hex atTermsHash)
-  textDecode = eitherToMaybe . parseText (AgreedTerms <$> (True <$ A.string (encodeUtf8 communityTermsPrefix) <|> pure False) <*> lowerHexP abiWordSize)
+instance StrEncoding AgreedTerms where
+  strEncode AgreedTerms {atCommunityName, atTermsHash} = (if atCommunityName then encodeUtf8 communityTermsPrefix else "") <> convertToBase Base16 atTermsHash
+  strP = AgreedTerms <$> (True <$ A.string (encodeUtf8 communityTermsPrefix) <|> pure False) <*> lowerHexP abiWordSize
 
-instance FromField AgreedTerms where fromField = fromTextField_ textDecode
+instance FromJSON AgreedTerms where
+  parseJSON = J.withObject "AgreedTerms" $ \o -> AgreedTerms <$> o .: "communityName" <*> JT.explicitParseField hexHash o "termsHash"
 
-instance ToField AgreedTerms where toField = toField . textEncode
+instance FromField AgreedTerms where fromField = fromTextField_ $ eitherToMaybe . strDecode . encodeUtf8
+
+instance ToField AgreedTerms where toField = toField . decodeLatin1 . strEncode
 
 communityTermsPrefix :: Text
 communityTermsPrefix = "community/"
+
+-- | A 32-byte hash in its 0x form.
+hexHash :: J.Value -> JT.Parser ByteString
+hexHash = J.withText "hash" $ maybe (fail "not a 32-byte hash in lowercase hex") pure . bytes32FromHex
 
 parseSignature :: Text -> Either String RecoverableSignature
 parseSignature = strDecode . encodeUtf8
@@ -385,7 +422,7 @@ message = encodeUtf8 . T.unwords . ("simplex.domains" :)
 
 orderWords :: OrderFields -> [Text]
 orderWords OrderFields {ofLabelHash = LabelHash lh, ofLength, ofDuration, ofCommitment, ofSealed, ofAgreedTerms} =
-  [hex lh, tshow (nameLengthInt ofLength), tshow ofDuration, hex ofCommitment, hex $ sha256Hash $ encodeUtf8 ofSealed, textEncode ofAgreedTerms]
+  [hex lh, tshow (nameLengthInt ofLength), tshow ofDuration, hex ofCommitment, hex $ sha256Hash $ encodeUtf8 ofSealed, decodeLatin1 $ strEncode ofAgreedTerms]
 
 parseChecksumAddress :: Text -> Either AddressError Address
 parseChecksumAddress t = do

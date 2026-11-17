@@ -1,6 +1,8 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module StoreService.Web.Http
   ( HttpEnv (..),
@@ -33,14 +35,16 @@ module StoreService.Web.Http
     searchSlot,
     holdsFull,
     jsonResponse,
-    jsonError,
+    HttpError (..),
     notFound,
     badRequest,
     invalidName,
     invalidLink,
     codeConflict,
+    catalogChanged,
     providerUnavailable,
     termsUnavailable,
+    retryAfterResponse,
     rateLimited,
     methodNotAllowed,
     internalError,
@@ -48,11 +52,12 @@ module StoreService.Web.Http
     maxBodyBytes,
     nameBodyBytes,
     parseCodeHash,
-    invoicePairs,
+    InvoiceView (..),
+    InvoicePaymentView (..),
+    ProductView (..),
+    invoiceView,
     invoiceAt,
     expiryMoment,
-    destinationPairs,
-    amountJSON,
     confirmationsFor,
     invoiceWindow,
     providerFor,
@@ -63,9 +68,8 @@ where
 import Control.Concurrent.STM
 import Control.Exception (bracket)
 import Control.Monad (foldM, when)
-import Data.Aeson ((.=))
 import qualified Data.Aeson as J
-import Data.Aeson.Types (Pair)
+import qualified Data.Aeson.TH as JQ
 import Data.Bits (shiftR, (.&.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -84,13 +88,65 @@ import Network.HTTP.Types (Header, Method, Status, hCacheControl, hContentType, 
 import Network.Socket (SockAddr (..), hostAddressToTuple)
 import Network.Wai
 import Numeric (showHex)
-import Simplex.Chat.PaymentService.Types (CardProvider (..), CurrencyAmount (..), InvoiceStatus (..), PaymentProvider (..), ServicePaymentDestination (..), ServicePaymentMethod (..))
-import Simplex.Messaging.Encoding.String (strDecode, strEncode, textEncode)
+import Simplex.Chat.Badges (BadgeType)
+import Simplex.Chat.PaymentService.Types (CardProvider (..), CurrencyAmount (..), InvoiceId, InvoiceStatus (..), PaymentProvider (..), ServicePaymentDestination (..), ServicePaymentMethod (..))
+import Simplex.Messaging.Encoding.String (strDecode, strEncode)
+import Simplex.Messaging.Parsers (defaultJSON, dropPrefix, taggedObjectJSON)
 import Simplex.Messaging.Transport.Client (TransportHost (..))
 import Simplex.Messaging.Util (safeDecodeUtf8, stateTVar', tshow)
 import StoreService.Config (BTCPayConfig (..), ListenerConfig (..), ServiceConfig (..), SpeedPolicy (..), StripeConfig (..), defaultExpiryMinutes, defaultSessionMinutes)
 import StoreService.Providers (Provider (..))
 import StoreService.Store.Invoices (InvoicePayment (..), InvoiceRow (..), paymentHolds)
+
+-- | The refusals any endpoint of either site answers.
+data HttpError
+  = HEBadRequest
+  | HENotFound
+  | HEInvalidName
+  | HEInvalidLink
+  | HECodeConflict
+  | HECatalogChanged
+  | HEProviderUnavailable
+  | HETermsUnavailable
+  | HERateLimited
+  | HEMethodNotAllowed
+  | HEInternal
+  deriving (Eq, Show)
+
+-- | An invoice as either site shows it, with what it pays for; r is the view of a name's registration.
+data InvoiceView r = InvoiceView
+  { invoiceId :: InvoiceId,
+    status :: InvoiceStatus,
+    amount :: CurrencyAmount,
+    currency :: Text,
+    expiresAt :: UTCTime,
+    destination :: ServicePaymentDestination,
+    requiredConfirmations :: Maybe Int,
+    payment :: Maybe InvoicePaymentView,
+    paysFor :: ProductView r
+  }
+  deriving (Show)
+
+data InvoicePaymentView = InvoicePaymentView
+  { amountPaid :: Maybe CurrencyAmount,
+    cryptoPaid :: Maybe Text,
+    cryptoDue :: Maybe Text,
+    paidInFull :: Bool,
+    holds :: Bool,
+    settledAt :: Maybe UTCTime
+  }
+  deriving (Show)
+
+data ProductView r = PRBadge {badgeType :: BadgeType, months :: Word8} | PRName {registration :: r}
+  deriving (Show)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "HE") ''HttpError)
+
+$(JQ.deriveToJSON defaultJSON ''InvoicePaymentView)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "PR") ''ProductView)
+
+$(JQ.deriveToJSON defaultJSON ''InvoiceView)
 
 data HttpEnv = HttpEnv
   { heBuckets :: TVar (Map Text Bucket),
@@ -292,48 +348,44 @@ hostKey KeyPrefix {kpOctets, kpGroups} = \case
 apiHeaders :: [Header]
 apiHeaders = [(hContentType, "application/json"), (hCacheControl, "no-store")]
 
-jsonResponse :: Status -> J.Value -> Response
+jsonResponse :: J.ToJSON a => Status -> a -> Response
 jsonResponse st = responseLBS st apiHeaders . J.encode
 
-jsonError :: Status -> Text -> Response
-jsonError st code = jsonResponse st (J.object ["error" .= code])
-
 notFound :: Response
-notFound = jsonError status404 "not_found"
+notFound = jsonResponse status404 HENotFound
 
 badRequest :: Response
-badRequest = jsonError status400 "bad_request"
+badRequest = jsonResponse status400 HEBadRequest
 
 invalidName :: Response
-invalidName = jsonError status400 "invalid_name"
+invalidName = jsonResponse status400 HEInvalidName
 
 invalidLink :: Response
-invalidLink = jsonError status400 "invalid_link"
+invalidLink = jsonResponse status400 HEInvalidLink
 
 codeConflict :: Response
-codeConflict = jsonError status409 "code_conflict"
+codeConflict = jsonResponse status409 HECodeConflict
+
+catalogChanged :: Response
+catalogChanged = jsonResponse status400 HECatalogChanged
 
 providerUnavailable :: Response
-providerUnavailable = jsonError status503 "provider_unavailable"
+providerUnavailable = jsonResponse status503 HEProviderUnavailable
 
 termsUnavailable :: Int -> Response
-termsUnavailable = retryAfterError status503 "terms_unavailable"
+termsUnavailable = retryAfterResponse status503 HETermsUnavailable
 
 rateLimited :: Int -> Response
-rateLimited = retryAfterError status429 "rate_limited"
+rateLimited = retryAfterResponse status429 HERateLimited
 
-retryAfterError :: Status -> Text -> Int -> Response
-retryAfterError st code seconds =
-  responseLBS
-    st
-    (("Retry-After", B.pack (show seconds)) : apiHeaders)
-    (J.encode (J.object ["error" .= code]))
+retryAfterResponse :: J.ToJSON e => Status -> e -> Int -> Response
+retryAfterResponse st refusal seconds = responseLBS st (("Retry-After", B.pack (show seconds)) : apiHeaders) (J.encode refusal)
 
 methodNotAllowed :: Method -> Response
-methodNotAllowed allow = responseLBS status405 (("Allow", allow) : apiHeaders) (J.encode (J.object ["error" .= ("method_not_allowed" :: Text)]))
+methodNotAllowed allow = responseLBS status405 (("Allow", allow) : apiHeaders) (J.encode HEMethodNotAllowed)
 
 internalError :: Response
-internalError = jsonError status500 "internal"
+internalError = jsonResponse status500 HEInternal
 
 -- | Returns the bytes exactly as they arrived, since the webhook signature is over those bytes.
 readBoundedBody :: Int -> Request -> IO (Maybe LB.ByteString)
@@ -371,38 +423,32 @@ expiryMoment InvoiceRow {irStatus, irExpiresAt, irPayment}
   | irStatus == ISOpen && not (maybe False paymentHolds irPayment) = Just irExpiresAt
   | otherwise = Nothing
 
--- | The fields every invoice view has, a badge's and a name's.
-invoicePairs :: Maybe Int -> InvoiceRow -> [Pair]
-invoicePairs confirmations InvoiceRow {irAmount, irCurrency, irDestination, irExpiresAt, irStatus, irPayment} =
-  [ "status" .= (textEncode irStatus :: Text),
-    "amount" .= amountJSON irAmount,
-    "currency" .= irCurrency,
-    "expiresAt" .= irExpiresAt
-  ]
-    <> destinationPairs confirmations irDestination
-    <> maybe [] paymentPairs irPayment
+-- | Confirmations are shown for a crypto invoice only.
+invoiceView :: Maybe Int -> InvoiceRow -> ProductView r -> InvoiceView r
+invoiceView confirmations InvoiceRow {irInvoiceId, irAmount, irCurrency, irDestination, irExpiresAt, irStatus, irPayment} paysFor =
+  InvoiceView
+    { invoiceId = irInvoiceId,
+      status = irStatus,
+      amount = irAmount,
+      currency = irCurrency,
+      expiresAt = irExpiresAt,
+      destination = irDestination,
+      requiredConfirmations = case irDestination of
+        SPDCrypto {} -> confirmations
+        SPDCard {} -> Nothing,
+      payment = paymentView <$> irPayment,
+      paysFor
+    }
   where
-    paymentPairs p =
-      concat
-        [ maybe [] (\a -> ["amountPaid" .= amountJSON a]) (ipAmount p),
-          maybe [] (\a -> ["cryptoAmountPaid" .= a]) (ipCryptoPaid p),
-          maybe [] (\a -> ["cryptoAmountDue" .= a]) (ipCryptoDue p),
-          ["paidInFull" .= ipPaidInFull p],
-          ["settledAt" .= ipUpdatedAt p | irStatus == ISPaid]
-        ]
-
-destinationPairs :: Maybe Int -> ServicePaymentDestination -> [Pair]
-destinationPairs confirmations = \case
-  SPDCard _ url -> ["clientSecret" .= url]
-  SPDCrypto currency address cryptoAmount ->
-    [ "address" .= address,
-      "cryptoAmount" .= cryptoAmount,
-      "cryptoCurrency" .= (textEncode currency :: Text)
-    ]
-      <> maybe [] (\n -> ["requiredConfirmations" .= n]) confirmations
-
-amountJSON :: CurrencyAmount -> J.Value
-amountJSON (CurrencyAmount a) = J.toJSON a
+    paymentView p@InvoicePayment {ipAmount, ipCryptoPaid, ipCryptoDue, ipPaidInFull, ipUpdatedAt} =
+      InvoicePaymentView
+        { amountPaid = ipAmount,
+          cryptoPaid = ipCryptoPaid,
+          cryptoDue = ipCryptoDue,
+          paidInFull = ipPaidInFull,
+          holds = paymentHolds p,
+          settledAt = if irStatus == ISPaid then Just ipUpdatedAt else Nothing
+        }
 
 -- | Greenfield reports no confirmation count, so this comes from the store's speed policy.
 confirmationsFor :: ServiceConfig -> Maybe Int

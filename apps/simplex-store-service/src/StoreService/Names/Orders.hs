@@ -1,6 +1,8 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 
 -- | The checks every order runs, by paid invoice or prepaid code, in the contract's order.
@@ -13,17 +15,9 @@ module StoreService.Names.Orders
     ClosedOrder (..),
     WriteRefusal (..),
     Landing (..),
-    maxSealedChars,
     signedRequestSeconds,
-    SignedOrderFields,
-    parseOrderRequest,
-    parseOrderFields,
-    parseBody,
-    jsonField,
-    textWith,
-    hexHash,
-    hexSignature,
-    boundedInteger,
+    SignedFields (..),
+    decodeRequest,
     checkSigner,
     existingOrder,
     placeOrder,
@@ -49,36 +43,40 @@ import qualified Control.Exception as E
 import Control.Logger.Simple (logError, logWarn)
 import Control.Monad (forM, unless, when)
 import Control.Monad.Except (ExceptT (..), runExceptT)
+import Data.Aeson ((.:))
 import qualified Data.Aeson as J
+import qualified Data.Aeson.TH as JQ
 import qualified Data.Aeson.Types as JT
 import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as LB
 import Data.Functor ((<&>))
 import Data.Int (Int64)
 import Data.Maybe (catMaybes, isJust)
-import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Word (Word64)
-import Simplex.Chat.Badges.Code (NameLength, nameLength)
+import Simplex.Chat.Badges.Code (NameLength)
 import Simplex.Messaging.Agent.Store.Common (DBStore, withTransaction)
 import qualified Simplex.Messaging.Agent.Store.DB as DB
 import Simplex.Messaging.Crypto.Secp256k1 (RecoverableSignature)
-import Simplex.Messaging.Encoding.String (TextEncoding (..))
+import Simplex.Messaging.Encoding.String (strParseJSON)
 import Simplex.Messaging.Eth.Address (Address, recoverAddress)
 import Simplex.Messaging.Names.Record (USDCents)
+import Simplex.Messaging.Parsers (dropPrefix, taggedObjectJSON)
 import Simplex.Messaging.SimplexName (LabelHash (..))
 import Simplex.Messaging.Util (tshow)
 import StoreService.Config (NamesConfig (..))
 import StoreService.Names.Codes (CodeRefusal (..), codeRefusal, reserveCode, reserveRefusal, spendLandedCode)
-import StoreService.Names.Community (communityJSON, nameTerms, readableTerms, termsFor, yearsFor)
-import StoreService.Names.Contracts (Contracts, NameStatus (..), Terms, chainPriceCents, confirmedTag, nameExpires, nameStatus, ownerOfToken, secondsPerYear)
+import StoreService.Names.Community (Community, TermsLink, communityOf, nameTerms, readableTerms, termsFor, termsLink, yearsFor)
+import StoreService.Names.Contracts (Contracts, NameStatus (..), chainPriceCents, confirmedTag, nameExpires, nameStatus, ownerOfToken, secondsPerYear)
 import StoreService.Names.Env (NamesEnv (..))
 import StoreService.Names.Phases (Phases)
-import StoreService.Names.Chain (TxHash, bytes32FromHex, hex)
-import StoreService.Names.Registration (AgreedTerms (..), OrderFields (..), RegistrationId (..), parseChecksumAddress, parseSignature, personalDigest)
-import StoreService.Names.Store (Balance, BalanceUse (..), CodeInsertRefused (..), Commit (..), LiveOrder (..), NameRegistration (..), NewRegistration (..), OrderHash, OrderPayment (..), OrderPhase (..), PrepaidCode (..), paymentBalance, phaseCommit, NameTransaction (..), RegistrationTx (..), TxFor (..), TxStatus (..), VersionWrite (..), closeOverdue, createCodeRegistration, creditBalance, getBalance, getLiveOrders, getPrepaidCode, getPrepaidCodeById, getRegistration, getRegistrationByOrderHash, isLabelRegistering, orderLive, registrationTransactions, retargetRegistration, updateRegistration)
+import StoreService.Names.Chain (TxHash, hex)
+import StoreService.Names.Registration (AgreedTerms (..), OrderFields (..), RegistrationId (..), parseChecksumAddress, personalDigest)
+import StoreService.Names.View (BalanceView, balanceView)
+import StoreService.Names.Store (BalanceUse (..), CodeInsertRefused (..), Commit (..), LiveOrder (..), NameRegistration (..), NewRegistration (..), OrderHash, OrderPayment (..), OrderPhase (..), PrepaidCode (..), paymentBalance, phaseCommit, NameTransaction (..), RegistrationTx (..), TxFor (..), TxStatus (..), VersionWrite (..), closeOverdue, createCodeRegistration, creditBalance, getBalance, getLiveOrders, getPrepaidCode, getPrepaidCodeById, getRegistration, getRegistrationByOrderHash, isLabelRegistering, orderLive, registrationTransactions, retargetRegistration, updateRegistration)
 import StoreService.Names.Turns (Turns, withBalanceTurn, withCodeTurn)
 import StoreService.Store.Invoices (unixSeconds)
 
@@ -103,21 +101,22 @@ data OrderRequest = OrderRequest
     orSignature :: RecoverableSignature
   }
 
+-- | ORTermsUnavailable: seconds until the terms text is fetched again, when a fetch failed.
 data OrderRefusal
-  = ORBadRequest Text
-  | ORInvalidName
+  = ORBadRequest {reason :: Text}
   | OROrderExists
   | ORNameTaken
   | ORNameCheckUnavailable
-  | ORCatalogChanged USDCents
-  | ORCode CodeRefusal
-  | ORPriceTooHigh USDCents
-  | ORBalanceChanged (Maybe Balance)
-  | -- | the current terms and the name's community entry
-    ORTermsChanged Terms J.Value
-  | ORTermsUnavailable (Maybe Int)
+  | ORCatalogChanged {price :: USDCents}
+  | ORCode {refusal :: CodeRefusal}
+  | ORPriceTooHigh {price :: USDCents}
+  | ORBalanceChanged {balance :: Maybe BalanceView}
+  | ORTermsChanged {terms :: TermsLink, community :: Maybe Community}
+  | ORTermsUnavailable {wait :: Maybe Int}
   | ORCodesOnly
   deriving (Eq, Show)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "OR") ''OrderRefusal)
 
 newtype OrderRefused = OrderRefused OrderRefusal
   deriving (Show)
@@ -142,55 +141,36 @@ data Landing = LNotLanded | LRegistered Int64 | LChanged | LUnread
 
 data Landed = LandedByReceipt TxHash (Maybe Word64) | LandedByOwner
 
-maxSealedChars :: Int
-maxSealedChars = 11095
-
 -- | How far a signed request's timestamp may be from the service's clock.
 signedRequestSeconds :: Integer
 signedRequestSeconds = 600
 
--- | The signed fields of an order, or of another name for one, with their timestamp and signature.
-type SignedOrderFields = (OrderFields, Word64, RecoverableSignature)
+-- | The fields of another name for an order, or of an order paid from a balance, with the owner's signature over them.
+data SignedFields = SignedFields
+  { sfFields :: OrderFields,
+    sfTimestamp :: Word64,
+    sfSignature :: RecoverableSignature
+  }
 
--- | Every format check; the length's range refuses after the formats a kind of order adds.
-parseOrderRequest :: J.Object -> JT.Parser (Either OrderRefusal OrderRequest)
-parseOrderRequest o = do
-  orOwner <- jsonField o "owner" $ textWith $ first show . parseChecksumAddress
-  signed <- parseOrderFields o
-  pure $ (\(orFields, orTimestamp, orSignature) -> OrderRequest {orOwner, orFields, orTimestamp, orSignature}) <$> signed
+-- | The owner in its EIP-55 form.
+instance J.FromJSON OrderRequest where
+  parseJSON = J.withObject "OrderRequest" $ \o -> do
+    orOwner <- JT.explicitParseField (J.withText "owner" $ either (fail . show) pure . parseChecksumAddress) o "owner"
+    orFields <- o .: "fields"
+    orTimestamp <- o .: "timestamp"
+    orSignature <- JT.explicitParseField (strParseJSON "signature") o "signature"
+    pure OrderRequest {orOwner, orFields, orTimestamp, orSignature}
 
-parseOrderFields :: J.Object -> JT.Parser (Either OrderRefusal SignedOrderFields)
-parseOrderFields o = do
-  ofLabelHash <- LabelHash <$> jsonField o "labelHash" hexHash
-  len <- jsonField o "length" boundedInteger
-  ofDuration <- jsonField o "duration" boundedInteger
-  ofCommitment <- jsonField o "commitment" hexHash
-  ofSealed <- jsonField o "sealed" $ textWith $ \t -> if T.length t <= maxSealedChars then Right t else Left "longer than its limit"
-  ofAgreedTerms <- jsonField o "terms" $ textWith $ maybe (Left "not agreed terms") Right . textDecode
-  timestamp <- jsonField o "timestamp" boundedInteger
-  signature <- jsonField o "signature" hexSignature
-  pure $ case nameLength len of
-    Just ofLength -> Right (OrderFields {ofLabelHash, ofLength, ofDuration, ofCommitment, ofSealed, ofAgreedTerms}, timestamp, signature)
-    Nothing -> Left ORInvalidName
+instance J.FromJSON SignedFields where
+  parseJSON = J.withObject "SignedFields" $ \o -> do
+    sfFields <- o .: "fields"
+    sfTimestamp <- o .: "timestamp"
+    sfSignature <- JT.explicitParseField (strParseJSON "signature") o "signature"
+    pure SignedFields {sfFields, sfTimestamp, sfSignature}
 
-hexHash :: J.Value -> JT.Parser ByteString
-hexHash = textWith $ maybe (Left "not a 32-byte hash in lowercase hex") Right . bytes32FromHex
-
-hexSignature :: J.Value -> JT.Parser RecoverableSignature
-hexSignature = textWith parseSignature
-
-parseBody :: Text -> JT.Parser a -> Either OrderRefusal a
-parseBody what = first (\e -> ORBadRequest $ "a malformed " <> what <> ": " <> T.pack e) . JT.parseEither id
-
-jsonField :: J.Object -> J.Key -> (J.Value -> JT.Parser a) -> JT.Parser a
-jsonField o k p = JT.explicitParseField p o k
-
-textWith :: (Text -> Either String a) -> J.Value -> JT.Parser a
-textWith f = J.withText "string" $ either fail pure . f
-
--- | A JSON integer within the type's range; a fraction, an exponent past it, or any other value fails.
-boundedInteger :: (Integral a, Bounded a) => J.Value -> JT.Parser a
-boundedInteger = J.withScientific "integer" $ maybe (fail "not an integer in its range") pure . toBoundedInteger
+-- | A request body that does not decode is refused with what is wrong with it.
+decodeRequest :: J.FromJSON a => Text -> LB.ByteString -> Either OrderRefusal a
+decodeRequest what = first (\e -> ORBadRequest $ "a malformed " <> what <> ": " <> T.pack e) . J.eitherDecode
 
 -- | The owner's EIP-191 signature over the message.
 checkSigner :: Address -> ByteString -> RecoverableSignature -> IO (Either OrderRefusal ())
@@ -241,7 +221,7 @@ placeOrder OrdersEnv {oeStore, oeNow} req holders insert = do
           | orderLive holder ->
               closeOverdue db holder now >>= \case
                 Just v -> pure $ Just ClosedOrder {coRegistration = holder, coVersion = v}
-                Nothing -> E.throwIO . OrderRefused . ORBalanceChanged =<< maybe (pure Nothing) (\BalanceUse {buSource} -> getBalance db buSource now) (paymentBalance nrPayment)
+                Nothing -> E.throwIO . OrderRefused . ORBalanceChanged . fmap balanceView =<< maybe (pure Nothing) (\BalanceUse {buSource} -> getBalance db buSource now) (paymentBalance nrPayment)
         _ -> pure Nothing
 
 -- | In the code's turn, the code as it reads there must pay for the name; the order's insert then reserves it.
@@ -288,7 +268,7 @@ checkTerms cfg ct OrderFields {ofLabelHash, ofAgreedTerms} =
     Right (community, terms) ->
       readableTerms ct terms <&> \case
         Left wait -> Left $ ORTermsUnavailable wait
-        Right t -> unless (ofAgreedTerms == termsFor community t) $ Left $ ORTermsChanged t (communityJSON cfg ofLabelHash community)
+        Right t -> unless (ofAgreedTerms == termsFor community t) $ Left ORTermsChanged {terms = termsLink t, community = communityOf cfg ofLabelHash community}
 
 -- | A name being registered here searches as available, so it is checked here too.
 checkNameFree :: Contracts -> DBStore -> LabelHash -> IO (Either OrderRefusal ())
@@ -313,7 +293,7 @@ checkPrice ct len years price =
 movable :: NameRegistration -> Bool
 movable NameRegistration {nrPhase} = case nrPhase of
   OFailed {} -> True
-  OCommitted Commit {cmLinksRefusedAt} -> isJust cmLinksRefusedAt
+  OCommitted Commit {linksRefusedAt} -> isJust linksRefusedAt
   _ -> False
 
 orderFieldsOf :: NameRegistration -> OrderFields

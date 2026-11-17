@@ -1,7 +1,9 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module StoreService.Web.Server
   ( WebEnv (..),
@@ -18,12 +20,13 @@ where
 
 import StoreService.Catalog (PricedOffer (..), priceOffer)
 import StoreService.Config (ListenerConfig (..), NamesConfig (..), ServiceConfig (..), StripeConfig (..), isLoopbackHost)
+import StoreService.Names.Chain (ChainConfig (..), unixSeconds)
 import StoreService.Names.Env (NamesEnv)
-import StoreService.Names.Orders (OrdersEnv (..), jsonField, ordersEnv, textWith)
+import StoreService.Names.Orders (OrdersEnv (..), ordersEnv)
 import StoreService.Names.Phases (awaitChange)
-import StoreService.Names.Registration (RegistrationId)
+import StoreService.Names.Registration (RegistrationId, tldLabel)
 import StoreService.Names.Store (NamePhase (..), NameRegistration (..), getRegistration, namePhase)
-import StoreService.Names.View (lapseMoment, registrationAt, registrationVersion)
+import StoreService.Names.View (OrderView, lapseMoment, registrationAt, registrationVersion)
 import StoreService.Orders (RegistrationChanged (..), cancelOpenInvoice)
 import StoreService.Poller (ReadHints, queueReadHint)
 import StoreService.Providers (OrderDraft (..), Provider (..), ProviderInvoice (..), WebhookError (..), providerErrorText)
@@ -31,16 +34,17 @@ import StoreService.Store.Invoices (CreateError (..), InvoicePayment (..), Invoi
 import StoreService.Waiters (Seen, Waiters, awaitStatus)
 import StoreService.Web.Http
 import StoreService.Web.Names (namesApp, namesRoutes)
-import StoreService.Web.Names.Orders (nameInvoiceHandler, nameInvoiceView, paymentMethod)
+import StoreService.Web.Names.Orders (InvoiceOrder, nameInvoiceHandler, nameInvoiceView)
 import StoreService.Web.Names.Registration (heldFor, registrationChangedResponse, versionParam)
 import Control.Concurrent.Async (race)
 import Control.Concurrent.STM (atomically)
 import qualified Control.Exception as E
 import Control.Logger.Simple (logError, logNote, logWarn)
 import Control.Monad (filterM, void, when)
-import Data.Aeson ((.=))
+import Data.Aeson ((.:), (.:?))
 import qualified Data.Aeson as J
 import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Aeson.TH as JQ
 import qualified Data.Aeson.Types as JT
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LB
@@ -53,20 +57,66 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
-import Data.Word (Word8)
+import Data.Word (Word64)
 import Network.HTTP.Types (Header, Status, hCacheControl, hContentType, status200, status400, status409, status413)
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
-import Simplex.Chat.Badges (BadgeType)
 import Simplex.Chat.Badges.Types (BadgeOfferId (..), BadgePriceId (..))
 import Simplex.Chat.PaymentService.Types (InvoiceId (..), InvoiceStatus (..), PaymentProvider (..), ServicePaymentDestination (..), ServicePaymentMethod (..))
 import Simplex.Messaging.Agent.Store.Common (DBStore, withTransaction)
-import Simplex.Messaging.Encoding.String (textDecode, textEncode)
+import Simplex.Messaging.Encoding.String (textDecode)
+import Simplex.Messaging.Eth.Address (Address)
+import Simplex.Messaging.Parsers (defaultJSON, dropPrefix, taggedObjectJSON)
 import Simplex.Messaging.TMap (TMap)
 import qualified Simplex.Messaging.TMap as TM
 import Simplex.Messaging.Util (catchOwn', raceAny_, tshow)
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
 import System.FilePath (pathSeparator, takeExtension, (</>))
+
+data SiteConfig = SiteConfig
+  { stripePublishableKey :: Maybe Text,
+    names :: Maybe NamesSite
+  }
+
+-- | The constants of the deployment's chain and name sales.
+data NamesSite = NamesSite
+  { codesOnly :: Bool,
+    chainId :: Word64,
+    resolver :: Address,
+    sponsor :: Address,
+    tld :: Text,
+    termStart :: Integer
+  }
+
+-- | Refusals of a cancel: the invoice is no longer open, or money reached it.
+data CancelRefusal = CLNotOpen | CLFunded
+
+data CreateRequest = CreateRequest
+  { crPriceId :: BadgePriceId,
+    crOfferId :: Maybe BadgeOfferId,
+    crMethod :: ServicePaymentMethod,
+    crCodeHash :: ByteString
+  }
+
+-- | An invoice for a badge, or for a name.
+data InvoiceRequest = IRBadge {badge :: CreateRequest} | IRName {name :: InvoiceOrder}
+
+-- | The code hash in its one canonical spelling.
+instance J.FromJSON CreateRequest where
+  parseJSON = J.withObject "CreateRequest" $ \o -> do
+    crPriceId <- o .: "priceId"
+    crOfferId <- o .:? "offerId"
+    crMethod <- o .: "method"
+    crCodeHash <- JT.explicitParseField (J.withText "codeHash" $ maybe (fail "not a code hash") pure . parseCodeHash) o "codeHash"
+    pure CreateRequest {crPriceId, crOfferId, crMethod, crCodeHash}
+
+$(JQ.deriveToJSON defaultJSON ''NamesSite)
+
+$(JQ.deriveToJSON defaultJSON ''SiteConfig)
+
+$(JQ.deriveToJSON (taggedObjectJSON $ dropPrefix "CL") ''CancelRefusal)
+
+$(JQ.deriveFromJSON (taggedObjectJSON $ dropPrefix "IR") ''InvoiceRequest)
 
 data WebEnv = WebEnv
   { weStore :: DBStore,
@@ -97,9 +147,6 @@ listenerConfig WebEnv {weConfig} = listener weConfig
 
 maxWebhookBytes :: Int
 maxWebhookBytes = 64 * 1024
-
-catalogChanged :: Response
-catalogChanged = jsonError status400 "catalog_changed"
 
 webhookOk, webhookRefused, webhookTooLarge :: Response
 webhookOk = webhookResponse status200
@@ -141,13 +188,16 @@ serveSite siteDir path respond =
     Nothing -> respond notFound
     Just (root, file) -> respond (responseFile status200 (staticHeaders root file) file Nothing)
 
--- | What the pages read at load: the names mode, which the badges site ignores, and the Stripe publishable key.
-siteConfig :: ServiceConfig -> J.Value
+-- | What the pages read at load: the Stripe publishable key, and what the names page needs of the deployment, which the badges site ignores.
+siteConfig :: ServiceConfig -> SiteConfig
 siteConfig ServiceConfig {names, stripe} =
-  J.object
-    [ "mode" .= (if maybe False nCodesOnly names then "codes" else "open" :: Text),
-      "stripePublishableKey" .= (sPublishableKey <$> stripe)
-    ]
+  SiteConfig
+    { stripePublishableKey = sPublishableKey <$> stripe,
+      names = namesSite <$> names
+    }
+  where
+    namesSite NamesConfig {nCodesOnly, nTLD, nTermStart, nChain = ChainConfig {cChainId, cResolver, cSponsor}} =
+      NamesSite {codesOnly = nCodesOnly, chainId = cChainId, resolver = cResolver, sponsor = cSponsor, tld = tldLabel nTLD, termStart = unixSeconds nTermStart}
 
 resolveInside :: FilePath -> [Text] -> IO (Maybe (FilePath, FilePath))
 resolveInside dir segments = either ioFailed id <$> E.try attempt
@@ -260,9 +310,9 @@ refusalLogLimit :: Limit
 refusalLogLimit = Limit {lmName = "webhook refusal logs", lmPerMinute = 10}
 
 -- | A badge's view, or a name's with its registration.
-invoiceViewOf :: WebEnv -> InvoiceRow -> IO (Either Response J.Value)
+invoiceViewOf :: WebEnv -> InvoiceRow -> IO (Either Response (InvoiceView OrderView))
 invoiceViewOf env@WebEnv {weConfig} row@InvoiceRow {irProviderRef, irProduct} = case irProduct of
-  IPBadge badgeType months -> pure $ Right $ badgeInvoiceView (confirmationsFor weConfig) badgeType months row
+  IPBadge badgeType months -> pure $ Right $ invoiceView (confirmationsFor weConfig) row PRBadge {badgeType, months}
   IPName rid -> case weOrders env of
     Nothing -> Left providerUnavailable <$ namesOff irProviderRef
     Just orders ->
@@ -283,8 +333,8 @@ cancelInvoiceHandler :: WebEnv -> InvoiceId -> Respond -> IO ResponseReceived
 cancelInvoiceHandler env@WebEnv {weStore, weProviders} invId respond =
   getInvoice weStore invId >>= \case
     Nothing -> respond notFound
-    Just InvoiceRow {irStatus} | irStatus /= ISOpen -> respond (jsonError status409 "not_open")
-    Just row | funded row -> respond (jsonError status409 "funded")
+    Just InvoiceRow {irStatus} | irStatus /= ISOpen -> respond (jsonResponse status409 CLNotOpen)
+    Just row | funded row -> respond (jsonResponse status409 CLFunded)
     -- refused before the provider's cancel, since the answer could not show the order
     Just InvoiceRow {irProduct = IPName _, irProviderRef} | Nothing <- weOrders env -> namesOff irProviderRef >> respond providerUnavailable
     Just InvoiceRow {irProvider, irProviderRef} -> case providerNamed weProviders irProvider of
@@ -315,30 +365,18 @@ waitParam req = case lookup "wait" (queryString req) of
   Just (Just raw) -> either (const Nothing) textDecode (decodeUtf8' raw)
   _ -> Nothing
 
-badgeInvoiceView :: Maybe Int -> BadgeType -> Word8 -> InvoiceRow -> J.Value
-badgeInvoiceView confirmations badgeType months row =
-  J.object $ ["badgeType" .= (textEncode badgeType :: Text), "months" .= months] <> invoicePairs confirmations row
-
-data CreateRequest = CreateRequest
-  { crPriceId :: BadgePriceId,
-    crOfferId :: Maybe BadgeOfferId,
-    crMethod :: ServicePaymentMethod,
-    crCodeHash :: ByteString
-  }
-
--- | A name order carries its kind and a sealed name code, so it alone may use the larger body cap.
+-- | A name order carries a sealed name code, so it alone may use the larger body cap.
 createInvoiceHandler :: WebEnv -> Request -> Respond -> IO ResponseReceived
 createInvoiceHandler env@WebEnv {weStore, weConfig, weProviders, weWaiters} req respond =
   readBoundedBody nameBodyBytes req >>= \case
     Nothing -> refuse "body over the size limit" badRequest
-    Just body -> case J.decode body of
-      Just (J.Object o) -> case KM.lookup "kind" o of
-        Nothing
-          | LB.length body > fromIntegral maxBodyBytes -> refuse "body over the size limit" badRequest
-          | otherwise -> either (\e -> refuse ("a malformed badge order: " <> T.pack e) badRequest) badgeInvoice $ JT.parseEither parseCreateRequest o
-        Just (J.String "name") | Just orders <- weOrders env -> nameInvoiceHandler orders (weHttp env) client weConfig weProviders weWaiters o respond
-        Just kind -> refuse ("no order of kind " <> tshow kind) badRequest
-      _ -> refuse "malformed body" badRequest
+    Just body -> case J.eitherDecode body of
+      Right IRBadge {badge}
+        | LB.length body > fromIntegral maxBodyBytes -> refuse "body over the size limit" badRequest
+        | otherwise -> badgeInvoice badge
+      Right IRName {name} | Just orders <- weOrders env -> nameInvoiceHandler orders (weHttp env) client weConfig weProviders weWaiters name respond
+      Right IRName {} -> refuse "a name order, and this service sells no names" badRequest
+      Left e -> refuse ("a malformed order: " <> T.pack e) badRequest
   where
     client = checkoutClient (weHttp env) req
     refuse :: Text -> Response -> IO ResponseReceived
@@ -392,27 +430,19 @@ createAtProvider WebEnv {weStore, weConfig, weHttp} client provider CreateReques
     failed :: Text -> Response -> IO ResponseReceived
     failed why response = logError ("POST /api/invoice failed: " <> why) >> respond response
 
-createdInvoice :: InvoiceId -> PricedOffer -> UTCTime -> ServicePaymentDestination -> J.Value
-createdInvoice (InvoiceId invId) PricedOffer {poBadgeType, poMonths, poAmount, poCurrency} expiresAt destination =
-  J.object $
-    [ "invoiceId" .= invId,
-      "badgeType" .= (textEncode poBadgeType :: Text),
-      "months" .= poMonths,
-      "amount" .= amountJSON poAmount,
-      "currency" .= poCurrency,
-      "expiresAt" .= expiresAt
-    ]
-      <> destinationPairs Nothing destination
-
-parseCreateRequest :: J.Object -> JT.Parser CreateRequest
-parseCreateRequest o = do
-  crPriceId <- BadgePriceId <$> jsonField o "priceId" nonEmpty
-  crOfferId <- fmap BadgeOfferId <$> JT.explicitParseFieldMaybe nonEmpty o "offerId"
-  crMethod <- jsonField o "method" paymentMethod
-  crCodeHash <- jsonField o "codeHash" $ textWith $ maybe (Left "not a code hash") Right . parseCodeHash
-  pure CreateRequest {crPriceId, crOfferId, crMethod, crCodeHash}
-  where
-    nonEmpty = textWith $ \t -> if T.null t then Left "empty" else Right t
+createdInvoice :: InvoiceId -> PricedOffer -> UTCTime -> ServicePaymentDestination -> InvoiceView OrderView
+createdInvoice invoiceId PricedOffer {poBadgeType, poMonths, poAmount, poCurrency} expiresAt destination =
+  InvoiceView
+    { invoiceId,
+      status = ISOpen,
+      amount = poAmount,
+      currency = poCurrency,
+      expiresAt,
+      destination,
+      requiredConfirmations = Nothing,
+      payment = Nothing,
+      paysFor = PRBadge {badgeType = poBadgeType, months = poMonths}
+    }
 
 -- | A provider retries a delivery it sees fail, so anything thrown below is caught and answered 200 anyway.
 webhookHandler :: WebEnv -> PaymentProvider -> Text -> Request -> Respond -> IO ResponseReceived
