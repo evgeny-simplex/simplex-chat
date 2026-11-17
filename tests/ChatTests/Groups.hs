@@ -206,6 +206,7 @@ chatGroupTests = do
     it "skip saved message redelivered after chat stop" testGroupRedeliveredSavedMessage
     it "handle saved message without item redelivered after chat stop" testGroupRedeliveredMessageWithoutItem
     it "skip forwarded message redelivered after chat stop" testGroupRedeliveredForwardedMessage
+    it "accept group invitation redelivered after its save failed" testGroupRedeliveredInvitation
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
@@ -6176,6 +6177,39 @@ testGroupRedeliveredForwardedMessage ps = do
         bob <# "#team alice> hey"
         cath <# "#team alice> hey"
         cath #$> ("/_get chat #1 count=2", chat, [(0, "hi there"), (0, "hey")])
+
+testGroupRedeliveredInvitation :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredInvitation =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    connectUsers alice bob
+    alice ##> "/g team"
+    alice <## "group #team is created"
+    alice <## "to add members use /a team <name> or /create link #team"
+    withCCTransaction bob (`DB.execute_` "ALTER TABLE groups RENAME COLUMN chat_item_id TO chat_item_id_")
+    withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands RENAME TO commands_")
+    alice ##> "/a team bob admin"
+    alice <## "invitation to join the group #team sent to bob"
+    bob <##. "chat db error: "
+    bob <##. "internal error: "
+    withCCTransaction bob (`DB.execute_` "ALTER TABLE groups RENAME COLUMN chat_item_id_ TO chat_item_id")
+    withCCAgentTransaction bob (`DB.execute_` "ALTER TABLE commands_ RENAME TO commands")
+    withCCTransaction bob (`DB.execute_` "UPDATE msg_deliveries SET delivery_status = 'rcv_agent' WHERE delivery_status = 'rcv_acknowledged'")
+    bob ##> "/_stop"
+    bob <## "chat stopped"
+    bob ##> "/_start"
+    bob
+      <### [ "chat started",
+             "subscribed 1 connections on server localhost",
+             "#team: alice invites you to join the group as admin",
+             "use /j team to accept"
+           ]
+    bob ##> "/j team"
+    concurrently_
+      (alice <## "#team: bob joined the group")
+      (bob <## "#team: you joined the group")
+    [Only content] <- withCCTransaction bob $ \db ->
+      DB.query_ db "SELECT item_content FROM chat_items WHERE item_content_tag = 'rcvGroupInvitation'" :: IO [Only String]
+    content `shouldContain` "\"status\":\"accepted\""
 
 testGroupMsgForwardEdit :: HasCallStack => TestParams -> IO ()
 testGroupMsgForwardEdit =
