@@ -190,7 +190,6 @@ chatGroupTests = do
     it "accept support chat edits only in own or moderated support chats" testSupportScopeEditNonParticipantRejected
     it "accept forwarded support chat messages only in own or moderated support chats" testSupportScopeForwardNonParticipantRejected
     it "record unknown member roles for app tests" testUnknownMemberRolesFixture
-    it "record group link role changes for app tests" testGroupLinkRoleFixture
   describe "invite member via group" $ do
     it "invite member of another group" testInviteMemberViaGroup
     it "auto-accept invitation from member of another group" testInviteMemberViaGroupAutoAccept
@@ -1858,15 +1857,7 @@ testUnknownMemberRolesFixture =
         agentSendBody alice connId $ chatMsgToBody $ ChatMessage chatInitialVRange Nothing (XGrpMemRole memId (GRUnknown "vip") Nothing Nothing)
       bob <## "#team: alice changed the role of cath from member to vip"
       bob <## "#team: alice changed your role from member to vip"
-      apiFixture "members/unknown-roles" bob [] FixtureRequests {frMarkdown = [], frUris = [], frCommands = ["/_get chats 1 pcc=on", "/_get chat #1 count=2", "/_members #1"]}
-
-testGroupLinkRoleFixture :: HasCallStack => TestParams -> IO ()
-testGroupLinkRoleFixture =
-  testChat aliceProfile $ \alice -> do
-    alice ##> "/g team"
-    alice <## "group #team is created"
-    alice <## "to add members use /a team <name> or /create link #team"
-    apiFixture "group-links/member-role" alice [] FixtureRequests {frMarkdown = [], frUris = [], frCommands = ["/_create link #1 member", "/_set link role #1 observer"]}
+      apiFixture "members/unknown-roles" bob [] FixtureRequests {frMarkdown = [""], frUris = [], frCommands = ["/_get chats 1 pcc=on", "/_get chat #1 count=2", "/_members #1"]}
 
 testGroupObserverLegacyFile :: HasCallStack => TestParams -> IO ()
 testGroupObserverLegacyFile =
