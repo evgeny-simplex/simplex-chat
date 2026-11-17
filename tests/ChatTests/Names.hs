@@ -1073,6 +1073,7 @@ joinChannelByName g alice cath bob = do
         cath <## ("#" <> g <> ": bob joined the group"),
       alice <### [EndsWith "(Bob) in the channel"]
     ]
+  rosterVersionByName bob g `shouldEventuallyReturn` Just 0
 
 withTeamChats :: HasCallStack => (NameRegistry -> String -> String -> TestCC -> TestCC -> IO ()) -> TestParams -> IO ()
 withTeamChats test = withChannelChats $ \reg alice cath bob -> do

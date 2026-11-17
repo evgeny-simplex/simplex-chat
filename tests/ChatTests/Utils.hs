@@ -716,6 +716,11 @@ getProfileShortDescrByName cc displayName =
   withTransaction (chatStore $ chatController cc) $ \db ->
     join <$> maybeFirstRow fromOnly (DB.query db "SELECT short_descr FROM contact_profiles WHERE display_name = ? LIMIT 1" (Only displayName))
 
+rosterVersionByName :: TestCC -> String -> IO (Maybe Int)
+rosterVersionByName cc groupName =
+  withCCTransaction cc $ \db ->
+    join <$> maybeFirstRow fromOnly (DB.query db "SELECT roster_version FROM groups WHERE local_display_name = ?" (Only groupName))
+
 pqSndForContact :: TestCC -> ContactId -> IO PQEncryption
 pqSndForContact = pqForContact_ pqSndEnabled PQEncOff
 
@@ -1054,7 +1059,7 @@ writeFixture fixture value = do
 
 stableJSON :: J.Value -> J.Value
 stableJSON = \case
-  J.Object o -> J.Object $ JM.mapWithKey stableField $ JM.delete "rosterVersion" o
+  J.Object o -> J.Object $ JM.mapWithKey stableField o
   J.Array a -> J.Array $ fmap stableJSON a
   v -> v
   where
