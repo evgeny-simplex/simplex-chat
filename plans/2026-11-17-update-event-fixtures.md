@@ -28,7 +28,6 @@ flowchart LR
 |---|---|
 | `recordItemEvent events evt` | appends `newChatItems` and `chatItemUpdated` to `events`, encoded as `chatRecvMsg` encodes them |
 | `eventsFixture fixture events steps` | clears `events`, runs `steps`, writes `events` as one JSON array |
-| `writeFixture` | creates the directory of the fixture |
 | `stableJSON` | `itemTs` replaced by 1970-01-01<br>`itemSharedMsgId` replaced by its key |
 | `rosterVersionByName cc group` | the group's `roster_version` |
 

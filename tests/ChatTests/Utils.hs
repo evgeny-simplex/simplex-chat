@@ -55,9 +55,8 @@ import Simplex.Messaging.Crypto.Ratchet (PQEncryption (..), PQSupport, pattern P
 import Simplex.Messaging.Encoding.String
 import Simplex.Messaging.Util (safeDecodeUtf8)
 import Simplex.Messaging.Version
-import System.Directory (createDirectoryIfMissing, doesFileExist)
+import System.Directory (doesFileExist)
 import System.Environment (lookupEnv)
-import System.FilePath (takeDirectory)
 import System.Info (os)
 import Test.Hspec hiding (it)
 import qualified Test.Hspec as Hspec
@@ -1044,11 +1043,8 @@ eventsFixture fixture events steps = do
   readTVarIO events >>= writeFixture fixture . stableJSON . J.toJSON
 
 writeFixture :: String -> J.Value -> IO ()
-writeFixture fixture value = do
-  createDirectoryIfMissing True $ takeDirectory path
-  testGenerate path $ prettyJSON value
+writeFixture fixture = testGenerate ("tests/fixtures/api/" <> fixture <> ".json") . prettyJSON
   where
-    path = "tests/fixtures/api/" <> fixture <> ".json"
     prettyJSON = (<> "\n") . pretty ""
     pretty indent = \case
       J.Object o | not (JM.null o) -> block indent "{" "}" [jsonText (J.String $ JK.toText k) <> ": " <> pretty (indent <> "  ") v | (k, v) <- JM.toList o]
