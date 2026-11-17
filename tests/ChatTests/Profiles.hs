@@ -116,6 +116,7 @@ chatProfileTests = do
     it "duplicate contact request from connected contact" testDuplicateContactRequestConnected
     it "contact requests with invalid or unsupported messages" testContactRequestsInvalidMessages
     it "reject contact and delete contact link" testRejectContactAndDeleteUserContact
+    it "contact requests are received while a request is accepted" testAcceptContactReceivesRequests
     it "keep connection requests when contact link deleted" testKeepConnectionRequests
     it "connected contact works when contact link deleted" testContactLinkDeletedConnectedContactWorks
     it "auto-reply message" testAutoReplyMessage
@@ -1905,6 +1906,20 @@ testRejectContactAndDeleteUserContact = testChat3 aliceProfile bobProfile cathPr
 
     cath ##> ("/c " <> cLink)
     cath <## "error: connection authorization failed - this could happen if connection was deleted, secured with different credentials, or due to a bug - please re-create the connection"
+
+testAcceptContactReceivesRequests :: HasCallStack => TestParams -> IO ()
+testAcceptContactReceivesRequests =
+  testChat3 aliceProfile bobProfile cathProfile $ \alice bob cath -> do
+    alice ##> "/ad"
+    cLink <- getContactLink alice True
+    cath ##> ("/c " <> cLink)
+    alice <#? cath
+    withUnresponsiveServer (smpTestPort2 alice) $ do
+      useUnresponsiveServer alice
+      alice ##> "/ac cath"
+      bob ##> ("/c " <> cLink)
+      alice <#? bob
+      alice <##. "smp agent error: BROKER"
 
 testKeepConnectionRequests :: HasCallStack => TestParams -> IO ()
 testKeepConnectionRequests = testChat3 aliceProfile bobProfile cathProfile $
