@@ -2737,7 +2737,6 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
                 createInvitationItem invStatus = do
                   let content = CIRcvGroupInvitation (CIGroupInvitation {groupId, groupMemberId, localDisplayName, groupProfile, status = invStatus}) memRole
                   (ci, cInfo) <- saveRcvChatItemNoParse user (CDDirectRcv ct) msg brokerTs content
-                  withStore' $ \db -> setGroupInvitationChatItemId db user groupId (chatItemId' ci)
                   toView $ CEvtNewChatItems user [AChatItem SCTDirect SMDRcv cInfo ci]
             if
               | sameGroupLinkId groupLinkId groupLinkId' ->
@@ -3938,7 +3937,6 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               createInvitationItem invStatus = do
                 let content = CIRcvGroupInvitation (CIGroupInvitation {groupId, groupMemberId, localDisplayName, groupProfile, status = invStatus}) memRole
                 (ci, cInfo) <- saveRcvChatItemNoParse user (CDGroupRcv viaGInfo Nothing m) msg brokerTs content
-                withStore' $ \db -> setGroupInvitationChatItemId db user groupId (chatItemId' ci)
                 groupMsgToView cInfo ci
           if isTrue (autoAcceptGroupInvitations user)
             then when (memberStatus membership == GSMemInvited) $ do
