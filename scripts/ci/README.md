@@ -1,6 +1,6 @@
 # CI on GitHub's runners
 
-Three workflows build the apps from a branch's own code and test them, only when asked: `ios-sim` (the iOS app in a simulator on a macOS runner), `desktop-linux` (the desktop app on a Linux runner) and `android-emu` (the Android app in an emulator on a Linux runner). Each runs a scripted smoke test and, on request, a Claude session that follows a test plan, and a test backend (relay, directory, names server, peers). Details: [iOS](ios-sim/README.md), [desktop](desktop-linux/README.md), [Android](android/README.md).
+Three workflows build the apps from a branch's own code and test them, only when asked: `ios-sim` (the iOS app in a simulator on a macOS runner), `desktop-linux` (the desktop app on a Linux runner) and `android-emu` (the Android app in an emulator on a Linux runner). Each runs a scripted smoke test and, on request, a Claude session that follows a test plan, and a test backend (relay, directory, names server, peers). `android-emu` also runs the Android app's instrumented tests (apps/multiplatform/android/src/androidTest) in the emulator. Details: [iOS](ios-sim/README.md), [desktop](desktop-linux/README.md), [Android](android/README.md).
 
 ## Reduced build
 
@@ -194,7 +194,7 @@ Pushes start none of the app workflows: a run is started by hand, on any branch,
 
 | Input | iOS | Desktop | Android |
 |---|---|---|---|
-| no input | scripted test, the app uploaded | scripted test, the app uploaded | scripted test, the app uploaded |
+| no input | scripted test, the app uploaded | scripted test, the app uploaded | scripted test and instrumented tests, the app uploaded |
 | `claude` | scripted test, then Claude | scripted test, then Claude | scripted test, then Claude |
 | `backend` | also the test backend | also the test backend | also the test backend |
 | `release` | — | also the latest release's onboarding, to tell a branch's failure from the runner's | also the latest release's onboarding, to tell a branch's failure from the runner's |

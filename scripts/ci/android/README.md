@@ -1,6 +1,6 @@
 # Android app CI in an emulator
 
-`.github/workflows/android-emu.yml` builds the core library and a debug APK from the branch on a GitHub runner (Ubuntu 24.04), installs the app in an Android emulator, and drives it: onboarding to the chat list, then the chat list with the reachable toolbar (the default) and with the top bar. On request it also runs Claude Code driving the same path, a test backend, and the latest release as a baseline.
+`.github/workflows/android-emu.yml` builds the core library and a debug APK from the branch on a GitHub runner (Ubuntu 24.04), installs the app in an Android emulator, and drives it: onboarding to the chat list, then the chat list with the reachable toolbar (the default) and with the top bar. Then it runs the app's instrumented tests in the same emulator. On request it also runs Claude Code driving the same path, a test backend, and the latest release as a baseline.
 
 ## Running it
 
@@ -14,7 +14,7 @@ Every run builds the core library, and the backend when it's asked for, from the
 |---|---|---|
 | `plan` | reads the inputs, finds earlier core and backend builds | 10 s |
 | `core` | `build-core.sh`: `lib:simplex-chat` and `lib:support` for aarch64-android with Nix, as `scripts/android/build-android.sh` builds them | skipped when reused, about 27 min not |
-| `app` | the debug APK (`:android:assembleFossDebug` for arm64-v8a only), the emulator, `smoke-test.sh` | about 13 min: APK 7–8, emulator 1.5, smoke test 3.5 (4 with the backend case, after 2.5 to start the backend) |
+| `app` | the debug APK (`:android:assembleFossDebug` for arm64-v8a only), the instrumented tests' APK, the emulator, `smoke-test.sh`, the instrumented tests | about 13 min: APK 7–8, emulator 1.5, smoke test 3.5 (4 with the backend case, after 2.5 to start the backend) |
 | `claude` (opt-in) | after `app` passed: its APK in a new emulator at the first screen, then Claude Code drives it | about 5 min, Claude 2.5 |
 | `backend` (opt-in) | desktop-linux's `build-backend.sh` | about 30 min, skipped when reused |
 | `release` (opt-in) | the latest release's arm64 APK, its signer checked against SimpleX's key, onboarding only | about 4 min |
@@ -33,6 +33,10 @@ A Google APIs x86_64 system image of API 34 (revision 14) with KVM, on the x86_6
 - `install-sdk.sh`, `emulator.sh`: the emulator, above.
 - `build-core.sh`, `install-core.sh`, `release-apk.sh`: builds and the release.
 - `claude-test.md` (the prompt) and `claude-scope` (whether it uses the test backend): the Claude job, which runs desktop-linux's `claude-test.sh`, `claude-guard.py` and `claude-usage.py`.
+
+## Instrumented tests
+
+The tests in `apps/multiplatform/android/src/androidTest` run in the app's process, which starts as the app does, its core library under the ARM translation included. The step "Build instrumented tests" builds their APK with `:android:assembleFossDebugAndroidTest` and the same injected ABI as the app, before `install-sdk.sh` replaces ANDROID_HOME with an SDK that has no build tools. After the smoke test, the step "Run instrumented tests" installs the app and the tests' APK, and runs them with `am instrument -w` and `androidx.test.runner.AndroidJUnitRunner`. The step prints JUnit's report and fails unless the report says `OK (<n> tests)`.
 
 ## The test backend
 
