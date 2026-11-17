@@ -6915,6 +6915,12 @@ Query:  SELECT chat_item_id FROM chat_items WHERE  user_id = ? AND note_folder_i
 Plan:
 SEARCH chat_items USING COVERING INDEX idx_chat_items_notes_created_at (user_id=? AND note_folder_id=?)
 
+Query: ALTER TABLE groups RENAME COLUMN chat_item_id TO chat_item_id_
+Plan:
+
+Query: ALTER TABLE groups RENAME COLUMN chat_item_id_ TO chat_item_id
+Error: SQLite3 returned ErrorError while attempting to perform prepare "explain query plan ALTER TABLE groups RENAME COLUMN chat_item_id_ TO chat_item_id": no such column: "chat_item_id_"
+
 Query: CREATE TABLE temp_delete_members (contact_profile_id INTEGER, member_profile_id INTEGER, local_display_name TEXT)
 Error: SQLite3 returned ErrorError while attempting to perform prepare "explain query plan CREATE TABLE temp_delete_members (contact_profile_id INTEGER, member_profile_id INTEGER, local_display_name TEXT)": table temp_delete_members already exists
 
@@ -8011,6 +8017,10 @@ Query: SELECT item_content FROM chat_items WHERE group_id = 1 ORDER BY chat_item
 Plan:
 SEARCH chat_items USING INDEX idx_chat_items_group_id (group_id=?)
 
+Query: SELECT item_content FROM chat_items WHERE item_content_tag = 'rcvGroupInvitation'
+Plan:
+SCAN chat_items
+
 Query: SELECT last_insert_rowid()
 Plan:
 SCAN CONSTANT ROW
@@ -8775,6 +8785,10 @@ SEARCH groups USING INTEGER PRIMARY KEY (rowid=?)
 Query: UPDATE groups SET via_group_link_uri = ?, via_group_link_uri_hash = ?, conn_link_prepared_connection = ?, public_member_count = ?, updated_at = ? WHERE group_id = ?
 Plan:
 SEARCH groups USING INTEGER PRIMARY KEY (rowid=?)
+
+Query: UPDATE msg_deliveries SET delivery_status = 'rcv_agent' WHERE delivery_status = 'rcv_acknowledged'
+Plan:
+SCAN msg_deliveries
 
 Query: UPDATE note_folders SET chat_ts = ? WHERE user_id = ? AND note_folder_id = ?
 Plan:
