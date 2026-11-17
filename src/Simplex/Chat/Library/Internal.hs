@@ -987,7 +987,7 @@ getRcvFilePath fileId fPath_ fn keepHandle = case fPath_ of
 -- - xContactId is set on the contact at the first acceptance attempt, not after accept success, which prevents profile updates after such attempt.
 --   It may be reasonable to set it when contact is first prepared, but then we can't use it to ignore requests after acceptance,
 --   and it may lead to race conditions with XInfo events.
-acceptContactRequest :: NetworkRequestMode -> User -> UserContactRequest -> IncognitoEnabled -> CM (Contact, Connection, SndQueueSecured)
+acceptContactRequest :: NetworkRequestMode -> User -> UserContactRequest -> IncognitoEnabled -> CM (Contact, Connection, CM SndQueueSecured)
 acceptContactRequest nm user@User {userId} UserContactRequest {agentInvitationId = AgentInvId invId, contactId_, cReqChatVRange, localDisplayName = cName, profileId, profile = cp, userContactLinkId_, xContactId, pqSupport} incognito = do
   subMode <- chatReadVar subscriptionMode
   let pqSup = PQSupportOn
@@ -1017,7 +1017,7 @@ acceptContactRequest nm user@User {userId} UserContactRequest {agentInvitationId
           pure (ct, conn, ExistingIncognito <$> incognitoProfile, connPresHeader conn)
   profileToSend <- presentUserBadgeWith user incognitoProfile getPresHeader $ userProfileDirect user (fromIncognitoProfile <$> incognitoProfile) (Just ct) True
   dm <- encodeConnInfoPQ pqSup' $ XInfo profileToSend Nothing
-  (ct,conn,) <$> withAgent (\a -> acceptContact a nm (aUserId user) (aConnId conn) True invId dm pqSup' subMode)
+  pure (ct, conn, withAgent $ \a -> acceptContact a nm (aUserId user) (aConnId conn) True invId dm pqSup' subMode)
 
 acceptContactRequestAsync :: User -> Int64 -> Contact -> UserContactRequest -> Maybe IncognitoProfile -> CM Contact
 acceptContactRequestAsync
@@ -1616,10 +1616,15 @@ connectToRelayAsync user gInfo relayLink = do
   relayMember@GroupMember {activeConn} <- withFastStore $ \db -> getCreateRelayForMember db cxt gVar user gInfo relayLink
   case activeConn of
     Just _ -> pure ()
-    Nothing -> do
-      subMode <- chatReadVar subscriptionMode
-      newConnIds <- getAgentConnShortLinkAsync user CFGetRelayDataJoin Nothing relayLink
-      withFastStore' $ \db -> createRelayMemberConnectionAsync db user gInfo relayMember relayLink newConnIds subMode
+    Nothing -> createRelayConnectionAsync user gInfo relayMember relayLink
+
+createRelayConnectionAsync :: User -> GroupInfo -> GroupMember -> ShortLinkContact -> CM ()
+createRelayConnectionAsync user gInfo relayMember relayLink = do
+  subMode <- chatReadVar subscriptionMode
+  newConnIds@(cmdId, connId) <- prepareAgentCreation user CFGetRelayDataJoin False SCMInvitation
+  withFastStore' $ \db -> createRelayMemberConnectionAsync db user gInfo relayMember relayLink newConnIds subMode
+  relayLink' <- restoreShortLink' relayLink
+  void $ withAgent $ \a -> getConnShortLinkAsync a (aUserId user) (aCorrId cmdId) (Just connId) relayLink'
 
 updatePublicGroupData :: User -> GroupInfo -> GroupKeys -> CM GroupInfo
 updatePublicGroupData user gInfo gks
@@ -1637,8 +1642,14 @@ updatePublicGroupData user gInfo gks
   | otherwise = pure gInfo
 
 -- must not resolve names here: a background link-data refresh would leak channel membership to the resolver
-updateGroupFromLinkData :: User -> GroupInfo -> GroupShortLinkData -> Maybe SimplexDomain -> CM (GroupInfo, Bool)
-updateGroupFromLinkData user gInfo@GroupInfo {groupProfile = p, groupSummary = GroupSummary {publicMemberCount = localCount}} GroupShortLinkData {groupProfile, publicGroupData} resolvedDomain_
+updateGroupFromLinkData :: User -> GroupId -> GroupShortLinkData -> Maybe SimplexDomain -> CM (GroupInfo, Bool)
+updateGroupFromLinkData user groupId sLinkData resolvedDomain_ = withGroupLock "updateGroupFromLinkData" groupId $ do
+  cxt <- chatStoreCxt
+  gInfo <- withStore $ \db -> getGroupInfo db cxt user groupId
+  updateGroupFromLinkData_ user gInfo sLinkData resolvedDomain_
+
+updateGroupFromLinkData_ :: User -> GroupInfo -> GroupShortLinkData -> Maybe SimplexDomain -> CM (GroupInfo, Bool)
+updateGroupFromLinkData_ user gInfo@GroupInfo {groupProfile = p, groupSummary = GroupSummary {publicMemberCount = localCount}} GroupShortLinkData {groupProfile, publicGroupData} resolvedDomain_
   | profileChanged || countChanged || verifyResolved = do
       cxt <- chatStoreCxt
       withStore $ \db -> do
@@ -3175,12 +3186,11 @@ setAgentConnShortLinkAsync user conn@Connection {connId} userLinkData crClientDa
   cmdId <- withStore' $ \db -> createCommand db user (Just connId) CFSetShortLink
   withAgent $ \a -> setConnShortLinkAsync a (aCorrId cmdId) (aConnId conn) userLinkData crClientData_
 
-getAgentConnShortLinkAsync :: User -> CommandFunction -> Maybe Connection -> ShortLinkContact -> CM (CommandId, ConnId)
-getAgentConnShortLinkAsync user cmdFunc conn_ shortLink = do
+getAgentConnShortLinkAsync :: User -> CommandFunction -> Connection -> ShortLinkContact -> CM ()
+getAgentConnShortLinkAsync user cmdFunc conn@Connection {connId} shortLink = do
   shortLink' <- restoreShortLink' shortLink
-  cmdId <- withStore' $ \db -> createCommand db user (dbConnId <$> conn_) cmdFunc
-  connId <- withAgent $ \a -> getConnShortLinkAsync a (aUserId user) (aCorrId cmdId) (aConnId <$> conn_) shortLink'
-  pure (cmdId, connId)
+  cmdId <- withStore' $ \db -> createCommand db user (Just connId) cmdFunc
+  void $ withAgent $ \a -> getConnShortLinkAsync a (aUserId user) (aCorrId cmdId) (Just $ aConnId conn) shortLink'
 
 agentXFTPDeleteRcvFile :: RcvFileId -> FileTransferId -> CM ()
 agentXFTPDeleteRcvFile aFileId fileId = do
