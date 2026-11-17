@@ -350,6 +350,7 @@ chatGroupTests = do
       describe "relay rejection" $ do
         it "relay rejects fresh invitation after leaving the same channel" testRelayRejectAfterLeave
         it "operator allow clears rejection and relay accepts again" testRelayAllowAcceptsAgain
+        mapM_ (\i -> it ("operator allow clears rejection and relay accepts again, copy " <> show i) testRelayAllowAcceptsAgain) [1 .. 20 :: Int]
         it "rejection on channel A does not affect unrelated channel B" testRelayDoesNotRejectUnrelatedChannel
         it "concurrent fresh invitations both rejected" testRelayRejectRaceConcurrentInvitations
       describe "promoted members roster" $ do
