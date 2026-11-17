@@ -68,7 +68,9 @@ chatFileTests = do
     it "delete uploaded file in group" testXFTPDeleteUploadedFileGroup
     it "with relative paths: send and receive file" testXFTPWithRelativePaths
     it "continue receiving file after restart" testXFTPContinueRcv
+    mapM_ (\i -> it ("continue receiving file after restart, copy " <> show i) testXFTPContinueRcv) [1 .. 20 :: Int]
     it "receive file marked to receive on chat start" testXFTPMarkToReceive
+    mapM_ (\i -> it ("receive file marked to receive on chat start, copy " <> show i) testXFTPMarkToReceive) [1 .. 20 :: Int]
     it "receive file whose description was redelivered after chat stop" testXFTPRedeliveredDescription
     it "error receiving file" testXFTPRcvError
     it "cancel receiving file, repeat receive" testXFTPCancelRcvRepeat

@@ -140,6 +140,7 @@ chatDirectTests = do
     it "service request to a non-DR address fails fast" testServiceRequestNonDRAddress
     it "create user with same servers" testCreateUserSameServers
     it "delete user" testDeleteUser
+    mapM_ (\i -> it ("delete user, copy " <> show i) testDeleteUser) [1 .. 20 :: Int]
     it "delete user with chat tags" testDeleteUserChatTags
     it "rejects raw chat TTL updates for another user's chat" testRejectCrossUserChatTTL
     it "users have different chat item TTL configuration, chat items expire" testUsersDifferentCIExpirationTTL

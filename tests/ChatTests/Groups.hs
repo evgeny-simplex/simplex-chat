@@ -258,6 +258,7 @@ chatGroupTests = do
     it "replies of blocked member are not mentions" testBlockedMemberReplyNotMention
   describe "group member inactivity" $ do
     it "mark member inactive on reaching quota" testGroupMemberInactive
+    mapM_ (\i -> it ("mark member inactive on reaching quota, copy " <> show i) testGroupMemberInactive) [1 .. 20 :: Int]
   describe "group member reports" $ do
     it "should send report to group owner, admins and moderators, but not other users" testGroupMemberReports
   describe "group member mentions" $ do
@@ -348,10 +349,12 @@ chatGroupTests = do
       it "should not add relay when the invitation group id differs from link data" testChannelAddRelayGroupIdMismatch
       it "should ignore relay invitation without the owner's signature" testChannelRelayInvUnsigned
       it "should remove relay from channel" testChannelRemoveRelay
+      mapM_ (\i -> it ("should remove relay from channel, copy " <> show i) testChannelRemoveRelay) [1 .. 20 :: Int]
       it "should remove left relay from channel" testChannelRemoveLeftRelay
       describe "relay rejection" $ do
         it "relay rejects fresh invitation after leaving the same channel" testRelayRejectAfterLeave
         it "operator allow clears rejection and relay accepts again" testRelayAllowAcceptsAgain
+        mapM_ (\i -> it ("operator allow clears rejection and relay accepts again, copy " <> show i) testRelayAllowAcceptsAgain) [1 .. 20 :: Int]
         it "rejection on channel A does not affect unrelated channel B" testRelayDoesNotRejectUnrelatedChannel
         it "concurrent fresh invitations both rejected" testRelayRejectRaceConcurrentInvitations
       describe "promoted members roster" $ do
