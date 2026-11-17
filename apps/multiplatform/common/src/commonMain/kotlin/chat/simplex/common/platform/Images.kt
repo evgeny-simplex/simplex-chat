@@ -75,6 +75,11 @@ fun resizeImageToDataSize(image: ImageBitmap, usePng: Boolean, maxDataSize: Long
   return stream
 }
 
+fun cachedBase64Bitmap(base64ImageString: String): ImageBitmap? = null
+
+suspend fun base64ToBitmapInBackground(base64ImageString: String): ImageBitmap =
+  withContext(Dispatchers.IO) { base64ToBitmap(base64ImageString) }
+
 @Composable
 fun Base64AsyncImage(
   base64ImageString: String,
