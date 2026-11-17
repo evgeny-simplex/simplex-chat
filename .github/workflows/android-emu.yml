@@ -35,6 +35,7 @@ env:
   CORE_PKG: android-core-arm64-v8a.tar.gz
   BACKEND_PKG: desktop-linux-backend.tar.gz
   APK: android-foss-arm64-v8a-debug.apk
+  TEST_APK: android-foss-debug-androidTest.apk
 
 jobs:
   plan:
@@ -289,6 +290,15 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+      - name: Build instrumented tests
+        id: test-build
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        working-directory: apps/multiplatform
+        run: |
+          ./gradlew --no-daemon --console=plain -Psimplex.assets.dir=../../assets -Pandroid.injected.build.abi=arm64-v8a :android:assembleFossDebugAndroidTest
+          find android/build -name "$TEST_APK" -exec cp {} "$RUNNER_TEMP/apk" \;
+          ls -la "$RUNNER_TEMP/apk/$TEST_APK"
+
       - name: Install emulator and system image
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: scripts/ci/android/install-sdk.sh "$RUNNER_TEMP/android-sdk"
@@ -313,6 +323,15 @@ jobs:
             cases=backend
           fi
           scripts/ci/android/smoke-test.sh "$RUNNER_TEMP/apk/$APK" "$RUNNER_TEMP/smoke-test" ${cases:-}
+
+      - name: Run instrumented tests
+        if: ${{ !cancelled() && steps.test-build.outcome == 'success' }}
+        timeout-minutes: 15
+        run: |
+          adb install -r -t -g "$RUNNER_TEMP/apk/$APK"
+          adb install -r -t "$RUNNER_TEMP/apk/$TEST_APK"
+          adb shell am instrument -w chat.simplex.app.test/androidx.test.runner.AndroidJUnitRunner | tr -d '\r' | tee "$RUNNER_TEMP/instrumented-tests.txt"
+          grep -qE '^OK \([0-9]+ tests?\)$' "$RUNNER_TEMP/instrumented-tests.txt"
 
       - name: Stop test backend
         if: ${{ !cancelled() && steps.backend.outcome != 'skipped' }}
