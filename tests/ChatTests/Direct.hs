@@ -48,7 +48,6 @@ import Simplex.Messaging.Version
 import System.Directory (copyFile, doesDirectoryExist, doesFileExist)
 import System.Mem.Weak (deRefWeak)
 import System.FilePath ((</>))
-import System.Process (spawnCommand)
 import Test.Hspec hiding (it)
 #if defined(dbPostgres)
 import Database.PostgreSQL.Simple (Only (..))
@@ -59,11 +58,6 @@ import Simplex.Chat.Options.DB
 
 chatDirectTests :: SpecWith TestParams
 chatDirectTests = do
-#if !defined(dbPostgres)
-  describe "client timeout diag" $ do
-    runIO $ void $ spawnCommand "for i in 1 2 3; do (yes > /dev/null &); done"
-    mapM_ (\i -> it ("zero timeout copy " <> show i) testRetryConnectingClientTimeout) [1 .. 60 :: Int]
-#endif
   describe "direct messages" $ do
     describe "add contact and send/receive messages" testAddContact
     it "retry connecting via the same link" testRetryConnecting

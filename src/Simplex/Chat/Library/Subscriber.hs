@@ -82,7 +82,7 @@ import qualified Simplex.FileTransfer.Transport as XFTP
 import Simplex.FileTransfer.Types (FileErrorType (..), RcvFileId, SndFileId)
 import Simplex.Messaging.Agent
 import Simplex.Messaging.Agent.Client (getAgentWorker, temporaryOrHostError, waitForUserNetwork, waitForWork, waitWhileSuspended, withWorkItems, withWork_)
-import Simplex.Messaging.Agent.Env.SQLite (Worker (..))
+import Simplex.Messaging.Agent.Env.SQLite (AgentConfig (quotaExceededTimeout), Worker (..))
 import Simplex.Messaging.Agent.Protocol
 import qualified Simplex.Messaging.Agent.Protocol as AP (AgentErrorType (..))
 import Simplex.Messaging.Agent.RetryInterval (RetryInterval (..), nextRetryDelay)
@@ -469,7 +469,8 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
         processDirectMessage agentMessage entity conn contact_
       RcvGroupMsgConnection conn _ m -> case gks_ of
         Just gks -> do
-          liftIO $ B.putStr $ B.pack $ "DIAGEV " <> B.unpack (strEncode agentConnId) <> " " <> diagGroupEvent agentMessage <> "\n"
+          qt <- asks $ quotaExceededTimeout . agentConfig . config
+          when (qt == 1) $ liftIO $ B.putStr $ B.pack $ "DIAGEV " <> B.unpack (strEncode agentConnId) <> " " <> diagGroupEvent agentMessage <> "\n"
           processGroupMessage agentMessage entity conn gks m
         Nothing -> throwChatError $ CEInternalError "group connection entity without group keys"
       UserContactConnection conn uc ->

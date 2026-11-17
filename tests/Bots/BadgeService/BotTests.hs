@@ -229,12 +229,6 @@ badgeServiceTests = do
       it "should give a move held for a deleted profile back to the profile whose purchase it funds" testRestoreHeldProfileDeleted
       it "should take a purchase hand-over held for one profile to the profile that restores it, and credit it there" testRestoreTakesHeldPurchase
       it "should move a subscription on Restore on the same profile when its purchase is neither shown nor the profile's newest" testRestoreOnSameProfile
-#if !defined(dbPostgres)
-    describe "restore diag" $ do
-      mapM_ (\i -> it ("shared clock copy " <> show i) $ testRestoreMovesBackDiag 0 i) [1 .. 120 :: Int]
-      mapM_ (\i -> it ("forced pass copy " <> show i) $ testRestoreMovesBackDiag 1 i) [1 .. 3 :: Int]
-      mapM_ (\i -> it ("waited pass copy " <> show i) $ testRestoreMovesBackDiag 2 i) [1 .. 80 :: Int]
-#endif
   describe "subscriptions" $ do
     it "should credit a subscription's charge from the store's period start, and answer replays from the record" testSubscriptionPurchase
     it "should credit nothing for a subscription with no charge it can grant, retrying as the charge may still come" testSubscriptionPurchaseNotGrantable

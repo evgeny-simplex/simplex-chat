@@ -255,8 +255,7 @@ chatGroupTests = do
     it "mark member inactive on reaching quota" testGroupMemberInactive
 #if !defined(dbPostgres)
   describe "inactivity diag" $ do
-    mapM_ (\i -> it ("alice on quota server copy " <> show i) $ testGroupMemberInactiveDiag True i) [1 .. 200 :: Int]
-    mapM_ (\i -> it ("alice on default server copy " <> show i) $ testGroupMemberInactiveDiag False i) [1 .. 120 :: Int]
+    mapM_ (\i -> it ("alice on quota server copy " <> show i) $ testGroupMemberInactiveDiag True i) [1 .. 300 :: Int]
 #endif
   describe "group member reports" $ do
     it "should send report to group owner, admins and moderators, but not other users" testGroupMemberReports
