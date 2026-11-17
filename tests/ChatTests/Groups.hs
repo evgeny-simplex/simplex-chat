@@ -6215,6 +6215,8 @@ testGroupRedeliveredInvitation =
 testGroupRedeliveredInvitationViaGroup :: HasCallStack => TestParams -> IO ()
 testGroupRedeliveredInvitationViaGroup =
   testChat2 aliceProfile bobProfile $ \alice bob -> do
+    alice ##> "/set receipts all off"
+    alice <## "ok"
     createGroup2 "team" bob alice
     createClub alice
     threadDelay 1000000
