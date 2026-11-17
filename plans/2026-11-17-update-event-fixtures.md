@@ -37,25 +37,29 @@ The recipient of each recording has `markRead = False`, so items stay unread, as
 |---|---|---|
 | updates/direct-edit | updated item event has the previous item | new "hello"<br>"hello" edited to "hello there"<br>new "how are you"<br>"hello there" edited to "hello, alice" |
 | updates/direct-recreated | the same test, after the recipient deletes the item locally | new "hello again", recreated from the update |
-| updates/group-mention | should send updated item with mentions added and removed by edit | new "hello"<br>edited to mention the recipient<br>edited without the mention |
+| updates/group-mention | should send updated item with mentions added and removed by edit, the recipient's group notifications set to mentions | new "hello"<br>edited to mention the recipient<br>edited without the mention |
 | updates/missed-call | mark call invitation missed when the caller ends the call | new pending call<br>the call updated to missed |
 
 ## Tests
 
-Each test lists the chat of the first event without items, receives the events with `processReceivedMsg` and compares the model.
+Each test lists the chat of the first event without items, unless the test is about a chat not in the list; it receives the events with `processReceivedMsg` and compares the model.
 
 | Test | Fixture | Checked | Apps |
 |---|---|---|---|
 | edit replaces loaded item | direct-edit | the open chat has "hello there" in place of "hello"; the preview is "hello there" | both |
 | update of item not loaded inserts nothing | direct-edit | the chat opened after "hello" has no loaded items after the edit; the preview changes only while the edited item is the last one | both |
 | counters follow previous and new item | group-mention | unread, mentions and the profile's unread: 1 0 1, 1 1 1, 1 0 1 | both |
+| mention edits in another profile change its unread count | group-mention | the other profile's unread: 1 after the mention, 0 after its removal; Kotlin: no notification | both |
+| update of a chat not in the list adds it | direct-edit, the edit only | the preview is "hello there"; Kotlin: one notification | both |
 | recreated item is counted | direct-recreated | the preview is "hello again"; 1 0 1; Kotlin: one notification | both |
 | edit in another profile does not notify | direct-edit | one notification, of "hello"; the other profile's unread is 1 | Kotlin |
 | missed call does not notify | missed-call | the preview is the missed call; no notification | Kotlin |
 | missed call in another profile does not notify | missed-call | no notification; the other profile's unread is 1 | Kotlin |
-| response and event decode to their fields | direct-edit | the update event has `chatItemUpdate` with the previous item | Kotlin |
+| response and event decode to their fields | direct-edit | the update event has `chatItemUpdate` with the previous item; the response of sample data has `chatItem` | Kotlin |
 
 Notifications are checked in Kotlin only: iOS `NtfManager` has no hook.
+
+The response of `/_update item` is not recorded: the sender's item in it has the delivery status of the moment, which `SENT` and receipts change asynchronously.
 
 ## Missed calls
 
@@ -63,7 +67,8 @@ Notifications are checked in Kotlin only: iOS `NtfManager` has no hook.
 
 ## iOS
 
-- `singleFieldJSON` converts tagged objects except `MsgContent`, which the core encodes with `type` in both JSON forms.
+- `singleFieldJSON` converts tagged objects except `MsgContent`, which the core encodes with `type` in both JSON forms, recognized by its tags.
+- other types tagged with `type` in both forms are converted: `MsgChatLink`, `LinkContent`, `MsgScope`, `MsgReaction` and `ChatBotCommand`; a fixture with them needs a rule by position, as the tag `group` of `MsgChatLink` is also a tag of `ChatInfo`.
 - `fixtureJSON`, `singleFieldJSON` and `waitFor` are at file scope of `NameAlertsTests.swift`, shared by both test classes.
 - the debounced unread collector is awaited by `assertCounts`.
 
