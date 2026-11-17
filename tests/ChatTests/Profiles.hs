@@ -108,6 +108,7 @@ chatProfileTests = do
     it "rotate address ratchet keys" testRotateAddressRatchetKeys
     it "create address on specified server" testCreateAddressOnServer
     it "retry connecting via contact link" testRetryConnectingViaContactLink
+    mapM_ (\i -> it ("retry connecting via contact link copy " <> show i) testRetryConnectingViaContactLink) [1 .. 40 :: Int]
     it "retry connecting via address in contact profile after address keys rotation" testRetryConnectingContactViaAddress
     it "add contact link to profile" testProfileLink
     it "auto accept contact requests" testUserContactLinkAutoAccept
@@ -154,6 +155,7 @@ chatProfileTests = do
     it "change from incognito profile connects as new user" testChangePCCUserFromIncognito
     it "change user for pending connection and later set incognito connects as incognito in changed profile" testChangePCCUserAndThenIncognito
     it "change user for user without matching servers creates new connection" testChangePCCUserDiffSrv
+    mapM_ (\i -> it ("change user for user without matching servers creates new connection copy " <> show i) testChangePCCUserDiffSrv) [1 .. 40 :: Int]
   describe "preferences" $ do
     it "set contact preferences" testSetContactPrefs
     it "feature offers" testFeatureOffers

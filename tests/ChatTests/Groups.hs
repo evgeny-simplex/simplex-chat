@@ -252,6 +252,7 @@ chatGroupTests = do
     it "replies of blocked member are not mentions" testBlockedMemberReplyNotMention
   describe "group member inactivity" $ do
     it "mark member inactive on reaching quota" testGroupMemberInactive
+    mapM_ (\i -> it ("mark member inactive on reaching quota copy " <> show i) testGroupMemberInactive) [1 .. 300 :: Int]
   describe "group member reports" $ do
     it "should send report to group owner, admins and moderators, but not other users" testGroupMemberReports
   describe "group member mentions" $ do

@@ -62,6 +62,8 @@ chatDirectTests = do
     describe "add contact and send/receive messages" testAddContact
     it "retry connecting via the same link" testRetryConnecting
     it "retry connecting via the same link with client timeout" testRetryConnectingClientTimeout
+    mapM_ (\i -> it ("retry connecting via the same link copy " <> show i) testRetryConnecting) [1 .. 40 :: Int]
+    mapM_ (\i -> it ("retry connecting via the same link with client timeout copy " <> show i) testRetryConnectingClientTimeout) [1 .. 40 :: Int]
     it "mark multiple messages as read" testMarkReadDirect
     it "clear chat with contact" testContactClear
     it "deleting contact deletes profile" testDeleteContactDeletesProfile
