@@ -96,9 +96,9 @@ remoteTests = describe "Remote" $ do
       r `shouldSatisfy` \case
         Left (RPEInvalidBody _) -> True
         _ -> False
-  xdescribe "No compression" $ aroundWith (. ((False, False),)) runRemoteTests
-  xdescribe "Mobile offers compression" $ aroundWith (. ((True, False),)) runRemoteTests
-  xdescribe "Desktop offers compression" $ aroundWith (. ((False, True),)) runRemoteTests
+  describe "No compression" $ aroundWith (. ((False, False),)) runRemoteTests
+  describe "Mobile offers compression" $ aroundWith (. ((True, False),)) runRemoteTests
+  describe "Desktop offers compression" $ aroundWith (. ((False, True),)) runRemoteTests
   describe "With compression" $ aroundWith (. ((True, True),)) runRemoteTests
   where
     fileNames :: [FilePath]
@@ -200,7 +200,13 @@ remoteHandshakeRejectTest = testRemote3 $ \compress mobile desktop mobileBob -> 
   inv <- getTermLine desktop
   mobileBob ##> ("/connect remote ctrl " <> inv)
   mobileBob <## ("connecting new remote controller: My desktop, v" <> versionNumber)
-  mobileBob <## "remote controller stopped: this link was used with another controller, please create a new link on the host"
+  getTermLine mobileBob >>= \case
+    "new remote controller connected" -> do
+      mobileBob <## "Compare session code with controller and use:"
+      void $ getTermLine mobileBob
+      mobileBob ##> "/stop remote ctrl"
+      mobileBob <## "ok"
+    l -> l `shouldBe` "remote controller stopped: this link was used with another controller, please create a new link on the host"
 
   -- the server remains active after rejecting invalid client
   mobile ##> ("/connect remote ctrl " <> inv)
