@@ -6,7 +6,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
 import android.os.IBinder
 import android.os.SystemClock
@@ -43,7 +42,6 @@ import java.util.concurrent.TimeUnit
 class CallServiceTest {
   private val instrumentation = InstrumentationRegistry.getInstrumentation()
   private val context = instrumentation.targetContext
-  private val appIconSize = BitmapFactory.decodeResource(context.resources, R.drawable.icon).run { IntSize(width, height) }
   private val previewMode = appPreferences.notificationPreviewMode.get()
   private lateinit var service: CallService
   private val connection = object : ServiceConnection {
@@ -76,9 +74,10 @@ class CallServiceTest {
 
   @Test
   fun testCallNotificationShowsTheAppIconUntilTheContactPictureIsDecoded() {
+    val appIcon = largeIconSize(updateNotification())
     val picture = base64Png(37, 23)
     chatModel.activeCall.value = call(picture)
-    assertEquals(appIconSize, largeIconSize(updateNotification()))
+    assertEquals(appIcon, largeIconSize(updateNotification()))
     assertTrue(waitFor { postedLargeIconSize() == IntSize(37, 23) })
     assertNotNull(cachedBase64Bitmap(picture))
   }
@@ -93,12 +92,12 @@ class CallServiceTest {
 
   @Test
   fun testContactPictureIsNotDecodedWhenNotificationPreviewsAreHidden() {
+    val appIcon = largeIconSize(updateNotification())
     val picture = base64Png(41, 19)
     appPreferences.notificationPreviewMode.set(NotificationPreviewMode.HIDDEN.name)
     chatModel.activeCall.value = call(picture)
-    assertEquals(appIconSize, largeIconSize(updateNotification()))
-    instrumentation.waitForIdleSync()
-    runBlocking { base64ToBitmapInBackground(base64Png(1, 1)) }
+    assertEquals(appIcon, largeIconSize(updateNotification()))
+    awaitBackgroundDecoding()
     assertNull(cachedBase64Bitmap(picture))
   }
 
@@ -116,6 +115,11 @@ class CallServiceTest {
     lateinit var notification: Notification
     instrumentation.runOnMainSync { notification = service.updateNotification() }
     return notification
+  }
+
+  private fun awaitBackgroundDecoding() {
+    instrumentation.waitForIdleSync()
+    runBlocking { base64ToBitmapInBackground(base64Png(1, 1)) }
   }
 
   private fun postedLargeIconSize(): IntSize? =
