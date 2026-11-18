@@ -6454,7 +6454,7 @@ testGroupForwardRedeliveredLeave ps = do
 testGroupForwardRedeliveredOwnRemoval :: HasCallStack => TestParams -> IO ()
 testGroupForwardRedeliveredOwnRemoval ps = do
   (received, cfg) <- blockFirstEventCfg $ \e -> case e of CEvtDeletedMemberUser {} -> True; _ -> False
-  withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
+  withNewTestChatCfg ps cfg {deliveryWorkerDelay = 1000000} "alice" aliceProfile $ \alice ->
     withNewTestChat ps "bob" bobProfile $ \bob ->
       withNewTestChat ps "cath" cathProfile $ \cath -> do
         createGroup3' "team" alice (bob, GROwner) (cath, GRMember)
