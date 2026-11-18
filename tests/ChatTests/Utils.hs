@@ -24,7 +24,7 @@ import Data.Maybe (fromMaybe)
 import Data.String
 import qualified Data.Text as T
 import Simplex.Chat.Badges (BadgeProof (..), BadgeStatus, LocalBadge (..), ProofPresHeader (..))
-import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatEvent (CEvtNewChatItems), ChatHooks (..), defaultChatHooks, storeCxt)
+import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatError, ChatEvent (CEvtNewChatItems), ChatHooks (..), defaultChatHooks, storeCxt)
 import Simplex.Chat.Library.Commands (maxProfileImageSize)
 import Simplex.Chat.Markdown (viewName)
 import Simplex.Chat.Messages (AChatItem (..), CIMeta (CIMeta, itemText), ChatItem (ChatItem, meta))
@@ -977,14 +977,17 @@ setRelativePaths cc filesFolder tempFolder = do
   cc <## "chat started"
 
 blockFirstEventCfg :: (ChatEvent -> Bool) -> IO (MVar (), ChatConfig)
-blockFirstEventCfg blocks = do
+blockFirstEventCfg = blockFirstCfg . either (const False)
+
+blockFirstCfg :: (Either ChatError ChatEvent -> Bool) -> IO (MVar (), ChatConfig)
+blockFirstCfg blocks = do
   blocked <- newEmptyMVar
-  let hook _ ev = case ev of
-        Right e | blocks e -> do
-          isFirst <- tryPutMVar blocked ()
-          when isFirst $ forever $ threadDelay 1000000
-          pure ev
-        _ -> pure ev
+  let hook _ ev
+        | blocks ev = do
+            isFirst <- tryPutMVar blocked ()
+            when isFirst $ forever $ threadDelay 1000000
+            pure ev
+        | otherwise = pure ev
   pure (blocked, testCfg {chatHooks = defaultChatHooks {eventHook = Just hook}})
 
 newItemText :: (T.Text -> Bool) -> ChatEvent -> Bool
