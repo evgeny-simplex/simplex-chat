@@ -32,7 +32,7 @@ import Data.List (intercalate, isInfixOf, isSubsequenceOf, isSuffixOf)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Simplex.Chat.Badges (FileSizeLimits (..))
-import Simplex.Chat.Controller (ChatController (ChatController, smpAgent, subscriptionMode), ChatConfig (..), ChatEvent (CEvtChatItemReaction, CEvtChatItemUpdated, CEvtChatItemsDeleted, CEvtDuplicateGroupMessage, CEvtGroupDeleted, CEvtLeftMember, CEvtMemberRole), ChatHooks (..), ChatLogLevel (..), defaultChatHooks, withAgent)
+import Simplex.Chat.Controller (ChatController (ChatController, smpAgent, subscriptionMode), ChatConfig (..), ChatEvent (CEvtChatItemReaction, CEvtChatItemUpdated, CEvtChatItemsDeleted, CEvtDeletedMemberUser, CEvtDuplicateGroupMessage, CEvtLeftMember, CEvtMemberRole), ChatHooks (..), ChatLogLevel (..), defaultChatHooks, withAgent)
 import Simplex.Chat.Library.Internal (encodeConnInfo, getShortLinkConnReq, sendDirectMemberMessage, uniqueMsgMentions, updatedMentionNames)
 import Simplex.Chat.Markdown (parseMaybeMarkdownList)
 import Simplex.Chat.Messages (CIMention (..), CIMentionMember (..), ChatItemId)
@@ -219,7 +219,7 @@ chatGroupTests = do
     it "forward message deletion after forwarding member stopped at its deletion" testGroupForwardRedeliveredDeletion
     it "forward role change after forwarding member stopped at its item" testGroupForwardRedeliveredRoleChange
     it "forward member leave after forwarding member stopped at its item" testGroupForwardRedeliveredLeave
-    it "forward group deletion after forwarding member stopped at its item" testGroupForwardRedeliveredGroupDeletion
+    it "forward own removal after forwarding member stopped at its item" testGroupForwardRedeliveredOwnRemoval
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
@@ -6462,20 +6462,19 @@ testGroupForwardRedeliveredLeave ps = do
         restartChat alice [StartsWith "subscribed "]
         cath <## "#team: bob left the group (signed)"
 
-testGroupForwardRedeliveredGroupDeletion :: HasCallStack => TestParams -> IO ()
-testGroupForwardRedeliveredGroupDeletion ps = do
-  (received, cfg) <- blockFirstEventCfg $ \e -> case e of CEvtGroupDeleted {} -> True; _ -> False
+testGroupForwardRedeliveredOwnRemoval :: HasCallStack => TestParams -> IO ()
+testGroupForwardRedeliveredOwnRemoval ps = do
+  (received, cfg) <- blockFirstEventCfg $ \e -> case e of CEvtDeletedMemberUser {} -> True; _ -> False
   withNewTestChatCfg ps cfg "alice" aliceProfile $ \alice ->
     withNewTestChat ps "bob" bobProfile $ \bob ->
       withNewTestChat ps "cath" cathProfile $ \cath -> do
         createGroup3' "team" alice (bob, GROwner) (cath, GRMember)
         setupGroupForwarding alice bob cath
-        bob ##> "/d #team"
-        bob <## "#team: you deleted the group (signed)"
+        bob ##> "/rm team alice"
+        bob <## "#team: you removed alice from the group (signed)"
         readMVar received
         restartChat alice [StartsWith "subscribed "]
-        cath <## "#team: bob deleted the group (signed)"
-        cath <## "use /d #team to delete the local copy of the group"
+        cath <## "#team: bob removed alice from the group (signed)"
 
 testGroupMsgForwardEdit :: HasCallStack => TestParams -> IO ()
 testGroupMsgForwardEdit =
