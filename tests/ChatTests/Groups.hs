@@ -147,7 +147,7 @@ chatGroupTests = do
     it "ignore relay join request in group without relays" testGroupLinkIgnoreRelayJoinRequest
     it "group link connection is locked with its group" testGroupLinkLockedWithGroup
     it "group messages are received while a group link is created" testGroupLinkCreationReceivesMessages
-    it "created group link is returned when its data update fails" testGroupLinkDataUpdateError
+    forM_ [1 .. 5 :: Int] $ \i -> it ("created group link is returned when its data update fails " <> show i) testGroupLinkDataUpdateError
   describe "group links - member screening" $ do
     it "reject member - blocked name" testGLinkRejectBlockedName
     it "accept member - only host approval" testGLinkApproveMember
@@ -332,7 +332,7 @@ chatGroupTests = do
       it "should keep channel profile from link data when joining" testChannelJoinKeepsLinkProfile
       it "should apply channel profile from link data when joining" testChannelJoinAppliesLinkProfile
       it "should check entity ID of channel link on refresh" testChannelLinkDataOtherChannel
-      it "should not connect to relays of a channel left during link refresh" testChannelLinkDataLeft
+      forM_ [1 .. 5 :: Int] $ \i -> it ("should not connect to relays of a channel left during link refresh " <> show i) testChannelLinkDataLeft
       it "should update channel preferences (signed)" testChannelUpdatePrefsSigned
       it "should change member role (signed)" testChannelChangeRoleSigned
       it "should block member for all (signed)" testChannelBlockMemberSigned
