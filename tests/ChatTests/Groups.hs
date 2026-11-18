@@ -32,7 +32,7 @@ import Data.List (intercalate, isInfixOf, isSubsequenceOf, isSuffixOf)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Simplex.Chat.Badges (FileSizeLimits (..))
-import Simplex.Chat.Controller (ChatController (ChatController, smpAgent, subscriptionMode), ChatConfig (..), ChatEvent (CEvtChatItemReaction, CEvtChatItemUpdated, CEvtChatItemsDeleted, CEvtDeletedMemberUser, CEvtDuplicateGroupMessage, CEvtLeftMember, CEvtMemberRole), ChatHooks (..), ChatLogLevel (..), defaultChatHooks, withAgent)
+import Simplex.Chat.Controller (ChatController (ChatController, smpAgent, subscriptionMode), ChatConfig (..), ChatError (ChatErrorStore), ChatEvent (CEvtChatItemReaction, CEvtChatItemUpdated, CEvtChatItemsDeleted, CEvtDeletedMemberUser, CEvtDuplicateGroupMessage, CEvtGroupDeleted, CEvtLeftMember, CEvtMemberRole), ChatHooks (..), ChatLogLevel (..), defaultChatHooks, withAgent)
 import Simplex.Chat.Library.Internal (encodeConnInfo, getShortLinkConnReq, sendDirectMemberMessage, uniqueMsgMentions, updatedMentionNames)
 import Simplex.Chat.Markdown (parseMaybeMarkdownList)
 import Simplex.Chat.Messages (CIMention (..), CIMentionMember (..), ChatItemId)
@@ -40,6 +40,7 @@ import Simplex.Chat.Messages.Batch (encodeBinaryBatch, encodeFwdElement)
 import Simplex.Chat.Messages.CIContent (publicGroupNoE2EText)
 import Simplex.Chat.Options
 import Simplex.Chat.Protocol (ChatMessage (ChatMessage), ChatMsgEvent (BFileChunk, XFile, XGrpMemFwd, XGrpMemIntro, XGrpMemNew, XGrpRelayInv, XInfo, XMember, XMsgUpdate, XMsgNew, XMsgDel), FileChunk (..), FwdSender (FwdMember, FwdChannel), GrpMsgForward (GrpMsgForward), MsgContainer (..), MsgMention (..), MsgContent (..), VerifiedMsg (VMUnsigned), chatMsgToBody, mcSimple, msgContentText, supportedChatVRange)
+import Simplex.Chat.Store.Shared (StoreError (SEDBException))
 import Simplex.Chat.Types
 import Simplex.Chat.Types.MemberRelations (MemberRelation (..), getRelation, setRelation)
 import Simplex.Chat.Types.Shared (GroupMemberRole (..), GroupAcceptance (..))
@@ -213,6 +214,8 @@ chatGroupTests = do
     it "mark message of member blocked by admin redelivered after its save failed" testGroupRedeliveredBlockedByAdminMessage
     it "skip acknowledged message of member blocked by admin redelivered after chat stop" testGroupRedeliveredBlockedByAdminAck
     it "block member for all by event redelivered after its save failed" testGroupRedeliveredMemberBlock
+    it "save edited message redelivered after its save failed" testGroupRedeliveredMissingItemUpdate
+    it "moderate delayed message redelivered after its save failed" testGroupRedeliveredDelayedModeration
     it "forward message after forwarding member stopped at its item" testGroupForwardRedeliveredMessage
     it "forward message edit after forwarding member stopped at its item" testGroupForwardRedeliveredEdit
     it "forward reaction after forwarding member stopped at its save" testGroupForwardRedeliveredReaction
@@ -220,6 +223,7 @@ chatGroupTests = do
     it "forward role change after forwarding member stopped at its item" testGroupForwardRedeliveredRoleChange
     it "forward member leave after forwarding member stopped at its item" testGroupForwardRedeliveredLeave
     it "forward own removal after forwarding member stopped at its item" testGroupForwardRedeliveredOwnRemoval
+    it "forward group deletion after forwarding member stopped at its item" testGroupForwardRedeliveredGroupDeletion
     it "forward message edit (x.msg.update)" testGroupMsgForwardEdit
     it "set notification flag of forwarded messages by the original event" testGroupMsgForwardNotification
     it "forward message reaction (x.msg.react)" testGroupMsgForwardReaction
@@ -6357,6 +6361,59 @@ testGroupRedeliveredMemberBlock =
              "cath (Catherine): admin, invited, connected, blocked by admin"
            ]
 
+testGroupRedeliveredMissingItemUpdate :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredMissingItemUpdate =
+  testChat2 aliceProfile bobProfile $ \alice bob -> do
+    createGroup2 "team" alice bob
+    alice #> "#team hello"
+    bob <# "#team alice> hello"
+    threadDelay 1000000
+    withCCTransaction bob (`DB.execute_` "DELETE FROM chat_items WHERE item_text = 'hello'")
+    redeliverAfterFailedWrite
+      bob
+      (`DB.execute_` "ALTER TABLE chat_item_versions RENAME TO chat_item_versions_")
+      (`DB.execute_` "ALTER TABLE chat_item_versions_ RENAME TO chat_item_versions")
+      ( do
+          alice ##> "! #team hello edited"
+          alice <# "#team [edited] hello edited"
+      )
+      [StartsWith "subscribed ", WithTime "#team alice> [edited] hello edited"]
+    withCCTransaction bob (\db -> DB.query_ db "SELECT item_edited FROM chat_items WHERE item_text = 'hello edited'") `shouldReturn` [Only (1 :: Int)]
+
+testGroupRedeliveredDelayedModeration :: HasCallStack => TestParams -> IO ()
+testGroupRedeliveredDelayedModeration ps = do
+  (failed, cfg) <- blockFirstCfg $ \e -> case e of Left (ChatErrorStore SEDBException {}) -> True; _ -> False
+  withNewTestChatCfg ps testCfg {deliveryWorkerDelay = 3000000} "alice" aliceProfile $ \alice ->
+    withNewTestChatCfg ps cfg "bob" bobProfile $ \bob ->
+      withNewTestChat ps "cath" cathProfile $ \cath -> do
+        createGroup3 "team" alice bob cath
+        setupGroupForwarding alice bob cath
+        cath #> "#team hi"
+        alice <# "#team cath> hi"
+        alice ##> "\\\\ #team @cath hi"
+        alice <## "message marked deleted by you"
+        cath <# "#team cath> [marked deleted by alice] hi"
+        alice ##> "/set delete #team on"
+        alice <## "updated group preferences:"
+        alice <## "Full deletion: on"
+        concurrentlyN_
+          [ do
+              bob <## "alice updated group #team: (signed)"
+              bob <## "updated group preferences:"
+              bob <## "Full deletion: on",
+            do
+              cath <## "alice updated group #team: (signed)"
+              cath <## "updated group preferences:"
+              cath <## "Full deletion: on"
+          ]
+        withCCTransaction bob (`DB.execute_` "ALTER TABLE chat_items RENAME COLUMN item_deleted_ts TO item_deleted_ts_")
+        readMVar failed
+        withCCTransaction bob (`DB.execute_` "ALTER TABLE chat_items RENAME COLUMN item_deleted_ts_ TO item_deleted_ts")
+        restartChat bob [StartsWith "subscribed ", WithTime "#team cath> moderated [deleted by alice] [>>]"]
+        bob ##> "/_get chat #1 count=2"
+        r <- chat <$> getTermLine bob
+        r `shouldMatchList` [(0, "Full deletion: on"), (0, "moderated [deleted by alice]")]
+
 testGroupForwardRedeliveredMessage :: HasCallStack => TestParams -> IO ()
 testGroupForwardRedeliveredMessage ps = do
   (received, cfg) <- blockFirstEventCfg $ newItemText ("hi there" ==)
@@ -6464,6 +6521,21 @@ testGroupForwardRedeliveredOwnRemoval ps = do
         readMVar received
         restartChat alice [StartsWith "subscribed "]
         cath <## "#team: bob removed alice from the group (signed)"
+
+testGroupForwardRedeliveredGroupDeletion :: HasCallStack => TestParams -> IO ()
+testGroupForwardRedeliveredGroupDeletion ps = do
+  (received, cfg) <- blockFirstEventCfg $ \e -> case e of CEvtGroupDeleted {} -> True; _ -> False
+  withNewTestChatCfg ps cfg {deliveryWorkerDelay = 1000000} "alice" aliceProfile $ \alice ->
+    withNewTestChat ps "bob" bobProfile $ \bob ->
+      withNewTestChat ps "cath" cathProfile $ \cath -> do
+        createGroup3' "team" alice (bob, GROwner) (cath, GRMember)
+        setupGroupForwarding alice bob cath
+        bob ##> "/d #team"
+        bob <## "#team: you deleted the group (signed)"
+        readMVar received
+        restartChat alice [StartsWith "subscribed "]
+        cath <## "#team: bob deleted the group (signed)"
+        cath <## "use /d #team to delete the local copy of the group"
 
 testGroupMsgForwardEdit :: HasCallStack => TestParams -> IO ()
 testGroupMsgForwardEdit =
