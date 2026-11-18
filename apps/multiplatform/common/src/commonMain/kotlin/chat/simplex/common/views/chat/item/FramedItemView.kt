@@ -49,6 +49,7 @@ fun FramedItemView(
   scrollToQuotedItemFromItem: (Long) -> Unit = {},
   endButton: (@Composable () -> Unit)? = null,
 ) {
+  val showTimestamp = showTimestamp || (blankLineMode == 3 && ci.text in blankLineForcedTimestamps)
   val chatInfo = chat.chatInfo
   val sent = ci.chatDir.sent
   val chatTTL = chatInfo.timedMessagesTTL

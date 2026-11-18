@@ -28,6 +28,30 @@ import chat.simplex.common.platform.appPreferences
 import chat.simplex.common.ui.theme.isInDarkTheme
 import chat.simplex.res.*
 
+var blankLineMode = 0
+var blankLineFlatBreak = false
+val blankLineForcedTimestamps = mutableSetOf<String>()
+
+class BlankLineProbe(val lines: Int, val textEndLine: Int, val reserveStartLine: Int, val height: Int, val maxWidth: Int, val textEndX: Float, val lineHeight: Float)
+
+val blankLineProbes = mutableMapOf<String, BlankLineProbe>()
+
+fun blankLineKey(text: String, meta: CIMeta?, showTimestamp: Boolean): String =
+  "$text|${meta?.itemStatus?.let { it::class.simpleName }}|$showTimestamp"
+
+fun metaInvisible(meta: CIMeta, encrypted: Boolean?, showStatus: Boolean, showEdited: Boolean, showViaProxy: Boolean, showTimestamp: Boolean, signedFileVerified: Boolean?): Boolean {
+  val showSignature = appPreferences.privacyShowSignature.state.value
+  val showEncryption = appPreferences.privacyShowEncryption.state.value
+  return !showTimestamp &&
+      !(showEdited && meta.itemEdited) &&
+      !meta.disappearing &&
+      !(showViaProxy && meta.sentViaProxy == true) &&
+      !(showStatus && meta.statusIcon(Color.Black) != null) &&
+      !(encrypted != null && showEncryption) &&
+      !(showSignature && meta.msgVerified?.verified == true && signedFileVerified != false) &&
+      meta.msgVerified !is MsgVerified.SigMissing
+}
+
 @Composable
 fun CIMetaView(
   chatItem: ChatItem,
@@ -174,7 +198,7 @@ private fun reserveSpaceForMeta(
   val showEncryption = appPreferences.privacyShowEncryption.state.value
   val iconSpace = " \u00A0\u00A0\u00A0"
   val whiteSpace = "\u00A0"
-  if (!showTimestamp) spaces(iconSpace)
+  if (!showTimestamp && blankLineMode != 2) spaces(iconSpace)
   var space: String? = null
 
   fun appendSpace() {
@@ -259,6 +283,7 @@ fun metaReserveCopy(
   direction: LayoutDirection,
   breakBefore: Boolean = false
 ): AnnotatedString {
+  if ((blankLineMode == 1 || (blankLineMode == 4 && meta.itemText in blankLineForcedTimestamps)) && metaInvisible(meta, encrypted, showStatus, showEdited, showViaProxy, showTimestamp, signedFileVerified)) return AnnotatedString("")
   val spaceStyle = SpanStyle(fontSize = with(density) { bodyFontSize.value.dp.toSp() }, fontWeight = FontWeight.Normal)
   val textStyle = SpanStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal)
   return buildAnnotatedString {

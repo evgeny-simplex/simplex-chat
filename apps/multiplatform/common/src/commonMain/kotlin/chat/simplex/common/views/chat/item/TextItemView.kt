@@ -211,7 +211,7 @@ fun MarkdownText (
     if (isRtl(text.subSequence(0, kotlin.math.min(50, text.length)))) LayoutDirection.Rtl else LayoutDirection.Ltr
   }
   val metaCopy = if (meta != null) {
-    metaReserveCopy(meta, chatTTL, encrypted, signedFileVerified, MaterialTheme.colors.secondary, showViaProxy = showViaProxy, showTimestamp = showTimestamp, breakBefore = !LocalTerminalLayout.current && range?.isEmpty() != true)
+    metaReserveCopy(meta, chatTTL, encrypted, signedFileVerified, MaterialTheme.colors.secondary, showViaProxy = showViaProxy, showTimestamp = showTimestamp, breakBefore = (!LocalTerminalLayout.current || blankLineFlatBreak) && range?.isEmpty() != true)
   } else null
   if (blockLayout && formattedText != null && markdownBlocks != null && range == null && (prefix == null || blockTextRanges(markdownBlocks).isNotEmpty())) {
     val direction = LocalLayoutDirection.current
@@ -305,10 +305,20 @@ fun MarkdownText (
         if (reserve != null) withStyle(reserveTimestampStyle) { append(reserve) }
       }
       val clampedRange = textSelection?.highlightRange?.let { it.first .. minOf(it.last, selectableEnd - 1) }?.takeUnless { it.isEmpty() }
+      val probe: (TextLayoutResult) -> Unit = { l ->
+        if (meta != null && selectableEnd > 0) {
+          val textEndLine = l.getLineForOffset(selectableEnd - 1)
+          val reserveStartLine = if (selectableEnd < annotatedText.length) l.getLineForOffset(selectableEnd) else textEndLine
+          blankLineProbes[blankLineKey(text.toString(), meta, showTimestamp)] = BlankLineProbe(
+            l.lineCount, textEndLine, reserveStartLine, l.size.height, l.layoutInput.constraints.maxWidth,
+            l.getHorizontalPosition(selectableEnd, true), l.size.height.toFloat() / l.lineCount
+          )
+        }
+      }
       if (textSelection != null) {
-        SelectableText(annotatedText, style = style, modifier = modifier.then(textSelection.positionModifier), maxLines = maxLines, overflow = overflow, selectionRange = clampedRange, onTextLayoutResult = textSelection.onTextLayoutResult)
+        SelectableText(annotatedText, style = style, modifier = modifier.then(textSelection.positionModifier), maxLines = maxLines, overflow = overflow, selectionRange = clampedRange, onTextLayoutResult = { textSelection.onTextLayoutResult(it); probe(it) })
       } else {
-        Text(annotatedText, style = style, modifier = modifier, maxLines = maxLines, overflow = overflow, inlineContent = inlineContent?.second ?: mapOf())
+        Text(annotatedText, style = style, modifier = modifier, maxLines = maxLines, overflow = overflow, inlineContent = inlineContent?.second ?: mapOf(), onTextLayout = probe)
       }
     } else {
       var selectableEnd = 0
