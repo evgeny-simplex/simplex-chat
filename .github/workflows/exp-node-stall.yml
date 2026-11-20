@@ -12,17 +12,17 @@ jobs:
       matrix:
         include:
           - copy: 1
-            rts: ""
+            rts: "-xb0x500000000000"
           - copy: 2
-            rts: ""
+            rts: "-xb0x500000000000"
           - copy: 3
-            rts: "-xr64G"
+            rts: "-xb0x500000000000"
           - copy: 4
-            rts: "-xr64G"
+            rts: "-xb0x500000000000"
           - copy: 5
-            rts: "-xb0x100000000000"
+            rts: "-xb0x500000000000"
           - copy: 6
-            rts: "-xb0x100000000000"
+            rts: "-xb0x500000000000"
     runs-on: macos-15-intel
     env:
       SIMPLEX_EXTRA_RTS: ${{ matrix.rts }}
