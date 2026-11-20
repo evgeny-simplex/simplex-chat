@@ -791,6 +791,7 @@ acceptFileReceive user@User {userId} RcvFileTransfer {fileId, xftpRcvFile, fileI
       (ci, rfd) <- withStore $ \db -> do
         -- marking file as accepted and reading description in the same transaction
         -- to prevent race condition with appending description
+        liftIO $ lockRcvFile db fileId
         ci <- xftpAcceptRcvFT db cxt user fileId filePath userApproved
         rfd <- getRcvFileDescrByRcvFileId db fileId
         pure (ci, rfd)

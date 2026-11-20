@@ -2024,6 +2024,7 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
       ft <- withStore $ \db -> getRcvFileTransfer db user fileId
       unless (rcvFileCompleteOrCancelled ft) $ do
         (rfd@RcvFileDescr {fileDescrComplete}, ft'@RcvFileTransfer {fileStatus, xftpRcvFile, cryptoArgs, fileProhibited, fileInvitation = FileInvitation {fileSize}}) <- withStore $ \db -> do
+          liftIO $ lockRcvFile db fileId
           rfd <- appendRcvFD db userId fileId fileDescr
           forM_ fileExpires $ liftIO . setFileExpiration db user fileId
           -- reading second time in the same transaction as appending description
