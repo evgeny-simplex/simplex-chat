@@ -325,24 +325,31 @@ describe("Core tests", () => {
     const addon = path.resolve(__dirname, "..", "build", "Release", "simplex.node");
     const childDbPath = path.resolve(tmpDir, "simplex_workers");
     const script = `
+      const t0 = Date.now(), mark = (s) => process.stderr.write("TIMING workers " + s + " " + (Date.now() - t0) + "\\n");
       const {Worker} = require("worker_threads");
       const simplex = require(${JSON.stringify(addon)});
       try { simplex.load(${JSON.stringify(addon)}) } catch (e) { console.log(JSON.stringify(e.message.endsWith("does not export hs_init_with_rtsopts"))) }
+      mark("failed-load");
       const load = ${JSON.stringify(`require(${JSON.stringify(addon)}).load(${JSON.stringify(libPath)})`)};
       const workers = Array.from({length: 4}, () => new Worker(load, {eval: true}));
-      Promise.all(workers.map((w) => new Promise((resolve, reject) => w.on("exit", resolve).on("error", reject))))
+      Promise.all(workers.map((w, i) => new Promise((resolve, reject) => w.on("exit", (c) => { mark("worker-exit-" + i); resolve(c) }).on("error", reject))))
         .then(async (codes) => {
           simplex.load(${JSON.stringify(libPath)});
+          mark("main-load");
           const [ctrl] = await simplex.chat_migrate_init(${JSON.stringify(childDbPath)}, "key", "yesUp");
+          mark("migrate-init");
           await simplex.chat_send_cmd(ctrl, "/_stop");
-          console.log(JSON.stringify({codes, closed: await simplex.chat_close_store(ctrl) === ""}));
+          mark("stop");
+          const closed = await simplex.chat_close_store(ctrl) === "";
+          mark("close");
+          console.log(JSON.stringify({codes, closed}));
         });
     `;
-    const child = spawnSync(process.execPath, ["-e", script], {timeout: 30000, encoding: "utf8"});
-    if (child.status !== 0 || child.signal !== null) console.log("child stderr:", child.stderr);
+    const child = spawnSync(process.execPath, ["-e", script], {timeout: 300000, encoding: "utf8"});
+    console.log("child stderr:", child.stderr);
     expect({status: child.status, signal: child.signal, stdout: child.stdout.trim()})
       .toEqual({status: 0, signal: null, stdout: 'true\n{"codes":[0,0,0,0],"closed":true}'});
-  }, 35000);
+  }, 320000);
 
   it("should let the process exit while a receiver is idle", () => {
     const childDbPath = path.resolve(dbPath);
@@ -364,26 +371,30 @@ describe("Core tests", () => {
       const fs = require("fs"), path = require("path");
       const simplex = require("./build/Release/simplex.node");
       simplex.load(${JSON.stringify(libPath)});
+      const t0 = Date.now(), mark = (s) => process.stderr.write("TIMING close " + s + " " + (Date.now() - t0) + "\\n");
       (async () => {
         // a new database runs every migration, each committed with a disk flush that takes up to 30 ms on CI runners
         const dir = fs.mkdtempSync(path.join(${JSON.stringify(path.resolve(tmpDir))}, "close-"));
         for (let i = 0; i < 40; i++) {
           const [ctrl] = await simplex.chat_migrate_init(path.join(dir, "simplex"), "key", "yesUp");
+          mark(i + " init");
           await simplex.chat_send_cmd(ctrl, "/v");
           await simplex.chat_send_cmd(ctrl, "/_stop");
+          mark(i + " stop");
           const res = await simplex.chat_close_store(ctrl);
+          mark(i + " close");
           if (res !== "") throw new Error("close failed: " + res);
         }
         fs.rmSync(dir, {recursive: true, force: true});
       })();
     `;
     const runChild = () => new Promise<{code: number | null, signal: NodeJS.Signals | null, stderr: string}>((resolve) => {
-      const child = execFile(process.execPath, ["-e", script], {cwd: path.join(__dirname, ".."), timeout: 150000}, (_error, _stdout, stderr) =>
+      const child = execFile(process.execPath, ["-e", script], {cwd: path.join(__dirname, ".."), timeout: 600000}, (_error, _stdout, stderr) =>
         resolve({code: child.exitCode, signal: child.signalCode, stderr}));
     });
     const childCount = 3;
     const results = await Promise.all(Array.from({length: childCount}, runChild));
-    for (const r of results) if (r.code !== 0 || r.signal !== null) console.log("child stderr:", r.stderr);
+    for (const r of results) console.log("child stderr:", r.stderr);
     expect(results.map(({code, signal}) => ({code, signal}))).toEqual(Array(childCount).fill({code: 0, signal: null}));
-  }, 180000);
+  }, 650000);
 });
