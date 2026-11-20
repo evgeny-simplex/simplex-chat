@@ -51,6 +51,7 @@ module Simplex.Chat.Store.Files
     createRosterRcvFile,
     createRcvStandaloneFileTransfer,
     appendRcvFD,
+    lockRcvFile,
     getRcvFileDescrByRcvFileId,
     getRcvFileDescrBySndFileId,
     updateRcvFileAgentId,
@@ -613,6 +614,13 @@ appendRcvFD db userId fileId fd@FileDescr {fileDescrText, fileDescrPartNo, fileD
             |]
             (fileDescrText', fileDescrPartNo, BI fileDescrComplete, fileDescrId)
         pure RcvFileDescr {fileDescrId, fileDescrText = fileDescrText', fileDescrPartNo, fileDescrComplete}
+
+lockRcvFile :: DB.Connection -> FileTransferId -> IO ()
+#if defined(dbPostgres)
+lockRcvFile db fileId = void (DB.query db "SELECT 1 FROM rcv_files WHERE file_id = ? FOR UPDATE" (Only fileId) :: IO [Only Int])
+#else
+lockRcvFile _ _ = pure ()
+#endif
 
 -- Upper bounds sized above the largest legitimate received description; derived from simplexmq's
 -- chunk tiers and redundancy, so a change there must revisit them.
