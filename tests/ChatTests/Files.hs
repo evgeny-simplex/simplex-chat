@@ -12,6 +12,7 @@ import ChatTests.Utils
 import Control.Concurrent (readMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Logger.Simple
+import Control.Monad (forM_)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (runReaderT)
 import qualified Data.Aeson as J
@@ -70,6 +71,9 @@ chatFileTests = do
     it "continue receiving file after restart" testXFTPContinueRcv
     it "receive file marked to receive on chat start" testXFTPMarkToReceive
     it "receive file whose description was redelivered after chat stop" testXFTPRedeliveredDescription
+    forM_ [1 .. 30 :: Int] $ \i -> do
+      it ("repeat " <> show i <> " continue receiving file after restart") testXFTPContinueRcv
+      it ("repeat " <> show i <> " receive file marked to receive on chat start") testXFTPMarkToReceive
     it "error receiving file" testXFTPRcvError
     it "cancel receiving file, repeat receive" testXFTPCancelRcvRepeat
     it "should accept file automatically with CLI option" testAutoAcceptFile
