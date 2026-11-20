@@ -10,7 +10,7 @@ const samplesDir = path.join(pkgDir, "tests", "stall-samples")
 const budgetMs = Number(process.env.STALL_BUDGET_MS || 35 * 60000)
 const J = JSON.stringify
 
-const mark = `const t0 = Date.now(), mark = (s) => process.stderr.write("MARK " + s + " " + (Date.now() - t0) + "\\n");`
+const mark = `const t0 = Date.now(), mark = (s) => require("fs").writeSync(2, "MARK " + s + " " + (Date.now() - t0) + "\\n");`
 
 function idleScript(lib, db) {
   return `${mark}
@@ -61,6 +61,15 @@ function sample(pid, file) {
   })
 }
 
+function vmmap(pid, file) {
+  return new Promise((resolve) => {
+    execFile("sudo", ["vmmap", "-interleaved", String(pid)], {timeout: 60000, maxBuffer: 64 * 1024 * 1024}, (error, stdout, stderr) => {
+      fs.writeFileSync(file, stdout + "\n" + stderr)
+      resolve(error ? "vmmap failed: " + error.message : "vmmap to " + file)
+    })
+  })
+}
+
 function runChild(name, script, limitMs, round) {
   return new Promise((resolve) => {
     const start = Date.now()
@@ -72,6 +81,7 @@ function runChild(name, script, limitMs, round) {
       stalled = true
       const file = path.join(samplesDir, `${name}-${round}-${child.pid}.txt`)
       console.log(`STALL ${name} round ${round} pid ${child.pid} after ${Date.now() - start} ms; marks:\n${stderr}`)
+      console.log(await vmmap(child.pid, file.replace(/\.txt$/, ".vmmap.txt")))
       console.log(await sample(child.pid, file))
     }, limitMs)
     const killTimer = setTimeout(() => child.kill("SIGKILL"), limitMs + 90000)

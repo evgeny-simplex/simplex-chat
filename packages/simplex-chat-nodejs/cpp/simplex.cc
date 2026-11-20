@@ -118,7 +118,9 @@ void haskell_init() {
       "--install-signal-handlers=no",
       nullptr};
 #else
-  int argc = 6;
+  const char *extra = getenv("SIMPLEX_EXTRA_RTS");
+  bool hasExtra = extra != nullptr && *extra != '\0';
+  int argc = hasExtra ? 7 : 6;
   const char *argv[] = {
       "simplex",
       "+RTS",  // requires `hs_init_with_rtsopts`
@@ -126,6 +128,7 @@ void haskell_init() {
       "-H64m", // initial heap size
       "-xn",   // non-moving GC
       "--install-signal-handlers=no",
+      hasExtra ? extra : nullptr,
       nullptr};
 #endif
   char **pargv = const_cast<char **>(argv);
