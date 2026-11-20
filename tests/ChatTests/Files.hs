@@ -14,6 +14,7 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Concurrent.STM (TVar, atomically, check, modifyTVar', newTVarIO, readTVar, readTVarIO, writeTVar)
 import Control.Logger.Simple
+import Control.Monad (forM_)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (runReaderT)
 import qualified Data.Aeson as J
@@ -96,6 +97,9 @@ chatFileTests = do
     it "receive file marked to receive on chat start" testXFTPMarkToReceive
     it "receive file whose description was redelivered after chat stop" testXFTPRedeliveredDescription
     it "delete download started by a description handling that failed to commit" testXFTPUncommittedDescriptionDownload
+    forM_ [1 .. 30 :: Int] $ \i -> do
+      it ("repeat " <> show i <> " continue receiving file after restart") testXFTPContinueRcv
+      it ("repeat " <> show i <> " receive file marked to receive on chat start") testXFTPMarkToReceive
     it "error receiving file" testXFTPRcvError
     it "cancel receiving file, repeat receive" testXFTPCancelRcvRepeat
     it "receiving file from unknown relays resets it, the event has the previous item" testXFTPRcvRelaysNotApproved
