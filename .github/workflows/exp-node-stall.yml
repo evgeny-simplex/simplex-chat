@@ -1,0 +1,37 @@
+name: exp-node-stall
+
+on:
+  push:
+    branches:
+      - ep/exp-node-stall-final
+
+jobs:
+  stall:
+    strategy:
+      fail-fast: false
+      matrix:
+        copy:
+          - 1
+          - 2
+          - 3
+    runs-on: macos-15-intel
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v3
+      - run: sudo ln -sfn "$(xcrun --sdk macosx --show-sdk-path)" /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: scripts/ci/package-tests.sh build macos-x86_64
+      - run: scripts/ci/package-tests.sh test
+      - working-directory: packages/simplex-chat-nodejs
+        run: node tests/stall.js
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: samples-${{ matrix.copy }}
+          path: packages/simplex-chat-nodejs/tests/stall-samples
+          if-no-files-found: ignore
