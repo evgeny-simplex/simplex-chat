@@ -6548,6 +6548,7 @@ cleanupManager = do
       ts <- liftIO getCurrentTime
       let cutoffTs = addUTCTime (-(30 * nominalDay)) ts
       withStore' (`deleteOldMessages` cutoffTs)
+      withStore' (`deleteOldHandledRcvMsgs` cutoffTs)
     cleanupDeliveryTasks = do
       ts <- liftIO getCurrentTime
       let cutoffTs = addUTCTime (-(7 * nominalDay)) ts
