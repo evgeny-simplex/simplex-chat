@@ -1656,7 +1656,7 @@ testStoreTxAborted =
     aliceAlias bob `shouldReturn` [Only ("" :: T.Text)]
 #endif
 
-runInStoreTx :: TestCC -> Bool -> CM a -> IO (Either ChatError (Either ChatError a))
+runInStoreTx :: TestCC -> Bool -> CM a -> IO (Either ChatError a)
 runInStoreTx TestCC {chatController = cc} rollback action =
   runReaderT (runExceptT $ withStoreTx (const rollback) action) cc
 

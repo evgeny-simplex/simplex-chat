@@ -99,7 +99,7 @@ import Simplex.Messaging.Session (SessionVar)
 import Simplex.Messaging.TMap (TMap)
 import Simplex.Messaging.Transport (TLS, TransportPeer (..), simplexMQVersion)
 import Simplex.Messaging.Transport.Client (SocksProxyWithAuth, TransportHost)
-import Simplex.Messaging.Util (AnyError (..), catchAllErrors, catchOwn', tryAllErrors, (<$$>))
+import Simplex.Messaging.Util (AnyError (..), catchAllErrors, catchOwn', (<$$>))
 import Simplex.RemoteControl.Client
 import Simplex.RemoteControl.Invitation (RCSignedInvitation, RCVerifiedInvitation)
 import Simplex.RemoteControl.Types
@@ -359,8 +359,7 @@ data ChatController = ChatController
 data StoreTx = StoreTx
   { txThread :: ThreadId,
     txConn :: DB.Connection,
-    txAfterCommit :: TVar [CM' ()],
-    txAborted :: TVar (Maybe E.SomeException)
+    txAfterCommit :: TVar [CM' ()]
   }
 
 newtype StoreTxRollback = StoreTxRollback ChatError
@@ -1879,7 +1878,7 @@ withStorePriority priority action = do
   tx_ <- lift ownStoreTx
   let run = runExceptT . withExceptT ChatErrorStore . action
   liftIOEither $ case tx_ of
-    Just tx@StoreTx {txConn} -> inSavepoint tx (run txConn) `catchOwn'` handleDBErrors
+    Just StoreTx {txConn} -> inSavepoint txConn (run txConn) `catchOwn'` handleDBErrors
     Nothing -> withTransactionPriority chatStore priority run `catchOwn'` handleDBErrors
 
 withStoreIsolation' :: IsolationLevel -> (DB.Connection -> IO a) -> CM a
@@ -1887,7 +1886,7 @@ withStoreIsolation' isolation action = do
   ChatController {chatStore} <- ask
   tx_ <- lift ownStoreTx
   liftIOEither $ case tx_ of
-    Just tx@StoreTx {txConn} -> inSavepoint tx (Right <$> action txConn) `catchOwn'` handleDBErrors
+    Just StoreTx {txConn} -> inSavepoint txConn (Right <$> action txConn) `catchOwn'` handleDBErrors
     Nothing -> withTransactionIsolation chatStore isolation (fmap Right . action) `catchOwn'` handleDBErrors
 
 withStoreBatch :: Traversable t => (DB.Connection -> t (IO (Either ChatError a))) -> CM' (t (Either ChatError a))
@@ -1895,21 +1894,19 @@ withStoreBatch actions = do
   ChatController {chatStore} <- ask
   tx_ <- ownStoreTx
   liftIO $ case tx_ of
-    Just tx@StoreTx {txConn} -> mapM ((`catchOwn'` handleDBErrors) . inSavepoint tx) $ actions txConn
+    Just StoreTx {txConn} -> mapM ((`catchOwn'` handleDBErrors) . inSavepoint txConn) $ actions txConn
     Nothing -> withTransaction chatStore $ mapM (`catchOwn'` handleDBErrors) . actions
 
-withStoreTx :: (ChatError -> Bool) -> CM a -> CM (Either ChatError a)
+withStoreTx :: (ChatError -> Bool) -> CM a -> CM a
 withStoreTx rollbackOn action = do
   cc@ChatController {chatStore} <- ask
   lift ownStoreTx >>= \case
-    Just _ -> tryAllErrors action
+    Just _ -> action
     Nothing -> do
       afterCommitQ <- newTVarIO []
-      aborted <- newTVarIO Nothing
       tId <- liftIO myThreadId
       let run db = do
-            r <- runReaderT (runExceptT action) cc {storeTx = Just StoreTx {txThread = tId, txConn = db, txAfterCommit = afterCommitQ, txAborted = aborted}}
-            readTVarIO aborted >>= mapM_ E.throwIO
+            r <- runReaderT (runExceptT action) cc {storeTx = Just StoreTx {txThread = tId, txConn = db, txAfterCommit = afterCommitQ}}
             case r of
               Left e | rollbackOn e -> E.throwIO $ StoreTxRollback e
               _ -> pure r
@@ -1918,18 +1915,17 @@ withStoreTx rollbackOn action = do
       case committed of
         Right r -> do
           lift . sequence_ . reverse =<< readTVarIO afterCommitQ
-          pure r
+          liftEither r
         Left e -> throwError e
 
-inSavepoint :: StoreTx -> IO a -> IO a
-inSavepoint StoreTx {txConn = db, txAborted} action = do
-  readTVarIO txAborted >>= mapM_ E.throwIO
+inSavepoint :: DB.Connection -> IO a -> IO a
+inSavepoint db action = do
   DB.execute_ db "SAVEPOINT store_call"
   r <- action `E.onException` rollback
   DB.execute_ db "RELEASE SAVEPOINT store_call" `E.onException` rollback
   pure r
   where
-    rollback = (DB.execute_ db "ROLLBACK TO SAVEPOINT store_call" >> DB.execute_ db "RELEASE SAVEPOINT store_call") `catchOwn'` (atomically . writeTVar txAborted . Just)
+    rollback = (DB.execute_ db "ROLLBACK TO SAVEPOINT store_call" >> DB.execute_ db "RELEASE SAVEPOINT store_call") `catchOwn'` \_ -> pure ()
 
 handleDBErrors :: E.SomeException -> IO (Either ChatError a)
 handleDBErrors e = pure $ Left $ ChatErrorStore $ case E.fromException e of
