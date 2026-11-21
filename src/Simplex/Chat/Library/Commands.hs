@@ -638,7 +638,6 @@ processChatCommand cxt nm = \case
     chatWriteVar chatActivated False
     lift $ setAllExpireCIFlags False
     stopRemoteCtrl
-    asks openStoreTxs >>= \txs -> atomically $ readTVar txs >>= checkSTM . (0 ==)
     lift $ withAgent' (`suspendAgent` t)
     ok_
   ShowConnectionsDiff showIds -> do

@@ -2633,15 +2633,9 @@ deliverMessages msgs = deliverMessagesB $ L.map Right msgs
 deliverMessagesB :: NonEmpty (Either ChatError ChatMsgReq) -> CM (NonEmpty (Either ChatError ([Int64], PQEncryption)))
 deliverMessagesB msgReqs = do
   msgReqs' <- liftIO compressBodies
-  lift ownStoreTx >>= \case
-    Nothing -> do
-      sent <- sendToAgent msgReqs'
-      lift . void $ withStoreBatch' $ \db -> map (updatePQSndEnabled db) (rights . L.toList $ sent)
-      lift . withStoreBatch $ \db -> L.map (bindRight $ createDelivery db) sent
-    Just _ -> do
-      pending <- lift . withStoreBatch $ \db -> L.map (bindRight $ createPendingDelivery db) msgReqs'
-      afterCommitE $ sendPending msgReqs' pending
-      pure pending
+  sent <- sendToAgent msgReqs'
+  lift . void $ withStoreBatch' $ \db -> map (updatePQSndEnabled db) (rights . L.toList $ sent)
+  lift . withStoreBatch $ \db -> L.map (bindRight $ createDelivery db) sent
   where
     sendToAgent reqs = L.zipWith prepareBatch reqs <$> withAgent (`sendMessagesB` snd (mapAccumL toAgent Nothing reqs))
     sendPending reqs pending = do

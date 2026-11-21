@@ -99,7 +99,7 @@ import Simplex.Messaging.Session (SessionVar)
 import Simplex.Messaging.TMap (TMap)
 import Simplex.Messaging.Transport (TLS, TransportPeer (..), simplexMQVersion)
 import Simplex.Messaging.Transport.Client (SocksProxyWithAuth, TransportHost)
-import Simplex.Messaging.Util (AnyError (..), catchAllErrors, catchAllErrors', catchOwn', (<$$>))
+import Simplex.Messaging.Util (AnyError (..), catchAllErrors, catchOwn', tryAllErrors, (<$$>))
 import Simplex.RemoteControl.Client
 import Simplex.RemoteControl.Invitation (RCSignedInvitation, RCVerifiedInvitation)
 import Simplex.RemoteControl.Types
@@ -1846,10 +1846,7 @@ afterCommit action =
     Nothing -> action
 
 afterCommitE :: CM () -> CM ()
-afterCommitE action =
-  lift ownStoreTx >>= \case
-    Just _ -> lift . afterCommit $ action `catchAllErrors'` eToView'
-    Nothing -> action
+afterCommitE action = action
 
 ownStoreTx :: CM' (Maybe StoreTx)
 ownStoreTx =
@@ -1913,9 +1910,9 @@ withStoreBatch actions = do
 
 withStoreTx :: (ChatError -> Bool) -> CM a -> CM (Either ChatError a)
 withStoreTx rollbackOn action = do
-  cc@ChatController {chatStore, chatActivated, openStoreTxs} <- ask
+  cc@ChatController {chatStore} <- ask
   lift ownStoreTx >>= \case
-    Just _ -> Right <$> action
+    Just _ -> tryAllErrors action
     Nothing -> do
       afterCommitQ <- newTVarIO []
       aborted <- newTVarIO Nothing
@@ -1930,9 +1927,7 @@ withStoreTx rollbackOn action = do
               Left e | rollbackOn e -> E.throwIO $ StoreTxRollback e
               _ -> pure r
           rolledBack (StoreTxRollback e) = pure $ Left e
-          beginStoreTx = atomically $ readTVar chatActivated >>= checkSTM >> modifyTVar' openStoreTxs (+ 1)
-          endStoreTx = atomically $ modifyTVar' openStoreTxs (subtract 1)
-      committed <- liftIO $ E.bracket_ beginStoreTx endStoreTx $ ((Right <$> withTransaction chatStore run) `E.catch` rolledBack) `catchOwn'` handleDBErrors
+      committed <- liftIO $ ((Right <$> withTransaction chatStore run) `E.catch` rolledBack) `catchOwn'` handleDBErrors
       case committed of
         Right r -> do
           lift . sequence_ . reverse =<< readTVarIO afterCommitQ
