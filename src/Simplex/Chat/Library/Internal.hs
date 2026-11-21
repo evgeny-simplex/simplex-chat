@@ -109,7 +109,7 @@ import qualified Simplex.Messaging.TMap as TM
 import Simplex.Messaging.Util
 import Simplex.Messaging.Version
 import System.FilePath (takeFileName, (</>))
-import System.IO (Handle, IOMode (..), hFlush, hSetFileSize)
+import System.IO (Handle, IOMode (..), hFlush)
 import UnliftIO.Concurrent (forkFinally, mkWeakThreadId)
 import UnliftIO.Directory
 import UnliftIO.IO (hClose, openFile)
@@ -2091,7 +2091,7 @@ mkMemberSupportChatInfo m@GroupMember {groupMemberId, supportChat} =
        in pure (m, scopeInfo)
 
 appendFileChunk :: RcvFileTransfer -> Integer -> ByteString -> Bool -> CM ()
-appendFileChunk ft@RcvFileTransfer {fileId, fileStatus, cryptoArgs, chunkSize, fileInvitation = FileInvitation {fileName}} chunkNo chunk final =
+appendFileChunk ft@RcvFileTransfer {fileId, fileStatus, cryptoArgs, fileInvitation = FileInvitation {fileName}} chunkNo chunk final =
   case fileStatus of
     RFSConnected filePath -> append_ filePath
     -- sometimes update of file transfer status to FSConnected
@@ -2104,22 +2104,21 @@ appendFileChunk ft@RcvFileTransfer {fileId, fileStatus, cryptoArgs, chunkSize, f
     append_ filePath = do
       fsFilePath <- lift $ toFSFilePath filePath
       h <- getFileHandle fileId fsFilePath rcvFiles AppendMode
-      liftIO (hSetFileSize h ((chunkNo - 1) * chunkSize) >> B.hPut h chunk >> hFlush h) `catchThrow` (fileErr . show)
+      liftIO (B.hPut h chunk >> hFlush h) `catchThrow` (fileErr . show)
       withStore' $ \db -> updatedRcvFileChunkStored db ft chunkNo
       when final $ do
         lift $ closeFileHandle fileId rcvFiles
         forM_ cryptoArgs $ \cfArgs -> do
           tmpFile <- lift getChatTempDirectory >>= liftIO . (`uniqueCombine` fileName)
           tryAllErrors (liftError encryptErr $ encryptFile fsFilePath tmpFile cfArgs) >>= \case
-            Right () -> lift . afterCommit $ replaceFile tmpFile fsFilePath `catchAllErrors'` eToView'
+            Right () -> do
+              removeFile fsFilePath `catchAllErrors` \_ -> pure ()
+              renameFile tmpFile fsFilePath
             Left e -> do
               eToView e
               removeFile tmpFile `catchAllErrors` \_ -> pure ()
               withStore' (`removeFileCryptoArgs` fileId)
       where
-        replaceFile newFile oldFile = do
-          removeFile oldFile `catchAllErrors` \_ -> pure ()
-          renameFile newFile oldFile
         encryptErr e = fileErr $ e <> ", received file not encrypted"
         fileErr = ChatError . CEFileWrite filePath
 
@@ -2207,7 +2206,7 @@ cleanupRosterTransferById transferId = do
   file_ <- withStore' $ \db -> getRosterTransferFile db transferId
   forM_ file_ $ \(fileId, filePath_) -> do
     lift $ closeFileHandle fileId rcvFiles
-    lift . afterCommit $ mapM_ removeFsFile filePath_ `catchAllErrors'` eToView'
+    forM_ filePath_ removeFsFile
   withStore' $ \db -> do
     deleteRosterTransferFile db transferId
     deleteRosterTransfer db transferId
