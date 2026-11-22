@@ -702,17 +702,40 @@ from `scripts/store-service/`. The database `badge_service`,
 `simplex_badge_service` are unchanged.
 
 A badge-service database upgrades in place: the store's own migrations run after every badge
-migration, `20261012_badge_subscriptions` included; `20261013_names` marks each existing
+migration, `20261012_badge_subscriptions` included; `20261122_names` marks each existing
 invoice `badge` and copies its provider reference into the invoices table, which holds every
 invoice's reference from then on; a badge invoice's stays in its badge row too. A database that ran the names migrations of
-an earlier draft (`20261010_names`, or that draft's steps dated after `20261013_names`) does not start, as
-the service refuses to roll back migrations it does not list. A database that ran `20261013_names`
-before it created `sx_badge_service_name_terms` starts without that table, and every terms read
-fails. Recreate such a database.
+an earlier draft (`20261010_names` or `20261013_names`) does not start: the service exits with
+`different migration in the app/database: 20261122_names / <the draft's migration>`, as it refuses
+to run beside a migration it does not list. A development database that a build of this service
+before `20261122_names` ran is rolled back as step 1 below says, without step 0.
 
 A database that a build of the `names` branch ran keeps `20261013_names` as that branch wrote it,
-in a shape this service does not read. It is upgraded in two steps:
+in a shape this service does not read. The rollback below drops every names table: the orders, their balances, the
+prepaid name codes, the link edits and the registrar's transactions. The badge tables, and the name
+invoices with a payment row, stay. It is upgraded in three steps:
 
+0. List what the rollback deletes, and keep the output:
+
+   ```
+   psql "$BADGE_DB_CONN" -Atc "SELECT r.registration_id, r.phase, r.failed_at, r.reveal_before, ni.invoice_id, ni.provider_ref, r.balance_source FROM simplex_v1_chat_schema.sx_badge_service_name_registrations r LEFT JOIN simplex_v1_chat_schema.sx_badge_service_name_invoices ni ON ni.registration_id = r.registration_id WHERE r.name_prepaid_code_id IS NULL AND (r.phase = 'failed' OR (r.phase = 'committed' AND r.label IS NULL AND r.reveal_before < EXTRACT(EPOCH FROM now()))) ORDER BY r.created_at"
+   psql "$BADGE_DB_CONN" -Atc "SELECT r.registration_id, r.phase, r.name_prepaid_code_id, ni.provider_ref FROM simplex_v1_chat_schema.sx_badge_service_name_registrations r LEFT JOIN simplex_v1_chat_schema.sx_badge_service_name_invoices ni ON ni.registration_id = r.registration_id WHERE r.phase IN ('queued', 'committing', 'committed', 'registering') ORDER BY r.created_at"
+   psql "$BADGE_DB_CONN" -Atc "SELECT b.registration_id, b.amount, ni.provider_ref FROM simplex_v1_chat_schema.sx_badge_service_name_balances b LEFT JOIN simplex_v1_chat_schema.sx_badge_service_name_invoices ni ON ni.registration_id = b.registration_id WHERE b.amount > 0"
+   psql "$BADGE_DB_CONN" -Atc "SELECT name_prepaid_code_id, min_length, years, expires_at, created_at FROM simplex_v1_chat_schema.sx_badge_service_name_prepaid_codes WHERE spent_at IS NULL AND revoked_at IS NULL"
+   psql "$BADGE_DB_CONN" -Atc "SELECT registrar_nonce, kind, sent_at FROM simplex_v1_chat_schema.sx_badge_service_name_transactions WHERE status = 'pending' ORDER BY registrar_nonce"
+   ```
+
+   The first lists the failed paid orders, with the committed ones past their signing deadline: find
+   at the provider, by the provider reference listed, each one already refunded by hand, and refund
+   the others there, as no order is left to close after the rollback. The second lists the orders in
+   progress, whose names a transaction in the node's pool can still register: refund at the provider
+   each whose name does not register to its owner. The third lists the balances, which are refunded
+   at the provider. The fourth lists the codes not spent, each answered `code_invalid` after the
+   upgrade: issue a new code to each holder. The fifth lists the registrar's transactions not
+   settled: wait until the gas key has nothing in the node's pool, as step 1 of
+   [Restoring the database](#restoring-the-database) says, before step 1 here. The name invoices
+   with a payment row and their payments stay, without the orders, owners and names that the first
+   three listings name.
 1. From master's `scripts/badge-service/`, run the badge service once without `--yes-migrate`, and
    answer `y` when it asks to roll back `20261013_names`:
 
@@ -724,7 +747,7 @@ in a shape this service does not read. It is upgraded in two steps:
    and the columns that migration added to the payments table are dropped, and the badge tables
    and their rows stay. With `--yes-migrate` it refuses the rollback and exits. Stop it once it
    runs.
-2. Deploy this service as [Deployment](#deployment) says. It applies `20261013_names`.
+2. Deploy this service as [Deployment](#deployment) says. It applies `20261122_names`.
 
 ### Two sites
 
@@ -1871,16 +1894,8 @@ the provider that it was not refunded by hand before; if not, refund it now, by:
 for the order, as the answer of `//record_refund` does. Before this command existed, support refunded failed
 orders at the provider by hand, so look for a refund of that payment after the failure time first, and
 pay the amount back by those methods only if none is found. The service logs each closed order at
-note with its registration id and the cents.
-
-Before the first version with `//close` is deployed, list the failed paid orders, with the committed
-ones past their signing deadline, which can be closed too, and find at the provider,
-by the provider reference listed, each one already refunded by hand. After the deploy, close
-the orders refunded by hand with `//close` and pay nothing, so that their records match the money:
-
-```
-psql "$BADGE_DB_CONN" -Atc "SELECT r.registration_id, r.phase, r.failed_at, r.reveal_before, ni.invoice_id, i.provider_ref FROM simplex_v1_chat_schema.sx_badge_service_name_registrations r LEFT JOIN simplex_v1_chat_schema.sx_badge_service_name_invoices ni ON ni.registration_id = r.registration_id LEFT JOIN simplex_v1_chat_schema.sx_badge_service_invoices i ON i.invoice_id = ni.invoice_id WHERE r.name_prepaid_code_id IS NULL AND (r.phase = 'failed' OR (r.phase = 'committed' AND r.label IS NULL AND r.reveal_before < EXTRACT(EPOCH FROM now()))) ORDER BY r.created_at"
-```
+note with its registration id and the cents. An upgrade from the `names` branch lists the failed
+orders before it drops them (see [Upgrading from the badge service](#upgrading-from-the-badge-service)).
 
 A closed order reads `taken` in Your names, with its refund. `/retry` answers `400 bad_request`, and so
 does a selection of a name, as the balance no longer holds the price; `//balance` finds nothing to refund, and the

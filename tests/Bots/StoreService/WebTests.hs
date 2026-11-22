@@ -133,7 +133,8 @@ import Simplex.Chat.PaymentService.Types (CardProvider (..), CryptoCurrency (..)
 import Simplex.Messaging.Agent.Store.Common (DBStore (..), withConnection, withTransaction)
 import qualified Simplex.Messaging.Agent.Store.DB as DB
 import Simplex.Messaging.Agent.Store.Interface
-import Simplex.Messaging.Agent.Store.Shared (Migration (..), MigrationConfig (..), MigrationConfirmation (..), MigrationsToRun (..), toDownMigration)
+import Simplex.Messaging.Agent.Store.Migrations (migrationsToRun)
+import Simplex.Messaging.Agent.Store.Shared (MTRError (..), Migration (..), MigrationConfig (..), MigrationConfirmation (..), MigrationsToRun (..), toDownMigration)
 import qualified Simplex.Messaging.Crypto as C
 import Simplex.Messaging.Crypto.BBS (BBSSignature (..))
 import Simplex.Messaging.Encoding.String (textDecode, textEncode)
@@ -221,7 +222,7 @@ badgeWebTests = do
     it "refuses a duplicate provider_ref" testProviderRefUnique
     it "M20260918 adds the multi-use columns and the group table" testGroupOpsColumns
     it "M20260918 defaults a fresh code to one use with none spent" testGroupOpsRedeemCounts
-    it "declares its migrations in name order, master's badge migrations before the names ones, each with a down migration" testMigrationOrder
+    it "declares its migrations in name order, master's badge migrations before the names ones, each with a down migration, and refuses the names branch's 20261013_names" testMigrationOrder
     it "rolls back only the group migration and re-applies it, keeping a code redeemed twice spent" testGroupOpsDownUp
   describe "store service store" $ do
     it "writes the invoice, its code and their link atomically" testCreationIsAtomic
@@ -475,8 +476,10 @@ testMigrationOrder = do
   [(a, b) | (a, b) <- zip declared (drop 1 declared), a >= b] `shouldBe` []
   let (badges, ours) = span (`elem` badgeMigrations) (map name storeServiceSchemaMigrations)
   badges `shouldBe` badgeMigrations
-  ours `shouldBe` ["20261013_names"]
+  ours `shouldBe` ["20261122_names"]
   length (mapMaybe toDownMigration storeServiceSchemaMigrations) `shouldBe` length storeServiceSchemaMigrations
+  let namesBranch = filter ((`elem` badgeMigrations) . name) storeServiceSchemaMigrations <> [Migration {name = "20261013_names", up = "", down = Just ""}]
+  migrationsToRun storeServiceSchemaMigrations namesBranch `shouldBe` Left (MTREDifferent "20261122_names" "20261013_names")
   where
     badgeMigrations = ["20260915_badge_service_schema", "20260918_badge_group_ops", "20260925_badge_store_receipts", "20261012_badge_subscriptions"]
 
