@@ -96,7 +96,7 @@ simplex:/m
 
 ## Scheme path
 
-By Q10 (decided), `/` after `simplex:` is optional in parsing. The existing parsers are changed in a separate PR, in simplexmq and simplex-chat:
+By Q10 (decided), `/` after `simplex:` is optional in parsing. The existing parsers are changed in separate PRs, simplex-chat/simplexmq#2092 and simplex-chat/simplex-chat#8306:
 
 | Parser | Source |
 |---|---|
@@ -682,5 +682,5 @@ Decided by the maintainer:
 | Q7 | a: agents and bots write links in the text as `[label](link)`, rewritten by the core |
 | Q8 | a, in stage 2: on the board, "waiting for you" of the session is linked to the oldest pending card of the session |
 | Q9 | accepted: the short text is received by everyone who receives the message and by everyone it is forwarded to |
-| Q10 | b now, c later: `/` after `simplex:` is optional in parsing now, in a separate PR for the parsers of simplexmq and simplex-chat; links are generated with `/` until enough clients parse both forms, then without it; in the maintainer's words, "it looks nicer. Do that now then" |
+| Q10 | b now, c later: `/` after `simplex:` is optional in parsing now, in separate PRs for the parsers, simplex-chat/simplexmq#2092 and simplex-chat/simplex-chat#8306; links are generated with `/` until enough clients parse both forms, then without it; in the maintainer's words, "it looks nicer. Do that now then" |
 | Q11 | a: `#name` for any public entity (a channel, a public group or a site), whose kind is given by the type of the resolved link; in the maintainer's words, "Group is a proto-site" |
