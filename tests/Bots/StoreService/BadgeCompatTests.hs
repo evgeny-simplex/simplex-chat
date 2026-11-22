@@ -38,7 +38,7 @@ import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime, nominalDay)
 import Simplex.Chat.Badges (BadgeCredential, BadgeInfo (..), BadgeMasterKey (..), BadgeRequest (..), BadgeType (..), VerifiedBadgeRequest (..), issueBadge)
 import Simplex.Chat.Badges.Code (BadgeCode, badgeCodeHash, badgeCodeText, randomBadgeCode)
 import Simplex.Chat.Badges.Ledger (addMonths, debitEntry, emptyEntry, endOfMondayAfter, grantEntry, issueEntry)
-import Simplex.Chat.Badges.Types (BadgeCodePaymentStatus (..), BadgeOfferId (..), BadgePriceId (..), BadgePurchaseStatus (..))
+import Simplex.Chat.Badges.Types (BadgeCodePaymentStatus (..), BadgeOfferId (..), BadgePriceId (..))
 import Simplex.Chat.Bot.Store (withDB')
 import Simplex.Chat.Controller (ChatConfig (..), ChatController (..))
 import Simplex.Chat.Options (CoreChatOpts (..))
@@ -404,7 +404,7 @@ readsBack cc@ChatController {chatStore = st} MasterRows {rowsAt, singleCode, sin
     getSubscriptionCharge db applePayment "apple-charge-2" `shouldReturn` Just ("charge-a2", True)
     getSubscriptionCharge db movedPayment "google-charge-1" `shouldReturn` Just ("charge-g1", True)
     fmap (\ManagedGroup {mgGroupId, mgOwnerBootstrapped} -> (mgGroupId, mgOwnerBootstrapped)) <$> getManagedGroup db `shouldReturn` Just (1, True)
-    badgeCounts db now `shouldReturn` BadgeCounts {bcPurchases = [(PSIssued, 7)], bcSubscriptions = [(SSCancelled, 1), (SSRenewing, 1)], bcOpenCodes = 1}
+    badgeCounts db now `shouldReturn` BadgeCounts {bcPurchases = [("issued", 7)], bcSubscriptions = [("cancelled", 1), ("renewing", 1)], bcOpenCodes = 1}
   rowCount cc "sx_badge_service_badge_issuances" `shouldReturn` 7
   where
     invoices =
