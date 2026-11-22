@@ -21,7 +21,7 @@ schemaMigrations =
     ("20260918_badge_group_ops", m20260918_badge_group_ops, Just down_m20260918_badge_group_ops),
     ("20260925_badge_store_receipts", m20260925_badge_store_receipts, Just down_m20260925_badge_store_receipts),
     ("20261012_badge_subscriptions", m20261012_badge_subscriptions, Just down_m20261012_badge_subscriptions),
-    ("20261122_names", m20261122_names, Just down_m20261122_names)
+    ("20261013_names", m20261013_names, Just down_m20261013_names)
   ]
 
 -- | The client tables share this database, so the service tables are the same names behind a prefix.
@@ -278,8 +278,8 @@ DROP TABLE @subscription_charges;
 -- A balance's amount = credited - refunded, less the prices of the names selected for its taken order and the cents taken back at reversals.
 -- Crypto is counted in integer units (satoshi, piconero), so every sum is exact; rates are decimal text, never summed.
 -- invoiced_units is the crypto a payment's invoice asks, network fee included, which late and overpaid crypto is a price share of.
-m20261122_names :: Text
-m20261122_names =
+m20261013_names :: Text
+m20261013_names =
   withPrefix
     servicePrefix
     [r|
@@ -497,8 +497,8 @@ CREATE UNIQUE INDEX @idx_invoices_provider_ref ON @invoices(provider_ref);
 
 -- A table another table's foreign key references cannot be dropped, so reserved_by goes first.
 -- The name orders' invoices go with them, except those with a payment, which stay for the accounts.
-down_m20261122_names :: Text
-down_m20261122_names =
+down_m20261013_names :: Text
+down_m20261013_names =
   withPrefix
     servicePrefix
     [r|
