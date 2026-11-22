@@ -492,6 +492,9 @@ ALTER TABLE @invoices ADD COLUMN provider_ref TEXT NOT NULL DEFAULT '';
 UPDATE @invoices SET provider_ref = (SELECT ci.provider_ref FROM @badge_code_invoices ci WHERE ci.invoice_id = @invoices.invoice_id)
 WHERE invoice_id IN (SELECT invoice_id FROM @badge_code_invoices);
 
+UPDATE @invoices SET provider_ref = (SELECT p.provider_ref FROM @payments p WHERE p.invoice_id = @invoices.invoice_id AND p.provider_ref IS NOT NULL)
+WHERE provider_ref = '' AND invoice_id IN (SELECT invoice_id FROM @payments WHERE provider_ref IS NOT NULL);
+
 CREATE UNIQUE INDEX @idx_invoices_provider_ref ON @invoices(provider_ref);
 |]
 

@@ -52,7 +52,7 @@ import StoreService.Store.SQLite.Migrations (storeServiceSchemaMigrations)
 namesStoreTests :: Spec
 namesStoreTests = describe "StoreService names: store" $ do
   describe "migration" $ do
-    it "rolls back and re-applies only the names migration, with rows in it, leaving the badge tables and paid invoices as they were and moving the badge invoices' provider refs into invoices and back" testNamesDownUp
+    it "rolls back and re-applies only the names migration, with rows in it, leaving the badge tables and paid invoices as they were, moving the badge invoices' provider refs into invoices and back, and taking each kept name invoice's ref from its payment" testNamesDownUp
     it "names each invoice's product, badge for a badge invoice and name for a name invoice, keeps each provider ref in invoices only, and reads a name row marked badge as no product" testInvoiceProduct
     it "refuses a stored reveal whose acceptance columns are unset or set only in part" testPartialAcceptance
     it "refuses a stored commitment, secret or accepted terms hash that is not 32 bytes" testShortHashes
@@ -210,18 +210,21 @@ testNamesDownUp = withServiceStore $ \st -> do
   placeCode st "r1" ownerA (order "alicebakery" 1) code `shouldReturn` Right ()
   placePaid st "r2" ownerB (order "bobsbakery" 2) (at 60) `shouldReturn` Right ()
   placePaid st "r3" ownerB (order "carolsbakery" 3) (at 60) `shouldReturn` Right ()
-  withTransaction st $ \db -> insertPayment db "inv-r3"
+  placePaid st "r4" ownerB (order "davesbakery" 4) (at 60) `shouldReturn` Right ()
+  withTransaction st $ \db -> mapM_ (insertPayment db) ["inv-r3", "inv-r4"]
   withTransaction st $ \db -> setTermsText db (hashFixture 1) "terms"
   badgeBefore <- badgeColumns
   runMigrations st $ MTRDown (mapMaybe toDownMigration names)
   mapM (columnsOf st) namesTables `shouldReturn` map (const []) namesTables
-  mapM (invoiceCount st) ["inv-r2", "inv-r3"] `shouldReturn` [0, 1]
+  mapM (invoiceCount st) ["inv-r2", "inv-r3", "inv-r4"] `shouldReturn` [0, 1, 1]
   badgeColumns `shouldReturn` zipWith (\t -> filter (`notElem` if t == "sx_badge_service_invoices" then invoiceProductColumns else balancePaymentColumns)) badgeTables badgeBefore
   withTransaction st (\db -> DB.query db "SELECT provider_ref FROM sx_badge_service_badge_code_invoices WHERE invoice_id = ?" (Only badgeInvoice)) `shouldReturn` [Only badgeRef]
   runMigrations st $ MTRUp names
   mapM (fmap null . columnsOf st) namesTables `shouldReturn` map (const False) namesTables
   badgeColumns `shouldReturn` badgeBefore
   (fmap irInvoiceId <$> getInvoiceByProviderRef st badgeRef) `shouldReturn` Just (InvoiceId badgeInvoice)
+  withTransaction st (\db -> DB.query_ db "SELECT invoice_id, provider_ref FROM sx_badge_service_invoices WHERE invoice_id IN ('inv-r3', 'inv-r4') ORDER BY invoice_id")
+    `shouldReturn` [("inv-r3" :: Text, "ref-inv-r3" :: Text), ("inv-r4", "ref-inv-r4")]
 
 testInvoiceProduct :: IO ()
 testInvoiceProduct = withServiceStore $ \st -> do
@@ -674,8 +677,8 @@ insertPayment :: DB.Connection -> Text -> IO ()
 insertPayment db invId =
   DB.execute
     db
-    "INSERT INTO sx_badge_service_payments (payment_id, invoice_id, provider, status, created_at, updated_at) VALUES (?,?,?,?,?,?)"
-    (invId, invId, "crypto" :: Text, "pending" :: Text, t0, t0)
+    "INSERT INTO sx_badge_service_payments (payment_id, invoice_id, provider, provider_ref, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?)"
+    (invId, invId, "crypto" :: Text, "ref-" <> invId, "pending" :: Text, t0, t0)
 
 invoiceCount :: DBStore -> Text -> IO Int
 invoiceCount st invId = withTransaction st $ \db ->
