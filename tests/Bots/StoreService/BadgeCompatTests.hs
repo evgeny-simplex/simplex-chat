@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-ambiguous-fields #-}
 
 module Bots.StoreService.BadgeCompatTests (badgeCompatTests) where
@@ -10,16 +11,27 @@ module Bots.StoreService.BadgeCompatTests (badgeCompatTests) where
 import Bots.StoreService.BotTests
 import Bots.StoreService.FakeStore (FakeStore (..), appleSubscriptionOriginalId, googleSubscriptionToken, googleSupporterToken)
 import Bots.StoreService.WebTests (fieldOf, jsonObject, newStubState, pollerFor, prepareStaticDir, rcv, sampleProviderInvoice, setSignals, statusOf, stubProvider, testBTCPayConfig, testServiceConfig, webGet, webRequestBody, withListener)
+import ChatClient (smpServerStr, smpTestPort, testPort, testServerKeyHash)
 import ChatTests.DBUtils
 import ChatTests.Utils
-import Control.Monad (forM_, void)
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.Async (withAsync)
+import Control.Concurrent.STM (TMVar, TVar, atomically, newEmptyTMVar, newTVarIO, putTMVar, stateTVar, takeTMVar)
+import Control.Exception (bracket)
+import qualified Control.Exception as E
+import Control.Monad (foldM, forM_, forever, void)
 import qualified Data.Aeson as J
-import qualified Data.ByteString.Lazy as LB
+import qualified Data.Aeson.Key as JK
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy.Char8 as LB
 import Data.Functor ((<&>))
 import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (sort)
+import qualified Data.Map.Strict as M
 import Data.Maybe (fromJust, isJust)
+import qualified Network.WebSockets as WS
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime, nominalDay)
@@ -27,7 +39,8 @@ import Simplex.Chat.Badges (BadgeCredential, BadgeInfo (..), BadgeMasterKey (..)
 import Simplex.Chat.Badges.Code (BadgeCode, badgeCodeHash, badgeCodeText, randomBadgeCode)
 import Simplex.Chat.Badges.Ledger (addMonths, debitEntry, emptyEntry, endOfMondayAfter, grantEntry, issueEntry)
 import Simplex.Chat.Badges.Types (BadgeCodePaymentStatus (..), BadgeOfferId (..), BadgePriceId (..), BadgePurchaseStatus (..))
-import Simplex.Chat.Controller (ChatController (..))
+import Simplex.Chat.Bot.Store (withDB')
+import Simplex.Chat.Controller (ChatConfig (..), ChatController (..))
 import Simplex.Chat.Options (CoreChatOpts (..))
 import Simplex.Chat.Options.DB
 import Simplex.Chat.PaymentService (googlePurchaseRef)
@@ -40,14 +53,23 @@ import qualified Simplex.Messaging.Agent.Store.DB as DB
 import Simplex.Messaging.Agent.Store.Interface (migrateDBSchema)
 import Simplex.Messaging.Agent.Store.Shared (Migration (..), MigrationConfig (..), MigrationConfirmation (..))
 import qualified Simplex.Messaging.Crypto as C
+import Simplex.Messaging.Encoding.String (strEncode, textEncode)
+import Simplex.Messaging.TMap (TMap)
+import qualified Simplex.Messaging.TMap as TM
+import Simplex.Messaging.Util (tshow)
 import StoreService.Config (BadgeIssuerKey (..), ServiceConfig (..))
 import StoreService.Options (StoreServiceOpts (..))
 import StoreService.Poller (runOnePass)
 import StoreService.Providers (PaymentSignal (..), Provider (..))
 import StoreService.Store (BadgeCounts (..), CodeTracker (..), CreditedPurchase (..), FundingCredit (..), IssuedCode (..), KeyRedemption (..), ManagedGroup (..), PurchaseSubscription (..), ServicePurchase (..), badgeCounts, getBadgeCode, getCodePurchaseForKey, getCodeTracker, getCurrentIssuance, getLedgerEntries, getManagedGroup, getPurchaseByKey, getPurchaseSubscription, getStorePaymentCredit, getSubscriptionCharge)
-import StoreService.Store.Invoices (InvoiceProduct (..), InvoiceRow (..), getInvoice, getInvoiceByProviderRef, readCatalogRows, truncateToSecond, unpaidRefs)
+import StoreService.Store.Invoices (InvoiceProduct (..), InvoiceRow (..), getInvoice, getInvoiceByProviderRef, markCodePaid, readCatalogRows, truncateToSecond, unpaidRefs)
 import StoreService.Web.Http (holdMicros)
-import System.Directory (createDirectoryIfMissing)
+import System.Directory (createDirectoryIfMissing, renameFile)
+import System.Environment (getEnvironment, lookupEnv)
+import System.FilePath ((</>))
+import System.IO (IOMode (..), withFile)
+import System.Process (CreateProcess (..), StdStream (..), cleanupProcess, createProcess, proc)
+import System.Timeout (timeout)
 import Test.Hspec hiding (it)
 import UnliftIO.Temporary (withTempDirectory)
 #if defined(dbPostgres)
@@ -59,9 +81,15 @@ import StoreService.Store.SQLite.Migrations (storeServiceSchemaMigrations)
 #endif
 
 badgeCompatTests :: SpecWith TestParams
-badgeCompatTests = describe "master compatibility" $
+badgeCompatTests = describe "master compatibility" $ do
   describe "master rows" $
     it "reads the badge rows that master writes after the names migration, and serves each badge flow on them" testMasterRows
+  describe "master CLI" $ do
+    it "redeems codes and reads the service's refusals as master does" $ withMasterClient testMasterRedeems
+    it "renews a code badge within its month and in the next" $ withMasterClient testMasterRenews
+    it "credits a Play purchase handed over with its invoice" $ withMasterClient testMasterPlayPurchase
+    it "moves a Play subscription to a new device" $ withMasterClient testMasterRestore
+    it "answers unsupported versions and malformed requests" $ withMasterClient testMasterUnsupported
 
 masterLastMigration :: String
 masterLastMigration = "20261012_badge_subscriptions"
@@ -459,3 +487,181 @@ largerOf = "GREATEST"
 #else
 largerOf = "MAX"
 #endif
+
+data MasterCLI = MasterCLI
+  { cliConn :: WS.Connection,
+    cliNext :: TVar Int,
+    cliAnswers :: TMap Text (TMVar J.Value)
+  }
+
+data MasterClient = MasterClient
+  { clientBin :: FilePath,
+    clientClock :: FilePath
+  }
+
+withMasterClient :: HasCallStack => (MasterClient -> TestParams -> IO ()) -> TestParams -> IO ()
+withMasterClient test ps =
+  lookupEnv "MASTER_CLIENT_BIN" >>= \case
+    Nothing -> pendingWith "scripts/ci/scope-tests.sh badge-compat runs it with MASTER_CLIENT_BIN"
+    Just clientBin -> do
+      let clientClock = tmpPath ps </> "master-clock"
+      writeFile clientClock "0"
+      test MasterClient {clientBin, clientClock} ps
+
+withMasterCLI :: HasCallStack => MasterClient -> TestParams -> StoreServiceEnv -> String -> Int -> (MasterCLI -> IO a) -> IO a
+withMasterCLI MasterClient {clientBin, clientClock} ps StoreServiceEnv {bsAddress, bsClientCfg = ChatConfig {badgePublicKeys}} name n action = do
+  let port = testPort (5 + n) ps
+      issuerKey = maybe (error "no test issuer key") (B.unpack . strEncode) $ M.lookup testIssuerKeyIdx badgePublicKeys
+      presetServer = "smp://" <> testServerKeyHash <> "@localhost:" <> smpTestPort ps
+      vars = [("STORE_SERVICE_ADDRESS", bsAddress), ("BADGE_ISSUER_KEY", issuerKey), ("SMP_PRESET_SERVER", presetServer), ("BADGE_CLOCK_FILE", clientClock)]
+      args = ["-d", tmpPath ps </> name, "-s", smpServerStr ps, "-p", port, "--user-display-name", name, "--yes-migrate"]
+  inherited <- getEnvironment
+  withFile (tmpPath ps </> name <> ".log") WriteMode $ \logH ->
+    bracket (createProcess (proc clientBin args) {env = Just $ vars <> inherited, std_out = UseHandle logH, std_err = UseHandle logH}) cleanupProcess $ \_ ->
+      connected (read port) (20 * 10 :: Int) $ \cliConn -> do
+        cli <- MasterCLI cliConn <$> newTVarIO 0 <*> TM.emptyIO
+        withAsync (forever $ routeAnswer cli) $ \_ -> action cli
+  where
+    connected port attempts app =
+      E.try (WS.runClient "127.0.0.1" port "/" app) >>= \case
+        Right r -> pure r
+        Left (e :: E.IOException)
+          | attempts > 0 -> threadDelay 100000 >> connected port (attempts - 1) app
+          | otherwise -> E.throwIO e
+    routeAnswer MasterCLI {cliConn, cliAnswers} =
+      J.decode <$> WS.receiveData cliConn >>= \case
+        Just (J.Object o)
+          | Just (J.String corrId) <- KM.lookup "corrId" o,
+            Just resp <- KM.lookup "resp" o ->
+              atomically $ TM.lookup corrId cliAnswers >>= mapM_ (`putTMVar` resp)
+        _ -> pure ()
+
+cliCmd :: HasCallStack => MasterCLI -> String -> IO J.Value
+cliCmd MasterCLI {cliConn, cliNext, cliAnswers} cmd = do
+  (corrId, answer) <- atomically $ do
+    corrId <- tshow <$> stateTVar cliNext (\i -> (i, i + 1))
+    answer <- newEmptyTMVar
+    TM.insert corrId answer cliAnswers
+    pure (corrId, answer)
+  WS.sendTextData cliConn $ J.encode $ J.object ["corrId" J..= corrId, "cmd" J..= cmd]
+  timeout 60000000 (atomically $ takeTMVar answer <* TM.delete corrId cliAnswers) >>= maybe (error $ "master's CLI did not answer " <> cmd) pure
+
+cliUntil :: HasCallStack => MasterCLI -> String -> (J.Value -> Bool) -> IO J.Value
+cliUntil cli cmd done = go (60 :: Int)
+  where
+    go attempts = do
+      r <- cliCmd cli cmd
+      if done r || attempts <= 0 then pure r else threadDelay 500000 >> go (attempts - 1)
+
+jsonAt :: [Text] -> J.Value -> Maybe J.Value
+jsonAt path v = foldM (\case J.Object o -> (`KM.lookup` o) . JK.fromText; _ -> const Nothing) v path
+
+redeemError :: J.Value -> Maybe J.Value
+redeemError = jsonAt ["chatError", "errorType", "badgeRedeemError", "serviceError"]
+
+sameLedgers :: HasCallStack => ChatController -> MasterCLI -> Int -> J.Value -> IO [(Int, Int, Maybe Text)]
+sameLedgers cc cli userId state = do
+  purchaseId <- maybe (error $ "no purchase in " <> show state) pure $ jsonAt ["badgeState", "badgePurchaseId"] state
+  r <- cliCmd cli ("/_badge ledger " <> show userId <> " " <> LB.unpack (J.encode purchaseId))
+  rows <- case J.fromJSON <$> jsonAt ["badgeLedger"] r of
+    Just (J.Success entries) -> pure $ map replicated entries
+    _ -> error $ "not a ledger: " <> show r
+  case rows of
+    (entryUuid, _, _, _, _, _) : _ -> purchaseLedgerRows cc entryUuid `shouldReturn` rows
+    [] -> expectationFailure "master's client lists no ledger rows"
+  pure $ map (\(_, ch, m, _, _, t) -> (ch, m, t)) rows
+  where
+    replicated :: StatementEntry -> ReplicatedRow
+    replicated e@StatementEntry {entryId, changeMonths, balanceMonths, balanceStartTs, balanceBadgeType} =
+      (entryId, changeMonths, balanceMonths, balanceStartTs, textEncode balanceBadgeType, Just $ entryTag e)
+
+moveClocks :: MasterClient -> StoreServiceEnv -> Integer -> IO ()
+moveClocks MasterClient {clientClock} StoreServiceEnv {bsClock} months = do
+  setClockAt bsClock . addMonths months =<< getCurrentTime
+  writeFile (clientClock <> ".new") (show months)
+  renameFile (clientClock <> ".new") clientClock
+
+testMasterRedeems :: HasCallStack => MasterClient -> TestParams -> IO ()
+testMasterRedeems client ps =
+  withStoreServiceEnv ps $ \env@StoreServiceEnv {bsController = cc} ->
+    withMasterCLI client ps env "alice" 0 $ \alice -> do
+      code <- issueCode cc BTSupporter 2
+      redeemed <- cliCmd alice ("/_redeem_badge_code 1 " <> codeArg code)
+      map (`jsonAt` redeemed) [["type"], ["newBadge"], ["redeemedBadge", "badge", "badgeType"], ["badgeState", "badgeType"]]
+        `shouldBe` map Just [J.String "badgeRedeemed", J.Bool True, J.String "supporter", J.String "supporter"]
+      sameLedgers cc alice 1 redeemed `shouldReturn` [(2, 2, Just "code"), (-1, 1, Just "badge")]
+      again <- cliCmd alice ("/_redeem_badge_code 1 " <> codeArg code)
+      map (`jsonAt` again) [["type"], ["newBadge"]] `shouldBe` map Just [J.String "badgeRedeemed", J.Bool False]
+      void $ cliCmd alice "/create user alisa"
+      unknown <- C.newRandom >>= randomBadgeCode
+      redeemError <$> cliCmd alice ("/_redeem_badge_code 2 " <> codeArg unknown) `shouldReturn` Just (J.String "code_invalid")
+      redeemError <$> cliCmd alice ("/_redeem_badge_code 2 " <> codeArg code) `shouldReturn` Just (J.String "code_used")
+      expiring <- issueCodeAs cc BTSupporter 1 "unpaid"
+      now <- getCurrentTime
+      withDB' "markCodePaid" cc (\db -> markCodePaid db (badgeCodeHash expiring) (addUTCTime (-60) now)) `shouldReturn` Right ()
+      redeemError <$> cliCmd alice ("/_redeem_badge_code 2 " <> codeArg expiring) `shouldReturn` Just (J.String "code_expired")
+
+testMasterRenews :: HasCallStack => MasterClient -> TestParams -> IO ()
+testMasterRenews client ps =
+  withStoreServiceEnv ps $ \env@StoreServiceEnv {bsController = cc} ->
+    withMasterCLI client ps env "alice" 0 $ \alice -> do
+      code <- issueCode cc BTSupporter 2
+      redeemed <- cliCmd alice ("/_redeem_badge_code 1 " <> codeArg code)
+      ledger <- sameLedgers cc alice 1 redeemed
+      repeated <- cliCmd alice "/_badge request 1"
+      map (`jsonAt` repeated) [["type"], ["badgeState", "paidThrough"], ["badgeState", "monthsLeft"]]
+        `shouldBe` [Just (J.String "badgeState"), jsonAt ["badgeState", "paidThrough"] redeemed, Just (J.Number 1)]
+      sameLedgers cc alice 1 repeated `shouldReturn` ledger
+      rowCount cc "sx_badge_service_badge_issuances" `shouldReturn` 1
+      moveClocks client env 1
+      renewed <- cliCmd alice "/_badge request 1"
+      map (`jsonAt` renewed) [["badgeState", "paidThrough"], ["badgeState", "monthsLeft"], ["badgeState", "issueError"]]
+        `shouldBe` [jsonAt ["badgeState", "paidThrough"] redeemed, Just (J.Number 0), Nothing]
+      sameLedgers cc alice 1 renewed `shouldReturn` ledger <> [(-1, 0, Just "badge")]
+      rowCount cc "sx_badge_service_badge_issuances" `shouldReturn` 2
+
+testMasterPlayPurchase :: HasCallStack => MasterClient -> TestParams -> IO ()
+testMasterPlayPurchase client ps =
+  withStoreServiceEnv ps $ \env@StoreServiceEnv {bsController = cc} ->
+    withMasterCLI client ps env "bob" 0 $ \bob -> do
+      invoice <- cliCmd bob "/_badge invoice 1"
+      invoiceId <- case jsonAt ["invoiceId"] invoice of
+        Just (J.String i) -> pure $ T.unpack i
+        _ -> error $ "no invoice in " <> show invoice
+      void $ cliCmd bob (purchaseWithInvoice 1 invoiceId supporterPlay)
+      credited <- cliUntil bob "/_badge state 1" $ \r -> shownAs "supporter" r && jsonAt ["storePurchases"] r == Just (J.Array mempty)
+      map (`jsonAt` credited) [["badgeState", "badgeType"], ["badgeState", "shown"], ["storePurchases"]] `shouldBe` map Just [J.String "supporter", J.Bool True, J.Array mempty]
+      sameLedgers cc bob 1 credited `shouldReturn` [(1, 1, Just "payment"), (-1, 0, Just "badge")]
+      rowCount cc "sx_badge_service_badge_purchases" `shouldReturn` 1
+
+testMasterRestore :: HasCallStack => MasterClient -> TestParams -> IO ()
+testMasterRestore client ps =
+  withStoreServiceEnv ps $ \env@StoreServiceEnv {bsController = cc, bsStore = store} -> do
+    firstStart <- addUTCTime (-3600) <$> serviceNow env
+    storeReports store $ subscriptionCheck SSRenewing $ Just $ storeCharge "subscr-badge-supporter-month-02" firstStart 1
+    withMasterCLI client ps env "bob" 0 $ \bob -> do
+      void $ cliCmd bob ("/_badge purchase 1 " <> paymentArg subscriptionPlay)
+      bought <- cliUntil bob "/_badge state 1" $ shownAs "supporter"
+      map (`jsonAt` bought) [["badgeState", "badgeType"], ["badgeState", "subscription", "status"]] `shouldBe` map Just [J.String "supporter", J.String "renewing"]
+      sameLedgers cc bob 1 bought `shouldReturn` [(1, 1, Just "charge"), (-1, 0, Just "badge")]
+      withMasterCLI client ps env "cath" 1 $ \cath -> do
+        void $ cliCmd cath (restoredCmd 1 subscriptionPlay)
+        restored <- cliUntil cath "/_badge state 1" $ shownAs "supporter"
+        map (`jsonAt` restored) [["badgeState", "badgeType"], ["badgeState", "shown"]] `shouldBe` map Just [J.String "supporter", J.Bool True]
+        sameLedgers cc cath 1 restored `shouldReturn` [(1, 1, Just "charge"), (-1, 0, Just "badge")]
+      reboundPayments cc `shouldReturn` 1
+      retired <- cliCmd bob "/_badge request 1"
+      map (`jsonAt` retired) [["badgeState", "shown"], ["badgeState", "subscription", "status"]] `shouldBe` map Just [J.Bool False, J.String "ended"]
+
+shownAs :: Text -> J.Value -> Bool
+shownAs badgeType r = jsonAt ["badgeState", "badgeType"] r == Just (J.String badgeType) && jsonAt ["badgeState", "shown"] r == Just (J.Bool True)
+
+testMasterUnsupported :: HasCallStack => MasterClient -> TestParams -> IO ()
+testMasterUnsupported client ps =
+  withStoreServiceEnv ps $ \env@StoreServiceEnv {bsAddress} ->
+    withMasterCLI client ps env "alice" 0 $ \alice -> do
+      let answer req = jsonAt ["responseData"] <$> cliCmd alice ("/_service_request 1 " <> bsAddress <> " " <> req)
+          refused code = Just $ J.object ["code" J..= (code :: Text), "type" J..= ("error" :: Text)]
+      answer "{\"version\":1,\"request\":{\"type\":\"pauseBadge\"}}" `shouldReturn` refused "unsupported_version"
+      answer "{\"version\":2,\"request\":{\"type\":\"getBadgeCatalog\"}}" `shouldReturn` refused "unsupported_version"
+      answer "{\"version\":1,\"request\":{\"type\":\"redeemBadgeCode\"}}" `shouldReturn` refused "bad_request"

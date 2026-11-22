@@ -239,26 +239,28 @@ It runs `simplexChatCLI cfg (Just simplexChatServer)` with `cfg` = `terminalChat
 | Field | Value |
 |---|---|
 | badgeServiceAddress | `STORE_SERVICE_ADDRESS` |
-| badgePublicKeys | `BADGE_ISSUER_KEY`, `<index>:<base64url key>` |
+| badgePublicKeys | `BADGE_ISSUER_KEY`, the key, at every index of the pin's `badgePublicKeys` |
 | shortLinkPresetServers | `SMP_PRESET_SERVER` |
-| badgeCurrentTime | the current time plus the seconds in the file `BADGE_CLOCK_FILE` |
+| badgeCurrentTime | the current time plus the months in the file `BADGE_CLOCK_FILE`, by `addMonths` of Simplex.Chat.Badges.Ledger |
 | badgeDevRequests | True |
+
+The pin's executable depends on neither bytestring nor time: the harness decodes with text and moves the clock by `addMonths`.
 
 Arguments of each process:
 - `-d <test dir>/<name>`
-- `-s smp://LcJUMfVhwD8yxjAiSaDzzGF3-kLG4Uh0Fl_ZIjrRwjI=:server_password@localhost:<SMP port>`
-- `-p <WebSocket port>`
+- `-s <smpServerStr>`
+- `-p <testPort (5 + n)>`, n the device's number
 - `--user-display-name <name>`
 - `--yes-migrate`
 
 `scripts/ci/badge-compat.sh client`:
-1. `git fetch -q --depth=1 origin "$MASTER"`.
-2. `git archive "$MASTER"` unpacked into `$RUNNER_TEMP/badge-compat/master`, its dist-newstyle kept.
+1. `git fetch -q --depth=1 origin "$MASTER"`, unless the commit is present.
+2. `git archive "$MASTER"` unpacked into `$RUNNER_TEMP/badge-compat/master`, or `$TMPDIR/badge-compat/master`, its dist-newstyle kept.
 3. The harness copied over apps/simplex-chat/Main.hs.
-4. cabal.project.local written as the step "Prepare cabal.project.local" writes it.
-5. `docker exec -w $RUNNER_TEMP/badge-compat/master builder cabal build -j --ghc-options=-O0 exe:simplex-chat`.
-6. The binary copied to `$RUNNER_TEMP/badge-compat/simplex-chat-master`.
-7. `MASTER_CLIENT_BIN=$RUNNER_TEMP/badge-compat/simplex-chat-master ./simplex-chat-test -m "/SimpleX store service e2e/master compatibility/master CLI/"`.
+4. cabal.project.local of the checkout copied, which the step "Prepare cabal.project.local" writes in CI.
+5. `cabal build -j --ghc-options=-O0 exe:simplex-chat` in the tree, by `docker exec -w <tree> builder` when the build container runs.
+6. The binary found by `cabal list-bin`, the same way.
+7. `MASTER_CLIENT_BIN=<binary> ./simplex-chat-test -m "/SimpleX store service e2e/master compatibility/master CLI/"`; without ./simplex-chat-test, the binary of `cabal list-bin simplex-chat-test`.
 
 ### Service and driver
 
@@ -269,30 +271,34 @@ Arguments of each process:
 - Codes are issued by `issueCodeAs`.
 - `STORE_SERVICE_ADDRESS` is the service's short link, `bsAddress`.
 - `BADGE_ISSUER_KEY` is the key of `badgePublicKeys` of `bsClientCfg`.
-- The clock file holds the offset of `bsClock`; `setClockAt` and the file are moved together.
+- The clock file holds the months of the offset; `moveClocks` sets `bsClock` by `setClockAt` and writes the file, replaced by a rename.
 - Master's CLI processes are started by `System.Process`, one per device.
 - Commands are sent as `{"corrId": "<n>", "cmd": "<command>"}` over the CLI's WebSocket API, `runChatServer` of apps/simplex-chat/Server.hs, by the `websockets` client, added to the test suite's dependencies.
-- A response is the message with its corrId; events are the messages without one.
-- The service's rows are read in the test process, by `ledgerRows` and the store readers.
+- A response is the message with its corrId; the messages without one are dropped.
+- A refusal is read at `chatError.errorType.badgeRedeemError.serviceError` of the response.
+- Ledgers: the client's by `/_badge ledger`, as `ReplicatedRow`s; the service's by `purchaseLedgerRows`, from the first entry of the client's.
 
 ### Flows
 
 | # | Device, user | Commands of master's CLI | Request to the service | Service setup | Checked |
 |---|---|---|---|---|---|
 | B1 | A, 1 | `/_redeem_badge_code 1 <code>` | redeemBadgeCode | supporter, months 2, free | badgeRedeemed, newBadge true, supporter; the short link resolved |
-| B2 | A, 1 | `/_badge ledger 1 <purchase id>` | - | B1 | entries equal the service's ledger rows |
+| B2 | A, 1 | `/_badge ledger 1 <purchase id>` | - | B1 | the service's ledger rows: code +2, badge -1 |
 | B3 | A, 1 | `/_redeem_badge_code 1 <code>` again | redeemBadgeCode | B1 | badgeRedeemed, newBadge false |
-| B4 | A, 1 | `/_redeem_badge_code 1 <valid code never issued>` | redeemBadgeCode | - | badgeRedeemError, serviceError code_invalid |
-| B5 | A, 2 | `/create user alisa`, `/_redeem_badge_code 2 <code of B1>` | redeemBadgeCode | B1 | serviceError code_used |
+| B4 | A, 2 | `/create user alisa`, `/_redeem_badge_code 2 <valid code never issued>` | redeemBadgeCode | - | badgeRedeemError, serviceError code_invalid |
+| B5 | A, 2 | `/_redeem_badge_code 2 <code of B1>` | redeemBadgeCode | B1 | serviceError code_used |
 | B6 | A, 2 | `/_redeem_badge_code 2 <code>` | redeemBadgeCode | an unpaid code marked paid with a deadline in the past, as testExpiredCode marks it | serviceError code_expired |
-| B7 | A, 1 | `/_badge request 1` | issueBadge, the client's tip | B1 | badgeState, the same expiry; the ledger unchanged on both sides |
-| B8 | A, 1 | the clock moved one month; `/_badge request 1` | issueBadge | B1 | badgeState, the next month's expiry; both ledgers equal |
-| B9 | B, 1 | `/_badge invoice 1`, `/_badge purchase 1 invoice=<id> <supporterPlay>`, `/_badge state 1` until credited | purchaseBadge, google | the fake store's Play token | badge supporter; storePurchases empty; one purchase on the service |
-| B10 | B, 2 | `/create user bob2`, `/_badge purchase 2 <subscriptionPlay>` | purchaseBadge, google subscription | the fake store's subscription token | badge supporter, subscription renewing |
-| B11 | C, 1 | `/_badge purchase 1 restored <subscriptionPlay>` | transferBadge | B10 | badge on C; `/_badge request 2` on B retires the badge, subscription ended |
-| B12 | C, 2 | `/create user cath2`, `/_badge purchase 2 <Apple supporter subscription JWS>`, then `/_badge purchase 2 <Apple legend subscription JWS>` while it is shown | purchaseBadge, apple; upgradeBadgeSubscription | the fake store's Apple subscription, reported legend, as testAppleTierChangeHandOver reports it | badge legend; both ledgers equal |
-| B13 | A, 1 | `/_service_request 1 <address> {"version":1,"request":{"type":"pauseBadge"}}` | pauseBadge | - | `{"code":"unsupported_version","type":"error"}` |
-| B14 | A, 1 | `/_service_request 1 <address> {"version":2,"request":{"type":"issueBadge"}}` | issueBadge, version 2 | - | unsupported_version |
+| B7 | A, 1 | `/_badge request 1` | issueBadge, the client's tip | B1 | badgeState, paidThrough of B1, monthsLeft 1; both ledgers unchanged; one issuance |
+| B8 | A, 1 | both clocks moved one month; `/_badge request 1` | issueBadge | B1 | paidThrough of B1, monthsLeft 0, issueError absent; both ledgers: badge -1 added; two issuances |
+| B9 | B, 1 | `/_badge invoice 1`, `/_badge purchase 1 invoice=<id> <supporterPlay>`, `/_badge state 1` until credited | purchaseBadge, google | the fake store's Play token | badge supporter, shown; storePurchases empty; both ledgers: payment +1, badge -1; one purchase on the service |
+| B10 | B, 1 | `/_badge purchase 1 <subscriptionPlay>`, `/_badge state 1` until shown | purchaseBadge, google subscription | the fake store's subscription, charged an hour ago, as testRestoreOnNewDevice charges it | badge supporter, subscription renewing; both ledgers: charge +1, badge -1 |
+| B11 | C, 1 | `/_badge purchase 1 restored <subscriptionPlay>`, `/_badge state 1` until shown | transferBadge | B10 | badge on C, shown; both ledgers: charge +1, badge -1; one payment rebound; `/_badge request 1` on B: shown false, subscription ended |
+| B12 | A, 1 | `/_service_request 1 <address> {"version":1,"request":{"type":"pauseBadge"}}` | pauseBadge | - | `{"code":"unsupported_version","type":"error"}` |
+| B13 | A, 1 | `/_service_request 1 <address> {"version":2,"request":{"type":"getBadgeCatalog"}}` | getBadgeCatalog, version 2 | - | unsupported_version |
+| B14 | A, 1 | `/_service_request 1 <address> {"version":1,"request":{"type":"redeemBadgeCode"}}` | redeemBadgeCode without its fields | - | bad_request |
+
+- B4 runs on the second profile: the first one shows B1's badge, which the pin refuses locally as badgeActive.
+- B13 names a command without fields: `serviceRequest` of StoreService.Service decodes the request before it compares the version, and issueBadge without its balance answers bad_request.
 
 Items:
 
@@ -302,8 +308,7 @@ Items:
 | "renews a code badge within its month and in the next" | B7, B8 |
 | "credits a Play purchase handed over with its invoice" | B9 |
 | "moves a Play subscription to a new device" | B10, B11 |
-| "grants an Apple tier change while the badge is shown" | B12 |
-| "answers unsupported versions and commands" | B13, B14 |
+| "answers unsupported versions and malformed requests" | B12 to B14 |
 
 ### Sequence
 
@@ -330,8 +335,8 @@ sequenceDiagram
   V-->>M: badgeCredential
   M-->>T: badgeRedeemed
   T->>T: client ledger and service ledger compared
-  T->>V: setClockAt plus one month
-  T->>M: clock file plus one month, /_badge request 1
+  T->>V: moveClocks: setClockAt plus one month
+  T->>M: moveClocks: clock file 1, /_badge request 1
   M->>V: issueBadge with the tip
   V-->>M: badgeCredential, next month
   M-->>T: badgeState
@@ -357,13 +362,14 @@ Scope `badge-compat`, as scripts/ci/README.md "Adding CI coverage" states:
 | .github/workflows/build.yml | each glob of the scope in `on.pull_request.paths` |
 | scripts/ci/scope-tests.sh | case `badge-compat)`: `scripts/ci/badge-compat.sh client`; the name in the usage line |
 | scripts/ci/scope-tests.sh | case `badge-web)`: `scripts/ci/badge-compat.sh page` after `npm test` |
-| scripts/ci/test_packages_release.py | a ChangesTest case for src/Simplex/Chat/Badges/Types.hs; the two store service cases print badge-compat |
+| scripts/ci/test_packages_release.py | ChangesTest cases for src/Simplex/Chat/Badges/Types.hs and scripts/ci/badge-compat/Main.hs; the two store service cases print badge-compat |
 | scripts/ci/README.md | subsection "badge-compat"; subsection "badge-web" with the page step |
 | simplex-chat.cabal | `websockets` in the test suite; module `Bots.StoreService.BadgeCompatTests` |
 
 Globs of badge-compat:
 - apps/simplex-store-service/src/**
 - src/Simplex/Chat/StoreService.hs
+- src/Simplex/Chat/Badges.hs
 - src/Simplex/Chat/Badges/**
 - src/Simplex/Chat/PaymentService.hs
 - src/Simplex/Chat/PaymentService/**
@@ -407,6 +413,7 @@ Time:
 - The production address on smp5.simplex.im, private routing and real networks: one local SMP server.
 - The operators' console and group commands.
 - Months of real time: one clock offset, moved by the test.
+- An Apple tier change on master's CLI: the fake store's App Store transactions are dated 2026-02, and the pinned client's clock moves by whole months.
 - Master's client on rows that master's service wrote: B starts on a new database; A1 sends the branch's requests.
 - The service worker of a browser across the deploy: A3 runs the page's API module.
 - The deployment's ini and image paths.

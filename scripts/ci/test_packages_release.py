@@ -551,11 +551,19 @@ class ChangesTest(GitRepoTest):
 
     def test_store_service_change_builds_the_core_and_tests_the_names_page_against_it(self):
         self.assertEqual(self.builds("apps/simplex-store-service/src/StoreService/Service.hs"), {"haskell"})
-        self.assertEqual(self.values["scopes"], "names-e2e")
+        self.assertEqual(self.values["scopes"], "badge-compat names-e2e")
 
     def test_store_service_test_or_script_change_builds_the_core_and_tests_the_names_page_against_the_service(self):
         self.assertEqual(self.builds("tests/Bots/StoreService/FakeStripe.hs", "scripts/store-service/dev/contract-run.sh"), {"haskell"})
-        self.assertEqual(self.values["scopes"], "names-e2e")
+        self.assertEqual(self.values["scopes"], "badge-compat names-e2e")
+
+    def test_badge_change_builds_the_core_and_tests_master_client_against_the_service(self):
+        self.assertEqual(self.builds("src/Simplex/Chat/Badges/Types.hs"), {"haskell"})
+        self.assertEqual(self.values["scopes"], "badge-compat")
+
+    def test_pinned_client_harness_change_builds_the_core_and_tests_its_scope(self):
+        self.assertEqual(self.builds("scripts/ci/badge-compat/Main.hs"), {"haskell"})
+        self.assertEqual(self.values["scopes"], "badge-compat")
 
 
 class PackageStateTest(GitRepoTest):

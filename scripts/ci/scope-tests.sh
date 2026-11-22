@@ -8,6 +8,9 @@ case "${1:-}" in
   badge-web)
     (cd apps/simplex-store-service/web && npm ci && npm test)
     ;;
+  badge-compat)
+    scripts/ci/badge-compat.sh client
+    ;;
   ci-scripts)
     python3 scripts/ci/test_packages_release.py
     ;;
@@ -60,7 +63,7 @@ case "${1:-}" in
     ENS_CONTRACTS_DIR="$tools/ens-contracts" ANVIL="$tools/anvil" scripts/store-service/dev/contract-run.sh
     ;;
   *)
-    echo "usage: $0 badge-web | ci-scripts | website | mcp | support-bot | support-bot-light | names-page | names-e2e" >&2
+    echo "usage: $0 badge-web | badge-compat | ci-scripts | website | mcp | support-bot | support-bot-light | names-page | names-e2e" >&2
     exit 1
     ;;
 esac
