@@ -15,7 +15,7 @@ In v1, links are supported to messages of the same chat, such as a list of quest
 | A3 | at a tap, the app opens the chat at the message for a reader who can open it, runs the connection flow of a public chat for a reader who is not in it, and shows an alert otherwise | global links: the connection flow |
 | A4 | a link opened from a web page or another app is handled as in A3 | global links: the connection flow; local links: "Error: URL is invalid" (iOS), a connection error (Android, desktop) |
 | A5 | every link is written in the text as `[label](URI)`; a link to the same chat has its reference in the URI; a link to another chat is sent as `[label](simplex:/m)`, and its target is kept in the sender's copy; short texts are sent in the message's link map | — |
-| A6 | in a forward, labels and short texts are kept, local links are written as `[label](simplex:/m)`, and global links can still be opened | the text is forwarded unchanged |
+| A6 | in a forward, labels and short texts are kept, local links are written as `[label](simplex:/m)`, and global links can still be opened; the forwarder opens each link from the forwarder's own copy | the text is forwarded unchanged |
 | A7 | apps of earlier versions show local links as text and open a global channel link as the channel | — |
 | A8 | short links of types `p` (public groups) and `s` (sites) are parsed, and the app asks for an update to open them | an unknown type: a web link or text; from outside: "Error: URL is invalid" or a connection error |
 | A9 | the plugin's `link` returns the link of a message; `send` takes it in the text as `[label](link)`; the links of received messages are listed with short texts; `open` returns the message of a link, or the public chat to connect to | — |
@@ -250,7 +250,7 @@ chat_item_links
   chat_item_id          INTEGER NOT NULL REFERENCES chat_items ON DELETE CASCADE
   label                 TEXT NOT NULL
   link_text             TEXT NOT NULL
-  target_chat_item_id   INTEGER REFERENCES chat_items ON DELETE SET NULL   -- the sender's copy of a link to another chat
+  target_chat_item_id   INTEGER REFERENCES chat_items ON DELETE SET NULL   -- the sender's or forwarder's copy of a link sent as simplex:/m
 UNIQUE (chat_item_id, label)
 INDEX idx_chat_item_links_target_chat_item_id (target_chat_item_id)
 ```
@@ -296,7 +296,7 @@ data ChatItem c d = ChatItem
 
 data CILink = CILink
   { text :: Text,
-    target :: Maybe CILinkTarget -- only in the sender's copy of a link to another chat
+    target :: Maybe CILinkTarget -- only in the sender's or forwarder's copy of a link sent as simplex:/m
   }
 
 data CILinkTarget = CILinkTarget
@@ -321,6 +321,7 @@ itemMsgLink cInfo ci@ChatItem {meta = CIMeta {itemId, itemSharedMsgId}} = case (
 |---|---|---|---|
 | sender | the label and the short text, in the compose preview before sending and in the sent message; opens it | the label and the short text; opens it from the sender's own copy | the label and the short text; opens it |
 | recipient in the chat | the label and the short text; opens it | the label and the short text; a link from an unknown source | the label and the short text; opens it as a member, or joins the chat |
+| forwarder | the label and the short text; opens it from the forwarder's own copy, by its target in the original chat | the label and the short text; opens it from the forwarder's own copy when the forwarded message is the forwarder's own, whose row has the target; otherwise a link from an unknown source | the label and the short text; opens it, or joins the chat; where it is reduced to `simplex:/m`, opens it from the forwarder's own copy when the target is in the forwarder's chats |
 | recipient of a forward | the label and the short text; a link from an unknown source | the same | the label and the short text; opens it, or joins the chat |
 | earlier client | the text `[label](simplex:/m#…)`, IDs included | the text `[label](simplex:/m)` | the chat's link |
 
@@ -491,9 +492,16 @@ flowchart TD
   G -->|a group where SimpleX links are prohibited for the user| GL["[label](simplex:/m); entry: short text"]
   G -->|otherwise| GK["[label](URI) kept; entry: short text"]
   T -->|local, or simplex:/m| LT["[label](simplex:/m); entry: short text"]
+  GL --> R{target for the forwarder's copy}
+  LT --> R
+  R -->|local URI: plan in the original chat, MLPItem| RT[row target = the item]
+  R -->|global URI: plan, MLPItem| RT
+  R -->|simplex:/m with a target in the original item's row| RC[row target copied]
+  R -->|otherwise| RN[row without a target]
 ```
 
-- In v1, every local link of a forward is written as `[label](simplex:/m)`, also into the chat of its target and into notes, and the forwarded item is stored without link targets. In a later stage, the reference is kept in a forward into the chat and scope of the target, by the rule of new messages; v1 recipients open it, so the format is unchanged.
+- In v1, every local link of a forward is written as `[label](simplex:/m)`, also into the chat of its target and into notes. In a later stage, the reference is kept in a forward into the chat and scope of the target, by the rule of new messages; v1 recipients open it, so the format is unchanged.
+- In the forwarder's copy of the forward, the target of each link whose URI is removed is kept, so that the forwarder opens the link from that copy, as the original message is opened from the forward header today (`CIForwardedFrom`, FramedItemView.swift:117-123). The target is the item of the link's plan with the original chat as the chat of the tap (`fromChatRef` of `APIForwardChatItems`, Controller.hs:436), or the target of the original item's row for a `simplex:/m` link. It is stored in `target_chat_item_id` of the forwarded item's row; recipients receive `[label](simplex:/m)` and the short text only.
 - In each destination branch of `APIForwardChatItems` (Commands.hs:1109-1130), the result of `prepareForward` (Commands.hs:1134-1257) is mapped by `forwardedLinks`, after the mention names (Commands.hs:1161-1166) and the owner signature (Commands.hs:1186-1190) are set: the content and the links of each `ComposedMessageReq` are changed, and its texts are computed again by `msgContentTexts` (Internal.hs:368-369). The destination group is read by `getGroupInfoKeys` (Commands.hs:1122) before the mapping.
 - A forward is never refused for its message links: a global link is reduced to `[label](simplex:/m)` where SimpleX links are prohibited for the user (`groupFeatureMemberAllowed SGFSimplexLinks`, as in Internal.hs:431).
 - Mentions are kept only in forwards to the same group (Commands.hs:1164); labels and short texts are kept in every forward.
@@ -597,7 +605,7 @@ Agents can use such links under three conditions, each stated by the design:
 | global links of types `c` and `p` and in the name form, parsed, encoded, resolved; joining by the connection flow, which opens the chat at its last messages | v1 |
 | local links in the text: the reference for a target in the same chat and scope, `simplex:/m` for other chats with the target in the sender's link row (Q2b), every reference in notes; note links | v1 |
 | short texts of every link, in the map | v1 |
-| forwards: labels and short texts kept, local links as `simplex:/m`, global links kept | v1 |
+| forwards: labels and short texts kept, local links as `simplex:/m`, global links kept; link targets in the forwarder's copy | v1 |
 | edits: a new map with new short texts | v1 |
 | link URIs for "Copy link", links from outside and composed texts; the plan; `/_get item link` | v1 |
 | connect plan of types `p` and `s`: the update alerts; `#name` resolved to a link of type `c`, `p` or `s` (Q11) | v1 |
@@ -649,6 +657,9 @@ Each test, except the compatibility tests, is written to fail on master; the com
 | tests/ChatTests/Direct.hs | alice links to her earlier message to bob in their chat: bob's plan of the link is the item; a link from that chat to a group message is received by bob as `simplex:/m` |
 | tests/ChatTests/Local.hs | the URIs of a note's links to a group message and a contact message are kept, and their plans are the items; the link of a note is in the `n` form, and its plan is the note |
 | tests/ChatTests/Forward.hs | a link to the same group, forwarded to a contact and into the target's own group, is `[label](simplex:/m)` with the short text; a global link is kept, and reduced to `[label](simplex:/m)` in a group with SimpleX links off |
+| | cath forwards bob's message in `#team` with a link to alice's message in `#team` to dan: dan receives `[q](simplex:/m)` without a target; cath's copy has the target, alice's message in `#team` |
+| | alice forwards her own message in `#club` with a link to bob's message in `#team` to dan: alice's copy has the target copied from the original item's row; cath forwards the same message from `#club`: cath's copy is without a target |
+| | a global link forwarded into a group with SimpleX links off: the forwarder's copy has the target when the forwarder is in the public chat |
 | app tests on recorded core responses | `Format.messageLink` and `ChatItem.links` are decoded; each kind of link and `MsgLinkPlan` variant → its action; `CPUpdateRequired` → its alert; a pasted link is shown as `[short text]` and sent as `[short text](link)` |
 | plugin unit and e2e tests | `link` of a message in the session's group, then a live message with `[label](link)`, then `links` of the message for a member and `open`; `open` for a chat of another session returns `none`; `connect` with a `simplex:/m` link returns its error |
 
@@ -662,6 +673,7 @@ Decided by the maintainer:
 | — | every link in a text is a hyperlink `[label](URI)`; local links have the reference in the URI; in a forward, local links are written as `[label](simplex:/m)` |
 | — | the threat model is unchanged: "It's chatham house rule, and we don't change threat model - anybody can say X said Y in chat Z, which is more than is shared here" |
 | — | short link types `p` (public groups) and `s` (sites) are added now; global links of public groups use `p` |
+| — | in the forwarder's copy, the targets of the links whose URIs are removed in the forward are kept; in the maintainer's words, "when I forwarded something, I need to be able to go back, as I can now with forwarded messages" |
 | Q2 | b: in v1, links in the same chat, global links, and the sender's links to other private chats, opened from the sender's own copy |
 | Q3 | a: the short text is the first line, markdown removed, 80 characters, `…` when cut |
 | Q4 | a: the label of a pasted link is its short text |
