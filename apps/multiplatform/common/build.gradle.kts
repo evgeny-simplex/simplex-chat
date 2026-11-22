@@ -168,6 +168,8 @@ android {
 
 tasks.withType<Test>().configureEach {
   testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+  testLogging.events("started", "passed", "failed")
+  testLogging.showStandardStreams = true
 }
 
 multiplatformResources {

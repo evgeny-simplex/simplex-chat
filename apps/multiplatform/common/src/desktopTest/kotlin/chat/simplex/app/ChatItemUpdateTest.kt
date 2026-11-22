@@ -181,7 +181,11 @@ class ChatItemUpdateTest {
 
   private fun loadedTexts(): List<String> = ChatModel.chatsContext.chatItems.value.map { it.text }
 
-  private fun previewText(): String? = ChatModel.chatsContext.chats.value.single().chatItems.lastOrNull()?.text
+  private fun previewText(): String? {
+    val chats = ChatModel.chatsContext.chats.value.toList()
+    if (chats.size != 1) println("LEAKED CHATS: " + chats.map { it.remoteHostId to it.id + " " + it.chatInfo.displayName })
+    return chats.single().chatItems.lastOrNull()?.text
+  }
 
   private fun counts(): Triple<Int, Int, Int> {
     val stats = ChatModel.chatsContext.chats.value.single().chatStats

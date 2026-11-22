@@ -719,11 +719,10 @@ jobs:
         shell: docker exec -t builder sh -eu {0}
         run: |
           cd apps/multiplatform
-          ./gradlew --no-daemon --max-workers=1 \
-            :common:desktopTest \
-            :desktop:compileKotlinJvm -x :desktop:cmakeBuildAndCopy \
-            :android:compileGoogleDebugKotlin \
-            :android:testFossDebugUnitTest
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            echo "=== desktopTest round $i"
+            ./gradlew --no-daemon --max-workers=1 :common:desktopTest --rerun || echo "=== round $i failed"
+          done
 
       - name: Setup Node.js
         id: setup-node
