@@ -208,7 +208,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(409, {"type": "code_conflict"})
                 t = total(body.get("priceId"), body.get("offerId"))
                 if t is None:
-                    return self._send(409, {"type": "catalog_changed"})
+                    return self._send(400, {"type": "catalog_changed"})
                 invoice_id = secrets.token_urlsafe(16)
                 is_card = body["method"] == "card"
                 inv = {

@@ -2303,7 +2303,7 @@ testCatalogRefusalCostsNothing = bounded "catalog refusals" $ withCheckout $ \re
   mapM_
     ( \(i, (label, priceId, offerId)) -> do
         r <- postCreateAs client i (createBody priceId offerId "btc" (codeHashText sampleCode))
-        (label, statusOf r) `shouldBe` (label, 409)
+        (label, statusOf r) `shouldBe` (label, 400)
         (label, responseBody r) `shouldBe` (label, errorBody "catalog_changed")
         when (i == 30) $ responseFixture "invoice-catalog-changed" r
     )

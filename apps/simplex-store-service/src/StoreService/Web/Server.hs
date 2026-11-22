@@ -126,7 +126,7 @@ maxWebhookBytes :: Int
 maxWebhookBytes = 64 * 1024
 
 catalogChanged :: Response
-catalogChanged = jsonError status409 "catalog_changed"
+catalogChanged = jsonError status400 "catalog_changed"
 
 webhookOk, webhookRefused, webhookTooLarge, webhookFailed :: Response
 webhookOk = webhookResponse status200

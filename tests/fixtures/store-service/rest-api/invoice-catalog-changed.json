@@ -2,5 +2,5 @@
   "body": {
     "type": "catalog_changed"
   },
-  "status": 409
+  "status": 400
 }
