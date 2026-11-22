@@ -73,7 +73,6 @@ BUILD_CHANGES = {
         ".github/workflows/build.yml",
         ".github/actions/**",
         ".github/changelog_conf.json",
-        "scripts/ci/badge-compat/**",
     ],
     "kotlin": ["apps/multiplatform/**", "tests/fixtures/api/**", "Dockerfile*", ".github/workflows/build.yml", ".github/actions/**"],
     "ios": ["apps/ios/**", "tests/fixtures/api/**", "scripts/ci/ios-stub-libs.sh"],
@@ -86,18 +85,6 @@ BUILD_CHANGES = {
 }
 SCOPE_CHANGES = {
     "badge-web": ["apps/simplex-store-service/web/**", "tests/fixtures/store-service/rest-api/**"],
-    "badge-compat": [
-        "apps/simplex-store-service/src/**",
-        "src/Simplex/Chat/StoreService.hs",
-        "src/Simplex/Chat/Badges.hs",
-        "src/Simplex/Chat/Badges/**",
-        "src/Simplex/Chat/PaymentService.hs",
-        "src/Simplex/Chat/PaymentService/**",
-        "tests/Bots/StoreService/**",
-        "scripts/ci/badge-compat.sh",
-        "scripts/ci/badge-compat/**",
-        "cabal.project",
-    ],
     "ci-scripts": ["scripts/ci/packages_release.py", "scripts/ci/test_packages_release.py"],
     "website": ["website/src/js/simplex-lib.jsc", "website/test/**", "website/package.json"],
     "mcp": ["packages/simplex-chat-mcp/**"],

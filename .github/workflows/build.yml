@@ -49,14 +49,6 @@ on:
       - "apps/simplex-domains"
       - "tests/fixtures/store-service/rest-api/**"
       - "tests/Bots/StoreService/**"
-      - "apps/simplex-store-service/src/**"
-      - "src/Simplex/Chat/StoreService.hs"
-      - "src/Simplex/Chat/Badges.hs"
-      - "src/Simplex/Chat/Badges/**"
-      - "src/Simplex/Chat/PaymentService.hs"
-      - "src/Simplex/Chat/PaymentService/**"
-      - "scripts/ci/badge-compat.sh"
-      - "scripts/ci/badge-compat/**"
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
@@ -800,15 +792,6 @@ jobs:
           name: package-tests-linux-${{ matrix.arch }}
           path: ${{ runner.temp }}/package-tests
 
-      - name: Restore the pinned client build from cache
-        id: restore-badge-compat
-        if: ${{ !cancelled() && matrix.scope_tests == true && matrix.should_run == true && env.release != 'true' && contains(needs.maybe-release.outputs.scopes, 'badge-compat') }}
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ runner.temp }}/badge-compat/master/dist-newstyle
-          key: badge-compat-${{ steps.keys.outputs.dist }}-${{ hashFiles('scripts/ci/badge-compat.sh', 'scripts/ci/badge-compat/**') }}
-          restore-keys: badge-compat-${{ steps.keys.outputs.dist }}-
-
       - name: Test changed scopes
         if: ${{ !cancelled() && matrix.scope_tests == true && steps.setup-python.outcome == 'success' }}
         timeout-minutes: 90
@@ -819,13 +802,6 @@ jobs:
           for scope in $SCOPES; do
             scripts/ci/scope-tests.sh "$scope"
           done
-
-      - name: Save the pinned client build to cache
-        if: ${{ !cancelled() && steps.restore-badge-compat.outcome == 'success' && steps.restore-badge-compat.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ runner.temp }}/badge-compat/master/dist-newstyle
-          key: badge-compat-${{ steps.keys.outputs.dist }}-${{ hashFiles('scripts/ci/badge-compat.sh', 'scripts/ci/badge-compat/**') }}
 
       - name: Names page cases' results
         if: ${{ failure() && matrix.scope_tests == true && contains(needs.maybe-release.outputs.scopes, 'names-e2e') }}

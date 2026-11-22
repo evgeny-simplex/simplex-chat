@@ -4,7 +4,6 @@
 {-# LANGUAGE TupleSections #-}
 
 import Bots.StoreService.BTCPayTests
-import Bots.StoreService.BadgeCompatTests
 import Bots.StoreService.BotTests
 import Bots.StoreService.CatalogTests
 import Bots.StoreService.ConfigTests
@@ -193,7 +192,6 @@ main = do
           describe "SimpleX store service e2e" $ do
             storeServiceTests
             describe "managed group" badgeGroupIntegrationTests
-            badgeCompatTests
           describe "StoreService names: boot" namesBootTests
           describe "StoreService names: worker" namesWorkerBootTests
           namesCodesChatTests

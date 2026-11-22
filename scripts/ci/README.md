@@ -128,23 +128,6 @@ The reduced build runs the Linux job build-linux (ubuntu-22.04 x86_64) for every
   npm test
   ```
 
-#### badge-compat
-
-- Globs: `SCOPE_CHANGES["badge-compat"]` in packages_release.py; scripts/ci/badge-compat/** is also in the core globs.
-- Pinned client: master's CLI at `MASTER` of scripts/ci/badge-compat.sh, with scripts/ci/badge-compat/Main.hs in place of apps/simplex-chat/Main.hs. Main.hs reads the store service address, the issuer key, the preset server and the clock offset in months from the environment.
-- CI, in build-linux:
-  - the pinned client's dist-newstyle (steps "Restore the pinned client build from cache" and "Save the pinned client build to cache");
-  - `scope-tests.sh badge-compat` (step "Test changed scopes"): the pinned tree unpacked into $RUNNER_TEMP/badge-compat/master, `cabal build -j --ghc-options=-O0 exe:simplex-chat` in the build container, then simplex-chat-test with `MASTER_CLIENT_BIN` and `-m "/SimpleX store service e2e/master compatibility/master CLI/"`.
-- The items of "master CLI" are pending without `MASTER_CLIENT_BIN`.
-- Selected core tests: `/SimpleX store service e2e/master compatibility/` (master's badge rows) and `/Supporter badges/service protocol JSON/` (master's protocol messages, tests/fixtures/store-service/badge-protocol.json).
-- Time: about 25 minutes for the pinned core on the first run of a branch or pull request; later runs restore its build.
-- Local:
-  ```sh
-  cabal build --enable-tests --ghc-options=-O0
-  scripts/ci/scope-tests.sh badge-compat
-  ```
-  The pinned tree is unpacked into $TMPDIR/badge-compat/master, or /tmp/badge-compat/master, and kept between runs.
-
 #### ci-scripts
 
 - Globs:
