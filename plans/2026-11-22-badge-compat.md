@@ -65,7 +65,7 @@ Sequence:
 5. Every row is read back.
 6. Each flow is run on the migrated rows.
 
-`withSeededStoreService` is `withStoreServiceVerifierIO` with the seed of steps 2 and 3 as a parameter; `withStoreServiceVerifierIO` calls it with `pure ()`, and its callers are unchanged.
+`withSeededStoreService` is `withStoreServiceVerifierIO` with the seed of steps 2 and 3 as a parameter, given the service's options and issuer key; `withStoreServiceVerifierIO` calls it with a seed that writes nothing, and its callers are unchanged.
 
 Master's statements:
 - the SQL text of each writer below, copied from the pin, with the pin's CPP branches for PostgreSQL;
@@ -129,7 +129,7 @@ Read back after the migration:
 | invoices | `Store.Invoices.unpaidRefs` | every invoice other than the paid one |
 | payments | `Store.getStorePaymentCredit`<br>`Store.getPurchaseSubscription` | every store payment |
 | badge_purchases | `Store.getPurchaseByKey`<br>`Store.getCodePurchaseForKey` | every purchase key |
-| badge_ledger | `Store.getLedgerEntries`<br>`Store.getLedgerTip` | every entry, equal to the inserted entries |
+| badge_ledger | `Store.getLedgerEntries` | every entry, equal to the inserted entries |
 | badge_issuances | `Store.getCurrentIssuance` | the current credential |
 | subscription_charges | `Store.getSubscriptionCharge` | both charges |
 | group | `Store.getManagedGroup` | the group |
@@ -148,11 +148,11 @@ Flows on the migrated rows:
 | the google one-time payment again, by its purchase key | `serviceCmd` purchaseBadge | the stored credential |
 | the moved subscription, old key | `serviceCmd` issueBadge | credential absent, subscription ended |
 | the open btc invoice | `webApp` GET /api/invoice/{id} | its view |
-| the open btc invoice settled | fake BTCPay webhook and poller pass | status paid, its code paid |
+| the open btc invoice settled | the provider's settled answer, one poller pass | status paid, its code paid |
 | the part paid xmr invoice | `webApp` POST /api/invoice/{id}/cancel | funded |
 | a revoke of the three-use code | `//revoke` | revoked, one use left unspent |
 
-The web flows use `newWebEnv` over the service's store with the fake BTCPay of tests/Bots/StoreService/FakeBTCPay.hs, as the scenarios of WebTests do.
+The web flows use `withListener` of WebTests over the service's store, with WebTests' `stubProvider` for crypto and for card invoices, as WebTests' poller tests do.
 
 ## A2. Protocol messages recorded from master
 

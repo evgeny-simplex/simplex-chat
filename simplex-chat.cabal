@@ -783,6 +783,7 @@ test-suite simplex-chat-test
       API.Docs.Types
       API.TypeInfo
       Bots.StoreService.BTCPayTests
+      Bots.StoreService.BadgeCompatTests
       Bots.StoreService.BotTests
       Bots.StoreService.CatalogTests
       Bots.StoreService.ConfigTests
