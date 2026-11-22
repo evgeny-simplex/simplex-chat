@@ -15,7 +15,7 @@ In v1, the problem is solved for links to messages of the same chat, such as a l
 | A3 | at a tap, the app opens the chat at the message for a reader who can open it, runs the connection flow of a public chat for a reader who is not in it, and shows an alert otherwise | global links: the connection flow |
 | A4 | a link opened from a web page or another app is handled as in A3 | global links: the connection flow; local links: "Error: URL is invalid" (iOS), a connection error (Android, desktop) |
 | A5 | the text of a message has only the labels of its local links, as `[label]`; their short texts, and the references of links to the same chat, are sent in the message's link map | — |
-| A6 | a forwarded message keeps the labels and short texts of its links; the reference of a local link is sent only into the chat of its target; global links stay openable | the text is forwarded unchanged |
+| A6 | a forwarded message keeps the labels and short texts of its links; local links are forwarded as text, without references; global links stay openable | the text is forwarded unchanged |
 | A7 | apps of earlier versions show `[label]` for a local link and open a global link as its chat; their forwards and copies have the text only | — |
 | A8 | the plugin's `link` returns the link of a message; `send` takes it in the text as `[label](link)`; received messages list their links with short texts; `open` returns the message of a link, or the public chat to connect to | — |
 
@@ -38,7 +38,8 @@ B is chosen for every link: short texts, and the references of local links, are 
 | local, other chat | a message of another chat that is not public | `[label]` | short text | no; later the sender opens it from the sender's own copy |
 
 - A business chat is a group (Types.hs:524), so its links follow the group rule. A member support scope (Messages.hs:119) is a chat of its own for this rule: the reference is sent only for a target in the same scope.
-- The same chat is decided by the sender's core for each message it sends, new, edited or forwarded: the chat and scope that the message is sent to.
+- The same chat is decided by the sender's core for each new or edited message: the chat and scope that the message is sent to. Forwards follow the forward rules below.
+- The reference of a link to another chat stays only in the sender's own copy, stored locally, so that the sender can open it; that is a later stage (column `target_chat_item_id`). In v1, the sender's copy of such a link has its label and short text, as the recipients' copies.
 - A link to a message of a public chat is always global, also inside that chat, so that forwards out of it stay openable.
 
 Schemes (Q1, decided): `simplex:` is the scheme of URIs in the SimpleX network: connection links, SimpleX names (simplexmq SimplexName.hs:113), files (simplexmq FileTransfer/Description.hs:283) and message links. `simplexchat:` is the scheme of app-specific deep links, such as badge links (plans/2026-09-24-badge-buy-in-browser.md:43). The comments that state another rule (ContentView.swift:506, ChatListView.kt:816) are changed to these roles.
@@ -267,13 +268,13 @@ itemMsgLink cInfo ci@ChatItem {meta = CIMeta {itemSharedMsgId}} = case (cInfo, i
 |---|---|---|---|
 | sender | the label and the short text, in the compose preview before sending and in the sent message; opens it | the label and the short text; opens it later, from the sender's own copy | the label and the short text; opens it |
 | recipient in the chat | the label and the short text; opens it | the label and the short text | the label and the short text; opens it as a member, or joins the chat |
-| recipient of a forward | the label and the short text; opens it when the forward is into the chat of the target | the label and the short text | the label and the short text; opens it, or joins the chat |
+| recipient of a forward | the label and the short text; later, opens it when the forward is into the chat of the target | the label and the short text | the label and the short text; opens it, or joins the chat |
 | earlier client | `[label]` | `[label]` | the label and the chat's link, which opens the chat |
 
 Privacy:
 
 - The short text reaches everyone who receives the linking message and everyone it is forwarded to by new clients; as the default label (Q4), it is also in the text, so copies and forwards of earlier clients have it. The sender sees it in the compose preview before sending. For a link to another chat, it is text of that chat shown to the audience of this one.
-- The reference of a local link is sent only to the members of the target's chat, who have the target; copies and forwards of the text by people and by earlier clients have the labels only.
+- The reference of a local link is sent only in a new or edited message to the chat of its target, whose members have the target. Forwards have the labels and short texts; copies of the text, and forwards of earlier clients, have the labels only.
 - Access to a message is not given by its link: only a reader who has the message can open it.
 - The core resolves a link from the local database and sends no request. For a public chat that the reader is not in, its link data is then fetched from its server by the connection flow, as for its link; `m` and `a` are not sent.
 - When a global link in its https form is opened in a browser, the server's link page is requested; the fragment, with `m` and `a`, is not sent to the server (simplexmq apps/common/Web/static/link.html:150).
@@ -420,16 +421,15 @@ flowchart TD
   T -->|global| G{destination}
   G -->|a group where SimpleX links are prohibited for the user| GL["text: [label]; entry: short text"]
   G -->|otherwise| GK[kept: URI and short text]
-  T -->|local| D{its target, found by its reference}
-  D -->|in the destination chat and scope| LK["text: [label]; entry: short text and reference"]
-  D -->|elsewhere, or not found| LT["text: [label]; entry: short text"]
+  T -->|local, v1| LT["text: [label]; entry: short text, without the reference"]
+  T -->|local, later: target in the destination chat and scope| LK["text: [label]; entry: short text and reference"]
 ```
 
-- The rule of the sender is applied to the forward: the reference is sent only into the chat of its target. A forward to notes keeps the labels and short texts, as a forward to another chat; keeping its targets is part of the later stage of links to other chats.
+- In v1, a forward sends local links as text: the label and the short text, without the reference, also into the chat of the target and to notes. A later stage sends the reference in a forward into the chat and scope of the target, by the rule of new messages; v1 recipients use it, so the format is unchanged.
 - In each destination branch of `APIForwardChatItems` (Commands.hs:1109-1130), the result of `prepareForward` (Commands.hs:1134-1257) is mapped by `forwardedLinks`, after the mention names (Commands.hs:1161-1166) and the owner signature (Commands.hs:1186-1190) are set: the content and the links of each `ComposedMessageReq` are changed, and its texts are computed again by `msgContentTexts` (Internal.hs:368-369). The destination group is read by `getGroupInfoKeys` (Commands.hs:1122) before the mapping.
 - A forward is never refused for its message links: a global link is reduced to its label and short text where SimpleX links are prohibited for the user (`groupFeatureMemberAllowed SGFSimplexLinks`, as in Internal.hs:431).
 - Mentions are kept only in forwards to the same group (Commands.hs:1164); labels and short texts are kept in every forward.
-- A local link URI in a received text, as an earlier client sends what its user types, is shown and opened by the plan; in a forward, it is moved into the map by `composedLinks`, as in a new message.
+- A local link URI in a received text, as an earlier client sends what its user types, is shown and opened by the plan; in a forward, it is moved into the map as its label and short text.
 - Edits: the new map has the links written in the new text and the item's entries whose `[label]` is still in it; the sender's core takes the short texts of the targets it has again. `XMsgUpdate` sends the new map, which replaces the item's links, as `updateGroupCIMentions` replaces mentions (Store/Messages.hs:2826-2840; Commands.hs:868-880; Subscriber.hs:2415-2418).
 - Quotes: a quote has the content only (Protocol.hs:633), so a quoted link is shown as its label.
 
@@ -521,13 +521,14 @@ Agents can use such links under three conditions, each stated by the design:
 | local links to the same chat: `[label]` and a map entry with the short text and the reference | v1 |
 | short texts of every link, in the map | v1 |
 | local links to another chat: the label and the short text only | v1 |
-| forwards: labels and short texts kept, references sent only into the target's chat, global links kept | v1 |
+| forwards: labels and short texts kept, local links as text without references, global links kept | v1 |
 | edits: a new map with new short texts | v1 |
 | link URIs for "Copy link", links from outside and composed texts; the plan; `/_get item link` | v1 |
 | apps: rendering, tap, compose, Copy link, links from outside, search paste; website; remote versions; the comments of the scheme roles | v1 |
 | plugin: `link`, `open`, the `links` field, the `connect` error, instructions | stage 2, after the release of the npm packages simplex-chat and @simplex-chat/types (packages/simplex-chat-mcp/package.json:31-33) |
 | the board link of Q8 | stage 2 |
 | the sender opens a link to another chat from the sender's own copy, which keeps its target | later |
+| a forward into the chat and scope of a link's target sends its reference | later |
 | after a join from a link, the chat opens at the message when it arrives | later |
 | a request to the relays for history up to a message | later |
 | links between member support scopes and their group | later |
@@ -540,7 +541,7 @@ Agents can use such links under three conditions, each stated by the design:
 flowchart LR
   S1["v1 PR: core, protocol field, migration, CLI, bots API, iOS, Android, desktop, website"] --> R["npm packages released"]
   R --> S2["stage 2 PR: plugin link, open, links, board link"]
-  S1 --> S3["later: sender's links to other chats, the message after a join, history up to it, support scopes, public groups, notes, previews"]
+  S1 --> S3["later: sender's links to other chats, references in forwards into the target's chat, the message after a join, history up to it, support scopes, public groups, notes, previews"]
 ```
 
 No v1 format is changed later: every URI form and map field is defined in v1; a later stage sends a reference where v1 sends none, which v1 recipients use; the global form is keyed by the chat's link or name of either group type; unknown query parameters are ignored, and a `simplex:/m#` link of a new kind is parsed as `MLUnknown`.
@@ -568,7 +569,7 @@ Each test fails on master, except the compatibility tests, which pin how earlier
 | | `#club` with SimpleX links off: a global link is refused, and a local link is sent |
 | tests/ChatTests/Names.hs | a channel with a verified name, as in `testConnectByChannelName`: a subscriber gets the item by the name form; a non-subscriber gets `join` with the name |
 | tests/ChatTests/Direct.hs | alice links to her earlier message to bob in their chat: bob's item has the target; a link from that chat to a group message reaches bob without a target |
-| tests/ChatTests/Forward.hs | a link to the same group, forwarded to a contact, keeps its label and short text without a reference; forwarded into the target's group, it keeps the reference; a global link is kept, and reduced to its label and short text in a group with SimpleX links off |
+| tests/ChatTests/Forward.hs | a link to the same group, forwarded to a contact and into the target's own group, keeps its label and short text without a reference; a global link is kept, and reduced to its label and short text in a group with SimpleX links off |
 | app tests on recorded core responses | `Format.messageLink`, `Format.linkLabel` and `ChatItem.links` are decoded; each kind of link and `MsgLinkPlan` variant gives its action; a pasted link is shown as `[short text]` and sent as `[short text](link)` |
 | plugin unit and e2e tests | `link` of a message in the session's group, then a live message with `[label](link)`, then `links` of the message for a member and `open`; `open` for a chat of another session returns `none`; `connect` with a `simplex:/m#` link returns its error |
 
@@ -578,7 +579,7 @@ Q1 is decided: `simplex:` for every message link; global links of public chats s
 
 | ID | Question | Options and consequences | Recommendation |
 |---|---|---|---|
-| Q2 | v1 scope | a. same-chat local links, global links, and forwards and links to other private chats as labels and short texts: the desk and channel posts are covered; the sender of a link to another private chat cannot open it until later<br>b. a, and the sender opens links to other private chats from the sender's own copy: a target column in the sender's copy and its reading<br>c. a, with links to other private chats refused: the sender sees an error | a, as the lead recommended |
+| Q2 | v1 scope | a. local links within the same chat; global links, forwarded as links; forwards of local links, and links to other private chats, as labels and short texts without references: the desk and channel posts are covered; the sender of a link to another private chat cannot open it until later<br>b. a, and the sender opens links to other private chats from the sender's own copy: a target column in the sender's copy and its reading<br>c. a, with links to other private chats refused: the sender sees an error | a, as the lead recommended |
 | Q3 | short text | a. first line, markdown removed, 80 characters, `…` when cut<br>b. 140 characters: longer links in messages and larger maps<br>c. none: the label only | a |
 | Q4 | the label of a pasted link | a. its short text: earlier clients and copies show the beginning of the message<br>b. `message`: a uniform word, and the short text only in new clients | a |
 | Q5 | "Copy link" of a message in a public chat | a. the https form on its link's server host: it opens in browsers and in apps of earlier versions<br>b. the name form for a chat with a verified name: readable, not opened by apps of earlier versions | a; the name form is written by hand in v1 |
