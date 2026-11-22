@@ -2,20 +2,20 @@
 
 ## Problem
 
-A person or an agent can point to a message only inside its chat, by a quote, or by forwarding a copy. From a short line in one chat, such as a list of open questions, the reader cannot open another chat at the message the line is about. Agents cannot produce or follow such a pointer.
+A person or an agent can point to a message only inside its chat, by a quote, or by forwarding a copy. From a short line in one chat, such as a list of open questions, the reader cannot open another chat at the message the line is about. A reader who is not in a public channel cannot be sent to one of its posts. Agents cannot produce or follow such a pointer.
 
 ## Acceptance
 
 | # | After the change | Before |
 |---|---|---|
-| A1 | at "Copy link" in the menu of a message in a contact, group or channel chat, the app puts `simplex:/m#…` on the clipboard | the menu offers Copy of the text only |
-| A2 | `[label](simplex:/m#…)` and a bare `simplex:/m#…` in a message are shown as a tappable label | plain text |
-| A3 | at a tap, the app opens the chat at the message for a reader who has it, offers to join a channel that the reader is not in, and shows an alert otherwise | plain text |
-| A4 | `simplex:/m#…` opened from a web page or another app is handled as in A3 | "Error: URL is invalid" (iOS), a connection error (Android, desktop) |
+| A1 | at "Copy link" in the menu of a message in a contact, group or channel chat, the app puts its message link on the clipboard | the menu offers Copy of the text only |
+| A2 | `[label](link)` and a bare link in a message are shown as a tappable label | channel forms: a channel link; other forms: plain text |
+| A3 | at a tap, the app opens the chat at the message for a reader who has it, runs the connection flow of the channel for a reader who is not in it, and shows an alert otherwise | channel forms: the connection flow; other forms: plain text |
+| A4 | a link opened from a web page or another app is handled as in A3 | channel forms: the connection flow; `simplexchat:` forms: "Update the app to open this link." |
 | A5 | group and contact links are replaced by their labels in a forward to another chat, and channel links are kept where SimpleX links are allowed; all links are kept when the forward is to the same chat or to notes | the text is forwarded unchanged |
-| A6 | where SimpleX links are prohibited for the sender, the core refuses a channel message link as a SimpleX link and sends group and contact message links | — |
-| A7 | apps of earlier versions show the text unchanged | — |
-| A8 | the plugin's `link` returns the link of a message; `open` returns the message of a link | — |
+| A6 | where SimpleX links are prohibited for the sender, a channel message link is refused as a SimpleX link, and group and contact message links are sent | channel forms: refused as SimpleX links |
+| A7 | apps of earlier versions open a channel message link as its channel and show the other forms as text | — |
+| A8 | the plugin's `link` returns the link of a message; `open` returns the message of a link, or the channel to connect to | — |
 
 ## Options
 
@@ -29,41 +29,55 @@ A is chosen: it is the cheapest, and the only option with copy, paste and links 
 
 ## Format
 
-Message IDs are 12 random bytes in base64, 16 bytes in all (Store/Messages.hs:241-260, Store/Shared.hs:641-642, 660-661); history welcome messages have 24 random bytes (Internal.hs:1444). Every member stores a group message with the author's member ID and the same message ID, relayed messages included (Subscriber.hs:4066-4071). The keys of a p2p group are the member's own (`GKGroup`, Types.hs:493-495), and a message of a group is found by the author's member ID and the message ID (Store/Messages.hs:3092-3109). A channel is identified by `publicGroupId`, the hash of its root key, and by its link (Types.hs:910-916).
+Message IDs are 12 random bytes in base64, 16 bytes in all (Store/Messages.hs:241-260, Store/Shared.hs:641-642, 660-661); history welcome messages have 24 random bytes (Internal.hs:1444). Every member stores a group message with the author's member ID and the same message ID, relayed messages included (Subscriber.hs:4066-4071). The keys of a p2p group are the member's own (`GKGroup`, Types.hs:493-495), and a message of a group is found by the author's member ID and the message ID (Store/Messages.hs:3092-3109).
+
+The scheme is chosen by the use of the link (Q1):
+
+| Kind | A reader who is not in the chat | Forms |
+|---|---|---|
+| channel | can connect: the link is a connection link | the channel's short link in its https form on its server host or in its `simplex:` form, or `simplex:/name` with the channel's SimpleX name; each with `m`, and `a` for a post of a member |
+| group or business chat | cannot connect: the link is an app link | `simplexchat:/m#g/<msg-id>?a=<author>` |
+| contact | cannot connect: the link is an app link | `simplexchat:/m#d/<msg-id>` |
 
 ```
-msg-link = "simplex:/m#" kind "/" msg-id [ "?" params ]
-kind     = "c"   channel
-         | "g"   group or business chat
-         | "d"   contact
-msg-id   = SharedMsgId bytes, base64url without padding
-params   = query string, values percent-encoded, unknown names ignored
-  g      = publicGroupId, base64url without padding, 32 bytes      kind c
-  a      = author MemberId, base64url without padding              kind g: required; kind c: absent for posts sent as the channel
-  l      = channel short link (strEncode)                           kind c, written last
+msg-link     = channel-link | app-link
+channel-link = channel short link (CCTChannel), https or simplex: form, with m and a added to its query
+             | "simplex:/name#" channel-name "?" query
+app-link     = "simplexchat:/m#" kind "/" msg-id [ "?" query ]
+kind         = "g"   group or business chat
+             | "d"   contact
+channel-name = the domain of SimplexNameInfo with NTPublicGroup (simplexmq SimplexName.hs:110-132)
+msg-id       = SharedMsgId bytes, base64url without padding
+query        = query string, values percent-encoded, unknown names ignored
+  m          = msg-id                                  channel links: required
+  a          = author MemberId, base64url without padding    kind g: required; channel links: absent for posts sent as the channel
+  h, p, c    = the server parameters of a short link, as now
 ```
 
 Examples:
 
 ```
-simplex:/m#d/Z21RRHdMR1NzSmlyNDBYeA
-simplex:/m#g/Z21RRHdMR1NzSmlyNDBYeA?a=UWRoR05KMk16UG1hSGRpag
-simplex:/m#c/Z21RRHdMR1NzSmlyNDBYeA?g=fTqrymkSeMiupJmPD3Xy_bn6Thlrb6MNy8oeQoSZvhQ&l=simplex%3A%2Fc%233tR8_b50RNZQtPkDs0Z3IxdfsszHxdyZYWQ4KHOyifg%3Fh%3Dsmp18.simplex.im
+https://smp18.simplex.im/c#3tR8_b50RNZQtPkDs0Z3IxdfsszHxdyZYWQ4KHOyifg?m=Z21RRHdMR1NzSmlyNDBYeA
+simplex:/c#3tR8_b50RNZQtPkDs0Z3IxdfsszHxdyZYWQ4KHOyifg?h=smp18.simplex.im&m=Z21RRHdMR1NzSmlyNDBYeA
+simplex:/name#privacy.simplex?m=Z21RRHdMR1NzSmlyNDBYeA
+simplexchat:/m#g/Z21RRHdMR1NzSmlyNDBYeA?a=UWRoR05KMk16UG1hSGRpag
+simplexchat:/m#d/Z21RRHdMR1NzSmlyNDBYeA
 ```
 
-- `simplex:/m#…` is refused as a connection link: `m` is neither a short-link type letter (simplexmq Agent/Protocol.hs:1775-1778, 1809-1815) nor a full-link mode (Agent/Protocol.hs:1308).
-- The fields of kind `c` are the fields of `ForwardLink` without the name (Protocol.hs:710-717). The author is set by the rule of `chatItemMember` (Messages.hs:374-380), as in forwards (Commands.hs:1158).
-- The message part of kinds `g` and `c` is the identity of `MsgRef` in quotes (Protocol.hs:236-242).
-- A link of an unknown kind is parsed as `MLUnknown` with its text, so no format change is required for a later kind.
-- Names (`#name`) are not used as identity, as a name can expire or be moved to another chat (Controller.hs:1185-1188); a label can show a name.
+- The short-link parser reads only `h`, `p` and `c` of the query (simplexmq Agent/Protocol.hs:1779-1786), so `m` and `a` are reserved there for message links, and earlier cores parse a channel message link as the channel link. Apps of earlier versions show it and open it as the channel, in messages and from outside: SMP servers serve the path `/c` in their app association files and link pages (simplexmq apps/common/Web/static/.well-known/apple-app-site-association, apps/smp-server/SMPWeb.hs:23-24), and iOS opens `*.simplex.im` links in the app (SimpleX (iOS).entitlements:12).
+- The query of the fragment is kept in the app URI built by the link page of SMP servers (simplexmq apps/common/Web/static/media/contact.js:23-33), so the app receives a message link opened in a browser with `m`.
+- The name form uses the URI prefix that the SimpleX name parser accepts (simplexmq SimplexName.hs:113) and the names that connect accepts (Types.hs:1915-1920). Earlier cores show it as text, as their markdown parses no `simplex:/name` URI (Markdown.hs:506-518), and it is refused by their connect, as the domain parser consumes the word up to a space and fails at `?` (simplexmq SimplexName.hs:101-108, 120-124).
+- `simplexchat:/m#…` is text for earlier cores; apps with app links show "Update the app to open this link." for it from outside (ContentView.swift:514-522, ChatListView.kt:828-839).
+- The fields of a channel link are those of `ForwardLink` (Protocol.hs:710-717) without `displayName`, and with the link or the SimpleX name in place of `publicGroupId`. The author is set by the rule of `chatItemMember` (Messages.hs:374-380), as in forwards (Commands.hs:1158).
+- The message part of kinds `g` and channels is the identity of `MsgRef` in quotes (Protocol.hs:236-242).
+- A `simplexchat:/m#` link of an unknown kind is parsed as `MLUnknown` with its text, so no format change is required for a later kind.
 
 Types, Types.hs:
 
 ```haskell
 data MsgLink
   = MLChannel
-      { publicGroupId :: B64UrlByteString,
-        groupLink :: ShortLinkContact,
+      { channel :: ContactNameOrLink, -- Types.hs:1891: a CCTChannel link or an NTPublicGroup name, by the parser
         memberId :: Maybe MemberId,
         msgId :: SharedMsgId
       }
@@ -76,8 +90,8 @@ data MsgLink
 
 data MsgLinkType = MLTChannel | MLTGroup | MLTDirect | MLTUnknown
 
-instance StrEncoding MsgLink    -- the URI above
--- JSON: the URI string, by strToJSON and strParseJSON
+instance StrEncoding MsgLink    -- the forms above; the link of CTLink keeps its https or simplex: scheme (SLSServer, SLSSimplex)
+-- JSON: the link string, by strToJSON and strParseJSON
 ```
 
 The link of an item, Messages.hs:
@@ -87,21 +101,24 @@ itemMsgLink :: ChatInfo c -> ChatItem c d -> Either String MsgLink
 itemMsgLink cInfo ci@ChatItem {meta = CIMeta {itemSharedMsgId}} = case (cInfo, itemSharedMsgId) of
   (DirectChat _, Just msgId) -> Right $ MLDirect msgId
   (GroupChat g@GroupInfo {groupProfile = GroupProfile {publicGroup}} _, Just msgId) -> case publicGroup of
-    Just PublicGroupProfile {publicGroupId, groupLink} -> Right $ MLChannel publicGroupId groupLink (memberId' <$> chatItemMember g ci) msgId
+    Just PublicGroupProfile {groupLink} -> Right $ MLChannel (CTLink groupLink) (memberId' <$> chatItemMember g ci) msgId
     Nothing -> maybe (Left "message has no author") (Right . (`MLGroup` msgId) . memberId') $ chatItemMember g ci
   _ -> Left "message has no link"
 ```
+
+`groupLink` is stored in its https form on the server host (Commands.hs:4902-4903), so "Copy link" of a channel post gives the https form (Q3).
 
 ## Privacy
 
 | Kind | Readers who open it | What any other reader learns |
 |---|---|---|
-| `c` | subscribers; others can join with `l` | the channel, the post and the author's member ID, all public in the channel |
+| channel | subscribers; others connect to the channel by the link or the name | the channel, the post's ID and the author's member ID, all public in the channel |
 | `g` | members who have the message | two random IDs; links with the same `a` refer to one author in one group |
 | `d` | the two parties | one random ID |
 
 - Access to a message is not given by its link: only a reader who has the message can open it.
-- The core resolves a link from the local database and sends no request. A channel is joined through the connection flow with its confirmation.
+- The core resolves a link from the local database and sends no request. For a channel that the reader is not in, the channel's link data is then fetched from its server by the connection flow, as for a channel link; `m` and `a` are not sent.
+- When a link in its https form is opened in a browser, the server's link page is requested; the fragment, with `m` and `a`, is not sent to the server (simplexmq apps/common/Web/static/link.html:150).
 - The label is text of the writer and is visible to every reader. The apps do not fill it from the referenced message (Q4).
 - The core searches only the user given by the app: the user of the chat where the link is tapped, or the active user for a link opened from outside the app. Other profiles, hidden ones included, are not searched.
 - The oldest matching item is opened. A copy planted by a peer who read the link is created later than the original in the reader's database.
@@ -111,9 +128,9 @@ itemMsgLink cInfo ci@ChatItem {meta = CIMeta {itemSharedMsgId}} = case (cInfo, i
 ```mermaid
 flowchart TD
   L[message link] --> K{kind}
-  K -->|c| C1[group by publicGroupId]
-  C1 -->|found, link equal to the stored one| C2[item by author and message ID]
-  C1 -->|absent, or another link| J[join: the channel link]
+  K -->|channel| C1[connect plan of the link or name, local search only]
+  C1 -->|GLPKnown or GLPOwnLink| C2[item by author and message ID]
+  C1 -->|not resolved locally, or another plan| J[join: the link or name]
   C2 -->|found| I[item]
   C2 -->|absent| CH[chat without the item]
   K -->|g| G1[oldest item by author member ID and message ID]
@@ -132,7 +149,7 @@ flowchart TD
 data MsgLinkPlan
   = MLPItem {chatItem :: AChatItem}
   | MLPChat {chatInfo :: AChatInfo}
-  | MLPJoin {groupLink :: ShortLinkContact}
+  | MLPJoin {connTarget :: AConnectTarget} -- Types.hs:1898-1899, JSON as a string
   | MLPNotFound
   | MLPUnknownLink
 
@@ -142,11 +159,13 @@ msgLinkPlan :: User -> MsgLink -> CM MsgLinkPlan
 
 ```
 msgLinkPlan user link:
-  MLChannel pgId gLink author msgId:
-    channelMsgItem pgId gLink author msgId
-      Just (gId, Just itemId) -> MLPItem (item of gId and itemId)
-      Just (gId, Nothing)     -> MLPChat (group gId)
-      Nothing                 -> MLPJoin gLink
+  MLChannel target author msgId:
+    connectPlan user (ACTarget SCMContact (CTShortContact target)) PRMNever Nothing Nothing
+      CPGroupLink (GLPKnown g ..) or CPGroupLink (GLPOwnLink g):
+        channelItemId g author msgId
+          Just itemId -> MLPItem (item of g and itemId)
+          Nothing     -> MLPChat g
+      CENotResolvedLocally, or another plan -> MLPJoin target
   MLGroup author msgId:
     getGroupItemIdByAuthor author msgId
       Just (gId, itemId) -> MLPItem (item of gId and itemId)
@@ -161,11 +180,37 @@ msgLinkPlan user link:
 item of chat and itemId = getAChatItem (Store/Messages.hs:3376-3393), with the scope of getGroupChatScopeForItem_ (Store/Messages.hs:1510)
 ```
 
-- `channelMsgItem` is the lookup of `forwardLinkCIFF` (Internal.hs:272-292) moved into one function; `forwardLinkCIFF` returns `CIFFGroup` or `CIFFGroupLink` from its result. Forward attribution and channel links are resolved by one rule.
+- With `PRMNever`, the connect plan is limited to the local search (Controller.hs:728-732): a channel is found by its link (Commands.hs:4718-4722) or by its verified name (Store/Groups.hs:1116-1134); otherwise the plan is refused with `CENotResolvedLocally` (Commands.hs:4674-4676).
+- `channelItemId` is the item lookup of `forwardLinkCIFF` (Internal.hs:285-292) moved into one function, used by both.
 - `getGroupItemIdByAuthor`, Store/Messages.hs: the join of `getGroupMemberCIBySharedMsgId` (Store/Messages.hs:3092-3109) without the group, `WHERE m.user_id = ? AND m.member_id = ? AND i.shared_msg_id = ?`, `ORDER BY i.chat_item_id ASC LIMIT 1`. Own items, stored with `group_member_id` NULL, are matched by the own membership row.
 - `getDirectItemIdByMsgId`, Store/Messages.hs: `WHERE user_id = ? AND contact_id IS NOT NULL AND shared_msg_id = ?`, `ORDER BY chat_item_id ASC LIMIT 1`. The user's entries of `idx_chat_items_direct_shared_msg_id` (chat_schema.sql:1031-1035) are scanned; the time on a database with 1 million contact items is measured before review.
 - A deleted or moderated item is returned as an item. For an item removed by deletion or by the chat's time to live, the plan is `MLPChat` for a group or a channel, and `MLPNotFound` for a contact.
 - No database row is written by resolution.
+
+A reader who is not in the channel:
+
+```mermaid
+sequenceDiagram
+  actor U as Reader
+  participant A as App
+  participant C as Core
+  participant S as SMP server of the link
+  participant R as Chat relays
+  U->>A: tap a channel message link
+  A->>C: /_msg link plan, local
+  C-->>A: MLPJoin with the link or name
+  A->>C: planAndConnect, as for a channel link (v1)
+  C->>S: link data of the channel, after the name is resolved for the name form
+  C-->>A: GLPOk with the channel's profile
+  U->>A: Join
+  A->>C: connect to the prepared group
+  C->>R: join through the relays
+  R-->>C: the last 100 messages, with History on (Internal.hs:1424, Subscriber.hs:977-983)
+  A->>A: open the channel at its last messages (v1)
+  Note over A,C: later: /_msg link plan again at each new item of the channel, until MLPItem
+  A->>A: open the channel at the message (later)
+  Note over C,R: later: a request to the relays for history up to the message
+```
 
 ## Markdown
 
@@ -179,17 +224,18 @@ data Format
 
 | Form | Result |
 |---|---|
-| `[label](simplex:/m#…)` | `MessageLink (Just label)` |
-| `<simplex:/m#…>` | `MessageLink Nothing` |
-| bare `simplex:/m#…` | `MessageLink Nothing` |
-| a known kind with an invalid field | text, as now |
+| `[label](link)` | `MessageLink (Just label)` |
+| `<link>` | `MessageLink Nothing` |
+| bare link | `MessageLink Nothing` |
+| a channel short link without `m` | `SimplexLink`, as now |
+| a known form with an invalid field | text, or the channel link, as now |
 
 - `linkType` is set by the parser from `msgLink`, as `linkType` of `SimplexLink` (Markdown.hs:546-567).
-- `sowLinkP` and `hyperLinkFormat` (Markdown.hs:450-467): the label is any text up to `]` without `[` or a line break. The punctuation rule of web hyperlinks (Markdown.hs:453-454) is not applied. A label with a link in its own markdown (`isLink`) is refused: the label is left as text and the link is parsed bare, as for spoofed web links (MarkdownTests.hs:344-348).
-- `linkMD` (Markdown.hs:506-518): a word starting with `simplex:/m#` is parsed whole first, then without its trailing punctuation (`linkEndLength`, Markdown.hs:519-532), so a final `-` of an ID is kept.
+- `linkMD` and `hyperLinkFormat` (Markdown.hs:461-467, 506-518) try `MsgLink` before `AConnectionLink`. `isUri` (Markdown.hs:533) gets the prefix `simplexchat:/`.
+- `sowLinkP` (Markdown.hs:450-456): the label is any text up to `]` without `[` or a line break. The punctuation rule of web hyperlinks (Markdown.hs:453-454) is not applied. A label with a link in its own markdown (`isLink`) is refused: the label is left as text and the link is parsed bare, as for spoofed web links (MarkdownTests.hs:344-348).
+- A bare link is parsed whole first, then without its trailing punctuation (`linkEndLength`, Markdown.hs:519-532), so a final `-` of an ID is kept.
 - `markdownText` returns the source text, as for `SimplexLink` (Markdown.hs:978).
-- `MessageLink` is included in `isLink`, so `hasLink` is set for the item (Internal.hs:3159-3167). `MessageLink` with `MLChannel` is included in `isSimplexLink` (Markdown.hs:315-318), so the group preference is applied at send (Commands.hs:5076), edit (Commands.hs:854) and receive (Subscriber.hs:2260, 2336, 2357), and in member profiles (Internal.hs:1376-1385).
-- Every form is parsed as text by earlier cores: `strDecode` fails for `simplex:/m#`, and schemes other than http and https are refused by `parseUri` (Markdown.hs:873-882; MarkdownTests.hs:316).
+- `MessageLink` is included in `isLink`, so `hasLink` is set for the item (Internal.hs:3159-3167). `MessageLink` with `MLChannel` is included in `isSimplexLink` (Markdown.hs:315-318), so the group preference is applied at send (Commands.hs:5076), edit (Commands.hs:854) and receive (Subscriber.hs:2260, 2336, 2357), and in member profiles (Internal.hs:1376-1385), as earlier cores apply it to the channel link.
 
 ## Core API
 
@@ -200,7 +246,7 @@ data Format
 | `APIMsgLinkPlan {userId, msgLink}` | `/_msg link plan <userId> <msgLink>` | `CRMsgLinkPlan {user, msgLinkPlan}` |
 
 - `APIGetChatItemLink`: `getAChatItem`, then `itemMsgLink`; `Left` is returned as a command error. Notes and items without a message ID, such as group events, are refused.
-- CLI views, View.hs: the link is printed for `CRChatItemLink`; for `CRMsgLinkPlan`, the chat and the item line, or `message link: not in your chats`, `message link: the message is not in CHAT`, `message link: join CHANNEL_LINK`, `message link: unknown link type`.
+- CLI views, View.hs: the link is printed for `CRChatItemLink`; for `CRMsgLinkPlan`, the chat and the item line, or `message link: not in your chats`, `message link: the message is not in CHAT`, `message link: connect with TARGET`, `message link: unknown link type`.
 - Bots API: `APIGetChatItemLink` and `APIMsgLinkPlan` in the category "Message commands" (bots/src/API/Docs/Commands.hs:95-111), the types `MsgLink` (string), `MsgLinkType`, `MsgLinkPlan` and `Format.MessageLink`; bots/api/*.md and the TypeScript and Python types are generated again.
 
 ## Forwards
@@ -228,7 +274,7 @@ sequenceDiagram
   actor U as User
   participant A as App
   participant C as Core
-  U->>A: tap a message link, or open simplex:/m# from outside
+  U->>A: tap a message link, or open one from outside
   A->>C: /_msg link plan userId link
   C-->>A: CRMsgLinkPlan
   alt item
@@ -236,7 +282,7 @@ sequenceDiagram
   else chat
     A->>A: open the chat, then the alert of Q5
   else join
-    A->>A: planAndConnect with the channel link
+    A->>A: planAndConnect with the link or name
   else not found
     A->>A: alert "This message is not in your chats."
   else unknown link
@@ -250,30 +296,31 @@ sequenceDiagram
 | commands and `MsgLinkPlan` | Shared/Model/AppAPITypes.swift, Shared/Model/SimpleXAPI.swift | model/SimpleXAPI.kt |
 | rendering and tap | MsgContentView.swift:300-313, 653-665: an attribute key for message links | TextItemView.kt:401-416, 489-504: the annotation `MESSAGE_LINK` |
 | open at the item | `ItemsModel.loadOpenChatNoWait(chatId, itemId)` (ChatModel.swift:143-157), as the forward header (FramedItemView.swift:117-123) | `openChat(null, rhId, chatType, apiId, itemId)` (ChatListNavLinkView.kt:212-236), as FramedItemView.kt:362-370 |
-| link from outside | `connectViaUrl_`, the path `/m` (ContentView.swift:463-488) | `connectIfOpenedViaUri`, a branch before `planAndConnect` (ChatListView.kt:800-814) |
+| link from outside | `connectViaUrl_` (ContentView.swift:463-488): a URL that the core parses as a message link goes to the plan before the path switch; `openAppLink` (ContentView.swift:515-522) gets the path `/m` | `connectIfOpenedViaUri` (ChatListView.kt:800-814): the same check before `planAndConnect`; `openAppLink` (ChatListView.kt:829-839) gets the path `/m` |
 | Copy link | the item menu (ChatView.swift:2447-2507) | `MsgContentItemDropdownMenu` (ChatItemView.kt:394-451) |
 | link pasted in search | `strConnectTarget` (NewChatView.swift:860-872), then the plan | `strConnectTarget` (NewChatView.kt:834), then the plan |
 
 - The label is `showText`, or the generic label of Q4. At long-press, the app opens the item menu, as now (ChatItemView.kt:129).
 - The decision from `MsgLinkPlan` to an action is one pure function in each app, tested on recorded core responses.
 - For an item in a member support scope, the app opens its group in stage 1 and its support chat in stage 3.
-- `simplex:` is registered on iOS (SimpleX--iOS--Info.plist:40-43), Android (AndroidManifest.xml:75) and desktop (plans/2026-09-28-desktop-deep-links.md, section "`simplex:` connection links").
+- `simplex:` and `simplexchat:` are registered on iOS (SimpleX--iOS--Info.plist:40-53), Android (AndroidManifest.xml:75, 84) and desktop (plans/2026-09-28-desktop-deep-links.md, section "`simplex:` connection links"); https links on preset servers open the app on iOS (SimpleX (iOS).entitlements:12) and Android (AndroidManifest.xml:86-112).
 - `minRemoteCtrlVersion` and `minRemoteHostVersion` (Remote.hs:77-82) are set to the release version, as for block markdown (plans/2026-10-13-block-markdown.md:691), because an earlier desktop cannot decode the new `Format`.
-- A `messageLink` case is added to the website renderer (website/src/js/simplex-lib.jsc:234-294): the label is rendered as a link to the `simplex:/m#` URI.
-- The path `/m` is described in spec/client/navigation.md of both apps.
+- A `messageLink` case is added to the website renderer (website/src/js/simplex-lib.jsc:234-294): the label is rendered as a link; the href of a channel link is `platformSimplexUri` of the link (simplex-lib.jsc:307-329), which keeps `m` and `a`, and the other forms are used as they are.
+- The path `/m` of `simplexchat:` and message links of channels are described in spec/client/navigation.md of both apps.
 
 ## Plugin
 
 | Tool | Input | Output |
 |---|---|---|
 | `link` | `item`, and `chat`: `@N` or `#N`; without `chat` in the plugin, the item of the session's group | `{link}` |
-| `open` | `link` | `status`: `found` with `message`; `chat` with the chat fields; `join` with `link`, the channel link for `connect`; `none`; `update` |
+| `open` | `link` | `status`: `found` with `message`; `chat` with the chat fields; `join` with `target`, the link or name for `connect`; `none`; `update` |
 
 - No action is created by either tool; both only read, as `receive`.
+- After `connect` to the channel of a `join`, `open` of the same link returns `found` once the message is received with the channel's history.
 - `open` returns `none` for a chat that the session does not own (spec/api.md:686), so chats of other sessions are kept hidden. A message of the session's group is returned with `item` and without `chat`, as the channel's prompts (spec/api.md:1036).
-- `connect` with a `simplex:/m#` target returns `TARGET is a message link; open returns its message.` in place of `Not a SimpleX link or name: TARGET` (spec/api.md:132).
-- One sentence is added to the instructions (tools.ts:495-506): `A message link is a simplex:/m#… URI: link returns the link of a message, which you write as [label](link); open returns the message of a link.`
-- The Message object (messages.ts:23-35) is unchanged: with a link in every message, each message would be 60 to 170 characters longer, for up to 100 messages per result.
+- `connect` with a channel message link connects to the channel, as earlier cores parse it. `connect` with a `simplexchat:/m#` link returns `TARGET is a message link; open returns its message.` in place of `Not a SimpleX link or name: TARGET` (spec/api.md:132).
+- One sentence is added to the instructions (tools.ts:495-506): `A message link references one message: link returns the link of a message, which you write as [label](link); open returns the message of a link, or the channel to connect to.`
+- The Message object (messages.ts:23-35) is unchanged: with a link in every message, each message would be 60 to 120 characters longer, for up to 100 messages per result.
 
 Agents can use such links under three conditions, each stated by the design:
 
@@ -286,53 +333,56 @@ Agents can use such links under three conditions, each stated by the design:
 | agents already write Markdown, and `[text](url)` in their posts is parsed by the core | Claude's text is posted to the session group (spec/api.md:911); Markdown.hs:450-456 |
 | opaque `simplex:/` links are copied by agents between results and calls | `connect` takes them (tools.ts:284) |
 | an ID cannot be produced from memory, as it is random | Store/Shared.hs:660-661 |
-| a damaged link is parsed as text or resolved as `none` | the parser and the plan above |
-| `simplex:/` is shared with connection links; the case is covered by the `connect` error above | Markdown.hs:533 |
+| a damaged link is parsed as text, as the channel link, or resolved as `none` | the parser and the plan above |
+| a channel message link given to `connect` connects to its channel; an app link gets the error above | Agent/Protocol.hs:1779-1786 |
 
 ## Stages
 
 ```mermaid
 flowchart LR
-  S1["Stage 1 PR: core, CLI, bots API, iOS, Android, desktop, website"] --> R["release of the npm packages simplex-chat and @simplex-chat/types (packages/simplex-chat-mcp/package.json:31-33)"]
+  S1["Stage 1 PR, v1: core, CLI, bots API, iOS, Android, desktop, website"] --> R["release of the npm packages simplex-chat and @simplex-chat/types (packages/simplex-chat-mcp/package.json:31-33)"]
   R --> S2["Stage 2 PR: plugin link and open, the board link of Q6"]
-  S1 --> S3["Stage 3: notes kind, support scopes, https form, previews"]
+  S1 --> S3["Stage 3: the message after a join, history up to it, notes, support scopes, previews"]
 ```
 
 | Stage | Content |
 |---|---|
-| 1 | kinds `c`, `g`, `d`; parser; `Format.MessageLink`; three commands; resolution; forwards; group preference; app rendering, tap, links from outside, Copy link, search paste; remote versions; website case |
-| 2 | plugin `link` and `open`, the `connect` error, instructions; the board link of Q6 |
-| 3 | kind `n` for notes, by local IDs, replaced by its label in every message sent outside notes; the support chat at the item; `https://simplex.chat/m#…` with the same fragment and the app association files; a preview of the referenced message at long-press; `l` in kind `g` for groups with a public link |
+| 1, v1 | every form of the Format section, parsed and encoded; Copy link; resolution; for a channel that the reader is not in, the connection flow as for its link, which opens the channel at its last messages; forwards; group preference; app rendering, tap, links from outside, search paste; remote versions; website case |
+| 2 | plugin `link` and `open`, the `simplexchat:` error of `connect`, instructions; the board link of Q6 |
+| 3 | after a join from a message link, the plan is run again at each new item of the channel, and the app opens the channel at the message; a request to the relays for history up to a message; the forward header of `CIFFGroupLink` opens the original message by the same flow (FramedItemView.swift:120-121); kind `n` for notes, by local IDs, replaced by its label in every message sent outside notes; the support chat at the item; a preview of the referenced message at long-press |
 
-No stage 1 format is changed in stage 3: a new kind is parsed as `MLUnknown` by stage 1 cores, unknown parameters are ignored, and the fragment is kept in the https form.
+No v1 format is changed in stage 3: every form is defined in v1, unknown parameters are ignored, and a new kind of `simplexchat:/m#` is parsed as `MLUnknown` by v1 cores.
 
 ## Tests
 
-Each test fails on master: the syntax, the commands or the forwarded text are new.
+Each test fails on master, except the compatibility test, which pins how earlier cores parse a channel message link.
 
 | File | Test |
 |---|---|
-| tests/MarkdownTests.hs | `[Should I merge?](simplex:/m#g/…?a=…)` gives `MessageLink (Just "Should I merge?") MLTGroup …` |
-| | `see simplex:/m#d/ID.` gives text, a bare link and `.`; a final `-` of an ID is kept |
-| | `simplex:/m#x/…` gives `MLUnknown` |
-| | `[https://example.com](simplex:/m#d/…)` gives the label as text and a bare link |
-| | `strDecode . strEncode` returns each `MsgLink` variant; `l` is percent-encoded both ways |
+| tests/MarkdownTests.hs | `[Should I merge?](simplexchat:/m#g/…?a=…)` gives `MessageLink (Just "Should I merge?") MLTGroup …` |
+| | the https, `simplex:` and name forms of a channel message link give `MessageLink … MLTChannel …`; the same short link without `m` gives `SimplexLink` |
+| | compatibility: `strDecode` of a channel message link as `AConnectionLink` gives its channel link |
+| | `see simplexchat:/m#d/ID.` gives text, a bare link and `.`; a final `-` of an ID is kept |
+| | `simplexchat:/m#x/…` gives `MLUnknown` |
+| | `[https://example.com](simplexchat:/m#d/…)` gives the label as text and a bare link |
+| | `strDecode . strEncode` returns each `MsgLink` variant in each form |
 | tests/ChatTests/Groups.hs | `/item link #team hi` by alice; the link is sent in `#club`; cath, a member of `#team`, gets the item from `/_msg link plan`; dan gets `not in your chats` |
-| | a channel post: a subscriber gets the item; a non-subscriber gets `join` with the channel link |
+| | a channel post: a subscriber gets the item by the https form; a non-subscriber gets `join` with the link, connects with it, and then gets the item |
 | | after `/_delete item … internal` by cath, the plan is the chat |
 | | `#club` with SimpleX links off: a channel message link is refused, and a group message link is sent |
+| tests/ChatTests/Names.hs | a channel with a verified name, as in `testConnectByChannelName`: a subscriber gets the item by the name form; a non-subscriber gets `join` with the name |
 | tests/ChatTests/Direct.hs | alice's message to bob, its link sent to bob in a group: bob gets the item, cath gets `not in your chats` |
 | tests/ChatTests/Forward.hs | a group link forwarded to a contact is replaced by its label; it is kept in forwards to the same group and to notes; a channel link is kept, and replaced by its label in a group with SimpleX links off |
 | app tests on recorded core responses | `Format.messageLink` is decoded; each `MsgLinkPlan` variant gives its action |
-| plugin unit and e2e tests | `link` of a sent message, then `open` of the link in the same session; `open` for a chat of another session returns `none`; `connect` with a message link returns its error |
+| plugin unit and e2e tests | `link` of a sent message, then `open` of the link in the same session; `open` for a chat of another session returns `none`; `connect` with a `simplexchat:` link returns its error |
 
 ## Questions
 
 | ID | Question | Recommendation |
 |---|---|---|
-| Q1 | Scheme. The plan uses `simplex:/m#`, as you proposed. By a rule recorded in both apps, `simplexchat:` is reserved for every link that is not a connection link (ContentView.swift:506, ChatListView.kt:816; plans/2026-09-24-badge-buy-in-browser.md:43). With `simplex:`, apps before stage 1 show "Error: URL is invalid" or a connection error for a link opened from outside. With `simplexchat:`, apps with app links (ContentView.swift:514-522, ChatListView.kt:828-839) show "Update the app to open this link.", and a second URI prefix is added to the core markdown (Markdown.hs:533). Which rule holds? | your proposal and the recorded rule conflict: escalated without a recommendation |
+| Q1 | The scheme is chosen by the use of the link: a message link of a channel is a connection link in the channel's own forms (https on its server host, `simplex:` link, `simplex:/name`) with `m` and `a` added; a message link of a group or a contact is an app link, `simplexchat:/m#`, by the rule recorded in both apps for links that are not connection links (ContentView.swift:506, ChatListView.kt:816). The alternative, `simplex:/m#` for groups and contacts, conflicts with that rule. | yes: one rule for all kinds, and apps of earlier versions open a channel message link as its channel |
 | Q2 | In forwards to another chat, group and contact links are replaced by their labels, and channel links are kept where SimpleX links are allowed; a link without a label is replaced by `message`. | yes |
-| Q3 | A channel message link counts as a SimpleX link for the group preference; group and contact message links are allowed where SimpleX links are off. | yes, as for forward attribution (plans/2026-08-22-forward-link.md, lines 13-14) |
-| Q4 | A link without a label is shown as "message" with a link icon; Copy link copies the URI without text of the message. | yes |
+| Q3 | "Copy link" of a channel post gives the https form on the channel link's server host. The name form, for a channel with a verified name, is written by hand in v1. | yes: the https form opens in browsers and in apps of earlier versions |
+| Q4 | A link without a label is shown as "message" with a link icon; Copy link copies the link without text of the message. | yes |
 | Q5 | When the chat is known and the message is gone, the app opens the chat and shows an alert: the message is deleted or not received yet. | yes |
 | Q6 | The session's message on the board in the Main group links "waiting for you" to the oldest pending card of the session. | yes, in stage 2 |
