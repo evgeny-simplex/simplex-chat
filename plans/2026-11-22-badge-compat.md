@@ -183,7 +183,7 @@ Messages, by key:
 
 Recorded once from the pin:
 1. Fork branch `ep/badge-protocol-master` from `abc483d9d`.
-2. Its commit: the same test with the pin's names (`BadgeServiceRequest`, `BSC`, `BSP`, `BSE`), and the fixture file, empty.
+2. Its commit: the same test with the pin's names (`BadgeServiceRequest`, `BSC`, `BSP`, `BSE`), and the fixture file, empty. The pin's `writeFixture` writes under tests/fixtures/api, so the pin's test writes `../store-service/badge-protocol`.
 3. A dispatch of build.yml with tests `/Supporter badges/service protocol JSON/`: the test writes the fixture and fails on the empty file; the artifact `generated-files-ubuntu-22.04-ghc9.6.3` holds the fixture.
 4. The fixture committed on `ep/badge-protocol-master`; a second dispatch passes.
 5. The same file committed on this branch.
