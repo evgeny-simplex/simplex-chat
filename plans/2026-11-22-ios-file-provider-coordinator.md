@@ -68,6 +68,7 @@ The holder is read from app-group settings (AppGroup.swift:183-200). "Declared" 
 | `NSFileProviderExtension` is not deprecated in the iOS 27.2 SDK; DTS recommends `NSFileProviderReplicatedExtension` for new projects. | header NSFileProviderExtension.h; https://developer.apple.com/forums/thread/793272 |
 | Background runtime of apps: "There’s no general-purpose mechanism for: … Resuming in the background in response to a network or IPC request" | Quinn, https://developer.apple.com/forums/thread/685525 |
 | 2022 proof of concept: the app and the NSE called a service of the FP extension; the attempt is described in 2.2. | `88c57c82d` |
+| An extension used only for coordination shows nothing in the Files app: confirmed by the maintainer from the proof of concept, whose extension declared `NSExtensionFileProviderSupportsEnumeration` false. | `88c57c82d:apps/ios/SimpleX Service/Info.plist:9-10` |
 
 Undocumented, measured in stage 0:
 - the service lookup on the root container URL; the 2022 proof of concept used a placeholder item;
@@ -76,7 +77,7 @@ Undocumented, measured in stage 0:
 - whether an open XPC connection keeps the extension running;
 - reachability from the SE;
 - reachability while the app is suspended or terminated;
-- whether the extension appears in the Locations of the Files app.
+- whether one extension serves the default non-replicated domain and replicated explicit domains (section 4).
 
 ### 2.2 Proof of concept, 2022
 
@@ -108,9 +109,12 @@ The extension linked `libHSsimplex-chat-2.2.0` and started the runtime with defa
 - iOS 14: "we’ve changed iOS 14.0b7 and later to be more forgiving in this case (r. 66931425). … The ‘rogue’ file lock could still cause a hang in some other app." "If you must use a file lock, make sure to release it before you become eligible for suspension." (Quinn, https://developer.apple.com/forums/thread/655225?page=2)
 - File presenters: "If your app or extension enters the background with an active file presenter, it may be terminated by the system in order to prevent deadlock on that file." (https://developer.apple.com/documentation/foundation/nsfilecoordinator). System log text: the process is killed when its presenter "implements one or more NSFilePresenter messages requiring a response" (threads 718488, 63964). `SharedFileSubscriber` implements only `presentedItemDidChange` (SharedFileSubscriber.swift:31-39).
 - Resumption: "If you are suspended, it won’t resume (or relaunch) you." (Quinn on file coordination, https://developer.apple.com/forums/thread/718488); "iOS will not resume your app to receive a Darwin notification." (Quinn, https://developer.apple.com/forums/thread/769398)
-- The chat database: the connection sets `busy_timeout`, `foreign_keys`, `secure_delete` and `auto_vacuum` and leaves the journal mode at its default (simplexmq `d38bcf501` SQLite.hs:120-127); "The DELETE journaling mode is the default." (https://www.sqlite.org/pragma.html#pragma_journal_mode). Transactions are `BEGIN IMMEDIATE` (Common.hs:109) with a 3 s busy loop (Common.hs:126-137). In rollback mode "Once all reading has completed, the SHARED lock is dropped." (https://www.sqlite.org/lockingv3.html)
+- The chat and agent databases: both stores are opened by simplexmq's `connectDB` (Mobile.hs:351-352, Store.hs:29-30), which sets `key`, `busy_timeout`, `foreign_keys`, `secure_delete` and `auto_vacuum` and leaves the journal mode at its default (simplexmq `d38bcf501`, the commit pinned in cabal.project, SQLite.hs:111-127); "The DELETE journaling mode is the default." (https://www.sqlite.org/pragma.html#pragma_journal_mode). `journal_mode` and `cipher_plaintext_header_size` appear in neither repository (`git grep` of simplex-chat master and simplexmq `d38bcf501`).
+- Transactions are `BEGIN IMMEDIATE` (Common.hs:109) with a 3 s busy loop (Common.hs:126-137). In rollback mode "Once all reading has completed, the SHARED lock is dropped." (https://www.sqlite.org/lockingv3.html) In WAL mode "All connections hold SQLITE_LOCK_SHARED continuously while attached" (https://www.sqlite.org/walformat.html), and iOS grants its background lock exemption only to a database whose header it reads as WAL (SQLCipher, `cipher_plaintext_header_size`, https://www.zetetic.net/sqlcipher/sqlcipher-api/), which an encrypted header prevents.
+- The app closes the store when it suspends (SuspendChat.swift:73-78, 100); so do the NSE (NotificationService.swift:956) and the SE (ShareAPI.swift:114).
+- A statement holds its lock until it is finished: "The only way to ensure that a statement has "finished" is to invoke sqlite3_reset() or sqlite3_finalize() on that statement." (https://www.sqlite.org/lang_transaction.html); a third-party report names an unfinalized prepared statement at suspension as a cause of 0xdead10cc (https://developer.apple.com/forums/thread/126438).
 
-Answer: a file lock gives mutual exclusion among running processes, and SQLite already provides it for each transaction. A lock held at suspension terminates its holder or, since iOS 14.0b7, can stay held and stall the other processes. A lock therefore serves only as a critical section released before suspension; it cannot record ownership across suspension. The coordinator holds no file lock.
+Answer: a file lock gives mutual exclusion among running processes, and SQLite already provides it for each transaction. A lock held at suspension terminates its holder or, since iOS 14.0b7, can stay held and stall the other processes. A lock therefore serves only as a critical section released before suspension; it cannot record ownership across suspension. The coordinator holds no file lock. For the databases the risk is timing, a transaction or an unfinished statement open at suspension, and the journal mode adds none: the databases stay in DELETE mode, since WAL would hold a lock for the whole connection and depend on an exemption that the encrypted header defeats.
 
 ### 2.4 Visibility of File Provider items
 
@@ -217,7 +221,7 @@ Stage 1 changes these cells of 1.2 (question Q2):
 
 ### 3.3 Coordinator state
 
-Persisted in `Application Support/coordinator.json` of the extension container, written with `Data.write(options: .atomic)` after each transition, excluded from backup:
+Persisted in `Application Support/coordinator.json` of the extension container, written with `Data.write(options: .atomic)` after each transition:
 
 ```
 CoordinatorFile
@@ -408,16 +412,38 @@ Residual: a holder resumed after its lease was void continues the core's operati
 
 ## 4. Constraints for the files stage
 
-| Choice | Fixed once shipped | Stage 1 decision |
+Direction from the maintainer, planned later: files are exposed only by opt-in, per profile and per chat; SimpleX files are browsed in the Files app; the same extension later presents cloud files over XFTP, downloaded on demand. Backups of the coordination state need no handling.
+
+Recommendation: the coordinator stays on the default domain of a non-replicated extension; files use one replicated domain per opted-in profile, with a folder per opted-in chat.
+
+```mermaid
+flowchart TB
+  X[FP extension] --> D0[default domain, non-replicated: coordinator service, no items]
+  X --> P1[replicated domain: opted-in profile A]
+  X --> P2[replicated domain: opted-in profile B]
+  P1 --> C1[folder: opted-in chat]
+  P1 --> C2[folder: opted-in chat]
+  P2 --> C3[folder: opted-in chat]
+```
+
+Reasons:
+- The default domain cannot be migrated to a replicated domain (2.4), so files never enter it, and the coordinator choice of stage 1 constrains no files design.
+- A replicated domain is a system-managed replica with dataless items whose contents the extension fetches when opened, so on-demand XFTP downloads map to `fetchContents` (https://developer.apple.com/documentation/fileprovider/nsfileproviderreplicatedextension/fetchcontents(for:version:request:completionhandler:)). Replicated domains require iOS 16, for the files stage only.
+- One domain per profile makes opt-in and its withdrawal one `add` or `remove`: "In iOS, deleting a domain deletes all the files" (https://developer.apple.com/documentation/fileprovider/synchronizing-files-using-file-provider-extensions). A new replicated domain is disabled until the user enables it in the Files app (2.1), a second action of the user after opting in. The domain's display name, shown in the Files sidebar, is set only for an opted-in profile; hidden profiles never get a domain.
+- A replicated domain for coordination would be disabled until the user enables it (2.1), so coordination stays on the default domain.
+
+| Choice | Fixed once shipped | Decision |
 |---|---|---|
-| Default domain or explicit domain | the default domain cannot be migrated to a replicated domain (2.4) | coordinator service on the default domain; files in an explicit domain; serving both from one extension is verified in stage 0 |
-| Non-replicated or replicated files | replicated: system-owned copies outside the app sandbox, working set includes all materialized items, domain disabled until the user enables it (2.1, 2.4) | stage 1 does not depend on it; the files plan decides |
-| Item identifiers | recorded in system logs; default identifiers are paths (2.4) | files stage: random stable identifiers, never derived from names or chat identifiers |
+| Domains | the default domain cannot be migrated (2.4); a domain is a Files location | stage 1: coordinator on the default domain, enumerating nothing; files stage: one replicated domain per opted-in profile |
+| One extension for both kinds of domain | undocumented | verified in stage 0; otherwise the files stage adds a second extension target |
+| Per-chat opt-in | — | files stage: a folder per opted-in chat; a withdrawn chat is enumerated as deleted |
+| Item identifiers | "may be recorded in system logs" (2.4); default identifiers are paths | files stage: random stable identifiers, never derived from names or chat identifiers |
+| Spotlight and Siri | working-set items are indexed; replicated domains include all materialized items in the working set; an iOS opt-out is undocumented (2.4) | files stage: opting in a chat exposes its name and the names of its opened files to search; the opt-in screen states it (question Q8) |
+| Names in Files | names, sizes and dates are cached by the system (2.4) and shown to any user of the unlocked device, outside SimpleX Lock | files stage: enumeration follows the share extension's lock rule (ShareModel.swift:77-79); hidden profiles (HiddenProfileView.swift:64) get no domain |
+| File metadata source | the extension runs within 20 MB (2.1) | files stage: the extension reads names either as a lease holder of the database, a new row in 3.2, or from a store written by the app; stage 1 keeps `Role` open to new rows |
+| XFTP in the extension | 20 MB; the full core exceeded it in 2022 (2.2) | files stage: a download client measured within 20 MB |
+| Chunked storage | — | chunks stay in the app's storage with random names; items present assembled files |
 | Document group | `documentStorageURL` is derived from it | `group.chat.simplex.app` |
-| Names in Files | names, sizes and dates are cached by the system (2.4) and shown to any user of the unlocked device, outside SimpleX Lock and hidden profiles (HiddenProfileView.swift:64) | files stage: enumeration follows the share extension's lock rule (ShareModel.swift:77-79); hidden profiles are never enumerated (question Q8) |
-| Spotlight and Siri | working-set items are indexed; an iOS opt-out per item is undocumented (2.4) | files stage: the working set is empty unless the user enables it |
-| Chunked storage | — | chunks stay in the app's storage with random names, outside `File Provider Storage`; items present assembled files |
-| Backups | the app excludes the app-group container (FileUtils.swift:73-80); exclusion is not guaranteed (2.4) | unchanged |
 | Testing modes | "You can’t change the test mode after you add the domain." | never set |
 
 ## 5. Stages
@@ -437,8 +463,7 @@ flowchart LR
   - the NSE call while the app is suspended and while it is terminated;
   - the extension after 1, 10 and 60 minutes idle: process start time, latency;
   - extension memory footprint;
-  - the Locations list of the Files app;
-  - the default domain and an explicit domain served by one extension.
+  - the default non-replicated domain and a replicated explicit domain served by one extension.
 - TestFlight external review of the build.
 - Cost: about half a day of agent work; one iOS build per push, 17.5 min measured (job "macos-latest (iOS)" of run 45003402703); the maintainer's device session and the TestFlight review.
 - Risk: services unreachable from the SE or the NSE; review rejection (2.1, Q1).
@@ -487,6 +512,6 @@ A separate plan, from the constraints of section 4.
 - Q3. SE lease from launch, since its core runs from launch (recommended), or from send.
 - Q4. Coordinator unreachable: today's path unchanged until stage 2 (recommended), or the NSE delivers unprocessed notifications and the app and the SE proceed after their wait.
 - Q5. Holder notification: `yield` over the coordinator's XPC connection (recommended); the existing file messages resume no suspended holder (2.3).
-- Q6. Extension API: `NSFileProviderExtension` with the default domain, iOS 15 kept (`IPHONEOS_DEPLOYMENT_TARGET = 15.0`, project.pbxproj) (recommended; the 2022 proof of concept used it); `NSFileProviderReplicatedExtension` requires iOS 16 and a domain that the user enables in the Files app.
+- Q6. Extension API: coordination on the default domain of `NSFileProviderExtension`, iOS 15 kept (`IPHONEOS_DEPLOYMENT_TARGET = 15.0`, project.pbxproj), and files later in replicated domains per profile (recommended, section 4; the 2022 proof of concept used the default domain); coordination on a replicated domain requires iOS 16 and a domain that the user enables in the Files app.
 - Q7. Cold start acquires before opening the database (recommended; F6).
-- Q8. Files stage, principle: names of conversations and files shown in the Files app and indexed for search only while SimpleX Lock is off or the user allows it, and never for hidden profiles (recommended).
+- Q8. Files stage, principle: opting in a chat also exposes its name and the names of its opened files to Spotlight and Siri, since iOS documents no opt-out for indexed items; the opt-in screen states it, enumeration follows SimpleX Lock as the share extension does, and hidden profiles get no domain (recommended).
