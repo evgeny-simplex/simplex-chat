@@ -84,7 +84,7 @@ apiTest("api: createInvoice accepts a card-shaped 200 for a card request", async
 });
 
 apiTest("api: createInvoice maps error codes to typed errors", async () => {
-  for (const [status, code] of [[409, "code_conflict"], [400, "catalog_changed"], [429, "rate_limited"], [503, "provider_unavailable"]] as const) {
+  for (const [status, code] of [[409, "code_conflict"], [409, "catalog_changed"], [429, "rate_limited"], [503, "provider_unavailable"]] as const) {
     const { fn } = fetchReturning({ status, body: { type: code } });
     await assert.rejects(
       () => createInvoice({ priceId: "p", method: "card", codeHash: "h" }, fn),

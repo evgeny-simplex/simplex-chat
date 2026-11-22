@@ -522,7 +522,7 @@ apiTest("flow: a wipe while the invoice is bought leaves this browser holding no
 
 apiTest("flow: catalog_changed lands on the catalog-changed screen and nothing is stored", async () => {
   const h = harness();
-  h.net.script({ status: 400, body: { type: "catalog_changed" } });
+  h.net.script({ status: 409, body: { type: "catalog_changed" } });
   const out = await h.flow.checkout({ priceId: "p", method: "xmr" });
   assert.deepEqual(out, { kind: "catalogChanged" });
   assert.equal(h.store.orders().length, 0);
