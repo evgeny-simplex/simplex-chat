@@ -126,7 +126,7 @@ Change, in this version, for links of both types written by later versions:
 | core markdown | `XLPublicGroup` and `XLSite` in `SimplexLinkType` (Markdown.hs:120), mapped in `simplexUriFormat` (Markdown.hs:563-567) |
 | core link data | `shortLinkDataP` (Internal.hs:1739-1746): `p`: group data, when it parses; `s`: none |
 | core connect plan | `p`: `groupShortLinkPlan`, with `GLPUpdateRequired` for every link of type `p` (Commands.hs:4652-4654, 4684-4685); `s`: the link is fetched, and the plan is `CPUpdateRequired` |
-| apps | `publicGroup` and `site` in `SimplexLinkType` (ChatTypes.swift:6042-6058; ChatModel.kt:5525-5539), shown as "SimpleX public group link" and "SimpleX site link"; the paths `/p` and `/s` for links from outside (ContentView.swift:476; AndroidManifest.xml:116-127); `CPUpdateRequired` shown as "App update required" and "This link requires a newer version of the app. Please update the app to open it." |
+| apps | `publicGroup` and `site` in `SimplexLinkType` (ChatTypes.swift:6042-6058; ChatModel.kt:5525-5539), shown as "SimpleX public group link" and "SimpleX site link"; the paths `/p` and `/s` for links from outside (ContentView.swift:476; AndroidManifest.xml:116-127); `CPUpdateRequired` shown as "App update required" and "This site requires a newer version of the app. Please update the app to open it." |
 | website | `p` and `s` in `simplexShortLinkTypes` (simplex-lib.jsc:305) and in the app association file (website/src/.well-known/apple-app-site-association/index.json) |
 
 Global message links of public groups have type `p`.
@@ -137,7 +137,7 @@ flowchart TD
   V -->|earlier| E["https: web link, the server's page; simplex: text; from outside: Error: URL is invalid, or a connection error"]
   V -->|this version| C[connect plan]
   C -->|p| U1["GLPUpdateRequired: This group requires a newer version of the app."]
-  C -->|s| U2["CPUpdateRequired: This link requires a newer version of the app."]
+  C -->|s| U2["CPUpdateRequired: This site requires a newer version of the app."]
   V -->|the version of public groups or sites| J[join or open]
 ```
 
@@ -479,7 +479,7 @@ data Format
 
 - Links are written in the text of `APISendMessages`, `APIUpdateChatItem` and `APICreateChatItems` as `[label](link)` or bare, and rewritten by the core (Q7). `ComposedMessage` and `UpdatedMessage` (Controller.hs:1379-1391) are unchanged: unlike a mention's display name, a link in the text is unambiguous. In an edit, the item's rows whose label is still linked in the new text are kept, so the app sends the edited text as it is shown.
 - `APIGetChatItemLink`: `getAChatItem`, then `itemMsgLink`; `Left` is returned as a command error. Items without a message ID in a contact or group, such as group events, are refused.
-- CLI views, View.hs: the link is printed for `CRChatItemLink`; for `CRMsgLinkPlan`, the chat and the item line, or `message link: not in your chats`, `message link: the message is not in CHAT`, `message link: connect with TARGET`, `message link: unknown source`, `message link: unknown link type`. A received item with links is followed by one line per link: `[label]: SHORT TEXT`. `CPUpdateRequired` is printed as `update the app to open this link`.
+- CLI views, View.hs: the link is printed for `CRChatItemLink`; for `CRMsgLinkPlan`, the chat and the item line, or `message link: not in your chats`, `message link: the message is not in CHAT`, `message link: connect with TARGET`, `message link: unknown source`, `message link: unknown link type`. A received item with links is followed by one line per link: `[label]: SHORT TEXT`. `CPUpdateRequired` is printed as `this site requires a newer version of the app`.
 - Bots API: `APIGetChatItemLink` and `APIMsgLinkPlan` in the category "Message commands" (bots/src/API/Docs/Commands.hs:95-111), the types `MsgLink` (string), `MsgLinkType`, `MsgLinkPlan`, `CILink`, `CILinkTarget`, the field `links` of `ChatItem`, the format `MessageLink`, `CPUpdateRequired` and the two `SimplexLinkType` values; bots/api/*.md and the TypeScript and Python types are generated again.
 
 ## Forwards and edits
