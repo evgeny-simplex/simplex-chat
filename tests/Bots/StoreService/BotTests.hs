@@ -204,7 +204,7 @@ storeServiceTests = do
     describe "the store lane" $ do
       it "should answer other requests while a Play receipt is with the store, and credit it once Play answers" testPlayHoldsNoOtherRequest
       it "should route each request to its lane, judging a minute ahead" testStoreRouting
-      it "should take the store checks from the config, beside the mock or a real store, and credit test purchases only from a real store" testStoreChecksConfigured
+      it "should check the store at every request only with check_store_during_coverage beside the mock or credit_test_purchases, and credit test purchases only from a real store" testStoreChecksConfigured
       it "should answer other requests while a renewal check is with the store, and the renewal once the store answers" testRenewalHoldsNoOtherRequest
       it "should answer a renewal check while a Play purchase is with the store" testPurchaseHoldsNoRenewal
       it "should answer other requests while an App Store subscription is with the store, and credit it once the store answers" testAppleSubscriptionHoldsNoOtherRequest
@@ -351,7 +351,7 @@ mkStoreServiceOpts ps secretKey =
       runCLI = False,
       consoleCommand = Nothing,
       serviceConfigFile = Nothing,
-      issuerKey = Just BadgeIssuerKey {keyIdx = testIssuerKeyIdx, secretKey},
+      issuerKey = Right (Just BadgeIssuerKey {keyIdx = testIssuerKeyIdx, secretKey}),
       testing = True
     }
   where
@@ -454,7 +454,7 @@ operatorCmd cc cmd =
 
 issueCodeAs :: HasCallStack => ChatController -> BadgeType -> Int -> String -> IO BadgeCode
 issueCodeAs cc badgeType months status =
-  sendChatCmdStr cc ("//issue " <> T.unpack (textEncode badgeType) <> " months " <> show months <> " " <> status) >>= \case
+  sendChatCmdStr cc ("//issue " <> T.unpack (textEncode badgeType) <> " " <> show months <> " " <> status) >>= \case
     Right (CRCustomChatResponse _ response) -> case T.stripPrefix "Code: " response of
       Just c | Just code <- parseBadgeCode c -> pure code
       _ -> error $ "unexpected issue response: " <> T.unpack response
@@ -561,13 +561,17 @@ testIssueRejectsBadArguments ps =
   withStoreService ps $ \_ _ cc -> do
     let refuses arg = (arg,) <$> issueRaw cc arg `shouldReturn` (arg, Left consoleIssueUsage)
     refuses "suporter"
+    refuses "supporter 0"
+    refuses "supporter 13"
+    refuses "supporter 18446744073709551617"
+    refuses "supporter 1 gratis"
     refuses "supporter months 0"
     refuses "supporter months 13"
     refuses "supporter months 18446744073709551617"
     refuses "supporter months 1 gratis"
-    refuses "supporter 12"
     refuses "supporter uses 2"
     refuses ""
+    issueRaw cc "supporter 12 paid" >>= (`shouldSatisfy` isRight)
     issueRaw cc "supporter months 12 paid" >>= (`shouldSatisfy` isRight)
     operatorCmd cc "//issued supporter" `shouldReturn` Left badgeCmdUsage
 
@@ -1753,12 +1757,8 @@ testIssuerKeyMustMatchConfig ps = do
   checkIssuerKey (optsFor sk) Nothing cfg >>= (`shouldSatisfy` isRight)
   checkIssuerKey (optsFor otherSk) Nothing cfg >>= (`shouldSatisfy` isLeft)
   checkIssuerKey (optsFor sk) Nothing testCfg {badgePublicKeys = M.empty} >>= (`shouldSatisfy` isLeft)
-  let parsed args = issuerKey <$> parsedOpts args
-      secret = B.unpack (strEncode sk)
-  parsed ["--issuer-key-idx", show testIssuerKeyIdx, "--issuer-secret", secret] `shouldBe` Just (Just BadgeIssuerKey {keyIdx = testIssuerKeyIdx, secretKey = sk})
-  parsed [] `shouldBe` Just Nothing
-  parsed ["--issuer-key-idx", show testIssuerKeyIdx] `shouldBe` Nothing
-  parsed ["--issuer-secret", secret] `shouldBe` Nothing
+  let halfGiven = (optsFor sk) {issuerKey = Left "--issuer-key-idx and --issuer-secret are given together or not at all"}
+  checkIssuerKey halfGiven Nothing cfg >>= (`shouldSatisfy` isLeft)
 
 parsedOpts :: [String] -> Maybe StoreServiceOpts
 parsedOpts = O.getParseResult . O.execParserPure O.defaultPrefs (O.info (storeServiceOpts "." "test") mempty)
@@ -1776,7 +1776,7 @@ testIssuerIniKeyMustBeTrusted ps = do
   Right (_, untrusted) <- bbsKeyGen
   let cfg = testCfg {badgePublicKeys = M.singleton testIssuerKeyIdx pk}
       fromCli = mkStoreServiceOpts ps sk
-      fromIni = fromCli {issuerKey = Nothing}
+      fromIni = fromCli {issuerKey = Right Nothing}
       iniWith idx k = withIssuer ["index = " <> tshow idx, "private_key = " <> safeDecodeUtf8 (strEncode k)] readServiceConfig
   Right trusted <- iniWith testIssuerKeyIdx sk
   checkIssuerKey fromIni (Just trusted) cfg `shouldReturn` Right (BadgeIssuerKey testIssuerKeyIdx sk)
@@ -1795,7 +1795,7 @@ testDevKeysTrusted ps = do
   Right (_, devSk) <- bbsKeyGen
   let cfg = testCfg {badgePublicKeys = M.singleton testIssuerKeyIdx pk}
       devIdx = testIssuerKeyIdx + 8
-      fromIni = (mkStoreServiceOpts ps sk) {issuerKey = Nothing}
+      fromIni = (mkStoreServiceOpts ps sk) {issuerKey = Right Nothing}
   Right withDev <- devKeysIni chainSection devIdx devSk [(devIdx, devSk)]
   checkIssuerKey fromIni (Just withDev) cfg >>= (`shouldSatisfy` isLeft)
   Right trusted <- trustDevKeys (Just withDev) cfg
@@ -5958,18 +5958,20 @@ testStoreChecksConfigured _ = do
     Right cfg <- readServiceConfig (d </> "store_service.ini")
     let checksFor c = (\ServiceState {storeVerifier} -> storeChecks storeVerifier) <$> (newServiceState >>= configureStoreVerifier c)
         creditsFor c = (\ServiceState {storeVerifier} -> creditTestPurchases storeVerifier) <$> (newServiceState >>= configureStoreVerifier c)
-        dev accept checks credit = Just cfg {devAcceptUnverifiedStoreReceipts = accept, devStoreChecks = checks, devCreditTestPurchases = credit}
+        dev accept during credit = Just cfg {devAcceptUnverifiedStoreReceipts = accept, devCheckStoreDuringCoverage = during, devCreditTestPurchases = credit}
     checksFor Nothing `shouldReturn` ChecksAfterCoverage
-    checksFor (dev False ChecksAfterCoverage False) `shouldReturn` ChecksAfterCoverage
-    checksFor (dev True ChecksAfterCoverage False) `shouldReturn` ChecksAfterCoverage
-    checksFor (dev True ChecksAtEveryRequest False) `shouldReturn` ChecksAtEveryRequest
-    checksFor (dev False ChecksAfterCoverage True) `shouldReturn` ChecksAfterCoverage
-    checksFor (dev False ChecksAtEveryRequest True) `shouldReturn` ChecksAtEveryRequest
+    checksFor (dev False False False) `shouldReturn` ChecksAfterCoverage
+    checksFor (dev True False False) `shouldReturn` ChecksAfterCoverage
+    -- refused by the parser, and still not armed if set by hand
+    checksFor (dev False True False) `shouldReturn` ChecksAfterCoverage
+    checksFor (dev True True False) `shouldReturn` ChecksAtEveryRequest
+    checksFor (dev False False True) `shouldReturn` ChecksAfterCoverage
+    checksFor (dev False True True) `shouldReturn` ChecksAtEveryRequest
     creditsFor Nothing `shouldReturn` False
-    creditsFor (dev False ChecksAfterCoverage False) `shouldReturn` False
-    creditsFor (dev False ChecksAfterCoverage True) `shouldReturn` True
+    creditsFor (dev False False False) `shouldReturn` False
+    creditsFor (dev False False True) `shouldReturn` True
     -- the mock never reports a test purchase
-    creditsFor (dev True ChecksAfterCoverage True) `shouldReturn` False
+    creditsFor (dev True False True) `shouldReturn` False
 
 testStoreRouting :: HasCallStack => TestParams -> IO ()
 testStoreRouting ps =

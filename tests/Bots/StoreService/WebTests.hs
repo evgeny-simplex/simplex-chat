@@ -71,7 +71,7 @@ import StoreService.Providers
 import StoreService.Providers.BTCPay (btcpayProvider, listPageSize, maxListPages)
 import StoreService.Providers.Stripe (stripeProvider)
 import StoreService.Store (CreditedPurchase (..), FundingCredit (..), KeyPurchase (..), KeyRedemption (..), ManagedGroup (..), NewCodePurchase (..), NewStorePurchase (..), PaymentRebind (..), PurchaseSubscription (..), RevokeResult (..), appendLedgerPlan, createCodePurchase, createStorePurchase, getCodePurchaseForKey, getLedgerEntries, getLedgerTip, getManagedGroup, getMovedFromExpiry, getPurchaseByKey, getPurchaseSubscription, getStorePaymentCredit, insertBadgeCode, insertManagedGroup, insertSubscriptionCharge, markOwnerBootstrapped, rebindStorePayment, revokeCode)
-import StoreService.StoreReceipts (StoreChecks (..), StoreCharge (..))
+import StoreService.StoreReceipts (StoreCharge (..))
 import StoreService.Store.Invoices
 import StoreService.Waiters (awaitStatus, newWaiters, publish, waitingCount)
 import StoreService.Web.Http
@@ -89,7 +89,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, takeMVar, withMVar)
 import Control.Concurrent.STM (atomically, modifyTVar', readTVarIO, writeTVar)
 import qualified Control.Exception as E
-import Control.Logger.Simple (LogLevel (..), logNote, setLogLevel)
+import Control.Logger.Simple (LogLevel (..), logError, logNote, setLogLevel)
 import Control.Monad (forM_, join, replicateM, replicateM_, void, when)
 import Data.Aeson ((.=))
 import qualified Data.Aeson as J
@@ -262,8 +262,9 @@ badgeWebTests = do
     it "constructs a Provider record and records every call, in order" testStubProviderRecordsCalls
     it "makes pCreateInvoice fail on demand, so provider_unavailable is exercisable" testStubProviderCreateFailsOnDemand
     it "records nothing when the caller never reaches the provider" testStubProviderNotCalledWhenSkipped
-  describe "store service log capture" $
+  describe "store service log capture" $ do
     it "captures a note as a plain record, though the suite logs at error only" testCaptureSeesNotes
+    it "captures no record logged before the capture" testCaptureOmitsEarlierRecords
   describe "store service web" $ do
     it "serves the shell at / and a hashed asset under /assets" testServesTheBuild
     it "caches by where the file is, not by how the request spelled it" testCachingFollowsTheResolvedPath
@@ -1288,7 +1289,7 @@ testServiceConfig staticDir trustForwarded =
       serviceLogLevel = defaultLogLevel,
       names = Nothing,
       devAcceptUnverifiedStoreReceipts = False,
-      devStoreChecks = ChecksAfterCoverage,
+      devCheckStoreDuringCoverage = False,
       devCreditTestPurchases = False
     }
 
@@ -3345,6 +3346,11 @@ stderrCaptureLock = unsafePerformIO $ newMVar ()
 
 capturingStderr :: IO () -> IO Text
 capturingStderr action = withMVar stderrCaptureLock $ \_ -> do
+  stderrInto flushServiceLog >>= T.hPutStr stderr
+  stderrInto (action >> flushServiceLog)
+
+stderrInto :: IO () -> IO Text
+stderrInto action = do
   createDirectoryIfMissing True "tests/tmp"
   withTempDirectory "tests/tmp" "badge-stderr" $ \dir -> do
     let path = dir </> "stderr.log"
@@ -3352,7 +3358,7 @@ capturingStderr action = withMVar stderrCaptureLock $ \_ -> do
       fd <- handleToFd h
       hFlush stderr
       saved <- IODevice.dup FD.stderr
-      (IODevice.dup2 fd FD.stderr >> setLogLevel defaultLogLevel >> action >> flushServiceLog)
+      (IODevice.dup2 fd FD.stderr >> setLogLevel defaultLogLevel >> action)
         `E.finally` (setLogLevel suiteLogLevel >> hFlush stderr >> IODevice.dup2 saved FD.stderr >> IODevice.close saved)
     T.unlines . filter (not . (flushRecordTag `T.isInfixOf`)) . T.lines . uncolored <$> T.readFile path
 
@@ -3392,6 +3398,15 @@ testCaptureSeesNotes = do
   filter ("store capture probe" `T.isInfixOf`) (T.lines logs) `shouldSatisfy` \case
     [ln] -> "[NOTE " `T.isPrefixOf` ln
     _ -> False
+
+testCaptureOmitsEarlierRecords :: IO ()
+testCaptureOmitsEarlierRecords = do
+  logError "store capture flushed record"
+  threadDelay 100000
+  logError "store capture earlier record"
+  logs <- capturingStderr $ logNote "store capture probe"
+  loggedError "store capture earlier record" logs `shouldBe` False
+  any ("store capture probe" `T.isInfixOf`) (T.lines logs) `shouldBe` True
 
 loggedError :: Text -> Text -> Bool
 loggedError message = any (\l -> "[ERROR " `T.isInfixOf` l && message `T.isInfixOf` l) . T.lines
