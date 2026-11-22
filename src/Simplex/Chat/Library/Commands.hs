@@ -638,9 +638,8 @@ processChatCommand cxt nm = \case
     chatWriteVar chatActivated False
     lift $ setAllExpireCIFlags False
     stopRemoteCtrl
-    ChatController {chatActivated, openStoreTxs} <- ask
-    suspend <- atomically $ ifM (readTVar chatActivated) (pure False) (True <$ (readTVar openStoreTxs >>= checkSTM . (0 ==)))
-    when suspend $ lift $ withAgent' (`suspendAgent` t)
+    asks openStoreTxs >>= \txs -> atomically $ readTVar txs >>= checkSTM . (0 ==)
+    lift $ withAgent' (`suspendAgent` t)
     ok_
   ShowConnectionsDiff showIds -> do
     users <- withFastStore' getUsers
