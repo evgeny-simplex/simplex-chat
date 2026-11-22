@@ -150,7 +150,7 @@ flowchart TD
 
 SimpleX names have two types: `#name` (`NTPublicGroup`) and `@name` (`NTContact`) (simplexmq SimplexName.hs:57-64). A `#name` is resolved to the first link of type `c` in the name record's `simplexChannel` (`resolveNameLink` and `firstNameLink`, Commands.hs:4776-4782, 5290-5295; simplexmq Names/Record.hs:46-60).
 
-With Q11a, `#name` is the name of any public entity: a channel, a public group or a site. The first link of type `c`, `p` or `s` in `simplexChannel` is taken, and the plan is chosen by its type, in place of `CCTChannel` for every `#name` (Commands.hs:4575, 4594-4595, 4659-4662, 4779-4782). The name form of a message link is the same for each type.
+By Q11 (decided), `#name` is the name of any public entity: a channel, a public group or a site. The first link of type `c`, `p` or `s` in `simplexChannel` is taken, and the plan is chosen by its type, in place of `CCTChannel` for every `#name` (Commands.hs:4575, 4594-4595, 4659-4662, 4779-4782). The name form of a message link is the same for each type.
 
 ## Link map
 
@@ -675,10 +675,10 @@ Decided by the maintainer:
 | Q7 | a: agents and bots write links in the text as `[label](link)`, rewritten by the core |
 | Q8 | a, in stage 2: on the board, "waiting for you" of the session is linked to the oldest pending card of the session |
 | Q9 | accepted: the short text is received by everyone who receives the message and by everyone it is forwarded to |
+| Q11 | a: `#name` for any public entity (a channel, a public group or a site), whose kind is given by the type of the resolved link; in the maintainer's words, "Group is a proto-site" |
 
 Open:
 
 | ID | Question | Options and consequences | Recommendation |
 |---|---|---|---|
 | Q10 | `/` after `simplex:` | a. required, as now: one form, interchangeable with the https form by the authority; a link written without `/` is text<br>b. accepted with and without `/`, generated with `/`: a change to each of the five parsers of "Scheme path", and two spellings wherever links are compared<br>c. generated without `/`: earlier clients show every new link as text | a |
-| Q11 | names of public groups and sites | a. `#name` for any public entity, whose kind is given by the type of the resolved link: links of types `c`, `p` and `s` are taken by `firstNameLink`, and the plan is chosen by the type<br>b. a new prefix for sites: a `SimplexNameType` constructor and its character (simplexmq SimplexName.hs:57-64, 151-156), a prefix in the markdown name parser (Markdown.hs:355, 420-434), a field in the name record and the resolver contract (simplexmq Names/Record.hs:46-60), the registry, the apps' name views and connect labels (NewChatView.swift:1410-1419), and earlier apps show the new form as text | a |
