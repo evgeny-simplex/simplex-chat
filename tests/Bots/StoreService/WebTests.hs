@@ -27,6 +27,8 @@ module Bots.StoreService.WebTests
     stubRate,
     invoiceStatus,
     prepareStaticDir,
+    withListener,
+    pollerFor,
     testServiceConfig,
     testBTCPayConfig,
     WebClient,

@@ -33,7 +33,9 @@ import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Clock (NominalDiffTime, UTCTime (..), addUTCTime, diffUTCTime, getCurrentTime, nominalDay)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import qualified Data.Aeson as J
+import qualified Data.Aeson.Key as JK
 import qualified Data.Aeson.KeyMap as KM
+import qualified Data.ByteString.Char8 as B
 import Data.Maybe (fromMaybe, isJust, isNothing, maybeToList)
 import qualified Simplex.Messaging.Crypto as C
 import Simplex.Chat.Badges
@@ -131,6 +133,7 @@ badgeTests = do
     it "error response matches the schema" testErrorResponseJSON
     it "statement entries round-trip, unknown entry types verbatim" testStatementJSON
     it "pins the wire tag of every command, response and error code" testServiceWireTags
+    it "encodes and decodes every message a released client sends or reads as master does" testMasterProtocolFixture
   describe "badge state" $ do
     it "carries a subscription's plan and last seen state, renewing only when it was seen renewing, and bounds a state it does not know" testBadgeSubscriptionJSON
     it "derives one alert for a subscription in order of urgency, dated paidThrough, leaves prepaid alerts as they were, and derives none for a purchase Restore moved away" testSubscriptionAlertDerivation
@@ -1680,6 +1683,68 @@ testServiceWireTags = do
       STETestPurchase -> "test_purchase"
       STEInternal -> "internal"
       STEUnknown t -> t
+
+testMasterProtocolFixture :: IO ()
+testMasterProtocolFixture = do
+  writeFixture "store-service/badge-protocol" $
+    J.object ["requests" J..= J.object [JK.fromText k J..= r | (k, r) <- requests], "answers" J..= J.object [JK.fromText k J..= a | (k, a) <- answers]]
+  mapM_ (roundTrips . snd) requests
+  mapM_ (roundTrips . snd) answers
+  where
+    purchaseKey = protocolKey '\1'
+    otherKey = protocolKey '\2'
+    protocolKey = either error id . strDecode . ("\x30\x2a\x30\x05\x06\x03\x2b\x65\x70\x03\x21\x00" <>) . B.replicate 32
+    masterKey = BadgeMasterKey $ B.replicate 32 '\7'
+    google = SPGoogle {productId = "badge_supporter_01", token = "play-token"}
+    apple = SPApple {jws = "eyJhbGciOiJFUzI1NiJ9.eyJ0cmFuc2FjdGlvbklkIjoiMjAwMDAwMDgxMjM0NTY3MSJ9.c2lnbmVk"}
+    entry n entryType = StatementEntry {entryId = "entry-" <> tshow (n :: Int), changeMonths = 1, balanceMonths = 2, balanceStartTs = at 2026 11 1, balanceAnchorTs = at 2026 10 1, balanceBadgeType = BTSupporter, wasPausedSince = Nothing, createdAt = at 2026 10 1, entryType}
+    balance = BadgeBalance {lastEntry = (entry 0 $ SEDebit SDBadge) {wasPausedSince = Just (at 2026 10 4)}}
+    unknownEntry tag = KM.fromList [("type", J.String tag), ("months", J.Number 1)]
+    entryTypes =
+      map SECredit [SCPayment (Just $ InvoiceId "inv-1"), SCPayment Nothing, SCCode, SCCharge "charge-1", SCSupport, SCTransferIn otherKey, SCOpening, SCUnknown "futureCredit" (unknownEntry "futureCredit")]
+        <> map SEDebit [SDRefund, SDUpgrade otherKey, SDTransferOut otherKey, SDSupport, SDBadge, SDLapse, SDUnknown "futureDebit" (unknownEntry "futureDebit")]
+    credential = BadgeCredential {badgeKeyIdx = 1, masterKey, signature = BBSSignature $ B.replicate 80 '\17', badgeInfo = BadgeInfo {badgeType = BTSupporter, badgeExpiry = at 2026 11 5, badgeExtra = ""}}
+    request cmd = StoreServiceRequest {version = currentStoreServiceVersion, purchaseKey = Just purchaseKey, request = cmd}
+    requests =
+      [ ("redeemBadgeCode", request STCRedeemBadgeCode {masterKey, code = "SB-4K2P7-TQ9M1-ZX3RB-8HJ5W"}),
+        ("purchaseBadge.google", request STCPurchaseBadge {masterKey, payment = google, upgrade = Nothing}),
+        ("purchaseBadge.apple", request STCPurchaseBadge {masterKey, payment = apple, upgrade = Nothing}),
+        ("transferBadge.google", request STCTransferBadge {masterKey, payment = google}),
+        ("transferBadge.apple", request STCTransferBadge {masterKey, payment = apple}),
+        ("upgradeBadgeSubscription", request STCUpgradeBadgeSubscription {payment = apple, balance}),
+        ("issueBadge", request STCIssueBadge {balance})
+      ]
+    noCredential subscription = STPBadgeCredential {credential = Nothing, receipt = Nothing, statement = BadgeStatement {entries = [], previousEntryId = Just "entry-0"}, subscription}
+    answers =
+      [ ("badgeCredential.full", STPBadgeCredential {credential = Just credential, receipt = Just "receipt", statement = BadgeStatement {entries = zipWith entry [1 ..] entryTypes, previousEntryId = Nothing}, subscription = Just SSRenewing}),
+        ("badgeCredential.empty", noCredential Nothing)
+      ]
+        <> [("badgeCredential.subscription." <> textEncode s, noCredential $ Just s) | s <- [SSRenewing, SSCancelled, SSBillingRetry, SSEnded, SSUnknown "paused"]]
+        <> [("error." <> textEncode c, STPError {code = c, message = Nothing, retryAfter = Nothing}) | c <- errorCodes]
+        <> [("error.retryAfter", STPError {code = STERateLimited, message = Just "slow down", retryAfter = Just 60})]
+    errorCodes =
+      [ STEBadRequest,
+        STEUnsupportedVersion,
+        STEUnknownPurchaseKey,
+        STEUnknownOfferId,
+        STEOfferDisabled,
+        STEOfferMismatch,
+        STEProductUnavailable,
+        STEPaymentNotEntitled,
+        STEPaymentPending,
+        STEProviderUnavailable,
+        STEProviderNotConfigured,
+        STERateLimited,
+        STECodeInvalid,
+        STECodeUsed,
+        STECodeExpired,
+        STEReceiptInvalid,
+        STEReceiptUsed,
+        STETransferLimited,
+        STETestPurchase,
+        STEInternal,
+        STEUnknown "future_code"
+      ]
 
 pinsTypeTag :: (HasCallStack, J.ToJSON a, J.FromJSON a) => (a -> T.Text) -> a -> IO ()
 pinsTypeTag tagOf x = do

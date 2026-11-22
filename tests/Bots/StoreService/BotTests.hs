@@ -399,15 +399,19 @@ withStoreServiceVerifier ps verifierOf = withStoreServiceVerifierIO ps (\_ store
 
 -- | For a verifier that reads the service's clock, as the dev mock does.
 withStoreServiceVerifierIO :: HasCallStack => TestParams -> (TestClock -> FakeStore -> IO StoreVerifier) -> (StoreServiceEnv -> IO ()) -> IO ()
-withStoreServiceVerifierIO ps verifierOf test = do
+withStoreServiceVerifierIO ps verifierOf = withSeededStoreService ps verifierOf (\_ _ _ -> pure ())
+
+withSeededStoreService :: HasCallStack => TestParams -> (TestClock -> FakeStore -> IO StoreVerifier) -> (StoreServiceOpts -> BadgeIssuerKey -> DBStore -> IO ()) -> (StoreServiceEnv -> IO ()) -> IO ()
+withSeededStoreService ps verifierOf seed test = do
   Right (pk, sk) <- bbsKeyGen
   clock <- newTestClock
   store <- newFakeStore
   verifier <- verifierOf clock store
   purchaseChecks <- newPurchaseChecks
   let opts = mkStoreServiceOpts ps sk
+      issuerKey = BadgeIssuerKey {keyIdx = testIssuerKeyIdx, secretKey = sk}
       svcCfg = testCfg {badgePublicKeys = M.singleton testIssuerKeyIdx pk, badgeCurrentTime = testClockTime clock}
-  withNewTestChatCfg ps testCfg serviceDbPrefix badgeProfile $ \_ -> pure ()
+  withNewTestChatCfg ps testCfg serviceDbPrefix badgeProfile $ seed opts issuerKey . chatStore . chatController
   -- First start: store service takes the CreateMyAddress branch.
   runStoreService ps verifier svcCfg opts $ \_ -> pure ()
   -- Reopen the DB to read the link the service created.
@@ -424,7 +428,7 @@ withStoreServiceVerifierIO ps verifierOf test = do
   -- Second start: store service takes the ShowMyAddress branch, then serves the test body.
   runStoreService ps verifier svcCfg opts $ \env -> do
     cc <- atomically $ readTMVar $ serviceCC env
-    test StoreServiceEnv {bsIssuerKey = BadgeIssuerKey {keyIdx = testIssuerKeyIdx, secretKey = sk}, bsClock = clock, bsClientCfg = clientCfg, bsAddress = bsLink, bsController = cc, bsStore = store, bsVerifier = verifier, bsPurchaseChecks = purchaseChecks}
+    test StoreServiceEnv {bsIssuerKey = issuerKey, bsClock = clock, bsClientCfg = clientCfg, bsAddress = bsLink, bsController = cc, bsStore = store, bsVerifier = verifier, bsPurchaseChecks = purchaseChecks}
 
 issueCode :: HasCallStack => ChatController -> BadgeType -> Int -> IO BadgeCode
 issueCode cc badgeType months = issueCodeAs cc badgeType months "free"
