@@ -1,6 +1,9 @@
 name: pg-probe-8314
 
 on:
+  push:
+    branches:
+      - pg-probe-8314
   workflow_dispatch:
     inputs:
       scale:
@@ -49,8 +52,8 @@ jobs:
 
       - name: Probe
         env:
-          SCALE: ${{ inputs.scale }}
-          RUNS: ${{ inputs.runs }}
+          SCALE: ${{ inputs.scale || '0.02' }}
+          RUNS: ${{ inputs.runs || '2' }}
         run: >-
           python3 scripts/pg-probe-8314/probe.py
           --master-schema "$RUNNER_TEMP/schemas/master.sql"
