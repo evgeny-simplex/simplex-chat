@@ -696,7 +696,7 @@ struct ChatListView: View {
             switch chatTagsModel.activeFilter {
             case let .presetTag(tag): presetTagMatchesChat(tag, chat.chatInfo, chat.chatStats)
             case let .userTag(tag): chat.chatInfo.chatTags?.contains(tag.chatTagId) == true
-            case .unread: chat.unreadTag == .unread || chat.unreadTag == .highPriority
+            case .unread: chat.unreadTag != .read
             case .none: true
             }
         }
@@ -1293,7 +1293,6 @@ struct TagsView_Previews: PreviewProvider {
         tagsModel.userTags = [
             ChatTag(chatTagId: 1, chatTagText: "Ops", chatTagEmoji: nil),
             ChatTag(chatTagId: 2, chatTagText: "Dev", chatTagEmoji: nil),
-            ChatTag(chatTagId: 3, chatTagText: "News", chatTagEmoji: nil),
             ChatTag(chatTagId: 4, chatTagText: "Bots", chatTagEmoji: nil)
         ]
         tagsModel.unreadTags = [1: 1, 2: 1]

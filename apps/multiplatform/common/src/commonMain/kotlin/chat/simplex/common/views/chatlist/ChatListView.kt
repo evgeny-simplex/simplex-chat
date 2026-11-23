@@ -1624,7 +1624,7 @@ private fun filtered(chat: Chat, activeFilter: ActiveFilter?): Boolean =
   when (activeFilter) {
     is ActiveFilter.PresetTag -> presetTagMatchesChat(activeFilter.tag, chat.chatInfo, chat.chatStats)
     is ActiveFilter.UserTag -> chat.chatInfo.chatTags?.contains(activeFilter.tag.chatTagId) ?: false
-    is ActiveFilter.Unread -> chat.unreadTag == UnreadTag.Unread || chat.unreadTag == UnreadTag.HighPriority
+    is ActiveFilter.Unread -> chat.unreadTag != UnreadTag.Read
     else -> true
   }
 
@@ -1681,7 +1681,7 @@ fun scrollToBottom(scope: CoroutineScope, listState: LazyListState) {
 @Composable
 fun PreviewTagsView() {
   DisposableEffect(Unit) {
-    chatModel.userTags.value = listOf(ChatTag(1, "Work", null), ChatTag(2, "Friends", null), ChatTag(3, "News", null), ChatTag(4, "Family", null))
+    chatModel.userTags.value = listOf(ChatTag(1, "Work", null), ChatTag(2, "Friends", null), ChatTag(4, "Family", null))
     chatModel.unreadTags.putAll(mapOf(1L to 1, 2L to 1))
     chatModel.priorityTags[1L] = 1
     onDispose {
