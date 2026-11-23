@@ -1059,10 +1059,9 @@ struct TagsView: View {
                     ZStack {
                         let priority = (chatTagsModel.priorityTags[tag.chatTagId] ?? 0) > 0
                         let unread = (chatTagsModel.unreadTags[tag.chatTagId] ?? 0) > 0
-                        let silent = (chatTagsModel.silentTags[tag.chatTagId] ?? 0) > 0
-                        let badge = (priority ? Text(verbatim: " ") + Text(Image(systemName: "bell.fill")) : Text(verbatim: unread ? " ●" : silent ? " ○" : "")).font(.footnote)
+                        let badge = (priority ? Text(verbatim: " ") + Text(Image(systemName: "bell.fill")) : Text(verbatim: unread ? " ●" : "")).font(.footnote)
                         (Text(tag.chatTagText).fontWeight(.semibold) + badge).foregroundColor(.clear)
-                        Text(tag.chatTagText).fontWeight(current ? .semibold : .regular).foregroundColor(color) + badge.foregroundColor(unread ? theme.colors.primary : theme.colors.secondary)
+                        Text(tag.chatTagText).fontWeight(current ? .semibold : .regular).foregroundColor(color) + badge.foregroundColor(theme.colors.primary)
                     }
                 }
                 .onTapGesture {
@@ -1299,7 +1298,6 @@ struct TagsView_Previews: PreviewProvider {
         ]
         tagsModel.unreadTags = [1: 1, 2: 1]
         tagsModel.priorityTags = [1: 1]
-        tagsModel.silentTags = [3: 1]
         return ScrollView([.horizontal], showsIndicators: false) { TagsView(parentSheet: .constant(nil), searchText: .constant("")) }
             .padding()
             .environmentObject(tagsModel)
