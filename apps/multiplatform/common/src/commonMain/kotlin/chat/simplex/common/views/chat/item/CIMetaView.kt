@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import chat.simplex.common.model.*
 import chat.simplex.common.platform.appPreferences
 import chat.simplex.common.ui.theme.isInDarkTheme
+import chat.simplex.common.views.helpers.toDp
 import chat.simplex.res.*
 
 @Composable
@@ -96,7 +97,7 @@ private fun CIMetaText(
   val showSignature = appPreferences.privacyShowSignature.state.value
   val showEncryption = appPreferences.privacyShowEncryption.state.value
   if (meta.highPriority) {
-    StatusIconText(painterResource(MR.images.ic_notifications), MaterialTheme.colors.primary)
+    Icon(painterResource(MR.images.ic_notifications_filled), null, Modifier.width(10.5.sp.toDp()).requiredSize(16.sp.toDp()), tint = MaterialTheme.colors.primary)
   }
   if (showEdited && meta.itemEdited) {
     StatusIconText(painterResource(MR.images.ic_edit), color)
@@ -113,7 +114,8 @@ private fun CIMetaText(
     Icon(painterResource(MR.images.ic_arrow_forward), null, Modifier.height(17.dp), tint = MaterialTheme.colors.secondary)
   }
   if (showStatus) {
-    Spacer(Modifier.width(4.dp))
+    val afterBell = meta.highPriority && !(showEdited && meta.itemEdited) && !meta.disappearing && !(showViaProxy && meta.sentViaProxy == true)
+    if (!afterBell) Spacer(Modifier.width(4.dp))
     val statusIcon = meta.statusIcon(MaterialTheme.colors.primary, color, paleColor)
     if (statusIcon != null) {
       val (icon, statusColor) = statusIcon
@@ -186,7 +188,7 @@ private fun reserveSpaceForMeta(
   }
 
   if (meta.highPriority) {
-    spaces(iconSpace)
+    text(iconSpace)
   }
   if (showEdited && meta.itemEdited) {
     spaces(iconSpace)
