@@ -46,8 +46,8 @@ jobs:
       - name: Fetch schemas
         run: |
           mkdir -p "$RUNNER_TEMP/schemas"
-          curl -fsSL -o "$RUNNER_TEMP/schemas/master.sql" "https://raw.githubusercontent.com/simplex-chat/simplex-chat/ddcdc1b504b5599bdf6afc16bb3635293c73e2f2/src/Simplex/Chat/Store/Postgres/Migrations/chat_schema.sql"
-          curl -fsSL -o "$RUNNER_TEMP/schemas/head.sql" "https://raw.githubusercontent.com/evgeny-simplex/simplex-chat/ce36737929883c10f1ba81a86cad735f084e62d1/src/Simplex/Chat/Store/Postgres/Migrations/chat_schema.sql"
+          curl -fsSL -o "$RUNNER_TEMP/schemas/master.sql" "https://raw.githubusercontent.com/evgeny-simplex/simplex-chat/ce36737929883c10f1ba81a86cad735f084e62d1/src/Simplex/Chat/Store/Postgres/Migrations/chat_schema.sql"
+          curl -fsSL -o "$RUNNER_TEMP/schemas/head.sql" "https://raw.githubusercontent.com/evgeny-simplex/simplex-chat/9e370544d134e5866515f57be060d7d6ed7cb081/src/Simplex/Chat/Store/Postgres/Migrations/chat_schema.sql"
           sha256sum "$RUNNER_TEMP/schemas/"*.sql
 
       - name: Probe

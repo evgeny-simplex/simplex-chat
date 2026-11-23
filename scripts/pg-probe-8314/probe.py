@@ -44,11 +44,10 @@ def create_databases(schemas: dict, setup_sql: str):
 def load_data(world: gen_data.World):
     loaded = {}
     for name, db in DBS.items():
-        head = name == "head"
         counts = {}
         with connect(db, autocommit=False) as c:
             for t in world.tables():
-                cols = t.columns + (t.head_columns if head else [])
+                cols = t.columns + t.head_columns
                 n = len(cols)
                 start = time.time()
                 rows = 0
@@ -190,6 +189,8 @@ def measure_read(conns: dict, st: dict, anchors: dict, runs: int) -> dict:
             rows = conns[name].execute(sql).fetchall()
             walls[name].append((time.perf_counter() - start) * 1000)
             result.setdefault("rows", {})[name] = len(rows)
+            result.setdefault("values", {})[name] = [[str(v) for v in row] for row in rows[:3]]
+            result.setdefault("all_values", {})[name] = hash(tuple(tuple(str(v) for v in row) for row in rows))
     for name in texts:
         totals = [r["total_ms"] for r in explains[name]]
         median_index = sorted(range(len(totals)), key=totals.__getitem__)[len(totals) // 2]
