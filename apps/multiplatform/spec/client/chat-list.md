@@ -240,7 +240,7 @@ Layout logic:
 
 - **Single tap:** Toggles the tag filter on `chatModel.activeChatTagFilter`.
 - **Long press / right-click (user tags):** Opens dropdown menu with edit/delete/reorder options.
-- **Unread dot:** Shown on tags that have chats with unread messages.
+- **Unread mark:** a bell when a chat of the tag has unread high priority messages, otherwise "●" when a chat of the tag has unread messages that count; muted chats and chats with only silent unread messages leave the tag unmarked.
 
 <a id="TagListView"></a>
 
