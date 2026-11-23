@@ -1,0 +1,69 @@
+name: pg-probe-8314
+
+on:
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: Share of 1,000,000 chat items
+        default: "1.0"
+      runs:
+        description: Measured runs per statement and database
+        default: "10"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --shm-size=1g
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install driver
+        run: pip install "psycopg[binary]==3.2.3"
+
+      - name: Fetch schemas
+        run: |
+          mkdir -p "$RUNNER_TEMP/schemas"
+          curl -fsSL -o "$RUNNER_TEMP/schemas/master.sql" "https://raw.githubusercontent.com/simplex-chat/simplex-chat/ddcdc1b504b5599bdf6afc16bb3635293c73e2f2/src/Simplex/Chat/Store/Postgres/Migrations/chat_schema.sql"
+          curl -fsSL -o "$RUNNER_TEMP/schemas/head.sql" "https://raw.githubusercontent.com/evgeny-simplex/simplex-chat/ce36737929883c10f1ba81a86cad735f084e62d1/src/Simplex/Chat/Store/Postgres/Migrations/chat_schema.sql"
+          sha256sum "$RUNNER_TEMP/schemas/"*.sql
+
+      - name: Probe
+        env:
+          SCALE: ${{ inputs.scale }}
+          RUNS: ${{ inputs.runs }}
+        run: >-
+          python3 scripts/pg-probe-8314/probe.py
+          --master-schema "$RUNNER_TEMP/schemas/master.sql"
+          --head-schema "$RUNNER_TEMP/schemas/head.sql"
+          --statements scripts/pg-probe-8314/statements.json
+          --setup-sql scripts/pg-probe-8314/setup.sql
+          --scale "$SCALE"
+          --runs "$RUNS"
+          --out "$RUNNER_TEMP/results"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pg-probe-8314-results
+          path: ${{ runner.temp }}/results
