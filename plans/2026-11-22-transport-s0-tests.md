@@ -32,7 +32,7 @@ Status:
 
 | Id | Defect | Repository | Asserts | Status |
 |---|---|---|---|---|
-| T1 | three threads wait on each other (ICAck worker, subscriber, chat send) | simplexmq | sendMessages returns and every flooded message arrives within 10 s | pending until simplex-chat/simplexmq#2079 |
+| T1 | three threads wait on each other (ICAck worker, subscriber, chat send) | simplexmq | sendMessages returns within 10 s; then every flooded message arrives, each within 5 s | pending until simplex-chat/simplexmq#2079 |
 | T2 | group leave holds the group lock across blocking queue writes | simplex-chat | the command returns; a direct message is shown within 10 s | pending |
 | T3 | HELLO acknowledged before the chat handles CON | simplex-chat | after a stop between them, B and C connect and pending group messages are sent | pending |
 | T4 | queue pending after a stop before ACK | simplexmq | after the agent restarts, with and without a server restart: queue active, message redelivered, ACK empties the queue | passes |
@@ -44,13 +44,13 @@ Status:
 | T9 | dead connection kept for 15 minutes | simplexmq | reconnect and receipt within 10 s after forwarding stops | pending |
 | T12 | IPv4 not tried after an IPv6 timeout | simplexmq | connection succeeds within tcpConnectTimeout | pending |
 | T13 | network reported offline without validation | simplexmq | delivery waits userNetworkInterval, then the message is sent | passes |
-| T17 | chunk deadline assumes a minimum throughput | simplexmq | RFDONE or RFERR within 25 s at 512 KB/s | pending |
+| T17 | a slow download fails each chunk attempt, as the chunk deadline assumes a minimum throughput, and stops without RFERR when the file expires | simplexmq | RFDONE or RFERR within 25 s at 512 KB/s; either fix passes it | pending |
 | T18 | retry reuses the replica record read before the first attempt | simplexmq | the file completes with 3 recipients after the first upload is cut | pending |
 | T20 | cancelled upload never reported to the recipient | simplex-chat | the recipient's item ends cancelled | pending |
 | T21 | group leave interrupted between the agent call and the member status | simplex-chat | every member receives the leave, or none | pending |
 | T22 | delivery events queued before the delivery row is deleted | simplexmq | after a kill between them, SENT is received once | pending |
 
-T6, T7, T8, T17 and T20 assert deadlines (decision D6: every unfinished state gets one); durations per state in each test.
+T6, T7, T8, T17 and T20 concern deadlines (decision D6: every unfinished state gets one). T8, T17 and T20 assert the end of their state; T6 and T7 assert master's behaviour until the deadline exists. Durations per state are set in each test.
 
 ## Delay tests
 
