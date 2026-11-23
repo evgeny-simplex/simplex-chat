@@ -97,7 +97,7 @@ private fun CIMetaText(
   val showSignature = appPreferences.privacyShowSignature.state.value
   val showEncryption = appPreferences.privacyShowEncryption.state.value
   if (meta.highPriority) {
-    Icon(painterResource(MR.images.ic_notifications_filled), null, Modifier.width(10.5.sp.toDp()).requiredSize(16.sp.toDp()), tint = MaterialTheme.colors.primary)
+    Icon(painterResource(MR.images.ic_notifications_filled), null, Modifier.width(10.sp.toDp()).requiredSize(15.sp.toDp()), tint = MaterialTheme.colors.primary)
   }
   if (showEdited && meta.itemEdited) {
     StatusIconText(painterResource(MR.images.ic_edit), color)
