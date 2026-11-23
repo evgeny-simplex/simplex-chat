@@ -516,7 +516,7 @@ func connectionLinkPath(_ url: URL) -> String {
 }
 
 func isConnectionLinkPath(_ path: String) -> Bool {
-    path == "/contact" || path == "/invitation" || path == "/a" || path == "/c" || path == "/g" || path == "/i" || path.hasPrefix("/name")
+    path == "/contact" || path == "/invitation" || path == "/a" || path == "/c" || path == "/g" || path == "/i"
 }
 
 // a link type added in a later version reaches this build too, so an unknown path asks for an update

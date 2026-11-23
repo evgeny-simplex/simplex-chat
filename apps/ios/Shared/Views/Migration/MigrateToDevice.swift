@@ -646,7 +646,7 @@ struct MigrateToDevice: View {
 }
 
 func strHasSimplexFileLink(_ text: String) -> Bool {
-    text.starts(with: "simplex:/file") || text.starts(with: "simplex:file") || text.starts(with: "https://simplex.chat/file")
+    text.starts(with: "simplex:/file") || text.starts(with: "https://simplex.chat/file")
 }
 
 private struct PassphraseEnteringView: View {
