@@ -11092,6 +11092,8 @@ testChannels1RelayDeliverHighPriority ps = do
                 chatEvents cc >>= \r -> print ("DIAG " <> n <> " chat events" :: String, r)
               withCCTransaction bob (\db -> DB.query_ db "SELECT delivery_task_id, message_id, task_status, update_notification FROM delivery_tasks ORDER BY delivery_task_id DESC LIMIT 5" :: IO [(Int64, Maybe Int64, T.Text, Int)]) >>= \r -> print ("DIAG bob tasks" :: String, r)
               withCCTransaction bob (\db -> DB.query_ db "SELECT delivery_job_id, job_status, notification FROM delivery_jobs ORDER BY delivery_job_id DESC LIMIT 5" :: IO [(Int64, T.Text, Int)]) >>= \r -> print ("DIAG bob jobs" :: String, r)
+              withCCTransaction alice (\db -> DB.query_ db "SELECT chat_item_id, group_member_id, group_snd_item_status FROM group_snd_item_statuses ORDER BY group_snd_item_status_id DESC LIMIT 4" :: IO [(Int64, Int64, T.Text)]) >>= \r -> print ("DIAG alice item statuses" :: String, r)
+              withCCTransaction alice (\db -> DB.query_ db "SELECT message_id, connection_id, agent_msg_id, delivery_status FROM msg_deliveries ORDER BY msg_delivery_id DESC LIMIT 6" :: IO [(Int64, Int64, Maybe Int64, Maybe T.Text)]) >>= \r -> print ("DIAG alice deliveries" :: String, r)
             checkFlags label cc connId = do
               flags <- lastSndMsgFlags cc connId 6
               let newest = drop (length flags - 1) flags
