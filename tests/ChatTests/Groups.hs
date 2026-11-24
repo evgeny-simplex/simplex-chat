@@ -387,6 +387,7 @@ chatGroupTests = do
         it "should set notification flag of delivered messages" testChannels1RelayDeliverNotification
         it "should deliver silent messages without notification flag" testChannels1RelayDeliverSilent
         it "should deliver high priority messages of the owner" testChannels1RelayDeliverHighPriority
+        forM_ [1 .. 12 :: Int] $ \n -> it ("should deliver high priority messages of the owner, repeat " <> show n) testChannels1RelayDeliverHighPriority
         it "should set notification flag of the owner's raise, not of a repeated high edit" testChannels1RelayDeliverRaise
         it "should report duplicate message delivered by relay" testChannelDuplicateEvent
         describe "should deliver messages in a loop over members" $ do
@@ -11082,13 +11083,14 @@ testChannels1RelayDeliverHighPriority ps = do
         lastSndMsgPriority alice `shouldReturn` Just 1
         threadDelay 1000000
         let agentMsgs cc connId = withCCAgentTransaction cc $ \db ->
-              DB.query db "SELECT msg_flags, substr(msg_body, 1, 240) FROM messages WHERE conn_id = ? AND internal_snd_id IS NOT NULL AND msg_type = ? ORDER BY internal_id DESC LIMIT 5" (connId, Binary ("M" :: ByteString)) :: IO [(T.Text, ByteString)]
+              DB.query db "SELECT internal_id, msg_flags FROM messages WHERE conn_id = ? AND internal_snd_id IS NOT NULL AND msg_type = ? ORDER BY internal_id DESC LIMIT 8" (connId, Binary ("M" :: ByteString)) :: IO [(Int64, T.Text)]
             chatMsgs cc = withCCTransaction cc $ \db ->
-              DB.query_ db "SELECT message_id, msg_sent, chat_msg_event FROM messages ORDER BY message_id DESC LIMIT 8" :: IO [(Int64, Int, T.Text)]
+              DB.query_ db "SELECT message_id, msg_sent, chat_msg_event FROM messages ORDER BY message_id DESC LIMIT 12" :: IO [(Int64, Int, T.Text)]
         agentMsgs alice bobConnId >>= \r -> print ("DIAG alice->bob" :: String, r)
         agentMsgs bob cathConnId >>= \r -> print ("DIAG bob->cath" :: String, r)
         chatMsgs alice >>= \r -> print ("DIAG alice messages" :: String, r)
         chatMsgs bob >>= \r -> print ("DIAG bob messages" :: String, r)
+        chatMsgs cath >>= \r -> print ("DIAG cath messages" :: String, r)
         withCCTransaction bob (\db -> DB.query_ db "SELECT delivery_task_id, message_id, task_status, update_notification FROM delivery_tasks ORDER BY delivery_task_id DESC LIMIT 5" :: IO [(Int64, Maybe Int64, T.Text, Int)]) >>= \r -> print ("DIAG bob tasks" :: String, r)
         withCCTransaction bob (\db -> DB.query_ db "SELECT delivery_job_id, job_status, notification FROM delivery_jobs ORDER BY delivery_job_id DESC LIMIT 5" :: IO [(Int64, T.Text, Int)]) >>= \r -> print ("DIAG bob jobs" :: String, r)
         lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["T"]
