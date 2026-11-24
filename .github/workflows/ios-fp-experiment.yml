@@ -1,0 +1,79 @@
+name: ios-fp-experiment
+
+on:
+  push:
+    branches:
+      - ep/ios-fp-experiment
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-fp-experiment-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+  HOMEBREW_NO_AUTO_UPDATE: 1
+
+jobs:
+  experiment:
+    name: File Provider coordinator in the iOS simulator
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Show runner
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun simctl list runtimes
+
+      - name: Use the macOS 26 SDK
+        run: scripts/ci/ios-sim/use-macos26-sdk.sh
+
+      - name: Stub libraries
+        run: scripts/ci/ios-stub-libs.sh
+
+      - name: Build app
+        run: |
+          xcodebuild build -quiet \
+            -project apps/ios/SimpleX.xcodeproj \
+            -scheme "SimpleX (iOS)" \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            ARCHS=arm64 \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER=
+
+      - name: Show extensions
+        run: |
+          app="$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/SimpleX.app"
+          ls -la "$app/PlugIns"
+          plutil -p "$app/PlugIns/SimpleX FP.appex/Info.plist"
+          codesign -d --entitlements - "$app/PlugIns/SimpleX FP.appex" || true
+          codesign -d --entitlements - "$app/PlugIns/SimpleX NSE.appex" || true
+
+      - name: Install AXe
+        run: scripts/ci/ios-sim/install-axe.sh
+
+      - name: Run experiment
+        timeout-minutes: 60
+        run: scripts/ci/ios-sim/fp-experiment.sh "$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/SimpleX.app" "$RUNNER_TEMP/fp-experiment"
+
+      - name: Upload results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-fp-experiment
+          path: ${{ runner.temp }}/fp-experiment
+          retention-days: 14
+          if-no-files-found: warn

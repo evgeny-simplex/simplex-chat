@@ -33,6 +33,7 @@ struct SimpleXApp: App {
         setDbContainer()
         BGManager.shared.register()
         NtfManager.shared.registerCategories()
+        FPExperiment.shared.start()
     }
 
     var body: some Scene {
@@ -66,6 +67,7 @@ struct SimpleXApp: App {
 // Spec: spec/architecture.md#scenePhaseHandling
                 .onChange(of: scenePhase) { phase in
                     logger.debug("scenePhase was \(String(describing: scenePhase)), now \(String(describing: phase))")
+                    FPExperiment.shared.sceneChanged(phase)
                     AppSheetState.shared.scenePhaseActive = phase == .active
                     switch (phase) {
                     case .background:

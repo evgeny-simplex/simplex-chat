@@ -28,7 +28,10 @@ class ShareViewController: UIHostingController<ShareView> {
 
     override func viewDidLoad() {
         ShareModel.CompletionHandler.isEventLoopEnabled = false
-        model.setup(context: extensionContext!)
+        let context = extensionContext!
+        FPProbe.shared.run(caller: "se", tag: "share", methods: FPProbeMethod.allCases, budget: 3) { _ in
+            DispatchQueue.main.async { self.model.setup(context: context) }
+        }
     }
 
     override func viewWillAppear(_ animated: Bool) {

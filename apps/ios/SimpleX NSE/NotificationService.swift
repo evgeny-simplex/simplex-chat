@@ -310,6 +310,13 @@ class NotificationService: UNNotificationServiceExtension {
     override func didReceive(_ request: UNNotificationRequest, withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void) {
         logger.debug("DEBUGGING: NotificationService.didReceive")
         let receivedNtf = if let ntf_ = request.content.mutableCopy() as? UNMutableNotificationContent { ntf_ } else { UNMutableNotificationContent() }
+        if let tag = request.content.userInfo["fpx"] as? String {
+            FPProbe.shared.run(caller: "nse", tag: tag, methods: FPProbeMethod.allCases, budget: 3) { summary in
+                receivedNtf.body = "FPX nse \(tag): \(summary)"
+                contentHandler(receivedNtf)
+            }
+            return
+        }
         setServiceBestAttemptNtf(receivedNtf)
         self.contentHandler = contentHandler
         registerGroupDefaults()

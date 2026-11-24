@@ -287,6 +287,12 @@
 		E5DDBE702DC4217900A0EFF0 /* NSEAPITypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5DDBE6F2DC4217900A0EFF0 /* NSEAPITypes.swift */; };
 		E5E418012F83D2CA00252B9E /* OnboardingCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E418002F83D2CA00252B9E /* OnboardingCards.swift */; };
 		E5E418022F83D2CA00252B9E /* ChannelWebAccessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E418032F83D2CA00252B9E /* ChannelWebAccessView.swift */; };
+		FC0A00000000000000000011 /* SimpleX FP.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = FC0A00000000000000000001 /* SimpleX FP.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FC0A00000000000000000012 /* FileProviderExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0A00000000000000000002 /* FileProviderExtension.swift */; };
+		FC0A00000000000000000013 /* FPProbeProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0A00000000000000000005 /* FPProbeProtocol.swift */; };
+		FC0A00000000000000000014 /* FPProbeProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0A00000000000000000005 /* FPProbeProtocol.swift */; };
+		FC0A00000000000000000015 /* FPProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0A00000000000000000006 /* FPProbe.swift */; };
+		FC0A00000000000000000016 /* FPExperiment.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0A00000000000000000007 /* FPExperiment.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -346,6 +352,13 @@
 			remoteGlobalIDString = 5CE2BA672845308900EC33A6;
 			remoteInfo = SimpleXChat;
 		};
+		FC0A00000000000000000021 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5CA059BE279559F40002BEB4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FC0A00000000000000000041;
+			remoteInfo = "SimpleX FP";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -368,6 +381,7 @@
 			files = (
 				CEE723B12C3BD3D70009AE93 /* SimpleX SE.appex in Embed App Extensions */,
 				5CE2BA9D284555F500EC33A6 /* SimpleX NSE.appex in Embed App Extensions */,
+				FC0A00000000000000000011 /* SimpleX FP.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -751,6 +765,13 @@
 		E5DDBE6F2DC4217900A0EFF0 /* NSEAPITypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSEAPITypes.swift; sourceTree = "<group>"; };
 		E5E418002F83D2CA00252B9E /* OnboardingCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCards.swift; sourceTree = "<group>"; };
 		E5E418032F83D2CA00252B9E /* ChannelWebAccessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelWebAccessView.swift; sourceTree = "<group>"; };
+		FC0A00000000000000000001 /* SimpleX FP.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "SimpleX FP.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		FC0A00000000000000000002 /* FileProviderExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderExtension.swift; sourceTree = "<group>"; };
+		FC0A00000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FC0A00000000000000000004 /* SimpleX FP.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SimpleX FP.entitlements"; sourceTree = "<group>"; };
+		FC0A00000000000000000005 /* FPProbeProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FPProbeProtocol.swift; sourceTree = "<group>"; };
+		FC0A00000000000000000006 /* FPProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FPProbe.swift; sourceTree = "<group>"; };
+		FC0A00000000000000000007 /* FPExperiment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FPExperiment.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -821,6 +842,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				E5DCF8DB2C56FAC1007928CC /* SimpleXChat.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FC0A00000000000000000043 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -979,6 +1007,7 @@
 				5CA059C2279559F40002BEB4 /* Shared */,
 				5CDCAD462818589900503DA2 /* SimpleX NSE */,
 				CEE723A82C3BD3D70009AE93 /* SimpleX SE */,
+				FC0A00000000000000000031 /* SimpleX FP */,
 				5CA059DA279559F40002BEB4 /* Tests iOS */,
 				E5AEC0C42F9C000100270665 /* SimpleX Snapshots */,
 				4E57A1E70000000000000009 /* SimpleX Unit Tests */,
@@ -995,6 +1024,7 @@
 				5CA059C3279559F40002BEB4 /* SimpleXApp.swift */,
 				5C36027227F47AD5009F19D9 /* AppDelegate.swift */,
 				5CA059C4279559F40002BEB4 /* ContentView.swift */,
+				FC0A00000000000000000007 /* FPExperiment.swift */,
 				5C764E87279CBC8E000C6508 /* Model */,
 				5C2E260D27A30E2400F70299 /* Views */,
 				5CA059C5279559F40002BEB4 /* Assets.xcassets */,
@@ -1016,6 +1046,7 @@
 				5CDCAD452818589900503DA2 /* SimpleX NSE.appex */,
 				5CE2BA682845308900EC33A6 /* SimpleXChat.framework */,
 				CEE723A72C3BD3D70009AE93 /* SimpleX SE.appex */,
+				FC0A00000000000000000001 /* SimpleX FP.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1162,6 +1193,8 @@
 			children = (
 				8C86EBE32C0DAE3700E12243 /* Theme */,
 				5CDCAD5228186F9500503DA2 /* AppGroup.swift */,
+				FC0A00000000000000000005 /* FPProbeProtocol.swift */,
+				FC0A00000000000000000006 /* FPProbe.swift */,
 				5CDCAD7228188CFF00503DA2 /* ChatTypes.swift */,
 				5CDCAD7428188D2900503DA2 /* APITypes.swift */,
 				5C5E5D3C282447AB00B0488A /* CallTypes.swift */,
@@ -1362,6 +1395,16 @@
 			path = "SimpleX SE";
 			sourceTree = "<group>";
 		};
+		FC0A00000000000000000031 /* SimpleX FP */ = {
+			isa = PBXGroup;
+			children = (
+				FC0A00000000000000000004 /* SimpleX FP.entitlements */,
+				FC0A00000000000000000003 /* Info.plist */,
+				FC0A00000000000000000002 /* FileProviderExtension.swift */,
+			);
+			path = "SimpleX FP";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -1396,6 +1439,7 @@
 				5CE2BA6F2845308900EC33A6 /* PBXTargetDependency */,
 				5CE2BA9F284555F500EC33A6 /* PBXTargetDependency */,
 				CEE723B02C3BD3D70009AE93 /* PBXTargetDependency */,
+				FC0A00000000000000000022 /* PBXTargetDependency */,
 			);
 			name = "SimpleX (iOS)";
 			packageProductDependencies = (
@@ -1522,6 +1566,23 @@
 			productReference = CEE723A72C3BD3D70009AE93 /* SimpleX SE.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		FC0A00000000000000000041 /* SimpleX FP */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FC0A00000000000000000051 /* Build configuration list for PBXNativeTarget "SimpleX FP" */;
+			buildPhases = (
+				FC0A00000000000000000042 /* Sources */,
+				FC0A00000000000000000043 /* Frameworks */,
+				FC0A00000000000000000044 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "SimpleX FP";
+			productName = "SimpleX FP";
+			productReference = FC0A00000000000000000001 /* SimpleX FP.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -1559,6 +1620,9 @@
 					4E57A1E7000000000000000A = {
 						CreatedOnToolsVersion = 26.0;
 						TestTargetID = 5CA059C9279559F40002BEB4;
+					};
+					FC0A00000000000000000041 = {
+						CreatedOnToolsVersion = 26.0;
 					};
 				};
 			};
@@ -1606,6 +1670,7 @@
 				4E57A1E7000000000000000A /* SimpleX Unit Tests */,
 				5CDCAD442818589900503DA2 /* SimpleX NSE */,
 				CEE723A62C3BD3D70009AE93 /* SimpleX SE */,
+				FC0A00000000000000000041 /* SimpleX FP */,
 				5CE2BA672845308900EC33A6 /* SimpleXChat */,
 			);
 		};
@@ -1669,6 +1734,13 @@
 				E5DCF9712C590272007928CC /* Localizable.strings in Resources */,
 				E5C0BBEC2F82B45500EA7527 /* SharedAssets.xcassets in Resources */,
 				E5DCF9982C5906FF007928CC /* InfoPlist.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FC0A00000000000000000044 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1906,6 +1978,7 @@
 				642BA82D2CE50495005E9412 /* NewServerView.swift in Sources */,
 				184158C131FDB829D8A117EA /* VideoPlayerView.swift in Sources */,
 				643B3B4E2CCFD6400083A2CF /* OperatorView.swift in Sources */,
+				FC0A00000000000000000016 /* FPExperiment.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1972,6 +2045,8 @@
 				8C74C3E82C1B905B00039E77 /* ChatWallpaperTypes.swift in Sources */,
 				CE2AD9CE2C452A4D00E844E3 /* ChatUtils.swift in Sources */,
 				5CE2BA8E284533A300EC33A6 /* API.swift in Sources */,
+				FC0A00000000000000000014 /* FPProbeProtocol.swift in Sources */,
+				FC0A00000000000000000015 /* FPProbe.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1984,6 +2059,15 @@
 				CE1EB0E42C459A660099D896 /* ShareAPI.swift in Sources */,
 				CEE723F22C3D25ED0009AE93 /* ShareModel.swift in Sources */,
 				CEE723AA2C3BD3D70009AE93 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FC0A00000000000000000042 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FC0A00000000000000000012 /* FileProviderExtension.swift in Sources */,
+				FC0A00000000000000000013 /* FPProbeProtocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2030,6 +2114,11 @@
 			isa = PBXTargetDependency;
 			target = 5CE2BA672845308900EC33A6 /* SimpleXChat */;
 			targetProxy = CEE723D12C3C21C90009AE93 /* PBXContainerItemProxy */;
+		};
+		FC0A00000000000000000022 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FC0A00000000000000000041 /* SimpleX FP */;
+			targetProxy = FC0A00000000000000000021 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -2762,6 +2851,63 @@
 			};
 			name = Release;
 		};
+		FC0A00000000000000000052 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "SimpleX FP/SimpleX FP.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 372;
+				DEVELOPMENT_TEAM = 5NN7GUYB6T;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SimpleX FP/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = SimpleX;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 SimpleX Chat. All rights reserved.";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 7.1.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "chat.simplex.app.SimpleX-FP";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		FC0A00000000000000000053 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "SimpleX FP/SimpleX FP.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 372;
+				DEVELOPMENT_TEAM = 5NN7GUYB6T;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SimpleX FP/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = SimpleX;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 SimpleX Chat. All rights reserved.";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 7.1.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "chat.simplex.app.SimpleX-FP";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -2833,6 +2979,15 @@
 			buildConfigurations = (
 				CEE723B22C3BD3D70009AE93 /* Debug */,
 				CEE723B32C3BD3D70009AE93 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FC0A00000000000000000051 /* Build configuration list for PBXNativeTarget "SimpleX FP" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FC0A00000000000000000052 /* Debug */,
+				FC0A00000000000000000053 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
