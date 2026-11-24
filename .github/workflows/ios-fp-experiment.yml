@@ -31,17 +31,12 @@ jobs:
             runtime: ""
             device: com.apple.CoreSimulator.SimDeviceType.iPhone-17
             artifact: ios-fp-experiment
-            cases: url url-dir url-none service domains
+            cases: launch
           - name: iOS 16.4
             runtime: "16.4"
             device: com.apple.CoreSimulator.SimDeviceType.iPhone-14
             artifact: ios-fp-experiment-ios16
-            cases: url url-dir url-none service domains
-          - name: iOS 15.5
-            runtime: "15.5"
-            device: com.apple.CoreSimulator.SimDeviceType.iPhone-13
-            artifact: ios-fp-experiment-ios15
-            cases: url url-dir url-none domains
+            cases: launch
     steps:
       - name: Checkout code
         uses: actions/checkout@v6

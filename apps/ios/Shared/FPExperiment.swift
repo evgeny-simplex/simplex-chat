@@ -18,8 +18,21 @@ final class FPExperiment {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             fpxLog("notifications", "granted=\(granted ? 1 : 0)")
         }
-        FPProbe.shared.run(caller: "app", tag: "launch", methods: FPProbeMethod.allCases, budget: 5, hold: true) { _ in }
+        launchProbe {}
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.readCommand() }
+    }
+
+    private func launchProbe(_ end: @escaping () -> Void) {
+        let probe = FPProbe.shared
+        probe.run(caller: "app", tag: "launch", methods: [.root], budget: 5, hold: true) { summary in
+            if summary.hasPrefix("root:ok") {
+                probe.run(caller: "app", tag: "launch-methods", methods: [.item, .manager, .restricted], budget: 5) { _ in end() }
+            } else {
+                probe.listDomains(caller: "app", tag: "launch-domains") {
+                    probe.run(caller: "app", tag: "launch-after-domains", methods: FPProbeMethod.allCases, budget: 5, hold: true) { _ in end() }
+                }
+            }
+        }
     }
 
     func sceneChanged(_ phase: ScenePhase) {
@@ -32,6 +45,8 @@ final class FPExperiment {
         let end = { fpxLog("done", "caller=app tag=case-end name=\(name)") }
         fpxLog("case", "name=\(name)")
         switch name {
+        case "launch":
+            launchProbe(end)
         case "url":
             probe.run(caller: "app", tag: "case", methods: [.root], budget: 60) { _ in end() }
         case "url-dir":
