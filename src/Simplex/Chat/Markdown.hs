@@ -37,6 +37,7 @@ import Data.String
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
+import Simplex.Chat.Payments (PaymentRequest)
 import Simplex.Chat.Types
 import Simplex.Messaging.Agent.Protocol (AConnectionLink (..), ConnReqUriData (..), ConnShortLink (..), ConnectionLink (..), ConnectionRequestUri (..), ContactConnType (..), SMPQueue (..), SimplexNameInfo (..), simplexConnReqUri, simplexShortLink)
 import Simplex.Messaging.Encoding.String
@@ -63,6 +64,7 @@ data Format
   | HyperLink {showText :: Maybe Text, linkUri :: Text}
   | SimplexLink {showText :: Maybe Text, linkType :: SimplexLinkType, simplexUri :: AConnectionLink, smpHosts :: NonEmpty Text}
   | SimplexName {nameInfo :: SimplexNameInfo}
+  | PaymentLink {showText :: Maybe Text, payment :: PaymentRequest}
   | Command {commandStr :: Text}
   | Mention {memberName :: Text}
   | Email
@@ -977,6 +979,7 @@ markdownText (FormattedText f_ t) = case f_ of
     HyperLink {} -> t
     SimplexLink {} -> t
     SimplexName {} -> t
+    PaymentLink {} -> t
     Mention _ -> t
     Command _ -> t
     Email -> t
