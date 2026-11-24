@@ -20,11 +20,16 @@ xcrun simctl boot "$base"
 xcrun simctl bootstatus "$base" -b
 xcrun simctl shutdown "$base"
 
+n=0
+names=
 for c in $cases; do
-  dir=$out/$c
+  n=$((n + 1))
+  name=$n-$c
+  names="$names $name"
+  dir=$out/$name
   mkdir -p "$dir"
   info=$dir/case.txt
-  udid=$(xcrun simctl clone "$base" "fpx-$c")
+  udid=$(xcrun simctl clone "$base" "fpx-$name")
   echo "case $c, simulator $udid, $device, $runtime" | tee "$info"
   xcrun simctl boot "$udid"
   xcrun simctl bootstatus "$udid" -b
@@ -60,7 +65,7 @@ for c in $cases; do
   xcrun simctl delete "$udid"
 done
 
-python3 "$(dirname "$0")/fp-first-launch-report.py" "$out" $cases > "$out/report.md"
+python3 "$(dirname "$0")/fp-first-launch-report.py" "$out" $names > "$out/report.md"
 cat "$out/report.md"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   cat "$out/report.md" >> "$GITHUB_STEP_SUMMARY"

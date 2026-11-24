@@ -24,7 +24,7 @@ final class FPExperiment {
 
     private func launchProbe(_ end: @escaping () -> Void) {
         let probe = FPProbe.shared
-        probe.run(caller: "app", tag: "launch", methods: [.root], budget: 5, hold: true) { summary in
+        probe.run(caller: "app", tag: "launch", methods: [.root], budget: 1, hold: true) { summary in
             if summary.hasPrefix("root:ok") {
                 probe.run(caller: "app", tag: "launch-methods", methods: [.item, .manager, .restricted], budget: 5) { _ in end() }
             } else {

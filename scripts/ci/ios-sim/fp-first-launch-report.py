@@ -8,6 +8,8 @@ SYSTEM = [
     ("no-provider", "No provider found with identifier chat.simplex.app.SimpleX-FP"),
     ("entitlement", "missing enumerate entitlement"),
     ("domain-created", "creating default domain for chat.simplex.app.SimpleX-FP"),
+    ("domains-requested", "getDomainsForProviderIdentifier:completionHandler:]"),
+    ("registered", "Registered file provider extension chat.simplex.app.SimpleX-FP"),
     ("extension-loaded", "Loaded extension chat.simplex.app.SimpleX-FP"),
     ("extension-launch", "Launching process with config: bundleID: chat.simplex.app.SimpleX-FP"),
 ]
@@ -94,12 +96,21 @@ def report(out, name):
     start = next((e for e in events if e["ev"] == "storage"), None)
     ok = next((e for e in events if e["ev"] == "result" and e.get("ok") == "1"), None)
     created = first_seen.get("domain-created")
+    registered = first_seen.get("registered")
+    listed = next((e for e in events if e["ev"] == "domains"), None)
+    refused = [e for e in events if e["ev"] == "attempt" and listed and e["t"] < listed["t"]]
     print()
     if start:
         t0 = start["t"]
         print(f"- first lookup: {start['ts']}")
         print(f"- first answer: {ok['ts']}, {ok['t'] - t0:.1f} s after the first lookup, tag {ok.get('tag')}, method {ok.get('method')}" if ok else "- first answer: none")
         print(f"- default domain created: {created['ts']}, {created['t'] - t0:.1f} s after the first lookup, by {created['proc']}" if created else "- default domain created: not logged")
+        if listed:
+            requested = listed["t"] - int(listed.get("ms", "0")) / 1000
+            print(f"- domain list requested {requested - t0:.2f} s after the first lookup, after {len(refused)} failed attempts, returned in {listed.get('ms')} ms")
+            print(f"- extension registered: {registered['ts']}, {registered['t'] - requested:+.3f} s from the domain list request" if registered else "- extension registered: not logged")
+        else:
+            print(f"- extension registered: {registered['ts']}, {registered['t'] - t0:+.3f} s from the first lookup" if registered else "- extension registered: not logged")
     print()
 
 

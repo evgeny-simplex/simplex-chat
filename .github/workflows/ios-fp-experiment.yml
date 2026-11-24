@@ -31,12 +31,12 @@ jobs:
             runtime: ""
             device: com.apple.CoreSimulator.SimDeviceType.iPhone-17
             artifact: ios-fp-experiment
-            cases: launch
+            cases: launch launch launch
           - name: iOS 16.4
             runtime: "16.4"
             device: com.apple.CoreSimulator.SimDeviceType.iPhone-14
             artifact: ios-fp-experiment-ios16
-            cases: launch
+            cases: launch launch launch
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
