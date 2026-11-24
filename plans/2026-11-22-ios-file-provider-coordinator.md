@@ -1,6 +1,6 @@
 # iOS: File Provider extension as the coordinator of the chat database
 
-The app, the notification service extension (NSE) and the share extension (SE) open one chat database in the app group. One process at a time runs the chat core. A new File Provider (FP) extension holds the one record of the current holder and grants the database to each process over XPC. The coordinator is served on the default domain of a non-replicated extension, with nothing listed in the Files app. One experiment on a device confirms the service from each process; then the full design is shipped at once, in place of today's coordination. Files in the Files app are planned later, in replicated domains.
+The app, the notification service extension (NSE) and the share extension (SE) open one chat database in the app group. One process at a time runs the chat core. A new File Provider (FP) extension holds the one record of the current holder and grants the database to each process over XPC. The coordinator is served on the default domain of a non-replicated extension, with nothing listed in the Files app. The experiment in the simulator (5.1) confirmed the service from the app and the SE; the NSE is checked on a device (5.2); then the full design is shipped at once, in place of today's coordination (5.3). Files in the Files app are planned later, in replicated domains.
 
 Line references are to master `8f5dfa3d4` unless another commit is named. Apple text is quoted with its URL; "header" means Apple's iOS SDK header text (iOS 16.2, 26.5 and 27.2 SDKs), read from the mirror https://github.com/xybp888/iOS-SDKs.
 
@@ -74,7 +74,7 @@ The holder is read from app-group settings (AppGroup.swift:183-200). "Declared" 
 | `NSFileProviderManager.default`: "This property returns a manager for the default domain on iOS."; "You can access the default domain in both the containing app and the File Provider extension." | https://developer.apple.com/documentation/fileprovider/nsfileprovidermanager/default |
 | Default file protection: "Complete until first user authentication. (Default) The file is inaccessible until the first time the user unlocks the device." | https://developer.apple.com/documentation/uikit/encrypting-your-app-s-files |
 
-Undocumented, established by the experiment (section 5): the service lookup on the root container; reachability from the SE; latency, idle termination and suspension of the extension; one extension serving the default domain and replicated domains.
+Undocumented, established by the experiment in the simulator (5.1): the service lookup on the root container; reachability from the SE; latency, suspension and relaunch of the extension; the Files app. Left to a device (5.2): reachability from the NSE, memory limit, idle termination over 10–60 minutes, behaviour before the first unlock. Left to the files plan: one extension serving the default domain and replicated domains.
 
 ### 2.2 Proof of concept, 2022
 
@@ -182,7 +182,7 @@ flowchart LR
 
 Domains:
 - A non-replicated extension always has the default domain (`NSFileProviderManager.default`, 2.1); it exists without `NSFileProviderManager.add` ("the default domain can not be added", 2.1).
-- With `NSExtensionFileProviderSupportsEnumeration` false, nothing is listed in the Files app for the default domain (2022 proof of concept, 2.1).
+- With `NSExtensionFileProviderSupportsEnumeration` false, nothing is listed in the Files app for the default domain (2022 proof of concept, 2.1; Browse and its edit mode in the simulator on iOS 26.5 and 16.4, 5.1).
 - Coordination needs no visible domain: the service is attached to the root container of the default domain.
 - Replicated domains for files are added later with `NSFileProviderManager.add`: by the same extension if one extension serves both kinds (experiment E4), otherwise by a second extension target (section 4).
 
@@ -191,7 +191,8 @@ Target:
 - Info.plist: `NSExtensionFileProviderDocumentGroup` `group.chat.simplex.app`; `NSExtensionFileProviderSupportsEnumeration` false.
 - Principal class: a subclass of `NSFileProviderExtension`, as in the 2022 proof of concept; iOS 15 kept (`IPHONEOS_DEPLOYMENT_TARGET = 15.0`, project.pbxproj); iOS 16 comes with the replicated file domains.
 - Items: the root container only; empty lists are returned by the enumerators of the root and the working set.
-- Service `chat.simplex.app.coordinator` from `supportedServiceSources(for: .rootContainer)`; lookup by `FileManager.getFileProviderServicesForItem(at: NSFileProviderManager.default.documentStorageURL)`. If experiment E1 shows that the root container is refused for services, the service is attached to one placeholder item, as in the 2022 proof of concept.
+- Service `chat.simplex.app.coordinator` from `supportedServiceSources(for: .rootContainer)`; lookup by `FileManager.getFileProviderServicesForItem(at: NSFileProviderManager.default.documentStorageURL)`, answered on the root container (5.1).
+- Caller check (question Q21, recommended branch): each request carries `secret`, 32 random bytes from the file `coordinator.secret` in the app group, created with an exclusive create by the first process that reads it absent; the coordinator ignores a request with another secret. A process outside SimpleX reached the service by its URL in the simulator (5.1).
 - The coordinator is one object per extension process, shared by every extension instance.
 - The extension links Foundation and FileProvider only; SimpleXChat.framework, which contains the core, is excluded from it.
 - Shared source files, compiled into SimpleXChat and into the extension:
@@ -326,9 +327,10 @@ Coordinator interface, exported by the extension:
 ```
 acquire(AcquireRequest) -> AcquireReply
 renew(RenewRequest) -> RenewReply
-release(lease: UUID)
+release(ReleaseRequest)
 
 AcquireRequest
+  secret: Data
   request: UUID
   role: Role
   pid: Int32
@@ -340,6 +342,7 @@ AcquireReply
   refused(holder: Role)
 
 RenewRequest
+  secret: Data
   lease: UUID
   role: Role
   releasing: Bool
@@ -347,6 +350,10 @@ RenewRequest
 RenewReply
   valid
   void
+
+ReleaseRequest
+  secret: Data
+  lease: UUID
 ```
 
 Client interface, exported by each process on the same connection:
@@ -358,6 +365,8 @@ granted(request: UUID, lease: UUID)
 
 - Messages are JSON in `Data`, bridged to `NSData`, which conforms to `NSSecureCoding`, as required of parameters by `NSFileProviderService`.
 - The connection sets `remoteObjectInterface`, `exportedInterface`, `exportedObject`, `interruptionHandler` and `invalidationHandler`.
+- The holder keeps the connection of its `granted` until `release`; fileproviderd keeps the extension running while a client holds a service connection (5.1). The holder sends `renew` and `release` on it; a reply absent after 1 s is followed by a new lookup.
+- Every other request is sent on a new lookup and connection, closed after the reply; the lookup resumes a suspended extension (5.1).
 - `interruptionHandler` of a holder: a new service lookup and `renew`; on `void` the process suspends its core with timeout 0.
 - Each process holds at most one lease; the NSE instances of one process share it.
 
@@ -475,15 +484,16 @@ Causes of an unreachable coordinator, each with its mitigation:
 
 | Cause | Mitigation | Evidence |
 |---|---|---|
-| Extension terminated for memory | the coordinator links Foundation and FileProvider only and keeps one holder and its waiters in memory; footprint measured (E5) | limit 20 MB (2.1); the 2022 failure was caused by the full core in the extension (2.2) |
-| Extension crash or termination, an interrupted XPC call | a new lookup and the same request repeated, answered idempotently (3.2); the state written atomically after each transition and read at launch, so a relaunch is transparent (3.3); a holder renews from its `interruptionHandler` (3.4) | "It may be possible to re-establish the connection by simply sending another message" (2.1); "The file provider framework will invoke your file provider extension in response to those calls if appropriate" (header, 2.1); "atomic safe save operations on flat files" (TN2408, 2.3) |
-| Slow launch of the extension | at launch, one small file is read | "An extension that launches too slowly is terminated by the system" (2.1); latency measured (E5) |
-| Extension suspended between calls | a reply absent after 1 s is retried; every transition is computed during a call, without timers (3.3) | undocumented; replies measured after 1, 10 and 60 minutes idle (E5) |
-| First launch | the default domain exists with the extension, without registration; before the app's first launch the NSE receives no notifications, since the push token is registered by the app (AppDelegate.swift:18, SimpleXAPI.swift:2450-2452); the SE acquires the lease before it creates a database (3.5), since a new database is migrated without confirmation (simplexmq Migrations.hs:53) | `NSFileProviderManager.default` (2.1) |
-| Before the first unlock after a restart | the coordinator file and the databases are inaccessible alike; no process opens a database, so nothing is coordinated | default file protection (2.1) |
-| iOS refusing the NSE or the SE as callers | go/no-go result of E1, not a runtime case | header "sibling extensions", DTS thread 760865, the NSE's call in `88c57c82d` (2.1) |
-| Service refused on the root container | result of E1; then one placeholder item (3.1) | the 2022 proof of concept used a placeholder item (2.2) |
-| Domain disabled or removed by the user | a property of added domains only; nothing is listed in the Files app for the default domain | 2.1 |
+| Extension terminated for memory | the coordinator links Foundation and FileProvider only and keeps one holder and its waiters in memory | limit 20 MB (2.1); the 2022 failure was caused by the full core in the extension (2.2); `phys_footprint` of the probe extension 10.4–11.8 MB on iOS 26.5 and 5.7–6.0 MB on iOS 16.4 in the simulator (5.1); device: 5.2 |
+| Extension crash or termination, an interrupted XPC call | a new lookup and the same request repeated, answered idempotently (3.2); the state written atomically after each transition and read at launch, so a relaunch is transparent (3.3); a holder renews from its `interruptionHandler` (3.4) | the holder's `interruptionHandler` ran within 0.2 s of `crash` and of `kill -9`; a call on the held connection failed with NSCocoaErrorDomain 4099 in 3–9 ms; the next lookup started a new process and was answered in 0.17–1.6 s (5.1) |
+| Slow launch of the extension | at launch, one small file is read | "An extension that launches too slowly is terminated by the system" (2.1); relaunch answered in 0.17–1.6 s (5.1) |
+| Extension suspended between calls | the holder keeps its service connection (3.4); other requests use a new lookup, which resumes the extension; a reply absent after 1 s is retried; every transition is computed during a call, without timers (3.3) | RunningBoard suspended the extension 6–17 s after the last client closed its service connection, and fileproviderd kept it running while a client, in foreground or background, held one; a call after suspension was answered in 0.15–0.7 s, a warm call in 6–32 ms (median); no termination in 4–10 minutes idle (5.1) |
+| Extension hung | as for an unanswered call; then the residual below | stopped with SIGSTOP: lookups waited in fileproviderd, no new process was started, calls timed out at the budget, replies arrived after it continued (5.1) |
+| First launch after install or update | the default domain exists with the extension, without registration; requests are retried within the budget, then the process runs by its role (decided, Q1); before the app's first launch the NSE receives no notifications, since the push token is registered by the app (AppDelegate.swift:18, SimpleXAPI.swift:2450-2452); the SE acquires the lease before it creates a database (3.5), since a new database is migrated without confirmation (simplexmq Migrations.hs:53) | lookups were refused ("No valid file provider found", NSCocoaErrorDomain 257) for 4–17 s after the first launch of the app, in one run 58 s (5.1) |
+| Before the first unlock after a restart | the coordinator file and the databases are inaccessible alike; no process opens a database, so nothing is coordinated | default file protection (2.1); device: 5.2 |
+| iOS refusing the NSE or the SE as callers | go/no-go result of E1, not a runtime case | the SE was answered on iOS 26.5 and 16.4 in the simulator (5.1); the NSE: 5.2 |
+| Domain disabled or removed by the user | a property of added domains only | the Files app listed nothing for the extension in Browse and in its edit mode; `pluginkit -e ignore` left the service answered (5.1) |
+| Requests from a process outside SimpleX | the secret (3.1, Q21) | the UI-test runner, without the app group, found the service by the URL and was answered (5.1) |
 
 Retries: a lookup failure, an invalidated connection or a reply absent after 1 s is followed by a new lookup and the same request, every 250 ms, within the process's budget:
 
@@ -495,7 +505,7 @@ Retries: a lookup failure, an invalidated connection or a reply absent after 1 s
 | SE | 2 s, its preempt grace |
 | app refresh | 2 s |
 
-Residual: the budget is spent without a reply. The process then runs without a lease under its own suspension rules, as today without the settings states (1.1), and SQLite serializes the transactions of concurrent cores (2.3, 2.5); the case is logged with its cause (question Q1):
+Residual: the budget is spent without a reply. The process then runs without a lease under its own suspension rules, as today without the settings states (1.1), and SQLite serializes the transactions of concurrent cores (2.3, 2.5); the case is logged with its cause (Q1, decided):
 - the NSE processes the notification and suspends after delivery (NotificationService.swift:659-671);
 - the app starts and suspends in background (SuspendChat.swift:51-55);
 - the SE sends and suspends at completion (ShareAPI.swift:94-116);
@@ -544,42 +554,96 @@ flowchart TB
 
 ```mermaid
 flowchart TD
-  E1{E1: default-domain service answered for the app, the NSE and the SE?}
-  E1 -- on the root container --> F[full design, one pull request]
-  E1 -- on a placeholder item only --> F
-  E1 -- refused to the NSE or the SE --> X[coordination through File Provider not possible: the plan returns to the maintainer]
-  F --> E4{E4: one extension serves the default domain and replicated domains?}
-  E4 -- yes --> N1[file domains later in the same extension]
-  E4 -- no --> N2[file domains later in a second extension]
+  S[5.1 simulator: the app and the SE answered on the root container; Files lists nothing] --> D{5.2 device: the NSE answered?}
+  D -- yes --> Q[Q21 answered]
+  D -- refused --> X[coordination through File Provider not possible: the plan returns to the maintainer]
+  Q --> P[5.3 pull request]
+  P --> T[TestFlight external review]
+  P --> E4{files plan, E4: one extension serves the default domain and replicated domains?}
+  E4 -- yes --> N1[file domains in the same extension]
+  E4 -- no --> N2[file domains in a second extension]
 ```
 
-### Experiment on a device
+Experiment items: E1 the service answered for the app, the NSE and the SE; E2 the Files app lists nothing for the extension; E3 the NSE's call while the app is suspended or terminated, and before and after the first unlock; E4 one extension serving the default domain and a replicated domain (files plan); E5 latency, idle, relaunch after `crash`, memory; E6 TestFlight external review.
 
-Code, on a fork branch, outside master, about 250 lines and the project file:
-- the extension target, non-replicated, default domain, enumeration off, with a `ping` service that returns its process identifier and start time, and a `crash` call for E5;
-- the service on the root container, and on one placeholder item for the second try of E1;
-- the app calls `ping` at launch and at each scene phase change, the NSE at each `didReceive`, the SE at `viewDidLoad`; each call logs the latency, the extension's process identifier and start time, and the error;
-- for E4, a second build of the same extension that also adds one replicated domain.
+### 5.1 Experiment in the simulator
 
-Established, in order, by the maintainer on a device with the oldest and newest supported iOS:
-- E1. `ping` is answered for the app, the NSE and the SE, on the root container or else on the placeholder item. A refusal to the NSE or the SE stops the plan.
-- E2. The Files app lists nothing for the extension, as in 2022.
-- E3. The NSE's `ping` while the app is suspended, while it is terminated, and after a restart before and after the first unlock.
-- E4. One extension serving the default non-replicated domain and a replicated explicit domain; the result applies to the file domains only.
-- E5. Latency of the first and later calls; the extension after 1, 10 and 60 minutes idle (process start time, latency); after `crash`, the extension relaunched at the next call and the repeated request answered; memory footprint.
-- E6. TestFlight external review of the build.
+Branch `ep/ios-fp-experiment` of the fork, not for merging, head `348a926fe`:
+- target "SimpleX FP": non-replicated extension, default domain, enumeration off, display name "SimpleX"; two services on the root container, `chat.simplex.app.probe` and `chat.simplex.app.probe.restricted` (`isRestricted`);
+- `ping` replies with the process identifier, start time, call count and `phys_footprint`; `crash` exits the process; on each `ping` the extension sends `notify` to every other connection that a client holds;
+- callers: the app at launch, at each scene phase and on commands of the CI script; the NSE at each notification; the SE at `viewDidLoad`; the UI-test runner `chat.simplex.Tests-iOS.xctrunner`, without the app group;
+- lookups: `FileManager.getFileProviderServicesForItem(at:)` on the root container and on an item; `NSFileProviderManager.getService(named:for:)` for both services; a refused lookup or a reply absent after 1 s is repeated every 250 ms within 3–5 s;
+- workflow `ios-fp-experiment`: the app with stub core libraries in an iPhone simulator with iOS 26.5 and with iOS 16.4, driven by AXe; the job summary lists the calls, the RunningBoard transitions and the fileproviderd sessions of the extension.
 
-Cost: about half a day of agent work; one iOS build per push, 17.5 min measured (job "macos-latest (iOS)" of run 45003402703); the maintainer's device session and the TestFlight review.
+| Run | Commit | Runtimes |
+|---|---|---|
+| 1: https://github.com/evgeny-simplex/simplex-chat/actions/runs/45303824863 | `32a8becdb` | iOS 26.5 |
+| 3: https://github.com/evgeny-simplex/simplex-chat/actions/runs/45310468346 | `4a264a1a8` | iOS 26.5, iOS 16.4 |
+| 4: https://github.com/evgeny-simplex/simplex-chat/actions/runs/45316906263 | `348a926fe` | iOS 26.5, iOS 16.4 |
 
-### Full design, one pull request
+| Item | Result | Runs |
+|---|---|---|
+| E1, app (3.1) | answered on the root container, iOS 26.5 and 16.4; the item and `getService(named:for:)` answered too | 1, 3, 4 |
+| E1, SE | all four lookups answered: 7–491 ms on iOS 26.5, 3–45 ms on iOS 16.4 | 3, 4 |
+| E1, NSE | not run: `simctl push` adds a local notification request through CoreSimulatorBridge, and the notification is shown without the NSE | 1, 3, 4 |
+| E2 | Browse and its edit mode list iCloud Drive, On My iPhone and Recently Deleted, and nothing for the extension, on iOS 26.5 and 16.4 | 4 |
+| E5, latency | warm call (lookup, connection, reply): median 6–32 ms; after suspension 0.15–0.7 s; first call 4–17 s after the first launch of the app (lookups refused before), 58 s in run 1 | 1, 3, 4 |
+| E5, crash and kill | the holder's `interruptionHandler` within 0.2 s; a call on the held connection failed with NSCocoaErrorDomain 4099; the next lookup started a new process and was answered in 0.17–1.6 s | 1, 3, 4 |
+| E5, idle | suspended by RunningBoard 6–17 s after the last client closed its service connection; running while a client held one (fileproviderd "lifeExtenders=true", in background "background assertion from fileproviderd"); the same process after 4–10 minutes | 1, 3, 4 |
+| E5, memory | `phys_footprint` 10.4–11.8 MB on iOS 26.5, 5.7–6.0 MB on iOS 16.4 | 1, 3, 4 |
+| Hung extension (3.6) | stopped with SIGSTOP: lookups timed out, no new process started, a call on the held connection timed out after 3 s; queued replies arrived after it continued | 1, 3, 4 |
+| Holder notification (3.7) | `notify` reached the holding app in under 1 ms in foreground and in 0.5 s in background; a call on the held connection after 1–7 minutes in background was answered in 1–3 ms | 3, 4 |
+| Restricted service | absent from the URL lookup; answered through `getService(named:for:)` to the app and the SE | 1, 3, 4 |
+| Process outside SimpleX | the UI-test runner found the unrestricted service by the URL and received a reply | 4 |
+| `pluginkit -e ignore` | the service still answered | 1, 3, 4 |
+| App in background, holding a connection | 4 tries of 75 s per runtime, 2 of them holding: no termination; in run 3, iOS 26.5, RunningBoard ended the app 38 s after it went to background for an unended UIKit background task (`CABackingStoreCollect`) while its threads logged nothing | 3, 4 |
 
-- Change: section 3; about 1,100 lines added and 350 removed:
-  - coordinator types, rule table, `decide`, persistence, listener: 350;
-  - extension target, Info.plist, entitlements: 120, and the project file;
-  - `DatabaseLease`: 200;
-  - call sites (3.5): app 80, NSE 60, SE 40;
-  - removed coordination (3.5): 350;
-  - tests: 350.
+In the simulator RunningBoard's resume of the app returned "Operation not permitted" (`pid_resume()`), and the app ran in background; the memory limit is not applied.
+
+### 5.2 Device checks
+
+By the maintainer, with a build of `ep/ios-fp-experiment` with the real core and the team's signing (Xcode creates the App ID `chat.simplex.app.SimpleX-FP` with the app group), on a device with iOS 15 or 16 and on one with iOS 26; Console.app filtered by `subsystem:chat.simplex.fpx`:
+
+| Step | Expected log | Item |
+|---|---|---|
+| App launch | `FPX result caller=app tag=launch method=root ok=1` | E1 |
+| A message received with the app in foreground, in background for 1 minute, and closed in the app switcher | `FPX result caller=nse tag=message method=root ok=1` | E1, E3 |
+| A photo shared to SimpleX | `FPX result caller=se tag=share method=root ok=1` | E1 |
+| Files, Browse, ⋯, Edit | SimpleX absent | E2 |
+| Restart, a message before and after the first unlock | `caller=nse` result | E3 |
+| A message after 10 and 60 minutes without use | `server=`, `totalMs`, `footprint` | E5 |
+| A message right after an update from TestFlight | `attempts`, `totalMs` | 3.6 |
+| TestFlight build for external review | approved | E6 |
+
+The NSE row decides the plan (flowchart above).
+
+### 5.3 Pull request
+
+Branch `ep/ios-file-provider`, one pull request, opened after the NSE check (5.2) and the answer to Q21; about 1,250 lines added and 350 removed:
+
+| Part | Files | Lines |
+|---|---|---|
+| Rules, tests first | `SimpleXChat/CoordinatorTypes.swift`: roles, rule table, state, `decide` returning `grant`; `SimpleX Unit Tests/CoordinatorTests.swift`; the reduced build on this commit shows the failures | 150, 250 |
+| Rules | `decide` of 3.2 | 120 |
+| Extension | target "SimpleX FP" with the project entries of the experiment (`348a926fe`: file references, build phases, configurations, embedding, dependency); Info.plist, entitlements; `SimpleX FP/FileProviderExtension.swift`: root container, empty enumerator, service source; `SimpleX FP/Coordinator.swift`: listener, state, `coordinator.json`, secret check; `SimpleXChat/CoordinatorProtocol.swift`, compiled into SimpleXChat and the extension; scripts/ios/update-version.sh counts 12 lines of each version | 350, project |
+| Client | `SimpleXChat/DatabaseLease.swift`: lookup, held connection, retries and budgets of 3.6, secret file | 200 |
+| Call sites | 3.5, app, NSE, SE | 180 |
+| Removals | 3.5 | −350 |
+| App tests | on recorded core responses, below | 100 |
+| CI | ios-sim smoke test case `coordinator`, from `scripts/ci/ios-sim/fp-experiment.sh`: lease at launch and release in background in the app log; extension killed, then the lease acquired again; extension stopped, then the app proceeds after its budget; the Files app lists nothing; scripts/ci/ios-sim/README.md | 150 |
+| Docs | apps/ios/spec/services/notifications.md, spec/architecture.md, spec/database.md, spec/state.md, spec/impact.md, CODE.md document map, README.md targets | 150 |
+
+```mermaid
+flowchart LR
+  T[rules, tests first] --> R[rules]
+  R --> E[extension]
+  E --> C[client]
+  C --> S[call sites and app tests]
+  S --> X[removals]
+  X --> CI[CI case]
+  CI --> D[docs]
+```
+
 - Tests, in "SimpleX Unit Tests" (hosted by the app, run by build-ios):
   - `decide`, with explicit times, one test per row of 3.2 and per changed cell, and:
     - holder exit grants the waiter;
@@ -588,6 +652,7 @@ Cost: about half a day of agent work; one iOS build per push, 17.5 min measured 
     - an unconfirmed holder is void 1 s after launch; `renew` confirms it;
     - the NSE lease is void 30 s after its last `acquire`;
     - the NSE preempts refresh after 1 s;
+    - a request with another secret changes nothing;
   - app on recorded core responses (the `replay` harness of FileUploadTests.swift):
     - a `yield` from a test coordinator suspends the app with the given timeout, and `release` follows `chatSuspended`;
     - `startChatAndActivate` activates only after `granted`;
@@ -595,9 +660,10 @@ Cost: about half a day of agent work; one iOS build per push, 17.5 min measured 
     - a coordinator without replies: activation without a lease after 3 s;
     - suspend, state set to `.active`, suspend again: at 16 s the state stays `.suspending` (F4); on master the first fallback timer sets `.suspended` (SuspendChat.swift:33, 86-92);
   - failing first: the coordinator types and `decide` returning `grant` are committed with the tests, and the failures are shown by the reduced build on that commit; then the implementation.
-- ios-sim: the app with the extension; the log lines of `acquire` and `release` at start and background are checked by the smoke test. Measured runs: 51 to 80 min (runs 44885982841, 44893347230, 44899749303, 44920386414, 44839507332).
-- Device test plan for the maintainer: notification while the app is suspending; app opened during a notification; share while a notification is processed; share while the app is in background; share during a call; refresh preempted by a notification; extension crashed with `crash` during each.
-- Risks: replies delayed while the extension is suspended between calls (retries, 3.6); latency within the NSE time limit; a chat list read of the SE longer than the NSE's 3 s busy loop (measured in the device tests).
+- ios-sim: the app with the extension and the real core; the case `coordinator` above. Measured runs of ios-sim: 51 to 80 min (runs 44885982841, 44893347230, 44899749303, 44920386414, 44839507332); the experiment's simulator part: 21–33 min after a build of 11–14 min (runs 3, 4).
+- UI: the SE's alert when the app holds the lease for a call (3.2) is rendered as a snapshot preview and given to the maintainer as a question before its code.
+- Device test plan for the maintainer: notification while the app is suspending; app opened during a notification; share while a notification is processed; share while the app is in background; share during a call; refresh preempted by a notification; extension crashed with `crash` during each; the app in background for 1 minute while holding the lease (run 3, 5.1).
+- Risks: the first requests after an install or update run by role (4–17 s in the simulator, 5.1); a suspended holder, checked on a device only (the simulator kept the app running in background, 5.1); latency within the NSE time limit; a chat list read of the SE longer than the NSE's 3 s busy loop (measured in the device tests).
 
 ## 6. Decisions and questions
 
@@ -612,9 +678,11 @@ Decided by the maintainer:
 - Journal mode: DELETE kept; WAL as its own project (2.5).
 - SE with a pending database upgrade: the existing alert "Open the app to upgrade the database".
 - Spotlight and Siri for files: decided with the files plan.
+- Q20 (2026-11-23): Q1, an unreachable coordinator is handled by role (3.6); the File Provider domain is kept if it stays disabled and empty in the Files app; the DELETE journal mode is kept; the SE shows the upgrade alert; Q2, coordination by a non-replicated extension on the default domain.
 
 Questions:
-- Q1. Residual after the mitigations of 3.6, when a process's retry budget is spent without a reply:
-  - a. the process runs without a lease under its own suspension rules, and SQLite serializes the transactions (recommended; notifications are processed and the app is never blocked; risk: two cores at once, as in today's concurrent cells and fallbacks, and a busy error beyond the 3 s loop);
-  - b. the process reads the last-known holder from a file written by the coordinator in the app group and applies `decide` to it; risk: the file is stale exactly while the coordinator is unreachable, so the NSE can refuse while no core runs and deliver a notification unprocessed.
-- Q2. Coordination on the default domain of a non-replicated extension, with nothing listed in the Files app and no registration (recommended, 3.1); replicated domains are added later for files, in the same extension if it serves both kinds (E4), otherwise in a second extension. A replicated domain for coordination would start disabled until the user enables it in the Files app (2.1).
+- Q21. Who may send requests to the coordinator:
+  - a. processes that read the secret in the app group, that is SimpleX's app and extensions; one lookup on iOS 15 and later (recommended, 3.1);
+  - b. on iOS 16 and later the restricted service, answered only to processes that manage the domain; on iOS 15 the unrestricted service, where a process outside SimpleX that has the URL can take or refuse the lease and delay notifications (5.1);
+  - c. the restricted service, with today's coordination kept on iOS 15: two coordination paths.
+- Device checks of 5.2, by the maintainer; the NSE row decides the plan.
