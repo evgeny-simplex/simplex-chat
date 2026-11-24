@@ -134,7 +134,8 @@ final class ProbeServer: NSObject, FPProbeService {
         instances += 1
         let n = instances
         lock.unlock()
-        fpxLog("server-instance", "n=\(n) started=\(startedAt) footprint=\(physFootprint()) storage=\(fpxValue(NSFileProviderManager.default.documentStorageURL.path))")
+        let storage = NSFileProviderManager.default.documentStorageURL.path
+        fpxLog("server-instance", "n=\(n) started=\(startedAt) footprint=\(physFootprint()) storageExists=\(FileManager.default.fileExists(atPath: storage) ? 1 : 0) storage=\(fpxValue(storage))")
     }
 
     func accept(_ connection: NSXPCConnection) {

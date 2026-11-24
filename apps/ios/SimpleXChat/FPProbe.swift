@@ -15,6 +15,12 @@ public enum FPProbeMethod: String, CaseIterable {
     case restricted
 }
 
+public enum FPProbeStorage: String {
+    case directoryAndItem
+    case directory
+    case none
+}
+
 private struct FPProbeError: Error {
     let phase: String
     let text: String
@@ -88,9 +94,9 @@ public final class FPProbe: NSObject, FPProbeClient {
         fpxLog("notify", "caller=\(heldCaller) from=\(r?.caller ?? "?") tag=\(r?.tag ?? "?")")
     }
 
-    public func run(caller: String, tag: String, methods: [FPProbeMethod], budget: Double, hold: Bool = false, completion: @escaping (String) -> Void) {
+    public func run(caller: String, tag: String, methods: [FPProbeMethod], budget: Double, hold: Bool = false, storage: FPProbeStorage = .directoryAndItem, completion: @escaping (String) -> Void) {
         queue.async {
-            self.prepareStorage(caller, tag)
+            self.prepareStorage(caller, tag, storage)
             let results = methods.map { self.probe(caller, tag, $0, budget, hold: hold && $0 == .root) }
             fpxLog("done", "caller=\(caller) tag=\(tag)")
             completion(results.joined(separator: " "))
@@ -148,15 +154,40 @@ public final class FPProbe: NSObject, FPProbeClient {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP_NAME)!.appendingPathComponent("File Provider Storage", isDirectory: true)
     }
 
-    private func prepareStorage(_ caller: String, _ tag: String) {
+    public func listDomains(caller: String, tag: String, completion: @escaping () -> Void) {
+        queue.async {
+            let start = fpxNow()
+            let listed: Result<String, FPProbeError> = fpxWait(10, "domains") { done in
+                NSFileProviderManager.getDomainsWithCompletionHandler { domains, error in
+                    if let error {
+                        done(.failure(FPProbeError("domains", error)))
+                    } else {
+                        done(.success(domains.map(\.identifier.rawValue).joined(separator: ",")))
+                    }
+                }
+            }
+            switch listed {
+            case let .success(ids): fpxLog("domains", "caller=\(caller) tag=\(tag) ok=1 ms=\(fpxMs(start)) count=\(ids.isEmpty ? 0 : ids.split(separator: ",").count) ids=\(fpxValue(ids))")
+            case let .failure(e): fpxLog("domains", "caller=\(caller) tag=\(tag) ok=0 ms=\(fpxMs(start)) error=\(e.text)")
+            }
+            fpxLog("done", "caller=\(caller) tag=\(tag)")
+            completion()
+        }
+    }
+
+    private func rootExists() -> String {
+        FileManager.default.fileExists(atPath: rootURL().path) ? "1" : "0"
+    }
+
+    private func prepareStorage(_ caller: String, _ tag: String, _ storage: FPProbeStorage) {
         let fm = FileManager.default
         let root = rootURL()
         let item = root.appendingPathComponent(fpProbeItemName)
         let rootExisted = fm.fileExists(atPath: root.path)
-        try? fm.createDirectory(at: root, withIntermediateDirectories: true)
         let itemExisted = fm.fileExists(atPath: item.path)
-        if !itemExisted { fm.createFile(atPath: item.path, contents: nil) }
-        fpxLog("storage", "caller=\(caller) tag=\(tag) root=\(fpxValue(root.path)) rootExisted=\(rootExisted ? 1 : 0) itemExisted=\(itemExisted ? 1 : 0)")
+        if storage != .none { try? fm.createDirectory(at: root, withIntermediateDirectories: true) }
+        if storage == .directoryAndItem && !itemExisted { fm.createFile(atPath: item.path, contents: nil) }
+        fpxLog("storage", "caller=\(caller) tag=\(tag) storage=\(storage.rawValue) root=\(fpxValue(root.path)) rootExisted=\(rootExisted ? 1 : 0) itemExisted=\(itemExisted ? 1 : 0) rootExists=\(rootExists()) itemExists=\(fm.fileExists(atPath: item.path) ? 1 : 0)")
     }
 
     private func probe(_ caller: String, _ tag: String, _ method: FPProbeMethod, _ budget: Double, hold: Bool) -> String {
@@ -169,11 +200,11 @@ public final class FPProbe: NSObject, FPProbeClient {
             let attemptStart = fpxNow()
             switch attemptOnce(request, method, remaining: budget - (attemptStart - start), hold: hold) {
             case let .success(s):
-                fpxLog("result", "caller=\(caller) tag=\(tag) method=\(method.rawValue) ok=1 attempts=\(attempt) totalMs=\(fpxMs(start)) lookupMs=\(s.lookupMs) connectMs=\(s.connectMs) replyMs=\(s.replyMs) server=\(s.reply.pid) serverStarted=\(s.reply.startedAt) instances=\(s.reply.instances) calls=\(s.reply.calls) holders=\(s.reply.holders) footprint=\(s.reply.footprint) services=\(s.services) serverStorage=\(fpxValue(s.reply.storage))")
+                fpxLog("result", "caller=\(caller) tag=\(tag) method=\(method.rawValue) ok=1 attempts=\(attempt) totalMs=\(fpxMs(start)) lookupMs=\(s.lookupMs) connectMs=\(s.connectMs) replyMs=\(s.replyMs) server=\(s.reply.pid) serverStarted=\(s.reply.startedAt) instances=\(s.reply.instances) calls=\(s.reply.calls) holders=\(s.reply.holders) footprint=\(s.reply.footprint) rootExists=\(rootExists()) services=\(s.services) serverStorage=\(fpxValue(s.reply.storage))")
                 return "\(method.rawValue):ok:\(s.reply.pid)"
             case let .failure(e):
                 lastError = e
-                fpxLog("attempt", "caller=\(caller) tag=\(tag) method=\(method.rawValue) ok=0 attempt=\(attempt) phase=\(e.phase) ms=\(fpxMs(attemptStart)) error=\(e.text)")
+                fpxLog("attempt", "caller=\(caller) tag=\(tag) method=\(method.rawValue) ok=0 attempt=\(attempt) phase=\(e.phase) ms=\(fpxMs(attemptStart)) rootExists=\(rootExists()) error=\(e.text)")
             }
             Thread.sleep(forTimeInterval: 0.25)
         } while fpxNow() - start < budget

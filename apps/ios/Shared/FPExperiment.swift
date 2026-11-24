@@ -6,8 +6,15 @@ import SimpleXChat
 final class FPExperiment {
     static let shared = FPExperiment()
     private var timer: Timer?
+    private var caseName: String?
 
     func start() {
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "-fpxCase"), i + 1 < args.count {
+            caseName = args[i + 1]
+            runCase(args[i + 1])
+            return
+        }
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             fpxLog("notifications", "granted=\(granted ? 1 : 0)")
         }
@@ -16,7 +23,35 @@ final class FPExperiment {
     }
 
     func sceneChanged(_ phase: ScenePhase) {
+        guard caseName == nil else { return }
         FPProbe.shared.run(caller: "app", tag: "scene-\(phase)", methods: [.root], budget: 3) { _ in }
+    }
+
+    private func runCase(_ name: String) {
+        let probe = FPProbe.shared
+        let end = { fpxLog("done", "caller=app tag=case-end name=\(name)") }
+        fpxLog("case", "name=\(name)")
+        switch name {
+        case "url":
+            probe.run(caller: "app", tag: "case", methods: [.root], budget: 60) { _ in end() }
+        case "url-dir":
+            probe.run(caller: "app", tag: "case", methods: [.root], budget: 60, storage: .directory) { _ in end() }
+        case "url-none":
+            probe.run(caller: "app", tag: "case", methods: [.root], budget: 30, storage: .none) { _ in
+                probe.run(caller: "app", tag: "case-after", methods: [.root], budget: 30, storage: .directory) { _ in end() }
+            }
+        case "service":
+            probe.run(caller: "app", tag: "case", methods: [.manager], budget: 30, storage: .none) { _ in
+                probe.run(caller: "app", tag: "case-after", methods: [.root], budget: 30, storage: .none) { _ in end() }
+            }
+        case "domains":
+            probe.listDomains(caller: "app", tag: "case-domains") {
+                probe.run(caller: "app", tag: "case", methods: [.root], budget: 60) { _ in end() }
+            }
+        default:
+            fpxLog("case", "unknown=\(name)")
+            end()
+        }
     }
 
     private func readCommand() {

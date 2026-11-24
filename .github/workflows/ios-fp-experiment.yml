@@ -15,6 +15,7 @@ concurrency:
 env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
   HOMEBREW_NO_AUTO_UPDATE: 1
+  FPX_SCRIPT: scripts/ci/ios-sim/fp-first-launch.sh
 
 jobs:
   experiment:
@@ -30,10 +31,17 @@ jobs:
             runtime: ""
             device: com.apple.CoreSimulator.SimDeviceType.iPhone-17
             artifact: ios-fp-experiment
+            cases: url url-dir url-none service domains
           - name: iOS 16.4
             runtime: "16.4"
             device: com.apple.CoreSimulator.SimDeviceType.iPhone-14
             artifact: ios-fp-experiment-ios16
+            cases: url url-dir url-none service domains
+          - name: iOS 15.5
+            runtime: "15.5"
+            device: com.apple.CoreSimulator.SimDeviceType.iPhone-13
+            artifact: ios-fp-experiment-ios15
+            cases: url url-dir url-none domains
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -90,7 +98,8 @@ jobs:
         env:
           SIM_DEVICE: ${{ matrix.device }}
           FPX_DERIVED: ${{ runner.temp }}/DerivedData
-        run: scripts/ci/ios-sim/fp-experiment.sh "$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/SimpleX.app" "$RUNNER_TEMP/fp-experiment"
+          FPX_CASES: ${{ matrix.cases }}
+        run: '"$FPX_SCRIPT" "$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/SimpleX.app" "$RUNNER_TEMP/fp-experiment"'
 
       - name: Upload results
         if: ${{ !cancelled() }}
