@@ -9901,10 +9901,12 @@ testChannels1RelayDeliverNotification ps =
             cathConnId <- relayConnIdToMember bob "cath"
             danConnId <- relayConnIdToMember bob "dan"
             eveConnId <- relayConnIdToMember bob "eve"
+            bobConnId <- relayConnIdToMember alice "bob"
 
             alice #> "#team hi"
             bob <# "#team> hi"
             [cath, dan, eve] *<# "#team> hi [>>]"
+            lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["T"]
             forM_ [cathConnId, danConnId, eveConnId] $ \connId ->
               lastSndMsgFlags bob connId 1 `shouldReturn` ["T"]
             lastJobNotification bob `shouldReturn` True
