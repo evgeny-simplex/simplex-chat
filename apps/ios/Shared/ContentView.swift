@@ -509,12 +509,12 @@ func isAppLink(_ url: URL) -> Bool {
 }
 
 private func connectionLinkPath(_ url: URL) -> String {
-    url.path.hasPrefix("/") ? url.path : "/" + (URLComponents(url: url, resolvingAgainstBaseURL: false)?.path ?? "")
+    url.path
 }
 
 func openedConnectionLink(_ url: URL) -> String? {
     var path = connectionLinkPath(url)
-    guard path == "/contact" || path == "/invitation" || path == "/a" || path == "/c" || path == "/g" || path == "/i" || path.hasPrefix("/name") else { return nil }
+    guard path == "/contact" || path == "/invitation" || path == "/a" || path == "/c" || path == "/g" || path == "/i" else { return nil }
     path.removeFirst()
     return url.absoluteString.replacingOccurrences(of: "///\(path)", with: "/\(path)")
 }
