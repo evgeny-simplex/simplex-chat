@@ -6308,18 +6308,18 @@ testGroupMsgForwardSilent ps = do
       withNewTestChatCfg ps cfg "cath" cathProfile $ \cath -> do
         createGroup3 "team" alice bob cath
         setupGroupForwarding alice bob cath
-        forM_ [alice, cath] $ \cc -> do
-          cc ##> "/set receipts all off"
-          cc <## "ok"
+        cath ##> "/set receipts all off"
+        cath <## "ok"
         aliceConnId <- relayConnIdToMember bob "alice"
         cathConnId <- relayConnIdToMember alice "cath"
 
-        bob ##> "/_send #1 json [{\"msgContent\": {\"type\": \"text\", \"text\": \"hi there\"}, \"priority\": -1}]"
-        bob <# "#team hi there"
+        whileSuspended alice $ do
+          bob ##> "/_send #1 json [{\"msgContent\": {\"type\": \"text\", \"text\": \"hi there\"}, \"priority\": -1}]"
+          bob <# "#team hi there"
+          lastSndMsgFlags bob aliceConnId 1 `shouldReturn` ["F"]
         alice <# "#team bob> hi there"
         cath <# "#team bob> hi there [>>]"
         lastSndMsgPriority bob `shouldReturn` Just (-1)
-        lastSndMsgFlags bob aliceConnId 1 `shouldReturn` ["F"]
         lastSndMsgFlags alice cathConnId 1 `shouldReturn` ["F"]
         lastJobNotification alice `shouldReturn` False
         forM_ [alice, bob, cath] $ \cc ->
@@ -6378,16 +6378,15 @@ testGroupHighPriority =
     \alice bob cath -> do
       createGroup3' "team" alice (bob, GRMember) (cath, GRMember)
       threadDelay 1000000
-      bob ##> "/set receipts all off"
-      bob <## "ok"
       bobConnId <- relayConnIdToMember alice "bob"
 
-      alice ##> "/_send #1 json [{\"msgContent\": {\"type\": \"text\", \"text\": \"done\"}, \"priority\": 1}]"
-      alice <# "#team !! done"
+      whileSuspended bob $ do
+        alice ##> "/_send #1 json [{\"msgContent\": {\"type\": \"text\", \"text\": \"done\"}, \"priority\": 1}]"
+        alice <# "#team !! done"
+        lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["T"]
       bob <# "#team alice!!> done"
       cath <# "#team alice!!> done"
       lastSndMsgPriority alice `shouldReturn` Just 1
-      lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["T"]
       forM_ [alice, bob, cath] $ \cc ->
         itemPriority cc "/_get chat #1 count=1" `shouldReturn` MPHigh
       doneId <- lastItemId bob
@@ -11048,18 +11047,18 @@ testChannels1RelayDeliverSilent ps = do
       withNewTestChatCfg ps cfg "cath" cathProfile $ \cath -> do
         (shortLink, fullLink) <- prepareChannel1Relay "team" alice bob
         memberJoinChannel "team" [bob] [alice] shortLink fullLink cath
-        forM_ [bob, cath] $ \cc -> do
-          cc ##> "/set receipts all off"
-          cc <## "ok"
+        cath ##> "/set receipts all off"
+        cath <## "ok"
         bobConnId <- relayConnIdToMember alice "bob"
         cathConnId <- relayConnIdToMember bob "cath"
 
-        alice ##> "/_send #1(as_group=on) json [{\"msgContent\": {\"type\": \"text\", \"text\": \"hi\"}, \"priority\": -1}]"
-        alice <# "#team hi"
+        whileSuspended bob $ do
+          alice ##> "/_send #1(as_group=on) json [{\"msgContent\": {\"type\": \"text\", \"text\": \"hi\"}, \"priority\": -1}]"
+          alice <# "#team hi"
+          lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["F"]
         bob <# "#team> hi"
         cath <# "#team> hi [>>]"
         lastSndMsgPriority alice `shouldReturn` Just (-1)
-        lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["F"]
         lastSndMsgFlags bob cathConnId 1 `shouldReturn` ["F"]
         lastJobNotification bob `shouldReturn` False
         forM_ [alice, bob, cath] $ \cc ->
@@ -11074,18 +11073,18 @@ testChannels1RelayDeliverHighPriority ps = do
       withNewTestChatCfg ps cfg "cath" cathProfile $ \cath -> do
         (shortLink, fullLink) <- prepareChannel1Relay "team" alice bob
         memberJoinChannel "team" [bob] [alice] shortLink fullLink cath
-        forM_ [bob, cath] $ \cc -> do
-          cc ##> "/set receipts all off"
-          cc <## "ok"
+        cath ##> "/set receipts all off"
+        cath <## "ok"
         bobConnId <- relayConnIdToMember alice "bob"
         cathConnId <- relayConnIdToMember bob "cath"
 
-        alice ##> "/_send #1(as_group=on) json [{\"msgContent\": {\"type\": \"text\", \"text\": \"hi\"}, \"priority\": 1}]"
-        alice <# "#team !! hi"
+        whileSuspended bob $ do
+          alice ##> "/_send #1(as_group=on) json [{\"msgContent\": {\"type\": \"text\", \"text\": \"hi\"}, \"priority\": 1}]"
+          alice <# "#team !! hi"
+          lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["T"]
         bob <# "#team!!> hi"
         cath <# "#team!!> hi [>>]"
         lastSndMsgPriority alice `shouldReturn` Just 1
-        lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["T"]
         lastSndMsgFlags bob cathConnId 1 `shouldReturn` ["T"]
         lastJobNotification bob `shouldReturn` True
         forM_ [alice, bob, cath] $ \cc ->

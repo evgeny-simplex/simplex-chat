@@ -1067,14 +1067,13 @@ testDirectSilentMessage ps = do
   withNewTestChat ps "alice" aliceProfile $ \alice ->
     withNewTestChatCfg ps cfg "bob" bobProfile $ \bob -> do
       connectUsers alice bob
-      bob ##> "/set receipts all off"
-      bob <## "ok"
       [Only bobConnId] <- withCCTransaction alice $ \db -> DB.query_ db "SELECT agent_conn_id FROM connections WHERE contact_id IS NOT NULL"
       let sendWithPriority t p flag sent stored = do
-            alice ##> ("/_send @2 json [{\"msgContent\": {\"type\": \"text\", \"text\": \"" <> t <> "\"}, \"priority\": " <> show (p :: Int) <> "}]")
-            alice <# ("@bob " <> t)
+            whileSuspended bob $ do
+              alice ##> ("/_send @2 json [{\"msgContent\": {\"type\": \"text\", \"text\": \"" <> t <> "\"}, \"priority\": " <> show (p :: Int) <> "}]")
+              alice <# ("@bob " <> t)
+              lastSndMsgFlags alice bobConnId 1 `shouldReturn` [flag]
             bob <# ("alice> " <> t)
-            lastSndMsgFlags alice bobConnId 1 `shouldReturn` [flag]
             lastSndMsgPriority alice `shouldReturn` sent
             forM_ [alice, bob] $ \cc -> itemPriority cc "/_get chat @2 count=1" `shouldReturn` stored
 
@@ -1094,9 +1093,10 @@ testDirectSilentMessage ps = do
       bob <# "alice> [edited] hello again!"
       lastSndEventPriority alice "x.msg.update" `shouldReturn` Nothing
       forM_ [alice, bob] $ \cc -> itemPriority cc "/_get chat @2 count=1" `shouldReturn` MPNormal
-      alice #> "@bob bye"
+      whileSuspended bob $ do
+        alice #> "@bob bye"
+        lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["T"]
       bob <# "alice> bye"
-      lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["T"]
       readTVarIO rcvItems `shouldReturn` [("hi", MPSilent), ("hello again", MPNormal), ("bye", MPNormal)]
 
 testDirectSilentMessageTerminal :: HasCallStack => TestParams -> IO ()

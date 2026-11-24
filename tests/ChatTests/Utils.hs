@@ -14,6 +14,7 @@ import ChatTests.DBUtils
 import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay)
 import Control.Concurrent.Async (concurrently_, mapConcurrently_, race_, wait, withAsync)
 import Control.Concurrent.STM
+import Control.Exception (bracket_)
 import Control.Monad (join, unless, when)
 import Control.Monad.Except (runExceptT)
 import qualified Data.Aeson as J
@@ -48,6 +49,7 @@ import Simplex.Chat.Types.Preferences
 import Simplex.Chat.Types.Shared
 import Simplex.Chat.Types.UITheme (ChatLayout)
 import Simplex.FileTransfer.Description (FileSize (..))
+import Simplex.Messaging.Agent (foregroundAgent, suspendAgent)
 import Simplex.Messaging.Agent.Client (agentClientStore)
 import Simplex.Messaging.Agent.Store.AgentStore (maybeFirstRow, withTransaction)
 import qualified Simplex.Messaging.Agent.Store.DB as DB
@@ -683,6 +685,9 @@ holdDuring hold action = do
   withAsync (hold $ putMVar held () >> takeMVar release) $ \holder -> do
     timeout 30000000 (race_ (takeMVar held) (wait holder)) `shouldReturn` Just ()
     action <* (putMVar release () >> wait holder)
+
+whileSuspended :: TestCC -> IO a -> IO a
+whileSuspended TestCC {chatController = ChatController {smpAgent}} = bracket_ (suspendAgent smpAgent 0) (foregroundAgent smpAgent)
 
 checkPendingInvitations :: HasCallStack => TestCC -> Int -> IO ()
 checkPendingInvitations cc n =
