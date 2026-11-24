@@ -115,6 +115,16 @@ public final class FPProbe: NSObject, FPProbeClient {
         }
     }
 
+    public func release(caller: String, tag: String, completion: @escaping () -> Void) {
+        queue.async {
+            fpxLog("release", "caller=\(caller) tag=\(tag) held=\(self.held == nil ? 0 : 1)")
+            self.held?.invalidate()
+            self.held = nil
+            fpxLog("done", "caller=\(caller) tag=\(tag)")
+            completion()
+        }
+    }
+
     public func crash(caller: String, tag: String, completion: @escaping () -> Void) {
         queue.async {
             let request = FPProbeRequest(caller: caller, tag: tag, hold: false)

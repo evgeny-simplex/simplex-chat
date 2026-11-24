@@ -75,6 +75,27 @@ fp_ps() {
   note "extension process: $(ps -o pid=,lstart=,etime=,stat=,rss= -p "$pid")"
 }
 
+app_pid() {
+  pgrep -n -f "SimpleX.app/SimpleX$"
+}
+
+background_case() {
+  local name=$1 mode=$2 before after kills
+  run_app_cmd "$name" 30 "$mode" root 5
+  before=$(app_pid)
+  kills=$(grep -c "Terminating with context" "$UI_OUT/system.log" || true)
+  xcrun simctl launch "$SIM_UDID" com.apple.Preferences > /dev/null
+  sleep 75
+  after=$(app_pid || true)
+  note "$name ($mode): app pid before $before, after 75 s in background ${after:-none}, new RunningBoard terminations: $(($(grep -c "Terminating with context" "$UI_OUT/system.log" || true) - kills))"
+  xcrun simctl terminate "$SIM_UDID" com.apple.Preferences 2> /dev/null || true
+  xcrun simctl launch "$SIM_UDID" "$bundle_id" > /dev/null
+  sleep 4
+  if [ "$mode" = hold ]; then
+    run_app_cmd "$name-held" 15 held - 3
+  fi
+}
+
 allow_notifications() {
   local deadline=$((SECONDS + 30)) element
   while [ "$SECONDS" -lt "$deadline" ]; do
@@ -127,6 +148,10 @@ open_share_extension() {
       fi
       note "share sheet entry off screen: $line"
       "$ui" swipe 350 "$cy" 60 "$cy"
+    elif [ "$i" -eq 1 ] && line=$("$ui" tree | grep -E '^Button "Activity" ' | sed -n 2p) && [ -n "$line" ]; then
+      note "share sheet entry without a label, the second app: $line"
+      tap_line "$line"
+      return 0
     elif [ "$i" -le 2 ]; then
       "$ui" swipe 350 600 60 600
     elif [ "$i" -eq 3 ]; then
@@ -143,7 +168,7 @@ open_share_extension() {
 finish() {
   "$ui" shot final > /dev/null 2>&1 || true
   kill "$fpx_log_pid" "$sys_log_pid" "$app_log_pid" 2> /dev/null || true
-  find ~/Library/Logs/DiagnosticReports -name '*SimpleX*' -newer "$app" 2> /dev/null | while read -r report; do
+  find ~/Library/Logs/DiagnosticReports \( -name '*SimpleX*' -o -name '*Tests iOS*' \) -newer "$app" 2> /dev/null | while read -r report; do
     cp "$report" "$UI_OUT/"
   done
   python3 "$(dirname "$0")/fp-report.py" "$log" "$UI_OUT/system.log" "$steps" > "$UI_OUT/report.md"
@@ -197,6 +222,13 @@ step "nse by simctl push"
 push fg 20
 "$ui" shot nse-fg
 
+step "app in background without and with a held connection"
+background_case bg-a1 release
+background_case bg-b1 hold
+background_case bg-a2 release
+background_case bg-b2 hold
+fp_ps
+
 step "share extension while the app holds a connection in background"
 run_app_cmd hold2 30 hold root 5
 xcrun simctl addmedia "$SIM_UDID" "$fixtures/test.jpg"
@@ -239,17 +271,25 @@ sleep 6
 dismiss_system_sheets
 "$ui" shot files
 "$ui" tap Browse 5 > /dev/null 2>&1 || true
-sleep 2
-"$ui" tap Browse 3 > /dev/null 2>&1 || true
-sleep 2
+sleep 3
+dismiss_system_sheets
+back=$("$ui" tree | grep -E '^Button "(Browse|Back)" ' | head -n 1)
+if [ -n "$back" ]; then
+  read -r cx cy < <(element_center "$back")
+  if [ "$cy" -lt 200 ]; then
+    note "back to the locations: $back"
+    "$ui" tap-xy "$cx" "$cy"
+    sleep 3
+  fi
+fi
 "$ui" shot files-browse
 note "Files, Browse, elements with SimpleX: $("$ui" tree | grep -cF SimpleX)"
-"$ui" tree | grep -E 'SimpleX|Switch|Locations|On My' | tee -a "$steps"
+"$ui" tree | grep -E 'SimpleX|Switch|Locations|On My|iCloud|Recently' | tee -a "$steps"
 if "$ui" tap More 3 > /dev/null 2>&1; then
   sleep 1
   "$ui" shot files-more
 fi
-"$ui" tap Edit 3 > /dev/null 2>&1 || true
+"$ui" tap Edit 3 > /dev/null 2>&1 || "$ui" tap "Edit Sidebar" 3 > /dev/null 2>&1 || true
 sleep 2
 "$ui" shot files-edit
 note "Files, edit mode, elements with SimpleX: $("$ui" tree | grep -cF SimpleX)"

@@ -39,6 +39,8 @@ final class FPExperiment {
             FPProbe.shared.run(caller: "app", tag: tag, methods: Array(repeating: .root, count: Int(arg) ?? 10), budget: budget) { _ in }
         case "held":
             FPProbe.shared.pingHeld(caller: "app", tag: tag, timeout: budget) {}
+        case "release":
+            FPProbe.shared.release(caller: "app", tag: tag) {}
         case "crash":
             FPProbe.shared.crash(caller: "app", tag: tag) {}
         default:

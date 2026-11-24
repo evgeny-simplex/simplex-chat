@@ -5,7 +5,7 @@ import sys
 
 LINE = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+)\S*\s+\S+\s+(.+?)\[(\d+):[0-9a-fx]+\]\s+(?:\[[^\]]*\]\s+)?FPX (\S+)(.*)$")
 SYSTEM_WORDS = re.compile(r"suspend|resum|terminat|launch|exit|kill|jetsam|assertion|invalid|denied|error|fail", re.I)
-RB_WHO = re.compile(r"\[(?:xpcservice|app)<(chat\.simplex\.app[A-Za-z.-]*)")
+RB_WHO = re.compile(r"\[(?:xpcservice|app|application)<(chat\.simplex\.app[A-Za-z.-]*)")
 RB_WHAT = re.compile(r"[\]}>]:(\d+)\] (Suspending|Resuming|[Tt]erminat\w*|Process exited|Shutdown)")
 FPD_SESSION = re.compile(r"(inFlightRequest=\w+, lifeExtenders=\w+|because [^#]*)")
 
@@ -26,7 +26,7 @@ def parse(path):
 
 def table(header, rows):
     out = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
-    out += ["| " + " | ".join(str(c) for c in row) + " |" for row in rows]
+    out += ["| " + " | ".join(str(c).replace("|", "/") for c in row) + " |" for row in rows]
     return "\n".join(out)
 
 
@@ -97,8 +97,8 @@ def main():
     print(table(["time", "process", "event", "caller or peer", "phase", "ms"], rows) if rows else "none")
 
     print("\n## Process outside SimpleX\n")
-    rows = [[e["ts"], e["proc"], e.get("ms"), e.get("result")] for e in events if e["event"] == "foreign"]
-    print(table(["time", "process", "ms", "result"], rows) if rows else "none")
+    rows = [[e["ts"], e["proc"], e["event"], " ".join(f"{k}={v}" for k, v in e.items() if k not in ("ts", "proc", "event", "pid"))[:300]] for e in events if e["event"].startswith("foreign")]
+    print(table(["time", "process", "event", "fields"], rows) if rows else "none")
 
     print("\n## Extension entry points\n")
     counts = collections.Counter((e["event"], e.get("id", e.get("service", ""))) for e in events if e["event"] in ("server-identifier", "server-sources", "server-endpoint", "server-accept", "server-enumerator", "server-item", "server-placeholder", "server-provide"))
@@ -121,6 +121,10 @@ def main():
         if who and what:
             rows.append([raw[11:23], who.group(1), what.group(1), what.group(2)])
     print(table(["time", "process", "pid", "transition"], rows) if rows else "none")
+
+    print("\n## Terminations by RunningBoard\n")
+    rows = [[raw[11:23], raw[raw.find("Terminating with context"):][:260]] for raw in system if "runningboardd" in raw and "Terminating with context" in raw and "chat.simplex" in raw]
+    print(table(["time", "context"], rows) if rows else "none")
 
     print("\n## fileproviderd sessions of the extension\n")
     rows = []
