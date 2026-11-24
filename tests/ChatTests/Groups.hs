@@ -387,7 +387,6 @@ chatGroupTests = do
         it "should set notification flag of delivered messages" testChannels1RelayDeliverNotification
         it "should deliver silent messages without notification flag" testChannels1RelayDeliverSilent
         it "should deliver high priority messages of the owner" testChannels1RelayDeliverHighPriority
-        forM_ [1 .. 12 :: Int] $ \n -> it ("should deliver high priority messages of the owner, repeat " <> show n) testChannels1RelayDeliverHighPriority
         it "should set notification flag of the owner's raise, not of a repeated high edit" testChannels1RelayDeliverRaise
         it "should report duplicate message delivered by relay" testChannelDuplicateEvent
         describe "should deliver messages in a loop over members" $ do
