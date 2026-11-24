@@ -18,9 +18,22 @@ env:
 
 jobs:
   experiment:
-    name: File Provider coordinator in the iOS simulator
+    name: File Provider coordinator in the iOS simulator, ${{ matrix.name }}
     runs-on: macos-26
-    timeout-minutes: 120
+    timeout-minutes: 150
+    continue-on-error: ${{ matrix.runtime != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: iOS 26.5
+            runtime: ""
+            device: com.apple.CoreSimulator.SimDeviceType.iPhone-17
+            artifact: ios-fp-experiment
+          - name: iOS 16.4
+            runtime: "16.4"
+            device: com.apple.CoreSimulator.SimDeviceType.iPhone-14
+            artifact: ios-fp-experiment-ios16
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -30,6 +43,14 @@ jobs:
           sw_vers
           xcodebuild -version
           xcrun simctl list runtimes
+
+      - name: Download iOS runtime
+        if: matrix.runtime != ''
+        timeout-minutes: 40
+        run: |
+          xcodebuild -downloadPlatform iOS -buildVersion "${{ matrix.runtime }}"
+          xcrun simctl list runtimes
+          echo "SIM_RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-$(tr . - <<< "${{ matrix.runtime }}")" >> "$GITHUB_ENV"
 
       - name: Use the macOS 26 SDK
         run: scripts/ci/ios-sim/use-macos26-sdk.sh
@@ -60,20 +81,21 @@ jobs:
           ls -la "$app/PlugIns"
           plutil -p "$app/PlugIns/SimpleX FP.appex/Info.plist"
           codesign -d --entitlements - "$app/PlugIns/SimpleX FP.appex" || true
-          codesign -d --entitlements - "$app/PlugIns/SimpleX NSE.appex" || true
 
       - name: Install AXe
         run: scripts/ci/ios-sim/install-axe.sh
 
       - name: Run experiment
         timeout-minutes: 60
+        env:
+          SIM_DEVICE: ${{ matrix.device }}
         run: scripts/ci/ios-sim/fp-experiment.sh "$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/SimpleX.app" "$RUNNER_TEMP/fp-experiment"
 
       - name: Upload results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: ios-fp-experiment
+          name: ${{ matrix.artifact }}
           path: ${{ runner.temp }}/fp-experiment
           retention-days: 14
           if-no-files-found: warn

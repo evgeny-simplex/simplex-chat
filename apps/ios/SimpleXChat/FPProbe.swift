@@ -97,6 +97,24 @@ public final class FPProbe: NSObject, FPProbeClient {
         }
     }
 
+    public func pingHeld(caller: String, tag: String, timeout: Double, completion: @escaping () -> Void) {
+        queue.async {
+            let start = fpxNow()
+            if let held = self.held {
+                switch self.send(held, FPProbeRequest(caller: caller, tag: tag, hold: false), timeout: timeout) {
+                case let .success(r):
+                    fpxLog("result", "caller=\(caller) tag=\(tag) method=held ok=1 attempts=1 totalMs=\(fpxMs(start)) replyMs=\(fpxMs(start)) server=\(r.pid) serverStarted=\(r.startedAt) instances=\(r.instances) calls=\(r.calls) holders=\(r.holders) footprint=\(r.footprint)")
+                case let .failure(e):
+                    fpxLog("result", "caller=\(caller) tag=\(tag) method=held ok=0 attempts=1 totalMs=\(fpxMs(start)) phase=\(e.phase) error=\(e.text)")
+                }
+            } else {
+                fpxLog("result", "caller=\(caller) tag=\(tag) method=held ok=0 attempts=0 totalMs=0 phase=connect error=no-held-connection")
+            }
+            fpxLog("done", "caller=\(caller) tag=\(tag)")
+            completion()
+        }
+    }
+
     public func crash(caller: String, tag: String, completion: @escaping () -> Void) {
         queue.async {
             let request = FPProbeRequest(caller: caller, tag: tag, hold: false)
@@ -239,7 +257,11 @@ public final class FPProbe: NSObject, FPProbeClient {
             connection.invalidationHandler = { fpxLog("invalidated", "caller=\(caller)") }
         }
         connection.resume()
-        return fpxWait(timeout, "reply") { done in
+        return send(connection, request, timeout: timeout)
+    }
+
+    private func send(_ connection: NSXPCConnection, _ request: FPProbeRequest, timeout: Double) -> Result<FPProbeReply, FPProbeError> {
+        fpxWait(timeout, "reply") { done in
             let proxy = connection.remoteObjectProxyWithErrorHandler { error in done(.failure(FPProbeError("reply", error))) }
             guard let service = proxy as? FPProbeService else {
                 done(.failure(FPProbeError("reply", "proxy")))

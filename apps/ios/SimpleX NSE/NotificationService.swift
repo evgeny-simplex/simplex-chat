@@ -317,6 +317,7 @@ class NotificationService: UNNotificationServiceExtension {
             }
             return
         }
+        FPProbe.shared.run(caller: "nse", tag: "message", methods: [.root], budget: 3) { _ in }
         setServiceBestAttemptNtf(receivedNtf)
         self.contentHandler = contentHandler
         registerGroupDefaults()

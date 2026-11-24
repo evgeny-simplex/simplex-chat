@@ -177,6 +177,7 @@ final class ProbeServer: NSObject, FPProbeService {
         fpxLog("server-ping", "from=\(r?.caller ?? "?") tag=\(r?.tag ?? "?") peer=\(connection?.processIdentifier ?? 0) calls=\(response.calls) holders=\(response.holders) notified=\(others.count) footprint=\(response.footprint)")
         for holder in others {
             let peer = holder.processIdentifier
+            fpxLog("server-notify", "peer=\(peer) from=\(r?.caller ?? "?") tag=\(r?.tag ?? "?")")
             let proxy = holder.remoteObjectProxyWithErrorHandler { e in
                 fpxLog("server-notify-error", "peer=\(peer) error=\(fpxValue(String(describing: e)))")
             }

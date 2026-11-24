@@ -93,6 +93,15 @@ allow_notifications() {
   note "no notifications alert"
 }
 
+dismiss_system_sheets() {
+  local i
+  for i in 1 2 3; do
+    "$ui" tap Continue 2 > /dev/null 2>&1 && note "tapped Continue"
+    "$ui" tap "Don’t Allow" 2 > /dev/null 2>&1 && note "tapped Don’t Allow"
+    "$ui" tap "Not Now" 1 > /dev/null 2>&1 && note "tapped Not Now"
+  done
+}
+
 element_center() {
   local line=$1 x y w h
   read -r x y w h < <(sed -E 's/.* at (-?[0-9]+),(-?[0-9]+) size ([0-9]+)x([0-9]+).*/\1 \2 \3 \4/' <<< "$line")
@@ -107,8 +116,8 @@ tap_line() {
 
 open_share_extension() {
   local line cx cy i
-  for i in 1 2 3 4; do
-    line=$("$ui" tree | grep -F 'SimpleX' | grep -vF 'value="SimpleX' | head -n 1)
+  for i in 1 2 3 4 5; do
+    line=$("$ui" tree | grep -F 'SimpleX' | grep -vF 'value="SimpleX' | grep -vF 'Return to SimpleX' | head -n 1)
     if [ -n "$line" ]; then
       read -r cx cy < <(element_center "$line")
       if [ "$cx" -gt 0 ] && [ "$cx" -lt 400 ]; then
@@ -118,11 +127,14 @@ open_share_extension() {
       fi
       note "share sheet entry off screen: $line"
       "$ui" swipe 350 "$cy" 60 "$cy"
-    elif [ "$i" -eq 1 ] || [ "$i" -eq 3 ]; then
-      "$ui" swipe 350 560 60 560
+    elif [ "$i" -le 2 ]; then
+      "$ui" swipe 350 600 60 600
+    elif [ "$i" -eq 3 ]; then
+      "$ui" tap More 3 > /dev/null 2>&1 || "$ui" tap "Edit Actions…" 3 > /dev/null 2>&1 || true
     else
-      "$ui" tap More 3 > /dev/null 2>&1 || true
+      "$ui" swipe 200 700 200 300
     fi
+    sleep 1
     "$ui" shot "share-sheet-$i"
   done
   return 1
@@ -143,10 +155,11 @@ finish() {
 trap finish EXIT
 
 axe --version
-runtime=com.apple.CoreSimulator.SimRuntime.iOS-$(xcrun --sdk iphonesimulator --show-sdk-version | tr . -)
-SIM_UDID=$(xcrun simctl create fpx-iphone com.apple.CoreSimulator.SimDeviceType.iPhone-17 "$runtime")
+runtime=${SIM_RUNTIME:-com.apple.CoreSimulator.SimRuntime.iOS-$(xcrun --sdk iphonesimulator --show-sdk-version | tr . -)}
+device=${SIM_DEVICE:-com.apple.CoreSimulator.SimDeviceType.iPhone-17}
+SIM_UDID=$(xcrun simctl create fpx-iphone "$device" "$runtime")
 export SIM_UDID
-note "simulator $SIM_UDID, runtime $runtime"
+note "simulator $SIM_UDID, $device, $runtime"
 xcrun simctl boot "$SIM_UDID"
 xcrun simctl bootstatus "$SIM_UDID" -b
 open -a Simulator --args -CurrentDeviceUDID "$SIM_UDID"
@@ -166,40 +179,44 @@ note "pluginkit file providers:"
 tee -a "$steps" < "$UI_OUT/pluginkit.txt"
 fp_ps
 
-step "app launch"
+step "app launch, first calls after install"
 n=$(count_done app launch)
 xcrun simctl launch "$SIM_UDID" "$bundle_id"
 allow_notifications
 await_done app launch "$n" 60
 "$ui" shot app-launched
 fp_ps
-note "extension processes: $(fp_pids)"
+run_app_cmd hold1 90 hold root 60
+fp_ps
 
 step "app warm calls"
 run_app_cmd burst1 120 burst 20 5
 fp_ps
 
-step "nse, app in foreground"
-push fg 40
+step "nse by simctl push"
+push fg 20
 "$ui" shot nse-fg
 
-step "share extension, opened from Photos"
+step "share extension while the app holds a connection in background"
+run_app_cmd hold2 30 hold root 5
 xcrun simctl addmedia "$SIM_UDID" "$fixtures/test.jpg"
 xcrun simctl launch "$SIM_UDID" com.apple.mobileslideshow
 sleep 6
+dismiss_system_sheets
+sleep 2
 "$ui" shot photos
-"$ui" tap Continue 3 > /dev/null 2>&1 || true
-"$ui" tap "Not Now" 2 > /dev/null 2>&1 || true
-photo=$("$ui" tree | grep -E '"Photo, |"Photo"|"Image, ' | head -n 1)
+photo=$("$ui" tree | grep -E '^(Image|Cell|Button|GenericElement) "(Photo|Image|Screenshot|Live Photo)' | head -n 1)
 if [ -n "$photo" ]; then
   note "photo: $photo"
   tap_line "$photo"
 else
-  note "no photo label in the tree, tapping the grid"
-  "$ui" tap-xy 60 300
+  note "no photo label in the tree, tapping the first grid cell"
+  "$ui" tap-xy 66 200
 fi
 sleep 3
 "$ui" shot photo-open
+note "app in background since Photos started; waiting 30 s"
+sleep 30
 n=$(count_done se share)
 if "$ui" tap Share 10; then
   sleep 3
@@ -219,22 +236,24 @@ xcrun simctl terminate "$SIM_UDID" com.apple.mobileslideshow 2> /dev/null || tru
 step "Files app"
 xcrun simctl launch "$SIM_UDID" com.apple.DocumentsApp
 sleep 6
+dismiss_system_sheets
 "$ui" shot files
-"$ui" tap Continue 3 > /dev/null 2>&1 || true
 "$ui" tap Browse 5 > /dev/null 2>&1 || true
+sleep 2
+"$ui" tap Browse 3 > /dev/null 2>&1 || true
 sleep 2
 "$ui" shot files-browse
 note "Files, Browse, elements with SimpleX: $("$ui" tree | grep -cF SimpleX)"
-"$ui" tree | grep -F SimpleX | tee -a "$steps"
+"$ui" tree | grep -E 'SimpleX|Switch|Locations|On My' | tee -a "$steps"
 if "$ui" tap More 3 > /dev/null 2>&1; then
   sleep 1
   "$ui" shot files-more
 fi
-"$ui" tap Edit 3 > /dev/null 2>&1 || "$ui" tap "Edit Sidebar" 3 > /dev/null 2>&1 || true
+"$ui" tap Edit 3 > /dev/null 2>&1 || true
 sleep 2
 "$ui" shot files-edit
 note "Files, edit mode, elements with SimpleX: $("$ui" tree | grep -cF SimpleX)"
-"$ui" tree | grep -F SimpleX | tee -a "$steps"
+"$ui" tree | grep -E 'SimpleX|Switch' | tee -a "$steps"
 "$ui" tap Done 3 > /dev/null 2>&1 || true
 sleep 1
 location=$("$ui" tree | grep -F '"SimpleX' | head -n 1)
@@ -243,26 +262,15 @@ if [ -n "$location" ]; then
   sleep 3
   "$ui" shot files-simplex
 fi
-
-step "nse, app in background"
-push bg 40
-"$ui" shot nse-bg
 xcrun simctl terminate "$SIM_UDID" com.apple.DocumentsApp 2> /dev/null || true
 
-step "nse, app terminated"
-xcrun simctl terminate "$SIM_UDID" "$bundle_id"
-sleep 2
-push term 40
-
-step "app relaunch"
-n=$(count_done app launch)
+step "app back in foreground, call over the held connection"
 xcrun simctl launch "$SIM_UDID" "$bundle_id"
-await_done app launch "$n" 60
+sleep 3
+"$ui" shot app-foreground
+run_app_cmd held1 20 held - 5
+run_app_cmd after-bg 30 probe root 5
 fp_ps
-
-step "nse while the app holds a connection in foreground"
-push fg2 40
-sleep 2
 
 step "crash call"
 note "before: $(fp_pids)"
@@ -271,49 +279,47 @@ sleep 2
 note "after crash: $(fp_pids)"
 run_app_cmd crash2 30 probe root 5
 note "after the next call: $(fp_pids)"
-run_app_cmd hold2 30 hold root 5
+run_app_cmd hold3 30 hold root 5
 
 step "extension killed"
 pid=$(fp_pid)
 kill -9 "$pid"
 note "killed $pid"
 sleep 1
+run_app_cmd held2 20 held - 3
 run_app_cmd kill1 30 probe root 5
 note "after the next call: $(fp_pids)"
-push killed 40
-run_app_cmd hold3 30 hold root 5
+run_app_cmd hold4 30 hold root 5
 
 step "extension stopped"
 pid=$(fp_pid)
 kill -STOP "$pid"
 note "stopped $pid: $(ps -o stat= -p "$pid")"
+run_app_cmd held3 20 held - 3
 run_app_cmd stop1 30 probe root 5
 note "during stop: $(fp_pids)"
-push stopped 40
 kill -CONT "$pid"
 note "continued $pid"
 sleep 3
 run_app_cmd stop2 30 probe root 5
 note "after continue: $(fp_pids)"
 
-step "extension disabled"
+step "extension disabled with pluginkit"
 xcrun simctl spawn "$SIM_UDID" pluginkit -e ignore -i "$fp_id" 2>&1 | tee -a "$steps"
 xcrun simctl spawn "$SIM_UDID" pluginkit -m -A -D -v -i "$fp_id" 2>&1 | tee -a "$steps"
 pid=$(fp_pid) && kill -9 "$pid" && note "killed $pid"
 sleep 1
 run_app_cmd disabled1 30 probe root 5
 note "while disabled: $(fp_pids)"
-push disabled 40
 xcrun simctl spawn "$SIM_UDID" pluginkit -e use -i "$fp_id" 2>&1 | tee -a "$steps"
-xcrun simctl spawn "$SIM_UDID" pluginkit -m -A -D -v -i "$fp_id" 2>&1 | tee -a "$steps"
 sleep 2
 run_app_cmd enabled1 30 probe all 5
-run_app_cmd hold4 30 hold root 5
+run_app_cmd hold5 30 hold root 5
 
-step "idle with the app holding a connection"
+step "idle with the app holding a connection in foreground"
 pid=$(fp_pid)
 note "extension $pid"
-for i in $(seq 1 12); do
+for i in $(seq 1 6); do
   sleep 20
   if ! ps -o pid=,etime=,stat=,rss= -p "$pid" >> "$UI_OUT/idle.txt"; then
     note "extension $pid exited after about $((i * 20)) s idle"
@@ -321,13 +327,14 @@ for i in $(seq 1 12); do
   fi
 done
 fp_ps
+run_app_cmd held4 20 held - 3
 run_app_cmd idle1 30 probe root 5
 
 step "idle without the app"
 xcrun simctl terminate "$SIM_UDID" "$bundle_id"
 pid=$(fp_pid)
 note "extension $pid"
-for i in $(seq 1 15); do
+for i in $(seq 1 12); do
   sleep 20
   if ! ps -o pid=,etime=,stat=,rss= -p "$pid" >> "$UI_OUT/idle.txt"; then
     note "extension $pid exited after about $((i * 20)) s without the app"
@@ -335,7 +342,6 @@ for i in $(seq 1 15); do
   fi
 done
 fp_ps
-push idle 40
 n=$(count_done app launch)
 xcrun simctl launch "$SIM_UDID" "$bundle_id"
 await_done app launch "$n" 60
