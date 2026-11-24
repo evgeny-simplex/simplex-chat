@@ -89,6 +89,7 @@ jobs:
         timeout-minutes: 60
         env:
           SIM_DEVICE: ${{ matrix.device }}
+          FPX_DERIVED: ${{ runner.temp }}/DerivedData
         run: scripts/ci/ios-sim/fp-experiment.sh "$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/SimpleX.app" "$RUNNER_TEMP/fp-experiment"
 
       - name: Upload results

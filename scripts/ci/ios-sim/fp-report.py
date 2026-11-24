@@ -96,6 +96,10 @@ def main():
     rows = [[e["ts"], e["proc"], e["event"], e.get("caller", e.get("peer", "")), e.get("phase", ""), e.get("ms", "")] for e in events if e["event"] in ("interrupted", "invalidated", "late", "server-invalidated", "server-notify-error", "crash-sent", "crash-failed", "server-crash", "notifications", "storage", "manager")]
     print(table(["time", "process", "event", "caller or peer", "phase", "ms"], rows) if rows else "none")
 
+    print("\n## Process outside SimpleX\n")
+    rows = [[e["ts"], e["proc"], e.get("ms"), e.get("result")] for e in events if e["event"] == "foreign"]
+    print(table(["time", "process", "ms", "result"], rows) if rows else "none")
+
     print("\n## Extension entry points\n")
     counts = collections.Counter((e["event"], e.get("id", e.get("service", ""))) for e in events if e["event"] in ("server-identifier", "server-sources", "server-endpoint", "server-accept", "server-enumerator", "server-item", "server-placeholder", "server-provide"))
     print(table(["entry point", "item or service", "calls"], [[k[0], k[1], v] for k, v in counts.items()]) if counts else "none")

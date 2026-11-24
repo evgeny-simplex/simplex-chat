@@ -347,5 +347,27 @@ xcrun simctl launch "$SIM_UDID" "$bundle_id"
 await_done app launch "$n" 60
 fp_ps
 
+step "process outside SimpleX"
+root="$(xcrun simctl get_app_container "$SIM_UDID" "$bundle_id" group.chat.simplex.app)/File Provider Storage"
+xcode=(
+  -project apps/ios/SimpleX.xcodeproj
+  -scheme "SimpleX (iOS)"
+  -configuration Debug
+  -destination "id=$SIM_UDID"
+  -derivedDataPath "$FPX_DERIVED"
+  -onlyUsePackageVersionsFromResolvedFile
+  -skipPackagePluginValidation
+  -skipMacroValidation
+  -only-testing:"Tests iOS/FPForeignTests/testForeignLookup"
+  ARCHS=arm64
+  CODE_SIGN_STYLE=Manual
+  CODE_SIGN_IDENTITY=-
+  DEVELOPMENT_TEAM=
+  PROVISIONING_PROFILE_SPECIFIER=
+)
+xcodebuild build-for-testing -quiet "${xcode[@]}" > "$UI_OUT/foreign-build.log" 2>&1 || note "foreign process: build failed"
+TEST_RUNNER_FPX_ROOT="$root" xcodebuild test-without-building "${xcode[@]}" > "$UI_OUT/foreign-test.log" 2>&1 || note "foreign process: test run failed"
+grep -F "FPX foreign" "$log" | tee -a "$steps"
+
 step "end"
 grep -q "FPX result" "$log" || exit 1

@@ -293,6 +293,7 @@
 		FC0A00000000000000000014 /* FPProbeProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0A00000000000000000005 /* FPProbeProtocol.swift */; };
 		FC0A00000000000000000015 /* FPProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0A00000000000000000006 /* FPProbe.swift */; };
 		FC0A00000000000000000016 /* FPExperiment.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0A00000000000000000007 /* FPExperiment.swift */; };
+		FC0A00000000000000000017 /* FPForeignTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0A00000000000000000008 /* FPForeignTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -772,6 +773,7 @@
 		FC0A00000000000000000005 /* FPProbeProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FPProbeProtocol.swift; sourceTree = "<group>"; };
 		FC0A00000000000000000006 /* FPProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FPProbe.swift; sourceTree = "<group>"; };
 		FC0A00000000000000000007 /* FPExperiment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FPExperiment.swift; sourceTree = "<group>"; };
+		FC0A00000000000000000008 /* FPForeignTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FPForeignTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1056,6 +1058,7 @@
 			children = (
 				5CA059DB279559F40002BEB4 /* Tests_iOS.swift */,
 				5CA059DD279559F40002BEB4 /* Tests_iOSLaunchTests.swift */,
+				FC0A00000000000000000008 /* FPForeignTests.swift */,
 			);
 			path = "Tests iOS";
 			sourceTree = "<group>";
@@ -1988,6 +1991,7 @@
 			files = (
 				5CA059DE279559F40002BEB4 /* Tests_iOSLaunchTests.swift in Sources */,
 				5CA059DC279559F40002BEB4 /* Tests_iOS.swift in Sources */,
+				FC0A00000000000000000017 /* FPForeignTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
