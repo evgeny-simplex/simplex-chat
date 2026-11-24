@@ -11080,8 +11080,25 @@ testChannels1RelayDeliverHighPriority ps = do
         bob <# "#team!!> hi"
         cath <# "#team!!> hi [>>]"
         lastSndMsgPriority alice `shouldReturn` Just 1
-        lastSndMsgFlags alice bobConnId 1 `shouldReturn` ["T"]
-        lastSndMsgFlags bob cathConnId 1 `shouldReturn` ["T"]
+        let agentRows cc connId = withCCAgentTransaction cc $ \db ->
+              DB.query db "SELECT internal_id, msg_flags, msg_type, length(msg_body) FROM messages WHERE conn_id = ? AND internal_snd_id IS NOT NULL ORDER BY internal_id DESC LIMIT 8" (Only connId) :: IO [(Int64, Maybe T.Text, ByteString, Maybe Int)]
+            chatEvents cc = withCCTransaction cc $ \db ->
+              DB.query_ db "SELECT message_id, msg_sent, chat_msg_event FROM messages ORDER BY message_id DESC LIMIT 12" :: IO [(Int64, Int, T.Text)]
+            diagnose label flagsAtCheck = do
+              print ("DIAG " <> label <> " flags read by the check, oldest first" :: String, flagsAtCheck)
+              agentRows alice bobConnId >>= \r -> print ("DIAG alice->bob rows after the check" :: String, r)
+              agentRows bob cathConnId >>= \r -> print ("DIAG bob->cath rows after the check" :: String, r)
+              forM_ [("alice", alice), ("bob", bob), ("cath", cath)] $ \(n, cc) ->
+                chatEvents cc >>= \r -> print ("DIAG " <> n <> " chat events" :: String, r)
+              withCCTransaction bob (\db -> DB.query_ db "SELECT delivery_task_id, message_id, task_status, update_notification FROM delivery_tasks ORDER BY delivery_task_id DESC LIMIT 5" :: IO [(Int64, Maybe Int64, T.Text, Int)]) >>= \r -> print ("DIAG bob tasks" :: String, r)
+              withCCTransaction bob (\db -> DB.query_ db "SELECT delivery_job_id, job_status, notification FROM delivery_jobs ORDER BY delivery_job_id DESC LIMIT 5" :: IO [(Int64, T.Text, Int)]) >>= \r -> print ("DIAG bob jobs" :: String, r)
+            checkFlags label cc connId = do
+              flags <- lastSndMsgFlags cc connId 6
+              let newest = drop (length flags - 1) flags
+              when (newest /= ["T"]) $ diagnose label flags
+              newest `shouldBe` ["T"]
+        checkFlags "alice->bob" alice bobConnId
+        checkFlags "bob->cath" bob cathConnId
         lastJobNotification bob `shouldReturn` True
         forM_ [alice, bob, cath] $ \cc ->
           itemPriority cc "/_get chat #1 count=1" `shouldReturn` MPHigh
