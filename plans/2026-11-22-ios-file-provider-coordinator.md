@@ -192,7 +192,7 @@ Target:
 - Principal class: a subclass of `NSFileProviderExtension`, as in the 2022 proof of concept; iOS 15 kept (`IPHONEOS_DEPLOYMENT_TARGET = 15.0`, project.pbxproj); iOS 16 comes with the replicated file domains.
 - Items: the root container only; empty lists are returned by the enumerators of the root and the working set.
 - Service `chat.simplex.app.coordinator` from `supportedServiceSources(for: .rootContainer)`; lookup by `FileManager.getFileProviderServicesForItem(at: NSFileProviderManager.default.documentStorageURL)`, answered on the root container (5.1).
-- Caller check (question Q21, recommended branch): each request carries `secret`, 32 random bytes from the file `coordinator.secret` in the app group, created with an exclusive create by the first process that reads it absent; the coordinator ignores a request with another secret. A process outside SimpleX reached the service by its URL in the simulator (5.1).
+- Caller check (question Q21, recommended branch): each request contains `secret`, 32 random bytes from the file `coordinator.secret` in the app group, created with an exclusive create by the first process that reads it absent; the coordinator ignores a request with another secret. A process outside SimpleX reached the service by its URL in the simulator (5.1).
 - The coordinator is one object per extension process, shared by every extension instance.
 - The extension links Foundation and FileProvider only; SimpleXChat.framework, which contains the core, is excluded from it.
 - Shared source files, compiled into SimpleXChat and into the extension:
