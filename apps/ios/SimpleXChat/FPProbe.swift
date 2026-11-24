@@ -94,7 +94,7 @@ public final class FPProbe: NSObject, FPProbeClient {
         fpxLog("notify", "caller=\(heldCaller) from=\(r?.caller ?? "?") tag=\(r?.tag ?? "?")")
     }
 
-    public func run(caller: String, tag: String, methods: [FPProbeMethod], budget: Double, hold: Bool = false, storage: FPProbeStorage = .directoryAndItem, completion: @escaping (String) -> Void) {
+    public func run(caller: String, tag: String, methods: [FPProbeMethod], budget: Double, hold: Bool = false, storage: FPProbeStorage = .none, completion: @escaping (String) -> Void) {
         queue.async {
             self.prepareStorage(caller, tag, storage)
             let results = methods.map { self.probe(caller, tag, $0, budget, hold: hold && $0 == .root) }

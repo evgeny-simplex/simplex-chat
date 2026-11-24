@@ -48,7 +48,7 @@ final class FPExperiment {
         case "launch":
             launchProbe(end)
         case "url":
-            probe.run(caller: "app", tag: "case", methods: [.root], budget: 60) { _ in end() }
+            probe.run(caller: "app", tag: "case", methods: [.root], budget: 60, storage: .directoryAndItem) { _ in end() }
         case "url-dir":
             probe.run(caller: "app", tag: "case", methods: [.root], budget: 60, storage: .directory) { _ in end() }
         case "url-none":
@@ -61,7 +61,7 @@ final class FPExperiment {
             }
         case "domains":
             probe.listDomains(caller: "app", tag: "case-domains") {
-                probe.run(caller: "app", tag: "case", methods: [.root], budget: 60) { _ in end() }
+                probe.run(caller: "app", tag: "case", methods: [.root], budget: 60, storage: .directoryAndItem) { _ in end() }
             }
         default:
             fpxLog("case", "unknown=\(name)")
