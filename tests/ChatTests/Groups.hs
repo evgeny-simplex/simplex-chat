@@ -11082,7 +11082,7 @@ testChannels1RelayDeliverHighPriority ps = do
         lastSndMsgPriority alice `shouldReturn` Just 1
         threadDelay 1000000
         let agentMsgs cc connId = withCCAgentTransaction cc $ \db ->
-              DB.query db "SELECT internal_id, msg_flags FROM messages WHERE conn_id = ? AND internal_snd_id IS NOT NULL AND msg_type = ? ORDER BY internal_id DESC LIMIT 8" (connId, Binary ("M" :: ByteString)) :: IO [(Int64, T.Text)]
+              DB.query db "SELECT internal_id, msg_flags, msg_type, length(msg_body) FROM messages WHERE conn_id = ? AND internal_snd_id IS NOT NULL ORDER BY internal_id DESC LIMIT 8" (Only connId) :: IO [(Int64, Maybe T.Text, ByteString, Maybe Int)]
             chatMsgs cc = withCCTransaction cc $ \db ->
               DB.query_ db "SELECT message_id, msg_sent, chat_msg_event FROM messages ORDER BY message_id DESC LIMIT 12" :: IO [(Int64, Int, T.Text)]
         agentMsgs alice bobConnId >>= \r -> print ("DIAG alice->bob" :: String, r)
