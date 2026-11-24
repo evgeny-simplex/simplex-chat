@@ -30,7 +30,7 @@ import Data.Char (chr, digitToInt, isAlphaNum, isAscii, isDigit, isHexDigit, isL
 import Data.Either (rights)
 import Data.Int (Int64)
 import Data.List (find, foldl')
-import Data.Maybe (fromMaybe, isJust, isNothing, listToMaybe, maybeToList)
+import Data.Maybe (fromMaybe, isJust, listToMaybe, maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
@@ -229,7 +229,6 @@ schemeRequests =
           amount <- traverse (fmap (decimalText 18) . evmInteger) $ param "value" ps
           pure (["value"], PaymentRequest (PPAddress network targetAddress targetChecksum) [] amount Nothing Nothing Nothing)
         Just "transfer" -> do
-          unless (isNothing $ param "value" ps) $ Left "value in a token transfer"
           (a, addressChecksum) <- required "invalid address" $ evmAddress =<< param "address" ps
           amount <- traverse (fmap tshow . evmInteger) $ param "uint256" ps
           pure (["address", "uint256"], PaymentRequest (PPAddress network a addressChecksum) [] amount (Just $ PaymentToken targetAddress targetChecksum) Nothing Nothing)
