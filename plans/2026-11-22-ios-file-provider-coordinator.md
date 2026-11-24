@@ -192,7 +192,7 @@ Target:
 - Principal class: a subclass of `NSFileProviderExtension`, as in the 2022 proof of concept; iOS 15 kept (`IPHONEOS_DEPLOYMENT_TARGET = 15.0`, project.pbxproj); iOS 16 comes with the replicated file domains.
 - Items: the root container only; empty lists are returned by the enumerators of the root and the working set.
 - Service `chat.simplex.app.coordinator` from `supportedServiceSources(for: .rootContainer)`; lookup by `FileManager.getFileProviderServicesForItem(at: NSFileProviderManager.default.documentStorageURL)`, answered on the root container without an item in it (5.1).
-- Registration: a lookup refused with NSFileProviderInternalErrorDomain 0 or NSFileProviderErrorDomain −2001 is followed, once per process, by `NSFileProviderManager.getDomainsWithCompletionHandler` (iOS 11), on which fileproviderd registers the extension and creates the default domain and `documentStorageURL`; then the lookup is repeated (iOS 26.5 and 16.4: 5.1; iOS 15: 5.2). No process creates `documentStorageURL`.
+- Registration: a lookup refused with NSFileProviderInternalErrorDomain 0 or NSFileProviderErrorDomain −2001 is followed, once per process, by `NSFileProviderManager.getDomainsWithCompletionHandler` (iOS 11), on which fileproviderd registers the extension and creates the default domain and `documentStorageURL`; then the lookup is repeated (after refused lookups: iOS 16.4, run 8; without a prior lookup: iOS 26.5 and 16.4, run 5; iOS 15: 5.2). No process creates `documentStorageURL`.
 - Caller check (Q21): services of a File Provider extension are available to other apps (2.1). Each request contains `secret`, 32 random bytes from the file `coordinator.secret` in the app group, created with an exclusive create by the first process that reads it absent; the coordinator validates it and ignores a request with another secret.
 - The coordinator is one object per extension process, shared by every extension instance.
 - The extension links Foundation and FileProvider only; SimpleXChat.framework, which contains the core, is excluded from it.
@@ -458,13 +458,12 @@ sequenceDiagram
 | SE, `yield` | `apiSuspendChat(expired: false)` with the given timeout |
 
 Removed, with today's coordination:
-- SharedFileSubscriber.swift;
-- NSESubscriber.swift;
-- `waitForOtherProcessesToSuspend` and the settings write of `SEChatState` (SEChatState.swift);
-- `appStateGroupDefault`, `nseStateGroupDefault`, `seStateGroupDefault`, `allowBackgroundRefresh`, `NSEState`, `SEState` (AppGroup.swift:16-18, 152-175, 182-205); `AppState` and `DBContainer` stay;
-- the settings write of `AppChatState` (SuspendChat.swift:199-200), `seSubscriber` (SuspendChat.swift:39-49) and the NSE state write (SuspendChat.swift:173);
-- the app-state switch of `didReceive`, `appSubscriber`, `seSubscriber` and the settings write of `NSEChatState` (NotificationService.swift:316-365, 799, 811-836);
-- readers of `appStateGroupDefault`: NtfManager.swift:44 and SnapshotTests.swift:341-426 read `AppChatState.shared.value`.
+- SharedFileSubscriber.swift, NSESubscriber.swift and SEChatState.swift (`SEChatState`, `waitForOtherProcessesToSuspend`), with their project entries;
+- the calls of `SEChatState.set`: ShareModel.swift:147, ShareAPI.swift:115;
+- `appStateGroupDefault`, `nseStateGroupDefault`, `seStateGroupDefault`, `allowBackgroundRefresh`, `SEState` and `NSEState.inactive` (AppGroup.swift:16-18, 159-165, 172-175, 182-205); `AppState` and `DBContainer` stay; `NSEState` stays with `canSuspend` (NotificationService.swift:934) as the NSE's own state in `NSEChatState` (NotificationService.swift:791-809, 849-967);
+- the settings write and the message of `AppChatState.set` (SuspendChat.swift:199-200), `seSubscriber` (SuspendChat.swift:39-49) and the NSE state write (SuspendChat.swift:173);
+- in NotificationService.swift: the app-state switch of `didReceive` with the properties `appSubscriber` and `returnedSuspension` (:306-307, 316-365); the app-state check of `receiveNtfMessages` (:420-421), since a granted lease excludes another holder; the settings write and the message of `NSEChatState.set` (:799-800), the comment on them (:789) and the `.created` write of the initializer (:805-807); the globals `appSubscriber`, `appStateSubscriber` and `seSubscriber` (:811-836);
+- readers of `appStateGroupDefault`: NtfManager.swift:44 and SnapshotTests.swift:341-426 read `AppChatState.shared.value`; NotificationService.swift:421, as above; `AppChatState` (SuspendChat.swift:192) reads `chatStoppedGroupDefault` (above).
 
 ```mermaid
 stateDiagram-v2
@@ -490,11 +489,11 @@ Causes of an unreachable coordinator, each with its mitigation:
 |---|---|---|
 | Extension terminated for memory | the coordinator links Foundation and FileProvider only and keeps one holder and its waiters in memory | limit 20 MB (2.1); the 2022 failure was caused by the full core in the extension (2.2); `phys_footprint` of the probe extension 10.3–11.3 MiB on iOS 26.5 and 5.0–5.7 MiB on iOS 16.4 in the simulator (5.1); device: 5.2 |
 | Extension crash or termination, an interrupted XPC call | a new lookup and the same request repeated, answered idempotently (3.2); the state written atomically after each transition and read at launch, so a relaunch is transparent (3.3); a holder renews from its `interruptionHandler` (3.4) | the holder's `interruptionHandler` ran within 0.2 s of `crash` and of `kill -9`; a call on the held connection failed with NSCocoaErrorDomain 4099 in 3–9 ms; on the next lookup fileproviderd started a new process, and the lookup was answered in 0.12–1.6 s (5.1) |
-| Slow launch of the extension | at launch, one small file is read | "An extension that launches too slowly is terminated by the system" (2.1); relaunch answered in 0.12–1.6 s (5.1) |
+| Slow launch of the extension | at launch, one small file is read; a reply absent after 1 s is followed by a new lookup (below) | "An extension that launches too slowly is terminated by the system" (2.1); relaunch answered in 0.12–1.6 s; the first lookup after an install, on which fileproviderd started the extension, answered in 1.3–2.6 s on iOS 26.5 (runs 7, 8; 5.1) |
 | Extension suspended between calls | the holder and the waiters keep their service connections (3.4); other requests are sent on a new lookup, on which RunningBoard resumes the extension; a reply absent after 1 s is retried; every transition is computed during a call, without timers (3.3) | RunningBoard suspended the extension 5.7–15.7 s after fileproviderd invalidated its last session, and once after 48.8 s (20 suspensions); fileproviderd kept it running while a client, in foreground or background, held a connection; lookups with the extension suspended were answered in 0.01–1.7 s; no termination in 4–10 minutes idle (5.1) |
 | Lookup answered after the budget | the residual below | after the first answer of each job, 2 of 278 lookups exceeded 3 s: one was answered in 5.2 s, with the extension running 44 s after fileproviderd invalidated its last session, while RunningBoard suspended and resumed it (run 4, iOS 26.5); at the app's transition to background, one with a 3 s timeout returned after 6.5 s and was answered after 7.1 s (run 3, iOS 26.5); device: 5.2 |
 | Extension hung | as for an unanswered call; then the residual below | stopped with SIGSTOP: lookups waited in fileproviderd, no new process was started, calls timed out at the budget, replies arrived after it continued (5.1) |
-| First launch after install or update | a refused lookup is followed by `getDomainsWithCompletionHandler`, on which fileproviderd registers the extension (3.1); requests are retried within the budget, then the process runs by its role (decided, Q1); before the app's first launch the NSE receives no notifications, since the push token is registered by the app (AppDelegate.swift:18, SimpleXAPI.swift:2450-2452); the SE acquires the lease before it creates a database (3.5), since a new database is migrated without confirmation (simplexmq Migrations.hs:53) | with fileproviderd running before the install, URL lookups alone were refused until fileproviderd registered the extension by itself: the first answer came after 7.5–22.4 s, and on iOS 16.4 once none within 60 s; after `getDomainsWithCompletionHandler`, the first URL lookup was answered in 0.5 s on iOS 16.4 and 1.0 s on iOS 26.5 (run 5), and after a refusal in 0.15 s on iOS 16.4 (run 6); iOS 15: 5.2 |
+| First launch after install or update | a refused lookup is followed by `getDomainsWithCompletionHandler`, on which fileproviderd registers the extension (3.1); requests are retried within the budget, then the process runs by its role (decided, Q1); before the app's first launch the NSE receives no notifications, since the push token is registered by the app (AppDelegate.swift:18, SimpleXAPI.swift:2450-2452); the SE acquires the lease before it creates a database (3.5), since a new database is migrated without confirmation (simplexmq Migrations.hs:53) | with fileproviderd running before the install, URL lookups alone were refused until fileproviderd registered the extension by itself: the first answer came after 7.5–22.4 s, and on iOS 16.4 once none within 60 s; called without a prior lookup, `getDomainsWithCompletionHandler` was followed by the registration, and the first URL lookup was answered in 0.5 s on iOS 16.4 and 1.0 s on iOS 26.5 (run 5); after 1 s of refused lookups on iOS 16.4, fileproviderd registered the extension 0.24–0.30 s after the call, and the next lookup was answered at its first attempt, 1.8–1.9 s after the first lookup (three cases, run 8); in run 7 on iOS 16.4, fileproviderd registered the extension by itself 78 ms before the call; on iOS 26.5 the extension was registered before the app's launch in runs 7 and 8, and the first lookup was answered in 1.3–2.6 s; iOS 15: 5.2 |
 | Before the first unlock after a restart | the coordinator file and the databases are inaccessible alike; no process opens a database, so nothing is coordinated | default file protection (2.1); device: 5.2 |
 | iOS refusing the NSE or the SE as callers | go/no-go result of E1, not a runtime case | the SE was answered on iOS 26.5 and 16.4 in the simulator (5.1); the NSE: 5.2 |
 | Domain disabled or removed by the user | a property of added domains only | nothing was listed for the extension in Browse of the Files app and in its edit mode; after `pluginkit -e ignore` the service was answered (5.1) |
@@ -573,20 +572,22 @@ Experiment items: E1 the service answered for the app, the NSE and the SE; E2 no
 
 ### 5.1 Experiment in the simulator
 
-Branch `ep/ios-fp-experiment` of the fork, not for merging, head `b9f1fd71f`:
+Branch `ep/ios-fp-experiment` of the fork, not for merging, head `8bb2510dc`:
 - target "SimpleX FP": non-replicated extension, default domain, enumeration off, display name "SimpleX"; two services on the root container, `chat.simplex.app.probe` and `chat.simplex.app.probe.restricted` (`isRestricted`);
 - the reply to `ping` contains the process identifier, start time, call count and `phys_footprint`; `crash` calls `exit`; on each `ping` the extension sends `notify` to every other connection that a client holds;
 - callers: the app at launch, at each scene phase and on commands of the CI script; the NSE at each notification; the SE at `viewDidLoad`; the UI-test runner `chat.simplex.Tests-iOS.xctrunner`, without the app group;
 - lookups: `FileManager.getFileProviderServicesForItem(at:)` on the root container and on an item; `NSFileProviderManager.getService(named:for:)` for both services; a refused lookup or a reply absent after 1 s is repeated every 250 ms within 3–5 s;
 - in runs 1, 3 and 4, the directory `documentStorageURL` and the item file `probe` in it are created in each caller before its lookups (`FPProbe.prepareStorage`);
 - workflow `ios-fp-experiment`: the app with stub core libraries in an iPhone simulator with iOS 26.5 and with iOS 16.4, driven by AXe (`scripts/ci/ios-sim/fp-experiment.sh`); the calls, the RunningBoard transitions and the fileproviderd sessions of the extension are listed in the job summary;
-- first launch after install (`scripts/ci/ios-sim/fp-first-launch.sh`, runs 5 and 6): per case, a new simulator cloned from a booted one, the Files app opened and closed so that fileproviderd runs before the install, the app installed and launched with `-fpxCase`:
+- first launch after install (`scripts/ci/ios-sim/fp-first-launch.sh`, runs 5, 7 and 8): per case, a new simulator cloned from a booted one, the Files app opened and closed so that fileproviderd runs before the install, the app installed and launched with `-fpxCase`:
   - `url`: URL lookups for 60 s, the directory and the item created first;
   - `url-dir`: as `url`, the directory created, no item;
   - `url-none`: URL lookups for 30 s with nothing created, then 30 s with the directory created;
   - `service`: `getService(named:for:)` with nothing created, then a URL lookup;
   - `domains`: `NSFileProviderManager.getDomainsWithCompletionHandler`, then URL lookups;
-  - `launch` (run 6): the launch probe of the device build, a URL lookup for 5 s with nothing created, and after a refusal `getDomainsWithCompletionHandler` and the lookups again.
+  - `launch` (runs 7 and 8): the launch probe of the device build, URL lookups with nothing created, for 5 s in run 7 and 1 s in run 8, then after a refusal `getDomainsWithCompletionHandler` and the lookups again; three cases per runtime in run 8; the refusals, the domain list request and the registration by fileproviderd are listed in time order in the report.
+
+Runs are numbered by GitHub; runs 2 and 6 were cancelled by the next push.
 
 | Run | Commit | Runtimes |
 |---|---|---|
@@ -594,7 +595,8 @@ Branch `ep/ios-fp-experiment` of the fork, not for merging, head `b9f1fd71f`:
 | 3: https://github.com/evgeny-simplex/simplex-chat/actions/runs/45310468346 | `4a264a1a8` | iOS 26.5, iOS 16.4 |
 | 4: https://github.com/evgeny-simplex/simplex-chat/actions/runs/45316906263 | `348a926fe` | iOS 26.5, iOS 16.4 |
 | 5: https://github.com/evgeny-simplex/simplex-chat/actions/runs/45336781782 | `b37badfe7` | iOS 26.5, iOS 16.4; iOS 15.5 not available for download |
-| 6: https://github.com/evgeny-simplex/simplex-chat/actions/runs/45341714495 | `b9f1fd71f` | iOS 26.5, iOS 16.4 |
+| 7: https://github.com/evgeny-simplex/simplex-chat/actions/runs/45341714495 | `b9f1fd71f` | iOS 26.5, iOS 16.4 |
+| 8: https://github.com/evgeny-simplex/simplex-chat/actions/runs/45359344916 | `8bb2510dc` | iOS 26.5, iOS 16.4 |
 
 | Item | Result | Runs |
 |---|---|---|
@@ -602,7 +604,7 @@ Branch `ep/ios-fp-experiment` of the fork, not for merging, head `b9f1fd71f`:
 | First launch, URL lookups only | answered after fileproviderd registered the extension by itself: on iOS 26.5 after 19.3 s (`url`), 10.8 s (`url-dir`) and 16.3 s (`url-none`); on iOS 16.4 after 22.4 s (`url`) and 7.5 s (`url-dir`), and in `url-none` none within 60 s | 5 |
 | First launch, registration | `getService(named:for:)` answered in 2.2 s on iOS 26.5 and 1.7 s on iOS 16.4, the following URL lookup in 59 and 68 ms (`service`); `getDomainsWithCompletionHandler` returned no domains in 147 ms and 1.4 s, and the first URL lookup after it was answered in 1.0 s and 0.5 s (`domains`) | 5 |
 | Item and directory | URL lookups answered without the item file (`url-dir`, `url-none`); the directory existed after fileproviderd registered the extension without a create by the app (`url-none` on iOS 26.5, `service`, `domains`); on iOS 16.4 the directory created by the app was followed by no registration within 30 s (`url-none`) | 5 |
-| Launch probe of the device build | iOS 16.4: URL lookups refused for 5 s, the directory absent; `getDomainsWithCompletionHandler` returned in 15 ms, the directory existed after it, and the next URL lookup was answered in 137 ms; iOS 26.5: fileproviderd registered the extension during the install, and the first URL lookup was answered in 1.3 s | 6 |
+| Launch probe of the device build | iOS 16.4, run 7, 5 s of lookups: URL lookups refused, the directory absent; fileproviderd registered the extension by itself 78 ms before the `getDomainsWithCompletionHandler` call, so the effect of the call is not observed in that run; iOS 16.4, run 8, 1 s of lookups, three cases: 4 lookups refused with −2001 over 1.1–1.2 s; on the call fileproviderd logged "No provider found … Syncing with LS and retrying", created the default domain and registered the extension 0.24–0.30 s after the call, which returned in 0.33–0.47 s; the next URL lookup was answered at its first attempt in 0.22–0.27 s; iOS 26.5, runs 7 and 8, four cases: the extension was registered before the app's launch (the directory existed at the first lookup in all four, the registration was logged during the install in two), the first lookup, on which fileproviderd started the extension, was answered in 1.3–2.6 s, and the call returned in 14–43 ms | 7, 8 |
 | E1, SE | all four lookups answered: in run 3 on iOS 26.5, the first in 226 ms with the extension suspended before it, the others in 8–33 ms; in run 4, with the extension running while the app held a connection, 7–491 ms on iOS 26.5 and 3–45 ms on iOS 16.4; in run 3 on iOS 16.4 the SE was not found in the share sheet | 3, 4 |
 | E1, NSE | not run: with `simctl push`, a local notification request is added through CoreSimulatorBridge, and the notification is shown without the NSE | 1, 3, 4 |
 | E2 | in Browse and its edit mode, iCloud Drive, On My iPhone and Recently Deleted are listed, and nothing for the extension, on iOS 26.5 and 16.4 | 4 |
@@ -622,13 +624,13 @@ In the simulator RunningBoard's resume of the app returned "Operation not permit
 
 ### 5.2 Device checks
 
-By the maintainer, with a build of `ep/ios-fp-experiment` with the real core and the team's signing (Xcode creates the App ID `chat.simplex.app.SimpleX-FP` with the app group), on a device with iOS 15 and on one with iOS 26; Console.app filtered by `subsystem:chat.simplex.fpx`. iOS 15 is checked only on a device: Xcode 26.6 on macos-26 offers no iOS 15 simulator ("iOS 15.5 is not available for download", job https://github.com/evgeny-simplex/simplex-chat/actions/runs/45336781782/job/138250623078). In the launch probe, the URL lookup is repeated for 5 s, and the directory is not created; after a refusal, `getDomainsWithCompletionHandler` is called and the lookups are repeated; `getService(named:for:)` requires iOS 16.
+By the maintainer, with a build of `ep/ios-fp-experiment` with the real core and the team's signing (Xcode creates the App ID `chat.simplex.app.SimpleX-FP` with the app group), on a device with iOS 15 and on one with iOS 26; Console.app filtered by `subsystem:chat.simplex.fpx`. iOS 15 is checked only on a device: Xcode 26.6 on macos-26 offers no iOS 15 simulator ("iOS 15.5 is not available for download", job https://github.com/evgeny-simplex/simplex-chat/actions/runs/45336781782/job/138250623078). In the launch probe, the URL lookup is repeated for 1 s, and the directory is not created; after a refusal, `getDomainsWithCompletionHandler` is called and the lookups are repeated; `getService(named:for:)` requires iOS 16. Each line contains `pid=<n>` after the event name, so a line is found by its fields, such as `caller=nse` and `tag=message`.
 
 | Step | Expected log | Item |
 |---|---|---|
-| First launch after the install | `FPX result caller=app tag=launch method=root`; after `ok=0`, `FPX domains caller=app tag=launch-domains ok=1` and `FPX result caller=app tag=launch-after-domains method=root ok=1` with `attempts=1` | E1, 3.1, 3.6 |
-| A message received with the app in foreground, in background for 1 minute, and closed in the app switcher | `FPX result caller=nse tag=message method=root ok=1` | E1, E3 |
-| A photo shared to SimpleX | `FPX result caller=se tag=share method=root ok=1` | E1 |
+| First launch after the install | `FPX result pid=<n> caller=app tag=launch method=root`; after `ok=0`, `FPX domains pid=<n> caller=app tag=launch-domains ok=1` and `FPX result pid=<n> caller=app tag=launch-after-domains method=root ok=1` with `attempts=1`; in the log of fileproviderd, "Registered file provider extension chat.simplex.app.SimpleX-FP" after "getDomainsForProviderIdentifier" | E1, 3.1, 3.6 |
+| A message received with the app in foreground, in background for 1 minute, and closed in the app switcher | `FPX result pid=<n> caller=nse tag=message method=root ok=1` | E1, E3 |
+| A photo shared to SimpleX | `FPX result pid=<n> caller=se tag=share method=root ok=1` | E1 |
 | Files, Browse, ⋯, Edit | SimpleX absent | E2 |
 | Restart, a message before and after the first unlock | `caller=nse` result | E3 |
 | A message after 10 and 60 minutes without use | `server=`, `footprint`, and `lookupMs` and `totalMs` compared with the NSE budget of 5 s (3.6); the probe of the NSE stops at 3 s | E5 |
@@ -639,7 +641,7 @@ The result of the NSE row selects the branch of the flowchart above.
 
 ### 5.3 Pull request
 
-Branch `ep/ios-file-provider`, one pull request, opened after the NSE check (5.2) and the answer to Q21; about 1,250 lines added and 350 removed:
+Branch `ep/ios-file-provider`, one pull request, opened after the NSE check (5.2) and the answer to Q21; about 1,650 lines added and 400 removed, and about 160 lines of project entries (159 in the experiment, `348a926fe`):
 
 | Part | Files | Lines |
 |---|---|---|
@@ -648,7 +650,7 @@ Branch `ep/ios-file-provider`, one pull request, opened after the NSE check (5.2
 | Extension | target "SimpleX FP" with the project entries of the experiment (`348a926fe`: file references, build phases, configurations, embedding, dependency); Info.plist, entitlements; `SimpleX FP/FileProviderExtension.swift`: root container, empty enumerator, service source; `SimpleX FP/Coordinator.swift`: listener, state, `coordinator.json`, secret check; `SimpleXChat/CoordinatorProtocol.swift`, compiled into SimpleXChat and the extension; scripts/ios/update-version.sh counts 12 lines of each version | 350, project |
 | Client | `SimpleXChat/DatabaseLease.swift`: lookup, `getDomainsWithCompletionHandler` after a refused lookup (3.1), connections of the holder and the waiter (3.4), retries and budgets of 3.6, secret file | 200 |
 | Call sites | 3.5, app, NSE, SE | 180 |
-| Removals | 3.5 | −350 |
+| Removals | 3.5 | −400 |
 | App tests | on recorded core responses, below | 100 |
 | CI | ios-sim smoke test case `coordinator`, from `scripts/ci/ios-sim/fp-experiment.sh` and `fp-first-launch.sh`: lease at the first launch after install, with fileproviderd running before it; lease at launch and release in background in the app log; extension killed, then the lease acquired again; extension stopped, then the core started without a lease after the budget; nothing listed in the Files app; scripts/ci/ios-sim/README.md | 150 |
 | Docs | apps/ios/spec/services/notifications.md, spec/architecture.md, spec/database.md, spec/state.md, spec/impact.md, CODE.md document map, README.md targets | 150 |
@@ -685,11 +687,11 @@ flowchart LR
     - a coordinator without replies: activation without a lease after 3 s;
     - suspend, state set to `.active`, suspend again: at 16 s the state stays `.suspending` (F4); on master the first fallback timer sets `.suspended` (SuspendChat.swift:33, 86-92);
   - failing first: the coordinator types and `decide` returning `grant` are committed with the tests, and the failures are shown by the reduced build on that commit; then the implementation.
-- ios-sim: the app with the extension and the real core; the case `coordinator` above. Measured runs of ios-sim: 51 to 80 min (runs 44885982841, 44893347230, 44899749303, 44920386414, 44839507332); the experiment's simulator part: 21–33 min after a build of 11–14 min (runs 3, 4); five first-launch cases: 11 min on iOS 16.4 and 26 min on iOS 26.5, after builds of 14 and 10 min (run 5).
+- ios-sim: the app with the extension and the real core; the case `coordinator` above. Measured runs of ios-sim: 51 to 80 min (runs 44885982841, 44893347230, 44899749303, 44920386414, 44839507332); the experiment's simulator part: 21–33 min after builds of 11–18 min (runs 3, 4); five first-launch cases: 11 min on iOS 16.4 and 26 min on iOS 26.5, after builds of 14 and 10 min (run 5).
 - UI: the SE's alert when the app holds the lease for a call (3.2) is rendered as a snapshot preview and given to the maintainer as a question before its code.
 - Device test plan for the maintainer: notification while the app is suspending; app opened during a notification; share while a notification is processed; share while the app is in background; share during a call; refresh preempted by a notification; extension crashed with `crash` during each; the app in background for 1 minute while holding the lease (run 3, 5.1).
 - Risks:
-  - after an install, the first lookups are refused until fileproviderd registers the extension: answered 0.15–1.0 s after `getDomainsWithCompletionHandler` in the simulator, unmeasured on iOS 15 and after an update (5.1, 5.2); requests beyond the budget run by role;
+  - after an install, the first lookups are refused until fileproviderd registers the extension: after 1 s of refusals, registered 0.24–0.30 s after `getDomainsWithCompletionHandler` and answered 1.8–1.9 s after the first lookup on iOS 16.4 (run 8); with the extension registered at the install, the first lookup answered in 1.3–2.6 s on iOS 26.5 (runs 7, 8); unmeasured on iOS 15 and after an update (5.1, 5.2); requests beyond the budget run by role;
   - a lookup answered later than the budget of 3.6: 2 of 278 lookups after the first answer exceeded 3 s in the simulator, 5.2 s and 6.5 s (5.1); the process then runs by role, and two cores may run at once;
   - a suspended holder, checked on a device only (the simulator kept the app running in background, 5.1);
   - latency within the NSE time limit;
