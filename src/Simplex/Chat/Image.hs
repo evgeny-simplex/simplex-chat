@@ -73,8 +73,9 @@ decodeResizable s = runExceptT $ do
   where
     decode
       | "\xFF\xD8" `B.isPrefixOf` s = decodeDisplayJpeg s
-      | "\x89PNG\r\n\x1a\n" `B.isPrefixOf` s = ExceptT $ Spng.decodePng (Spng.DecodeOptions $ maxDecodeMemoryMB `div` 2) s
+      | "\x89PNG\r\n\x1a\n" `B.isPrefixOf` s = ExceptT $ Spng.decodePng (Spng.DecodeOptions maxPngPixels (maxDecodeMemoryMB `div` 2) pngDisplaySize) s
       | otherwise = throwError "unsupported image format"
+    pngDisplaySize (w, h) = maybe imageDoesNotFit (Right . snd) $ displaySize w h
 
 decodeDisplayJpeg :: ByteString -> ExceptT String IO (DynamicImage, Maybe ByteString)
 decodeDisplayJpeg s = do
@@ -314,6 +315,9 @@ maxDisplaySide = 4320
 
 maxJpegPixels :: Int
 maxJpegPixels = 2 ^ (28 :: Int)
+
+maxPngPixels :: Int
+maxPngPixels = 2 ^ (28 :: Int)
 
 maxDecodeMemoryMB :: Int
 #if defined(mobileBuild)
