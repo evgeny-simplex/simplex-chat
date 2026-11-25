@@ -866,6 +866,7 @@ testPlanKnownNameLinkFailed = withKnownAliceName $ \reg alice bob cath -> do
   cath ##> "/da"
   cath <## "Your chat address is deleted - accepted contacts will remain connected."
   cath <## "To create a new chat address use /ad"
+  (withCCAgentTransaction cath $ \db -> DB.query_ db "SELECT count(1) FROM connections" :: IO [[Int]]) `shouldEventuallyReturn` [[0]]
   daAt <- getCurrentTime
   bob ##> "/_connect plan 1 @alice.simplex"
   firstLine <- getTermLine bob
