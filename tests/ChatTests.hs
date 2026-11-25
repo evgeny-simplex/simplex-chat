@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module ChatTests where
 
 import ChatTests.ChatList
@@ -10,7 +12,9 @@ import ChatTests.Groups
 import ChatTests.Local
 import ChatTests.Profiles
 import ChatTests.Utils (it)
+import Control.Exception (SomeException, catch, throwIO)
 import Control.Monad (forM_)
+import System.FilePath (takeFileName)
 import Test.Hspec hiding (it)
 
 chatTests :: SpecWith TestParams
@@ -35,4 +39,7 @@ chatTests = do
 pgdelCopies :: Int -> SpecWith TestParams
 pgdelCopies n =
   describe ("pgdel " <> show n) $
-    forM_ [1 :: Int, 2] $ \i -> it ("delete user copy " <> show i) testDeleteUser
+    forM_ [1 :: Int, 2] $ \i -> it ("delete user copy " <> show i) $ \ps ->
+      testDeleteUser ps `catch` \(e :: SomeException) -> do
+        putStrLn $ "PGDELFAIL " <> takeFileName (tmpPath ps) <> " " <> show e
+        throwIO e

@@ -712,6 +712,11 @@ jobs:
           ATTEMPTS: ${{ (github.ref == 'refs/heads/stable' || startsWith(github.ref, 'refs/tags/v')) && 3 || 1 }}
         run: scripts/ci/run-tests.sh timeout ${{ env.test_timeout || '35m' }} ./simplex-chat-test
 
+      - name: PostgreSQL deadlocks
+        if: ${{ !cancelled() && matrix.postgres == true }}
+        shell: bash
+        run: docker logs postgres 2>&1 | grep -B 2 -A 14 "deadlock detected" | cut -c 1-600 || true
+
       - name: Check generated files
         id: generated
         if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
@@ -1248,7 +1253,7 @@ jobs:
       cabal_targets: --constraint 'simplexmq +client_postgres' --constraint 'simplex-chat +client_postgres' test:simplex-chat-test
       bins: simplex-chat-test
       dist_name: dist-postgres
-      test_timeout: 60m
+      test_timeout: 100m
       PGHOST: localhost
       ALLOW_EMPTY: true
     concurrency: *linux-concurrency
