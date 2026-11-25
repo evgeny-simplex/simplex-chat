@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - stable
+      - ep/internal-release-simple-test
     tags:
       - "v*"
       - "!*-fdroid"
