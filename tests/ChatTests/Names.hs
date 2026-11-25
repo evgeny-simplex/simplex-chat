@@ -57,6 +57,7 @@ chatNamesTests = do
     it "known chat and own name, name without link or reserved" testPlanKnownNameReserved
     it "known chat and own name, the request failed" testPlanKnownNameResolverFailed
     it "known chat and own name, the name's new link cannot be fetched" testPlanKnownNameLinkFailed
+    mapM_ (\copy -> it ("known chat and own name, the name's new link cannot be fetched " <> show copy) testPlanKnownNameLinkFailed) [2 .. 30 :: Int]
     it "own channel expired, joined channel moved to a new channel, new channel joined" testPlanChannelNameMoved
     it "joined channel moved to a channel with no relays" testPlanChannelNameMovedNoRelays
     it "no local chat, the channel has no relays" testPlanNameChannelNoRelays
@@ -896,7 +897,7 @@ testPlanKnownNameLinkFailed = withKnownAliceName $ \reg alice bob cath -> do
 
 pendingAgentDeletions :: TestCC -> IO Int
 pendingAgentDeletions cc = do
-  [[n]] <- withCCAgentTransaction cc $ \db -> DB.query_ db "SELECT count(1) FROM connections WHERE deleted = 1"
+  [[n]] <- withCCAgentTransaction cc $ \db -> DB.query_ db "SELECT count(1) FROM connections"
   pure n
 
 agentDeletionDone :: TestCC -> IO (UTCTime, Int)
