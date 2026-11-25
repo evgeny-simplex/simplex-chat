@@ -4778,7 +4778,12 @@ processChatCommand cxt nm = \case
                 tryAllErrors resolveSLink >>= \case
                   Right l'
                     | ACCL SCMContact (CCLink _ (Just sl)) <- l, sameShortLinkContact sl l' -> pure r
-                    | otherwise -> (knownChatLink <$> linkPlan knownChat_ l') `catchAllErrors` knownPlanOnError
+                    | otherwise -> do
+                        fetchStart <- liftIO getCurrentTime
+                        planResult <- tryAllErrors $ linkPlan knownChat_ l'
+                        fetchEnd <- liftIO getCurrentTime
+                        logError $ "NAMESFLAKE knownNamePlan link=" <> safeDecodeUtf8 (strEncode l') <> " start=" <> tshow fetchStart <> " end=" <> tshow fetchEnd <> " result=" <> either tshow (\(_, p) -> "fetched, knownChat=" <> tshow (isKnownChat p)) planResult
+                        either knownPlanOnError (pure . knownChatLink) planResult
                   Left (ChatError (CESimplexDomainNotReady _ (SDENameWarning w))) | w /= NWNotRegistered -> pure (l, setNameChange (Just $ NCLapsed w) plan)
                   Left e -> knownPlanOnError e
             where

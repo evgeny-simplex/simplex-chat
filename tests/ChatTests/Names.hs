@@ -8,17 +8,23 @@ import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Groups (memberJoinChannel, memberJoinChannel', prepareChannel', prepareChannel1Relay, waitConnectedContactsSettled, waitQueuedLinkUpdates, waitRosterApplied)
 import ChatTests.Utils
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (concurrently_)
+import Control.Monad (unless)
+import qualified Data.ByteString.Char8 as B
 import Data.Int (Int64)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
 import NameResolver
 import Simplex.Chat.Controller (NamePrice (..), NameWarning (..))
 import Simplex.Chat.Library.Commands (nameRecordOrWarning)
+import qualified Simplex.Messaging.Agent.Store.DB as DB
 import Simplex.Messaging.Names.Record (NamePricing (..), NameRecord, NameRegistration (..), NameReservedReason (..), USDCents (..))
 import Simplex.Messaging.SimplexName (SimplexDomain (..), SimplexNameInfo (..), SimplexNameType (..), SimplexTLD (..))
 import Simplex.Messaging.SystemTime (RoundedSystemTime (..), roundedToUTCTime)
+import System.IO (hFlush, stdout)
+import System.Timeout (timeout)
 import Test.Hspec hiding (it)
 
 chatNamesTests :: SpecWith TestParams
@@ -855,16 +861,58 @@ testPlanNameResolverFailed = withAliceName $ \reg _r _alice bob -> do
 
 testPlanKnownNameLinkFailed :: HasCallStack => TestParams -> IO ()
 testPlanKnownNameLinkFailed = withKnownAliceName $ \reg alice bob cath -> do
-  _ <- setAliceName reg cath
+  (cathLink, _) <- setAliceName reg cath
   cath ##> "/da"
   cath <## "Your chat address is deleted - accepted contacts will remain connected."
   cath <## "To create a new chat address use /ad"
+  daAt <- getCurrentTime
   bob ##> "/_connect plan 1 @alice.simplex"
-  knownAlicePlan bob
+  firstLine <- getTermLine bob
+  planAt <- getCurrentTime
+  pendingAtPlan <- pendingAgentDeletions cath
+  unless (firstLine == "contact address: known contact alice") $ do
+    restLines <- termLinesFor bob
+    (delAt, pendingAfter) <- agentDeletionDone cath
+    bob ##> "/_connect plan 1 @alice.simplex"
+    replanLine <- getTermLine bob
+    replanRest <- termLinesFor bob
+    error $
+      unlines
+        [ "NAMESFLAKE fail cathLink=" <> cathLink,
+          "first line: " <> firstLine,
+          "rest: " <> show restLines,
+          "plan after /da: " <> show (diffUTCTime planAt daAt),
+          "cath pending agent deletions at plan: " <> show pendingAtPlan,
+          "cath agent deletion done after /da: " <> show (diffUTCTime delAt daAt) <> ", pending then: " <> show pendingAfter,
+          "replan: " <> replanLine <> " " <> show replanRest
+        ]
+  flakeLog $ "NAMESFLAKE pass cathLink=" <> cathLink <> " plan after /da: " <> show (diffUTCTime planAt daAt) <> ", cath pending agent deletions at plan: " <> show pendingAtPlan
+  bob <## "SimpleX name: @alice.simplex (verified)"
+  bob <## "use @alice <message> to send messages"
   alice ##> "/_connect plan 1 @alice.simplex"
   alice <## "contact address: own address"
   cath ##> "/_connect plan 1 @alice.simplex"
   cath <## "error: connection authorization failed - this could happen if connection was deleted, secured with different credentials, or due to a bug - please re-create the connection"
+
+pendingAgentDeletions :: TestCC -> IO Int
+pendingAgentDeletions cc = do
+  [[n]] <- withCCAgentTransaction cc $ \db -> DB.query_ db "SELECT count(1) FROM connections WHERE deleted = 1"
+  pure n
+
+agentDeletionDone :: TestCC -> IO (UTCTime, Int)
+agentDeletionDone cc = go (3000 :: Int)
+  where
+    go k = do
+      n <- pendingAgentDeletions cc
+      if n == 0 || k == 0
+        then flip (,) n <$> getCurrentTime
+        else threadDelay 10000 >> go (k - 1)
+
+termLinesFor :: TestCC -> IO [String]
+termLinesFor cc = timeout 1000000 (getTermLine cc) >>= maybe (pure []) (\s -> (s :) <$> termLinesFor cc)
+
+flakeLog :: String -> IO ()
+flakeLog s = B.hPutStr stdout (B.pack $ s <> "\n") >> hFlush stdout
 
 testPlanChannelNameMoved :: HasCallStack => TestParams -> IO ()
 testPlanChannelNameMoved = withChannelChats $ \reg alice cath bob -> do
