@@ -4556,13 +4556,18 @@ processChatCommand cxt nm = \case
       when (activeUser user && length otherVisible > 0) $ throwChatError (CECantDeleteActiveUser userId)
     deleteChatUser :: User -> Bool -> CM ChatResponse
     deleteChatUser user delSMPQueues = do
+      ag <- asks smpAgent
+      pgdel ag $ "chat deleteChatUser start u=" <> tshow (aUserId user) <> " delSMP=" <> tshow delSMPQueues
       filesInfo <- withFastStore' (`getUserFileInfo` user)
       deleteCIFiles user filesInfo
+      pgdel ag $ "chat deleteCIFiles done u=" <> tshow (aUserId user)
       withAgent (\a -> deleteUser a (aUserId user) delSMPQueues)
         `catchAllErrors` \case
           e@(ChatErrorAgent NO_USER _ _) -> eToView e
           e -> throwError e
+      pgdel ag $ "chat agent deleteUser done u=" <> tshow (aUserId user)
       withFastStore' (`deleteUserRecord` user)
+      pgdel ag $ "chat deleteUserRecord done u=" <> tshow (aUserId user)
       when (activeUser user) $ chatWriteVar currentUser Nothing
       ok_
     updateChatSettings :: ChatName -> (ChatSettings -> ChatSettings) -> CM ChatResponse
@@ -6608,11 +6613,17 @@ agentSubscriber = do
       E.throwIO e
   where
     process :: (ACorrId, AEntityId, AEvt) -> CM' ()
-    process (corrId, entId, AEvt e msg) = run $ case e of
-      SAENone -> processAgentMessageNoConn msg
-      SAEConn -> processAgentMessage corrId entId msg
-      SAERcvFile -> processAgentMsgRcvFile corrId entId msg
-      SAESndFile -> processAgentMsgSndFile corrId entId msg
+    process (corrId, entId, AEvt e msg) = do
+      t0 <- liftIO getCurrentTime
+      run $ case e of
+        SAENone -> processAgentMessageNoConn msg
+        SAEConn -> processAgentMessage corrId entId msg
+        SAERcvFile -> processAgentMsgRcvFile corrId entId msg
+        SAESndFile -> processAgentMsgSndFile corrId entId msg
+      t1 <- liftIO getCurrentTime
+      when (diffUTCTime t1 t0 > 1) $ do
+        ag <- asks smpAgent
+        pgdel ag $ "chat slow event " <> tshow (aEventTag msg) <> " entity=" <> tshow entId <> " duration=" <> tshow (diffUTCTime t1 t0)
       where
         run action = action `catchAllOwnErrors'` eToView'
 

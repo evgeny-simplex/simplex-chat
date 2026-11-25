@@ -200,7 +200,10 @@ processAgentMessageNoConn = \case
   DOWN srv conns -> serverEvent srv SSPending conns
   UP srv conns -> serverEvent srv SSActive conns
   SUSPENDED -> toView CEvtChatSuspended
-  DEL_USER agentUserId -> toView $ CEvtAgentUserDeleted agentUserId
+  DEL_USER agentUserId -> do
+    ag <- asks smpAgent
+    pgdel ag $ "chat DEL_USER received u=" <> tshow agentUserId
+    toView $ CEvtAgentUserDeleted agentUserId
   SERVICE_UP srv (ServiceSubResult e_ ss) -> serviceEvent srv $ ServiceSubUp (errText <$> e_) (smpQueueCount ss)
     where
       errText = \case
