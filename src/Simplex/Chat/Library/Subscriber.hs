@@ -594,7 +594,11 @@ processAgentMessageConn cxt user@User {userId} entity gks_ corrId agentConnId ag
               let ct'' = ct' {activeConn = Just conn''} :: Contact
               case event of
                 XMsgNew mc -> newContentMessage ct'' mc msg msgMeta
-                XMsgFileDescr sharedMsgId fileDescr fileExpires fileBadge -> messageFileDescription ct'' sharedMsgId fileDescr fileExpires fileBadge
+                XMsgFileDescr sharedMsgId fileDescr fileExpires fileBadge ->
+                  messageFileDescription ct'' sharedMsgId fileDescr fileExpires fileBadge `catchAllErrors` \e -> do
+                    now <- liftIO getCurrentTime
+                    liftIO $ print ("DEBUG-FD-MSG" :: String, now, e, eInfo, msgMeta, connId)
+                    throwError e
                 XMsgUpdate sharedMsgId mContent _ ttl live _msgScope _ -> messageUpdate ct'' sharedMsgId mContent msg msgMeta ttl live
                 XMsgDel sharedMsgId _ _ _ -> messageDelete ct'' sharedMsgId msg msgMeta
                 XMsgReact sharedMsgId _ _ reaction add -> directMsgReaction ct'' sharedMsgId reaction add msg msgMeta

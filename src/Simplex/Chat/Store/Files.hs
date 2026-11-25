@@ -602,7 +602,14 @@ appendRcvFD db userId fileId fd@FileDescr {fileDescrText, fileDescrPartNo, fileD
           fileDescrComplete = rfdComplete
         } -> do
         let fileDescrText' = rfdText <> fileDescrText
-        when (fileDescrPartNo /= rfdPNo + 1 || rfdComplete || not (rcvFileDescrWithinLimits fileDescrPartNo fileDescrText')) $ throwError SERcvFileInvalidDescrPart
+        when (fileDescrPartNo /= rfdPNo + 1 || rfdComplete || not (rcvFileDescrWithinLimits fileDescrPartNo fileDescrText')) $ do
+          liftIO $ do
+            now <- getCurrentTime
+            fs :: [(Text, Maybe Int64, UTCTime, UTCTime)] <- DB.query db "SELECT file_status, to_receive, created_at, updated_at FROM rcv_files WHERE file_id = ?" (Only fileId)
+            dts :: [(UTCTime, UTCTime)] <- DB.query db "SELECT created_at, updated_at FROM xftp_file_descriptions WHERE file_descr_id = ?" (Only fileDescrId)
+            ds :: [(Int64, Int64, Int64, Maybe Int64, UTCTime, Maybe Text, Maybe Text)] <- DB.query_ db "SELECT d.msg_delivery_id, d.message_id, d.connection_id, d.agent_msg_id, d.created_at, d.delivery_status, d.agent_msg_meta FROM msg_deliveries d JOIN messages m ON m.message_id = d.message_id WHERE m.chat_msg_event = 'x.msg.file.descr' ORDER BY d.msg_delivery_id"
+            print ("DEBUG-FD-STORE" :: String, now, fileId, (fileDescrPartNo, fileDescrComplete, T.length fileDescrText), (rfdPNo, rfdComplete, T.length rfdText), fs, dts, ds)
+          throwError SERcvFileInvalidDescrPart
         liftIO $
           DB.execute
             db
