@@ -2,7 +2,7 @@ name: android-emu
 
 on:
   workflow_dispatch:
-    inputs:
+    inputs: &inputs
       claude:
         description: Also run the Claude job, which spends the Claude subscription's usage limits
         type: boolean
@@ -19,13 +19,22 @@ on:
         description: Also build the core library for 32-bit Arm (armeabi-v7a)
         type: boolean
         default: false
+  workflow_call:
+    inputs: *inputs
+    outputs:
+      core:
+        value: ${{ jobs.plan.outputs.core }}
+      core-run:
+        value: ${{ jobs.plan.outputs.core-run }}
+      core-armv7a-run:
+        value: ${{ jobs.plan.outputs.core-armv7a-run }}
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: android-emu-${{ github.ref }}
+  group: android-emu-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -49,6 +58,7 @@ jobs:
       claude-backend: ${{ steps.scope.outputs.backend }}
       core: ${{ steps.names.outputs.core }}
       core-run: ${{ steps.core.outputs.run-id }}
+      core-armv7a-run: ${{ steps.core-armv7a.outputs.run-id }}
       backend: ${{ steps.names.outputs.backend }}
       backend-run: ${{ steps.backend.outputs.run-id }}
     steps:
@@ -100,6 +110,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.core }}"
+
+      - name: Find core library for armv7a
+        id: core-armv7a
+        if: steps.jobs.outputs.armv7a == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/desktop-linux/earlier-run.sh "${{ steps.names.outputs.core }}-armv7a"
 
       - name: Find backend
         id: backend
@@ -183,7 +200,7 @@ jobs:
   core-armv7a:
     name: core library for Android armv7a
     needs: plan
-    if: needs.plan.outputs.run-armv7a == 'true'
+    if: needs.plan.outputs.run-armv7a == 'true' && needs.plan.outputs.core-armv7a-run == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
@@ -202,6 +219,15 @@ jobs:
 
       - name: Build core library
         run: scripts/ci/android/build-core.sh ~/core/android-core-armeabi-v7a.tar.gz armv7a
+
+      - name: Upload core library
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ needs.plan.outputs.core }}-armv7a
+          path: ~/core/android-core-armeabi-v7a.tar.gz
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
 
   app:
     name: Android app in the emulator
