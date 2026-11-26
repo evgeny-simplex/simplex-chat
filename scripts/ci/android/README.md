@@ -18,7 +18,7 @@ Every run builds the core library, and the backend when it's asked for, from the
 | `claude` (opt-in) | after `app` passed: its APK in a new emulator at the first screen, then Claude Code drives it | about 5 min, Claude 2.5 |
 | `backend` (opt-in) | desktop-linux's `build-backend.sh` | about 30 min, skipped when reused |
 | `release` (opt-in) | the latest release's arm64 APK, its signer checked against SimpleX's key, onboarding only | about 4 min |
-| `core-armv7a` (opt-in) | `build-core.sh` with `armv7a`: `lib:simplex-chat` and `lib:support` for armv7a-android, with GHC 8.10.7; the app and the emulator use only arm64 | not measured yet |
+| `core-armv7a` (opt-in) | `build-core.sh` with `armv7a`: `lib:simplex-chat` and `lib:support` for armv7a-android, with GHC 8.10.7, uploaded as the core's artifact with `-armv7a`; the app and the emulator use only arm64 | skipped when reused, not measured yet |
 
 Results are artifacts: `android-smoke-test` (numbered screenshots, the accessibility tree and the text of each, `steps.log`, `checks.txt`, logcat as `app.log`, `emulator.log`, and after a failed test the emulator's crash reports in `emulator-crashes/`), `android-release-smoke-test`, `android-claude-test`, and the backend's logs; `android-app`, the APK for manual tests and the Claude job, is kept 14 days. The job summaries list the checks and the Claude usage.
 
