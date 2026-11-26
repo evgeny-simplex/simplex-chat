@@ -1,0 +1,53 @@
+name: msi-check
+
+on:
+  push:
+    branches:
+      - ep/internal-release-simple-test
+    paths:
+      - .github/workflows/msi-check.yml
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  msi:
+    name: Internal and public msi files replace each other
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download the internal msi and UI update
+        uses: actions/download-artifact@v8
+        with:
+          name: packages-windows-x86_64
+          path: internal
+          run-id: 45891973263
+          github-token: ${{ github.token }}
+
+      - name: Install public, internal, public
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/simplex-chat/simplex-chat/releases/download/v7.1.4/simplex-desktop-windows-x86_64.msi -OutFile public-7.1.4.msi
+          function Install($msi, $version) {
+            $path = (Resolve-Path $msi).Path
+            $process = Start-Process msiexec -ArgumentList "/i `"$path`" /qn /l*v `"$path.log`"" -Wait -PassThru
+            Write-Output "msiexec /i ${msi}: exit code $($process.ExitCode)"
+            $installed = @(Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Where-Object DisplayName -like 'SimpleX*')
+            $installed | Format-Table DisplayName, DisplayVersion, PSChildName -AutoSize | Out-String | Write-Output
+            if ($process.ExitCode -ne 0 -or $installed.Count -ne 1 -or $installed[0].DisplayVersion -ne $version) { exit 1 }
+          }
+          Install public-7.1.4.msi 7.1.4
+          Install internal\simplex-desktop-windows-x86_64.msi 7.1.177
+          $cfg = Get-ChildItem -Path "$env:ProgramFiles", "$env:LOCALAPPDATA" -Filter SimpleX.cfg -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          Write-Output "installed: $($cfg.FullName)"
+          $app = $cfg.Directory.FullName
+          $runtime = Join-Path $cfg.Directory.Parent.FullName runtime\release
+          python scripts/ci/internal-release/ui-zip.py "$app" "$runtime" installed-ui
+          $built = (Get-ChildItem internal -Filter 'simplex-desktop-ui-*.zip').Name
+          $computed = (Get-ChildItem installed-ui -Filter 'simplex-desktop-ui-*.zip').Name
+          Write-Output "built: $built, installed app: $computed"
+          if ($built -ne $computed) { exit 1 }
+          Install public-7.1.4.msi 7.1.4
