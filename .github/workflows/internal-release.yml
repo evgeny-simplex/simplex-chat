@@ -98,6 +98,8 @@ jobs:
     needs: start
     if: needs.start.outputs.release == 'true'
     uses: ./.github/workflows/ios-sim.yml
+    with:
+      snapshots: false
 
   desktop-linux:
     name: Desktop Ubuntu ${{ matrix.os }} ${{ matrix.arch }}

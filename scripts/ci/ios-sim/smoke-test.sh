@@ -2,7 +2,7 @@
 
 # Installs the app in a new iPhone simulator and runs the scripted UI cases with the ui helper: onboarding to the
 # chat list with the one-hand UI (the default), then the chat list again with the top bar. It leaves the app in the one-hand UI.
-# For an app in the derived data of a build, it then renders the previews of the SimpleX Snapshots tests to the snapshots
+# For an app in the derived data of a build, unless SNAPSHOTS is false, it then renders the previews of the SimpleX Snapshots tests to the snapshots
 # folder of the output dir (snapshots.sh).
 # With "images" it then turns off the encryption of local files, creates a group and sends tests/fixtures/test.jpg and
 # logo-large-rgba.png picked in the photo library, and checks the pixel sizes of the sent files.
@@ -213,7 +213,7 @@ expect_chat_list top
 echo "smoke test passed: onboarding reaches the chat list, which shows its onboarding pages and toolbar with the one-hand UI and with the top bar"
 
 products=$(dirname "$app")
-if [[ "$products" == */Build/Products/Debug-iphonesimulator ]]; then
+if [[ "$products" == */Build/Products/Debug-iphonesimulator ]] && [ "${SNAPSHOTS:-true}" != false ]; then
   # the previews read the app's settings, and their references have the default private routing
   xcrun simctl spawn "$SIM_UDID" defaults delete "$prefs" networkSMPProxyMode
   "$(dirname "$0")/snapshots.sh" "${products%/Build/Products/Debug-iphonesimulator}" "$UI_OUT/snapshots"

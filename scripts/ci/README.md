@@ -252,6 +252,7 @@ Pushes start none of the app workflows: a run is started by hand, on any branch,
 | `backend` | also the test backend | also the test backend | also the test backend |
 | `release` | — | also the latest release's onboarding, to tell a branch's failure from the runner's | also the latest release's onboarding, to tell a branch's failure from the runner's |
 | `armv7a` | — | — | also the core library and the app for 32-bit Arm (armeabi-v7a), uploaded without a test |
+| `snapshots`, on by default | the snapshots rendered and compared after the smoke test | — | — |
 
 In the Actions tab: `ios-sim`, `desktop-linux` or `android-emu` → Run workflow, choose the branch and tick the inputs. With the GitHub CLI, each input is a field:
 
@@ -320,7 +321,7 @@ The builds use the scripts of build.yml's tag builds. Each core library is an ar
 
 | Job | Builds or does | Core library artifact | Secrets |
 |---|---|---|---|
-| `test-android`, `test-desktop`, `test-ios` | android-emu (with `armv7a`), desktop-linux and ios-sim on the commit, as a manual run of each does | their own | |
+| `test-android`, `test-desktop`, `test-ios` | android-emu (with `armv7a`), desktop-linux and ios-sim (without `snapshots`) on the commit, as a manual run of each does | their own | |
 | `desktop-linux` | the desktop deb of Ubuntu 22.04 and 24.04, x86_64 and aarch64, and the AppImage of 22.04: scripts/desktop/make-deb-linux.sh and make-appimage-linux.sh in the Dockerfile.build container | `desktop-linux-core-ubuntu-<version>-<arch>-<hash>`: scripts/ci/desktop-linux/build-core.sh in the container, then install-core.sh | |
 | `desktop-macos` | the dmg of aarch64 and x86_64: scripts/ci/build-desktop-mac.sh, signed with the Developer ID and notarized on master; unsigned elsewhere | `desktop-macos-core-<arch>-<toolchain>-<hash>`: scripts/desktop/build-lib-mac.sh | `APPLE_SIMPLEX_*`, the repository secrets of build.yml |
 | `desktop-windows` | the msi: `packageMsi` | `desktop-windows-core-<toolchain>-<hash>`: scripts/desktop/build-lib-windows.sh | |
