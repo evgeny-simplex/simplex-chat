@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - ep/internal-release-test-4
     paths:
       - apps/multiplatform/gradle.properties
       - apps/ios/SimpleX.xcodeproj/project.pbxproj
