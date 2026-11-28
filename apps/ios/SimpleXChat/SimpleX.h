@@ -60,4 +60,20 @@ extern char *chat_encrypt_file(chat_ctrl ctl, char *fromPath, char *toPath);
 // chat_decrypt_file returns null-terminated string with the error message
 extern char *chat_decrypt_file(char *fromPath, char *key, char *nonce, char *toPath);
 
+typedef struct {
+  int32_t width;
+  int32_t height;
+  int32_t frame_count;
+  int32_t loop_count;
+  int32_t has_alpha;
+  int32_t status;
+} chat_image_info;
+
+extern void *chat_image_open_file(const char *path, const char *key, const char *nonce, int max_w, int max_h, chat_image_info *info);
+extern void *chat_image_open_picked_file(const char *path, int max_w, int max_h, chat_image_info *info);
+extern void *chat_image_open_data_uri(const char *uri, int max_w, int max_h, chat_image_info *info);
+extern int chat_image_next_frame(void *image, uint8_t *pixels, int row_bytes, int format);
+extern void chat_image_rewind(void *image);
+extern void chat_image_close(void *image);
+
 #endif /* SimpleX_h */
