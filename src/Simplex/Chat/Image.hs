@@ -10,8 +10,8 @@
 module Simplex.Chat.Image
   ( ImageFormat (..),
     ColourProfile (..),
-    ImageLimits (..),
-    DisplayImage (..),
+    ImageLimits (memoryLimitMB),
+    DisplayImage (premultipliedFrame, hasTransparency),
     pickedImageLimits,
     receivedImageLimits,
     imageFormat,

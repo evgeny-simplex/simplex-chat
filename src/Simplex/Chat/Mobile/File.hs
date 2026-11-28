@@ -272,16 +272,17 @@ cChatImageOpenDataUri cUri = cOpenImage receivedImageLimits $ liftEither . parse
     dataUriP = "data:image/" *> A.takeTill (== ';') *> ";base64," *> base64P
 
 readImageFile :: ImageLimits -> CryptoFile -> ExceptT String IO ByteString
-readImageFile ImageLimits {memoryLimitMB} file = do
+readImageFile limits file = do
   size <- liftIO $ CF.getFileContentsSize file
-  when (size > fromIntegral memoryLimitMB * 1048576) $ throwError "image file is too large"
+  when (size > fromIntegral (memoryLimitMB limits) * 1048576) $ throwError "image file is too large"
   LB.toStrict <$> withExceptT show (CF.readFile file)
 
 cOpenImage :: ImageLimits -> ExceptT String IO ByteString -> CInt -> CInt -> Ptr OpenedImage -> IO (StablePtr ChatImage)
 cOpenImage limits input maxWidth maxHeight info =
   runCatchExceptT decode >>= \case
-    Right image@DisplayImage {premultipliedFrame = Image {imageWidth, imageHeight}, hasTransparency} -> do
-      poke info $ OIOpened ImageInfo {frameWidth = imageWidth, frameHeight = imageHeight, frameCount = 1, loopCount = 0, hasAlpha = hasTransparency}
+    Right image -> do
+      let Image {imageWidth, imageHeight} = premultipliedFrame image
+      poke info $ OIOpened ImageInfo {frameWidth = imageWidth, frameHeight = imageHeight, frameCount = 1, loopCount = 0, hasAlpha = hasTransparency image}
       newStablePtr . ChatImage image =<< newIORef False
     Left e -> do
       poke info $ if e == "unsupported image format" then OIUnsupported else OIRefused
@@ -295,13 +296,14 @@ cChatImageNextFrame :: StablePtr ChatImage -> Ptr Word8 -> CInt -> CInt -> IO CI
 cChatImageNextFrame image pixels rowBytes format
   | noImage image || pixels == nullPtr = pure (-1)
   | otherwise = do
-      ChatImage {displayImage = DisplayImage {premultipliedFrame}, frameWritten} <- deRefStablePtr image
+      ChatImage {displayImage, frameWritten} <- deRefStablePtr image
+      let frame = premultipliedFrame displayImage
       case pixelFormat format of
         Just inFormat
-          | fromIntegral rowBytes >= 4 * imageWidth premultipliedFrame ->
+          | fromIntegral rowBytes >= 4 * imageWidth frame ->
               atomicModifyIORef' frameWritten (True,) >>= \case
                 True -> pure (-1)
-                False -> 0 <$ pokeFrame pixels (fromIntegral rowBytes) (inFormat premultipliedFrame)
+                False -> 0 <$ pokeFrame pixels (fromIntegral rowBytes) (inFormat frame)
         _ -> pure (-1)
 
 pixelFormat :: CInt -> Maybe (Image PixelRGBA8 -> Image PixelRGBA8)
