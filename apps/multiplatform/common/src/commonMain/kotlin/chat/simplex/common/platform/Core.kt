@@ -50,6 +50,13 @@ var chatParseMarkdown: (String) -> String = ::nativeChatParseMarkdown
 var chatParseUri: (String, Int) -> String = ::nativeChatParseUri
 var chatResizeImageUri: (ByteBuffer, Int) -> String = ::nativeChatResizeImageUri
 var chatResizeImageFileUri: (String, Int) -> String = ::nativeChatResizeImageFileUri
+external fun chatImageOpenFile(path: String, key: String?, nonce: String?, maxWidth: Int, maxHeight: Int, info: IntArray): Long
+external fun chatImageOpenPickedFile(path: String, maxWidth: Int, maxHeight: Int, info: IntArray): Long
+external fun chatImageOpenDataUri(uri: String, maxWidth: Int, maxHeight: Int, info: IntArray): Long
+external fun chatImageNextFrameBitmap(image: Long, bitmap: Any, width: Int, height: Int): Int
+external fun chatImageNextFramePixels(image: Long, pixels: Long, rowBytes: Int, format: Int): Int
+external fun chatImageRewind(image: Long)
+external fun chatImageClose(image: Long)
 
 // the code in core's canonical form (prefix and 20 characters, no separators), or null when core rejects it.
 // The check character is verified by core via FFI, not re-implemented here, so the two cannot disagree.

@@ -22,6 +22,15 @@ Java_chat_simplex_common_platform_CoreKt_initHS(JNIEnv *env, jclass clazz) {
 // from simplex-chat
 typedef long* chat_ctrl;
 
+typedef struct {
+    int32_t width;
+    int32_t height;
+    int32_t frame_count;
+    int32_t loop_count;
+    int32_t has_alpha;
+    int32_t status;
+} chat_image_info;
+
 /*
    When you start using any new function from Haskell libraries,
    you have to add the function name to the file libsimplex.dll.def in the root directory.
@@ -50,6 +59,12 @@ extern char *chat_resize_image_uri(char *ptr, int length, int max_size);
 extern char *chat_resize_image(char *ptr, int length, int max_size, int png);
 extern char *chat_resize_image_file_uri(const char *path, int max_size);
 extern char *chat_resize_image_file(const char *path, int max_size, int png);
+extern void *chat_image_open_file(const char *path, const char *key, const char *nonce, int max_w, int max_h, chat_image_info *info);
+extern void *chat_image_open_picked_file(const char *path, int max_w, int max_h, chat_image_info *info);
+extern void *chat_image_open_data_uri(const char *uri, int max_w, int max_h, chat_image_info *info);
+extern int chat_image_next_frame(void *image, uint8_t *pixels, int row_bytes, int format);
+extern void chat_image_rewind(void *image);
+extern void chat_image_close(void *image);
 
 // As a reference: https://stackoverflow.com/a/60002045
 jstring decode_to_utf8_string(JNIEnv *env, char *string) {
@@ -307,4 +322,55 @@ Java_chat_simplex_common_platform_CoreKt_chatResizeImageFile(JNIEnv *env, jclass
     jstring res = decode_to_utf8_string(env, chat_resize_image_file(_path, maxSize, png));
     (*env)->ReleaseStringUTFChars(env, path, _path);
     return res;
+}
+
+static jlong opened_image(JNIEnv *env, void *image, chat_image_info *info, jintArray result) {
+    (*env)->SetIntArrayRegion(env, result, 0, 6, (jint *) info);
+    return (jlong) (intptr_t) image;
+}
+
+JNIEXPORT jlong JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageOpenFile(JNIEnv *env, jclass clazz, jstring path, jstring key, jstring nonce, jint maxWidth, jint maxHeight, jintArray info) {
+    char *_path = encode_to_utf8_chars(env, path);
+    char *_key = key ? encode_to_utf8_chars(env, key) : NULL;
+    char *_nonce = nonce ? encode_to_utf8_chars(env, nonce) : NULL;
+    chat_image_info _info;
+    void *image = chat_image_open_file(_path, _key, _nonce, maxWidth, maxHeight, &_info);
+    free(_path);
+    free(_key);
+    free(_nonce);
+    return opened_image(env, image, &_info, info);
+}
+
+JNIEXPORT jlong JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageOpenPickedFile(JNIEnv *env, jclass clazz, jstring path, jint maxWidth, jint maxHeight, jintArray info) {
+    char *_path = encode_to_utf8_chars(env, path);
+    chat_image_info _info;
+    void *image = chat_image_open_picked_file(_path, maxWidth, maxHeight, &_info);
+    free(_path);
+    return opened_image(env, image, &_info, info);
+}
+
+JNIEXPORT jlong JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageOpenDataUri(JNIEnv *env, jclass clazz, jstring uri, jint maxWidth, jint maxHeight, jintArray info) {
+    char *_uri = encode_to_utf8_chars(env, uri);
+    chat_image_info _info;
+    void *image = chat_image_open_data_uri(_uri, maxWidth, maxHeight, &_info);
+    free(_uri);
+    return opened_image(env, image, &_info, info);
+}
+
+JNIEXPORT jint JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageNextFramePixels(JNIEnv *env, jclass clazz, jlong image, jlong pixels, jint rowBytes, jint format) {
+    return chat_image_next_frame((void *) (intptr_t) image, (uint8_t *) (intptr_t) pixels, rowBytes, format);
+}
+
+JNIEXPORT void JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageRewind(JNIEnv *env, jclass clazz, jlong image) {
+    chat_image_rewind((void *) (intptr_t) image);
+}
+
+JNIEXPORT void JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageClose(JNIEnv *env, jclass clazz, jlong image) {
+    chat_image_close((void *) (intptr_t) image);
 }

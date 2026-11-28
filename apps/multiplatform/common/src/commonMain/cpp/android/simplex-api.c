@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <string.h>
 #include <stdint.h>
+#include <android/bitmap.h>
 //#include <stdlib.h>
 //#include <android/log.h>
 
@@ -52,6 +53,15 @@ Java_chat_simplex_common_platform_CoreKt_initHS(__unused JNIEnv *env, __unused j
 // from simplex-chat
 typedef long* chat_ctrl;
 
+typedef struct {
+    int32_t width;
+    int32_t height;
+    int32_t frame_count;
+    int32_t loop_count;
+    int32_t has_alpha;
+    int32_t status;
+} chat_image_info;
+
 // Strings returned by chat_* functions are allocated with malloc and owned by the caller.
 static jstring decode_and_free(JNIEnv *env, char *string) {
     jstring res = (*env)->NewStringUTF(env, string);
@@ -87,6 +97,12 @@ extern char *chat_resize_image_uri(char *ptr, int length, int max_size);
 extern char *chat_resize_image(char *ptr, int length, int max_size, int png);
 extern char *chat_resize_image_fd_uri(int fd, int max_size);
 extern char *chat_resize_image_fd(int fd, int max_size, int png);
+extern void *chat_image_open_file(const char *path, const char *key, const char *nonce, int max_w, int max_h, chat_image_info *info);
+extern void *chat_image_open_picked_file(const char *path, int max_w, int max_h, chat_image_info *info);
+extern void *chat_image_open_data_uri(const char *uri, int max_w, int max_h, chat_image_info *info);
+extern int chat_image_next_frame(void *image, uint8_t *pixels, int row_bytes, int format);
+extern void chat_image_rewind(void *image);
+extern void chat_image_close(void *image);
 
 JNIEXPORT jobjectArray JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatMigrateInit(JNIEnv *env, __unused jclass clazz, jstring dbPath, jstring dbKey, jstring confirm) {
@@ -300,4 +316,63 @@ Java_chat_simplex_common_platform_CoreKt_chatResizeImageFdUri(JNIEnv *env, jclas
 JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatResizeImageFd(JNIEnv *env, jclass clazz, jint fd, jint maxSize, jint png) {
     return decode_and_free(env, chat_resize_image_fd(fd, maxSize, png));
+}
+
+static jlong opened_image(JNIEnv *env, void *image, chat_image_info *info, jintArray result) {
+    (*env)->SetIntArrayRegion(env, result, 0, 6, (jint *) info);
+    return (jlong) (intptr_t) image;
+}
+
+JNIEXPORT jlong JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageOpenFile(JNIEnv *env, __unused jclass clazz, jstring path, jstring key, jstring nonce, jint maxWidth, jint maxHeight, jintArray info) {
+    const char *_path = (*env)->GetStringUTFChars(env, path, JNI_FALSE);
+    const char *_key = key ? (*env)->GetStringUTFChars(env, key, JNI_FALSE) : NULL;
+    const char *_nonce = nonce ? (*env)->GetStringUTFChars(env, nonce, JNI_FALSE) : NULL;
+    chat_image_info _info;
+    void *image = chat_image_open_file(_path, _key, _nonce, maxWidth, maxHeight, &_info);
+    (*env)->ReleaseStringUTFChars(env, path, _path);
+    if (key) (*env)->ReleaseStringUTFChars(env, key, _key);
+    if (nonce) (*env)->ReleaseStringUTFChars(env, nonce, _nonce);
+    return opened_image(env, image, &_info, info);
+}
+
+JNIEXPORT jlong JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageOpenPickedFile(JNIEnv *env, __unused jclass clazz, jstring path, jint maxWidth, jint maxHeight, jintArray info) {
+    const char *_path = (*env)->GetStringUTFChars(env, path, JNI_FALSE);
+    chat_image_info _info;
+    void *image = chat_image_open_picked_file(_path, maxWidth, maxHeight, &_info);
+    (*env)->ReleaseStringUTFChars(env, path, _path);
+    return opened_image(env, image, &_info, info);
+}
+
+JNIEXPORT jlong JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageOpenDataUri(JNIEnv *env, __unused jclass clazz, jstring uri, jint maxWidth, jint maxHeight, jintArray info) {
+    const char *_uri = (*env)->GetStringUTFChars(env, uri, JNI_FALSE);
+    chat_image_info _info;
+    void *image = chat_image_open_data_uri(_uri, maxWidth, maxHeight, &_info);
+    (*env)->ReleaseStringUTFChars(env, uri, _uri);
+    return opened_image(env, image, &_info, info);
+}
+
+JNIEXPORT jint JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageNextFrameBitmap(JNIEnv *env, __unused jclass clazz, jlong image, jobject bitmap, jint width, jint height) {
+    AndroidBitmapInfo info;
+    void *pixels;
+    if (AndroidBitmap_getInfo(env, bitmap, &info) != ANDROID_BITMAP_RESULT_SUCCESS
+        || info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || info.width != (uint32_t) width || info.height != (uint32_t) height
+        || AndroidBitmap_lockPixels(env, bitmap, &pixels) != ANDROID_BITMAP_RESULT_SUCCESS)
+        return -1;
+    int duration = chat_image_next_frame((void *) (intptr_t) image, pixels, (int) info.stride, 0);
+    AndroidBitmap_unlockPixels(env, bitmap);
+    return duration;
+}
+
+JNIEXPORT void JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageRewind(__unused JNIEnv *env, __unused jclass clazz, jlong image) {
+    chat_image_rewind((void *) (intptr_t) image);
+}
+
+JNIEXPORT void JNICALL
+Java_chat_simplex_common_platform_CoreKt_chatImageClose(__unused JNIEnv *env, __unused jclass clazz, jlong image) {
+    chat_image_close((void *) (intptr_t) image);
 }

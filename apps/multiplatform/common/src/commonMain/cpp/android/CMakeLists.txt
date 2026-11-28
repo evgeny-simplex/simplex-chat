@@ -36,6 +36,10 @@ find_library( # Sets the name of the path variable.
     # you want CMake to locate.
     log)
 
+find_library(
+    jnigraphics-lib
+    jnigraphics)
+
 find_library( # Sets the name of the path variable.
     c-lib
 
@@ -75,6 +79,7 @@ target_link_libraries( # Specifies the target library.
     # Links the target library to the log library
     # included in the NDK.
     ${log-lib}
+    ${jnigraphics-lib}
 )
 
 add_custom_command(TARGET app-lib POST_BUILD
