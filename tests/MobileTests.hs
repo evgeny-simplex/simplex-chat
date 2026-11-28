@@ -12,10 +12,12 @@ module MobileTests (mobileTests) where
 import ChatClient
 import ChatTests.DBUtils
 import ChatTests.Utils
-import Codec.Picture (PixelRGB8 (..), generateImage)
+import Codec.Picture (PixelRGB8 (..), PixelRGBA8 (..), encodeGifImage, encodePng, generateImage)
 import Codec.Picture.JPEGTurbo (encodeRGB)
 import Control.Concurrent (forkIO)
+import Control.Concurrent.Async (forConcurrently)
 import Control.Concurrent.STM
+import Control.Monad (forM_)
 import Control.Monad.Except
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as J
@@ -26,23 +28,25 @@ import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Internal (create)
 import qualified Data.ByteString.Lazy.Char8 as LB
+import Data.Int (Int32)
 import Data.Time.Clock (getCurrentTime)
 import Data.Word (Word8, Word32)
 import Foreign.C
-import Foreign.Marshal.Alloc (alloca, mallocBytes)
-import Foreign.Marshal.Utils (copyBytes)
+import Foreign.Marshal.Alloc (alloca, allocaBytes, mallocBytes)
+import Foreign.Marshal.Array (peekArray)
+import Foreign.Marshal.Utils (copyBytes, fillBytes)
 import Foreign.Ptr
 import Foreign.StablePtr
 import Foreign.Storable (peek)
 import GHC.IO.Encoding (setLocaleEncoding, setFileSystemEncoding, setForeignEncoding)
 import qualified GHC.IO.FD as FD
 import GHC.IO.Handle.FD (fdToHandle)
-import ImageTests (pngShortImageData, pngSideAbove16384)
+import ImageTests (jpegWithExif, littleEndianInt, pngShortImageData, pngSideAbove16384)
 import JSONFixtures
 import Simplex.Chat
 import Simplex.Chat.Badges (BadgeInfo (..), BadgeRequest (..), BadgeType (..), generateMasterKey, verifyCredential)
 import Simplex.Chat.Controller (ChatConfig (..), ChatController (..), ChatDatabase (..))
-import Simplex.Chat.Image (maxDecodeMemoryMB)
+import Simplex.Chat.Image (ImageLimits (..), maxDecodeMemoryMB, receivedImageLimits)
 import Simplex.Chat.Mobile hiding (error)
 import Simplex.Chat.Mobile.Badges hiding (error)
 import Simplex.Chat.Mobile.File
@@ -108,6 +112,16 @@ mobileTests = do
       it "should resize image from a file path via C API" testResizeImageFileCApi
       it "should resize image from a file descriptor via C API" testResizeImageFdCApi
       it "should refuse malformed PNG via C API" testResizeMalformedPngCApi
+    describe "Image API" $ do
+      it "should open pictures within a size via C API" testImageOpenCApi
+      it "should write chat_image_info in its C layout via C API" testImageInfoLayoutCApi
+      it "should write frames in premultiplied RGBA and BGRA via C API" testImageFrameCApi
+      it "should apply EXIF orientation via C API" testImageOrientationCApi
+      it "should return the status of pictures that do not open via C API" testImageStatusCApi
+      it "should open encrypted picture files via C API" testImageEncryptedFileCApi
+      it "should apply the limits of pictures from others and of picked pictures via C API" testImageLimitsCApi
+      it "should refuse invalid frame arguments via C API" testImageFrameArgumentsCApi
+      it "should open pictures on several threads via C API" testImageThreadsCApi
 
 noActiveUser :: LB.ByteString
 noActiveUser =
@@ -473,6 +487,195 @@ testResizeMalformedPngCApi _ = do
       (ptr, len) <- cBuffer png
       (peekCAString =<< cChatResizeImageUri ptr len 14000) `shouldReturn` ""
       (peekCAString =<< cChatResizeImage ptr len 261120 (-1)) `shouldReturn` ""
+
+testImageOpenCApi :: TestParams -> IO ()
+testImageOpenCApi _ =
+  forM_ pictures $ \(file, (w, h), alpha) ->
+    forM_ [openImageFile, openPickedFile] $ \open -> do
+      (info, image) <- open ("./tests/fixtures/" <> file) 400 400
+      info `shouldBe` OIOpened ImageInfo {frameWidth = w, frameHeight = h, frameCount = 1, loopCount = 0, hasAlpha = alpha}
+      fst <$> readFrame image w h 0 `shouldReturn` 0
+      fst <$> readFrame image w h 0 `shouldReturn` (-1)
+      cChatImageRewind image
+      fst <$> readFrame image w h 1 `shouldReturn` 0
+      cChatImageClose image
+  where
+    pictures =
+      [ ("test.jpg", (400, 225), False),
+        ("logo-large-rgba.png", (400, 114), True),
+        ("webp/lossy.webp", (128, 128), False),
+        ("webp/animated.webp", (160, 128), True)
+      ]
+
+testImageInfoLayoutCApi :: TestParams -> IO ()
+testImageInfoLayoutCApi _ = allocaBytes 24 $ \info -> do
+  image <- withCString "./tests/fixtures/logo-large-rgba.png" $ \path -> cChatImageOpenFile path nullPtr nullPtr 400 400 (castPtr info)
+  peekArray 6 info `shouldReturn` ([400, 114, 1, 0, 1, 0] :: [Int32])
+  cChatImageClose image
+  _ <- withCString "./tests/fixtures/test.pdf" $ \path -> cChatImageOpenFile path nullPtr nullPtr 400 400 (castPtr info)
+  peekArray 6 info `shouldReturn` [0, 0, 0, 0, 0, 1]
+  _ <- withCString "./tests/fixtures/missing.jpg" $ \path -> cChatImageOpenFile path nullPtr nullPtr 400 400 (castPtr info)
+  peekArray 6 info `shouldReturn` [0, 0, 0, 0, 0, 2]
+
+testImageFrameCApi :: TestParams -> IO ()
+testImageFrameCApi _ = do
+  (info, image) <- openDataUri ("data:image/png;base64," <> B64.encode (LB.toStrict $ encodePng $ generateImage pixel 2 2)) 2 2
+  info `shouldBe` OIOpened ImageInfo {frameWidth = 2, frameHeight = 2, frameCount = 1, loopCount = 0, hasAlpha = True}
+  paddedRows image 0 `shouldReturn` B.pack [100, 50, 25, 128, 10, 20, 30, 255, 238, 238, 238, 238, 0, 0, 0, 0, 255, 255, 255, 255, 238, 238, 238, 238]
+  cChatImageRewind image
+  paddedRows image 1 `shouldReturn` B.pack [25, 50, 100, 128, 30, 20, 10, 255, 238, 238, 238, 238, 0, 0, 0, 0, 255, 255, 255, 255, 238, 238, 238, 238]
+  cChatImageClose image
+  where
+    pixel :: Int -> Int -> PixelRGBA8
+    pixel x y = case (x, y) of
+      (0, 0) -> PixelRGBA8 200 100 50 128
+      (1, 0) -> PixelRGBA8 10 20 30 255
+      (0, _) -> PixelRGBA8 0 0 0 0
+      _ -> PixelRGBA8 255 255 255 255
+    paddedRows image format = allocaBytes 24 $ \pixels -> do
+      fillBytes pixels 238 24
+      cChatImageNextFrame image pixels 12 format `shouldReturn` 0
+      B.packCStringLen (castPtr pixels, 24)
+
+testImageOrientationCApi :: TestParams -> IO ()
+testImageOrientationCApi _ = do
+  jpeg <- encodeRGB 100 Nothing $ generateImage quadrant 64 32
+  forM_ [(1, (64, 32), [red, green, blue, white]), (6, (32, 64), [blue, red, white, green])] $ \(orientation, (w, h), colours) -> do
+    (OIOpened ImageInfo {frameWidth, frameHeight}, image) <- openDataUri ("data:image/jpg;base64," <> B64.encode (jpegWithExif False 8 orientation jpeg)) 64 64
+    (frameWidth, frameHeight) `shouldBe` (w, h)
+    (0, frame) <- readFrame image w h 0
+    [snap $ B.unpack $ B.take 3 $ B.drop ((y * w + x) * 4) frame | y <- [h `div` 4, 3 * h `div` 4], x <- [w `div` 4, 3 * w `div` 4]] `shouldBe` colours
+    cChatImageClose image
+  where
+    quadrant x y = case (x < 32, y < 16) of
+      (True, True) -> PixelRGB8 255 0 0
+      (False, True) -> PixelRGB8 0 255 0
+      (True, False) -> PixelRGB8 0 0 255
+      (False, False) -> PixelRGB8 255 255 255
+    red = [255, 0, 0]
+    green = [0, 255, 0]
+    blue = [0, 0, 255]
+    white = [255, 255, 255]
+    snap :: [Word8] -> [Word8]
+    snap = map (\c -> if c > 127 then 255 else 0)
+
+testImageStatusCApi :: TestParams -> IO ()
+testImageStatusCApi ps = do
+  let gif = LB.toStrict $ encodeGifImage $ generateImage (\_ _ -> 0) 16 16
+      gifPath = tmpPath ps </> "test.gif"
+  B.writeFile gifPath gif
+  jpeg <- B.readFile "./tests/fixtures/test.jpg"
+  forM_
+    [ openImageFile gifPath 64 64,
+      openPickedFile gifPath 64 64,
+      openDataUri ("data:image/gif;base64," <> B64.encode gif) 64 64,
+      openImageFile "./tests/fixtures/test.pdf" 64 64
+    ]
+    $ \open -> do
+      (info, image) <- open
+      info `shouldBe` OIUnsupported
+      castStablePtrToPtr image `shouldBe` nullPtr
+  forM_
+    [ openImageFile "./tests/fixtures/missing.jpg" 64 64,
+      openPickedFile "./tests/fixtures/missing.jpg" 64 64,
+      openImageFile "./tests/fixtures/test.jpg" 0 64,
+      openPickedFile "./tests/fixtures/test.jpg" 64 (-1),
+      openDataUri ("data:image/png;base64," <> B64.encode pngShortImageData) 64 64,
+      openDataUri ("data:image/jpg;base64," <> B.take 100 (B64.encode jpeg)) 64 64,
+      openDataUri "data:image/jpg;base64,***" 64 64,
+      openDataUri ("data:text/plain;base64," <> B64.encode jpeg) 64 64,
+      openDataUri (B64.encode jpeg) 64 64
+    ]
+    $ \open -> do
+      (info, image) <- open
+      info `shouldBe` OIRefused
+      castStablePtrToPtr image `shouldBe` nullPtr
+
+testImageEncryptedFileCApi :: TestParams -> IO ()
+testImageEncryptedFileCApi ps = do
+  g <- C.newRandom
+  args@(CFArgs key nonce) <- atomically $ CF.randomArgs g
+  CFArgs otherKey _ <- atomically $ CF.randomArgs g
+  let path = tmpPath ps </> "encrypted.jpg"
+  Right () <- runExceptT . CF.writeFile (CryptoFile path $ Just args) . LB.fromStrict =<< B.readFile "./tests/fixtures/test.jpg"
+  cKey <- encodedCString key
+  cNonce <- encodedCString nonce
+  cOtherKey <- encodedCString otherKey
+  let open cKey' cNonce' = openedImage $ withCString path $ \cPath -> openImage $ cChatImageOpenFile cPath cKey' cNonce' 400 400
+  open cKey cNonce `shouldReturn` OIOpened ImageInfo {frameWidth = 400, frameHeight = 225, frameCount = 1, loopCount = 0, hasAlpha = False}
+  open cOtherKey cNonce `shouldReturn` OIRefused
+  open cKey nullPtr `shouldReturn` OIRefused
+  open nullPtr cNonce `shouldReturn` OIRefused
+
+testImageLimitsCApi :: TestParams -> IO ()
+testImageLimitsCApi ps = do
+  webp <- B.readFile "./tests/fixtures/webp/lossless-alpha-9000x9000.webp"
+  forM_ [(4320, opened64), (4321, OIRefused)] $ \(h, fromOthers) -> do
+    let picture = webpWithSides 4320 h webp
+        path = tmpPath ps </> ("4320x" <> show h <> ".webp")
+    B.writeFile path picture
+    openedImage (openImageFile path 64 64) `shouldReturn` fromOthers
+    openedImage (openDataUri ("data:image/webp;base64," <> B64.encode picture) 64 64) `shouldReturn` fromOthers
+    openedImage (openPickedFile path 64 64) `shouldReturn` opened64
+  let large = tmpPath ps </> "large.jpg"
+  copyFile "./tests/fixtures/test.jpg" large
+  withBinaryFile large ReadWriteMode (`hSetFileSize` (fromIntegral (memoryLimitMB receivedImageLimits) * 1048576 + 1))
+  openedImage (openImageFile large 400 400) `shouldReturn` OIRefused
+  openedImage (openPickedFile large 400 400) `shouldReturn` OIOpened ImageInfo {frameWidth = 400, frameHeight = 225, frameCount = 1, loopCount = 0, hasAlpha = False}
+  where
+    opened64 = OIOpened ImageInfo {frameWidth = 64, frameHeight = 64, frameCount = 1, loopCount = 0, hasAlpha = True}
+
+testImageFrameArgumentsCApi :: TestParams -> IO ()
+testImageFrameArgumentsCApi _ = do
+  (_, image) <- openImageFile "./tests/fixtures/webp/lossy.webp" 128 128
+  allocaBytes (128 * 128 * 4) $ \pixels -> do
+    cChatImageNextFrame image pixels 512 2 `shouldReturn` (-1)
+    cChatImageNextFrame image pixels 511 0 `shouldReturn` (-1)
+    cChatImageNextFrame image nullPtr 512 0 `shouldReturn` (-1)
+    cChatImageNextFrame (castPtrToStablePtr nullPtr) pixels 512 0 `shouldReturn` (-1)
+    cChatImageNextFrame image pixels 512 0 `shouldReturn` 0
+  cChatImageRewind $ castPtrToStablePtr nullPtr
+  cChatImageClose $ castPtrToStablePtr nullPtr
+  cChatImageClose image
+
+testImageThreadsCApi :: TestParams -> IO ()
+testImageThreadsCApi _ = do
+  let pictures = concat $ replicate 4 ["test.jpg", "logo-large-rgba.png", "webp/lossy.webp", "webp/lossless-alpha.webp"]
+  frames <- mapM pictureFrame pictures
+  forConcurrently pictures pictureFrame `shouldReturn` frames
+  where
+    pictureFrame file = do
+      (OIOpened ImageInfo {frameWidth, frameHeight}, image) <- openImageFile ("./tests/fixtures/" <> file) 400 400
+      (0, frame) <- readFrame image frameWidth frameHeight 0
+      frame <$ cChatImageClose image
+
+openImage :: (Ptr OpenedImage -> IO (StablePtr ChatImage)) -> IO (OpenedImage, StablePtr ChatImage)
+openImage open = alloca $ \info -> do
+  image <- open info
+  opened <- peek info
+  pure (opened, image)
+
+openImageFile :: FilePath -> CInt -> CInt -> IO (OpenedImage, StablePtr ChatImage)
+openImageFile path w h = withCString path $ \cPath -> openImage $ cChatImageOpenFile cPath nullPtr nullPtr w h
+
+openPickedFile :: FilePath -> CInt -> CInt -> IO (OpenedImage, StablePtr ChatImage)
+openPickedFile path w h = withCString path $ \cPath -> openImage $ cChatImageOpenPickedFile cPath w h
+
+openDataUri :: ByteString -> CInt -> CInt -> IO (OpenedImage, StablePtr ChatImage)
+openDataUri uri w h = B.useAsCString uri $ \cUri -> openImage $ cChatImageOpenDataUri cUri w h
+
+openedImage :: IO (OpenedImage, StablePtr ChatImage) -> IO OpenedImage
+openedImage open = do
+  (info, image) <- open
+  info <$ cChatImageClose image
+
+readFrame :: StablePtr ChatImage -> Int -> Int -> CInt -> IO (CInt, ByteString)
+readFrame image w h format = allocaBytes (w * h * 4) $ \pixels -> do
+  duration <- cChatImageNextFrame image pixels (fromIntegral $ w * 4) format
+  (,) duration <$> B.packCStringLen (castPtr pixels, w * h * 4)
+
+webpWithSides :: Int -> Int -> ByteString -> ByteString
+webpWithSides w h webp = B.take 21 webp <> littleEndianInt 4 (w - 1 + (h - 1) * 16384 + 2 ^ (28 :: Int)) <> B.drop 25 webp
 
 cBuffer :: ByteString -> IO (Ptr Word8, CInt)
 cBuffer s = do

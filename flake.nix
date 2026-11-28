@@ -497,6 +497,12 @@
                   "chat_resize_image_file"
                   "chat_resize_image_fd_uri"
                   "chat_resize_image_fd"
+                  "chat_image_open_file"
+                  "chat_image_open_picked_file"
+                  "chat_image_open_data_uri"
+                  "chat_image_next_frame"
+                  "chat_image_rewind"
+                  "chat_image_close"
                 ];
                 postInstall = ''
                   set -x

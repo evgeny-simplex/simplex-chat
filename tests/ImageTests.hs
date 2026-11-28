@@ -242,12 +242,12 @@ testJpegOrientation :: IO ()
 testJpegOrientation = do
   jpeg <- encodeRGB 100 Nothing $ generateImage quadrant 64 32
   forM_ orientations $ \(orientation, size, colours) -> do
-    Right (img, _) <- decodeResizable $ withExif (odd orientation) 8 orientation jpeg
+    Right (img, _) <- decodeResizable $ jpegWithExif (odd orientation) 8 orientation jpeg
     imageSize img `shouldBe` size
     quadrants img `shouldBe` colours
     Right resized <- resizeImage IFJpeg 261120 img CPNone
     "Exif" `B.isInfixOf` LB.toStrict resized `shouldBe` False
-  Right (img, _) <- decodeResizable $ withExif True 1000 6 jpeg
+  Right (img, _) <- decodeResizable $ jpegWithExif True 1000 6 jpeg
   quadrants img `shouldBe` [red, green, blue, white]
   where
     quadrant x y = case (x < 32, y < 16) of
@@ -276,10 +276,11 @@ testJpegOrientation = do
           snap (PixelRGB8 r g b) = PixelRGB8 (level r) (level g) (level b)
           level c = if c > 127 then 255 else 0
        in [snap $ pixelAt rgb x y | y <- [h `div` 4, 3 * h `div` 4], x <- [w `div` 4, 3 * w `div` 4]]
-    withExif :: Bool -> Int -> Int -> B.ByteString -> B.ByteString
-    withExif littleEndian ifdOffset orientation jpeg = B.take 2 jpeg <> "\xFF\xE1" <> bigEndian 2 (8 + B.length tiff) <> "Exif\0\0" <> tiff <> B.drop 2 jpeg
-      where
-        tiff = orientationTiff littleEndian ifdOffset orientation
+
+jpegWithExif :: Bool -> Int -> Int -> B.ByteString -> B.ByteString
+jpegWithExif littleEndian ifdOffset orientation jpeg = B.take 2 jpeg <> "\xFF\xE1" <> bigEndian 2 (8 + B.length tiff) <> "Exif\0\0" <> tiff <> B.drop 2 jpeg
+  where
+    tiff = orientationTiff littleEndian ifdOffset orientation
 
 orientationTiff :: Bool -> Int -> Int -> B.ByteString
 orientationTiff littleEndian ifdOffset orientation = B.concat [if littleEndian then "II" else "MM", word 2 42, word 4 ifdOffset, word 2 1, word 2 0x0112, word 2 3, word 4 1, word 2 orientation, word 2 0, word 4 0]

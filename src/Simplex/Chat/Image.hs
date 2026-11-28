@@ -10,8 +10,13 @@
 module Simplex.Chat.Image
   ( ImageFormat (..),
     ColourProfile (..),
+    ImageLimits (..),
+    DisplayImage (..),
+    pickedImageLimits,
+    receivedImageLimits,
     imageFormat,
     decodeResizable,
+    decodeDisplayImage,
     resizeImage,
     resizeImageDataUri,
     cropToSquare,
@@ -26,15 +31,17 @@ import Codec.Picture.JPEGTurbo (encodeRGB)
 import qualified Codec.Picture.STBIR as STBIR
 import qualified Codec.Picture.Sandbox as Sandbox
 import qualified Codec.Picture.Spng as Spng
+import Control.Exception (evaluate)
 import Control.Monad (guard, when, (<=<))
 import Control.Monad.Except (ExceptT (..), liftEither, runExceptT)
+import Control.Monad.IO.Class (liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64.Lazy as LB64
 import qualified Data.ByteString.Lazy.Char8 as LB
 import Data.FileEmbed (embedFile)
 import Data.Int (Int32, Int64)
-import Data.List (maximumBy, minimumBy)
+import Data.List (find, maximumBy, minimumBy)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Ord (comparing)
 import qualified Data.Vector.Storable as VS
@@ -48,6 +55,22 @@ data ImageFormat = IFJpeg | IFPng
 
 data ColourProfile = CPNone | CPDisplayP3
   deriving (Eq, Show)
+
+data ImageLimits = ImageLimits
+  { maxPixels :: Int,
+    memoryLimitMB :: Int
+  }
+
+pickedImageLimits :: ImageLimits
+pickedImageLimits = ImageLimits {maxPixels = maxImagePixels, memoryLimitMB = maxDecodeMemoryMB}
+
+receivedImageLimits :: ImageLimits
+receivedImageLimits = ImageLimits {maxPixels = maxDisplaySide * maxDisplaySide, memoryLimitMB = 128}
+
+data DisplayImage = DisplayImage
+  { premultipliedFrame :: Image PixelRGBA8,
+    hasTransparency :: Bool
+  }
 
 imageFormat :: DynamicImage -> ImageFormat
 imageFormat = \case
@@ -73,12 +96,15 @@ decodeResizable s = runExceptT $ do
   (_, size) <- liftEither $ decodeSizes header
   pure . (orientImage (exifOrientation exif) $ resizeToSize size img,) $! maybe CPNone colourProfile iccProfile
   where
-    options =
-      Sandbox.DecodeOptions
-        { Sandbox.limits = Sandbox.defaultLimits {Sandbox.memoryLimitMB = maxDecodeMemoryMB},
-          Sandbox.maxPixels = maxImagePixels,
-          Sandbox.outputSize = fmap fst . decodeSizes
-        }
+    options = decodeOptions pickedImageLimits $ fmap fst . decodeSizes
+
+decodeOptions :: ImageLimits -> (Sandbox.ImageHeader -> Either String (Int, Int)) -> Sandbox.DecodeOptions
+decodeOptions limits outputSize =
+  Sandbox.DecodeOptions
+    { Sandbox.limits = Sandbox.defaultLimits {Sandbox.memoryLimitMB = memoryLimitMB limits},
+      Sandbox.maxPixels = maxPixels limits,
+      Sandbox.outputSize = outputSize
+    }
 
 decodeSizes :: Sandbox.ImageHeader -> Either String ((Int, Int), (Int, Int))
 decodeSizes Sandbox.ImageHeader {Sandbox.format, Sandbox.width, Sandbox.height} =
@@ -87,7 +113,49 @@ decodeSizes Sandbox.ImageHeader {Sandbox.format, Sandbox.width, Sandbox.height} 
     decoded halvings size = case format of
       Sandbox.JPEG -> let scale = 2 ^ min 3 halvings in (dctScaled scale width, dctScaled scale height)
       _ -> size
-    dctScaled scale side = (side + scale - 1) `div` scale
+
+dctScaled :: Int -> Int -> Int
+dctScaled scale side = (side + scale - 1) `div` scale
+
+decodeDisplayImage :: ImageLimits -> (Int, Int) -> ByteString -> IO (Either String DisplayImage)
+decodeDisplayImage limits box s = runExceptT $ do
+  (Sandbox.ImageHeader {Sandbox.width, Sandbox.height}, img, Sandbox.Metadata {Sandbox.exif}) <- ExceptT $ Sandbox.decodeImage options s
+  let orientation = exifOrientation exif
+      frame = pixelMap premultiply $ resizeRGBA8 (sizeWithin box $ orientedSize orientation (width, height)) $ convertRGBA8 $ orientImage orientation img
+      hasTransparency = case imageFormat (ImageRGBA8 frame) of
+        IFPng -> True
+        IFJpeg -> False
+  liftIO $ evaluate DisplayImage {premultipliedFrame = frame, hasTransparency}
+  where
+    options = decodeOptions limits $ Right . displayDecodeSize box
+
+displayDecodeSize :: (Int, Int) -> Sandbox.ImageHeader -> (Int, Int)
+displayDecodeSize (bw, bh) Sandbox.ImageHeader {Sandbox.format, Sandbox.width, Sandbox.height} = case format of
+  Sandbox.JPEG -> fromMaybe (width, height) $ find covers [(dctScaled scale width, dctScaled scale height) | scale <- [8, 4, 2]]
+  Sandbox.PNG -> (w, h)
+  Sandbox.WebP -> (max w $ webpMinSide width, max h $ webpMinSide height)
+  where
+    (w1, h1) = sizeWithin (bw, bh) (width, height)
+    (w2, h2) = sizeWithin (bh, bw) (width, height)
+    (w, h) = (max w1 w2, max h1 h2)
+    covers (w', h') = w' >= w && h' >= h
+    webpMinSide side = (side + 255) `div` 256
+
+sizeWithin :: (Int, Int) -> (Int, Int) -> (Int, Int)
+sizeWithin (bw, bh) (w, h) = (scaled w, scaled h)
+  where
+    scale = minimum [1, fromIntegral bw / fromIntegral w, fromIntegral bh / fromIntegral h] :: Double
+    scaled side = max 1 $ round $ fromIntegral side * scale
+
+orientedSize :: Int -> (Int, Int) -> (Int, Int)
+orientedSize orientation (w, h)
+  | orientation >= 5 = (h, w)
+  | otherwise = (w, h)
+
+resizeRGBA8 :: (Int, Int) -> Image PixelRGBA8 -> Image PixelRGBA8
+resizeRGBA8 size@(w, h) img
+  | hasSize size img = img
+  | otherwise = STBIR.resize STBIR.defaultOptions w h img
 
 displaySize :: Int -> Int -> Maybe (Int, (Int, Int))
 displaySize = go 0
